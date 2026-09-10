@@ -13,3 +13,7 @@ components/cjson/install-sh
 components/cjson/ltmain.sh
 components/cjson/missing
 components/cjson/m4/
+# qmake construye en el propio arbol (asi lo hacia HP): artefactos fuera de git
+components/*/debug-x86/
+components/*/Makefile.Ubuntu
+components/*/.qmake.stash
