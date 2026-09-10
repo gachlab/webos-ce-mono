@@ -1,0 +1,10 @@
+{
+	"files":
+	{
+		"javascript":
+		[
+			"underscore.js"
+		]
+	},
+	"builtinReady": true
+}
