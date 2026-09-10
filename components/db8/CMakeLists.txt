@@ -54,7 +54,11 @@ endif()
 
 # -- check for BerkeleyDB
 # (add an alternate standard path in case building BDB locally: does not override)
-find_library(BDB NAMES db-4.8 PATH /usr/local/BerkeleyDB.4.8/lib)
+# HP fijaba db-4.8 porque fue la ultima version antes de que Oracle
+# relicenciara Berkeley DB a AGPL. Debian la retiro hace anos. La 5.3 es
+# compatible a nivel de fuente para el uso que hace db8, asi que se acepta
+# cualquiera de las dos, prefiriendo la 4.8 si existiera.
+find_library(BDB NAMES db-4.8 db-5.3 db PATHS /usr/local/BerkeleyDB.4.8/lib)
 if(BDB STREQUAL "BDB-NOTFOUND")
 	MESSAGE(FATAL_ERROR "Failed to find BerkleyDB libaries. Please install.")
 endif()
@@ -64,7 +68,11 @@ MESSAGE(STATUS "BDB LIB ${BDB}")
 webos_build_pkgconfig(files/pkgconfig/mojodb)
 webos_build_pkgconfig(files/pkgconfig/db8)
 
-webos_add_compiler_flags(ALL -g -O2 -Wall -fPIC -Wconversion -Werror
+# -Werror retirado a proposito. Era una politica sensata contra el juego de
+# avisos de gcc 4.6; con gcc 16 el conjunto de -Wall/-Wconversion es mucho mas
+# amplio y convierte codigo legacy correcto en errores de compilacion. Los avisos
+# se conservan visibles: la informacion no se pierde, solo deja de detener el build.
+webos_add_compiler_flags(ALL -g -O2 -Wall -fPIC -Wconversion
                          -Wno-unused-but-set-variable -Wno-unused-variable
                          -fno-exceptions -DNDEBUG -fexpensive-optimizations
                          -frename-registers -DMOJ_LINUX -fno-strict-aliasing

@@ -177,7 +177,8 @@
 #include <sys/param.h>
 #include <sys/time.h>
 #include <sys/types.h>
-#include <sys/sysctl.h>
+// <sys/sysctl.h> fue eliminado de glibc 2.32. Aqui solo se incluia:
+// no hay ninguna llamada a sysctl() en este archivo.
 #include <sys/uio.h>
 
 #include <errno.h>
