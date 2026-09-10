@@ -1,0 +1,14 @@
+{
+"id": "com.palm.location",
+"description": "Location Stub Service",
+"services": [ {
+    "name": "com.palm.location",
+    "description": "Location Stub Service",
+    "commands": [ {
+            "name": "getCurrentPosition",
+            "assistant": "GetCurrentPositionCommandAssistant",
+			"public": true
+             }
+           ]
+        }]
+}
