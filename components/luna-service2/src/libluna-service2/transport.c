@@ -5133,7 +5133,7 @@ _LSTransportGlobalTokenFree(_LSTransportGlobalToken *token)
  * @retval  false otherwise
  *******************************************************************************
  */
-inline bool
+extern inline bool
 _LSTransportIsHub(void)
 {
     return s_is_hub;

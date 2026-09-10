@@ -107,7 +107,7 @@ _LSTransportCredFree(_LSTransportCred *cred)
  * @retval  LS_PID_INVALID on failure
  *******************************************************************************
  */
-inline pid_t
+extern inline pid_t
 _LSTransportCredGetPid(const _LSTransportCred *cred)
 {
     LS_ASSERT(cred != NULL);
@@ -124,7 +124,7 @@ _LSTransportCredGetPid(const _LSTransportCred *cred)
  * @retval  LS_UID_INVALID on failure
  *******************************************************************************
  */
-inline uid_t
+extern inline uid_t
 _LSTransportCredGetUid(const _LSTransportCred *cred)
 {
     LS_ASSERT(cred != NULL);
@@ -141,7 +141,7 @@ _LSTransportCredGetUid(const _LSTransportCred *cred)
  * @retval  LS_GID_INVALID on failure
  *******************************************************************************
  */
-inline gid_t
+extern inline gid_t
 _LSTransportCredGetGid(const _LSTransportCred *cred)
 {
     LS_ASSERT(cred != NULL);
@@ -158,7 +158,7 @@ _LSTransportCredGetGid(const _LSTransportCred *cred)
  * @retval  NULL on failure
  *******************************************************************************
  */
-inline const char*
+extern inline const char*
 _LSTransportCredGetExePath(const _LSTransportCred *cred)
 {
     LS_ASSERT(cred != NULL);
@@ -175,7 +175,7 @@ _LSTransportCredGetExePath(const _LSTransportCred *cred)
  * @retval  NULL on failure
  *******************************************************************************
  */
-inline const char*
+extern inline const char*
 _LSTransportCredGetCmdLine(const _LSTransportCred *cred)
 {
     LS_ASSERT(cred != NULL);

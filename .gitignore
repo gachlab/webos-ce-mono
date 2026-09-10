@@ -1,1 +1,15 @@
 build-modern/
+# autotools genera esto en el arbol de cjson
+components/cjson/configure
+components/cjson/Makefile.in
+components/cjson/aclocal.m4
+components/cjson/autom4te.cache/
+components/cjson/config.h.in
+components/cjson/compile
+components/cjson/config.guess
+components/cjson/config.sub
+components/cjson/depcomp
+components/cjson/install-sh
+components/cjson/ltmain.sh
+components/cjson/missing
+components/cjson/m4/

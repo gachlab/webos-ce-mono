@@ -113,7 +113,7 @@ _LSTransportChannelDeinit(_LSTransportChannel *channel)
  * @retval  fd
  *******************************************************************************
  */
-inline int
+extern inline int
 _LSTransportChannelGetFd(const _LSTransportChannel *channel)
 {
     return channel->fd;

@@ -57,7 +57,7 @@ const char* _LSTransportClientGetServiceName(const _LSTransportClient *client);
  * @retval  NULL on failure
  *******************************************************************************
  */
-inline _LSTransportMessage*
+extern inline _LSTransportMessage*
 _LSTransportMessageNew(unsigned long payload_size)
 {
     LS_ASSERT(payload_size >= 0);
@@ -98,7 +98,7 @@ _LSTransportMessageNew(unsigned long payload_size)
  * @param  message     IN  message to reset
  *******************************************************************************
  */
-inline void
+extern inline void
 _LSTransportMessageReset(_LSTransportMessage *message)
 {
     LS_ASSERT(message);
@@ -117,7 +117,7 @@ _LSTransportMessageReset(_LSTransportMessage *message)
  * @retval  NULL on failure
  *******************************************************************************
  */
-inline _LSTransportMessage*
+extern inline _LSTransportMessage*
 _LSTransportMessageNewRef(unsigned long payload_size)
 {
     LS_ASSERT(payload_size >= 0);
@@ -138,7 +138,7 @@ _LSTransportMessageNewRef(unsigned long payload_size)
  * @param  message  IN  message to free
  *******************************************************************************
  */
-inline void
+extern inline void
 _LSTransportMessageFree(_LSTransportMessage *message)
 {
     LS_ASSERT(message != NULL);
@@ -174,7 +174,7 @@ _LSTransportMessageFree(_LSTransportMessage *message)
 * @retval NULL on failure
 *******************************************************************************
 */
-inline _LSTransportMessage*
+extern inline _LSTransportMessage*
 _LSTransportMessageCopyNewRef(_LSTransportMessage *message)
 {
     int body_size = _LSTransportMessageGetBodySize(message);
@@ -218,7 +218,7 @@ _LSTransportMessageCopyNewRef(_LSTransportMessage *message)
  * @retval dest
  *******************************************************************************
  */
-inline _LSTransportMessage*
+extern inline _LSTransportMessage*
 _LSTransportMessageCopy(_LSTransportMessage *dest, const _LSTransportMessage *src)
 {
     LS_ASSERT(dest != NULL);
@@ -255,7 +255,7 @@ _LSTransportMessageCopy(_LSTransportMessage *dest, const _LSTransportMessage *sr
  * @retval message
  *******************************************************************************
  */
-inline _LSTransportMessage*
+extern inline _LSTransportMessage*
 _LSTransportMessageRef(_LSTransportMessage *message)
 {
     LS_ASSERT(message != NULL);
@@ -273,7 +273,7 @@ _LSTransportMessageRef(_LSTransportMessage *message)
  * @param  message 
  *******************************************************************************
  */
-inline void
+extern inline void
 _LSTransportMessageUnref(_LSTransportMessage *message)
 {
     LS_ASSERT(message != NULL);
@@ -327,7 +327,7 @@ _LSTransportMessageFromVectorNewRef(const struct iovec *iov, int iovcnt, unsigne
  * @retval  false otherwise
  *******************************************************************************
  */
-inline bool
+extern inline bool
 _LSTransportMessageTypeIsMonitorType(_LSTransportMessageType type)
 {
     switch (type)
@@ -354,7 +354,7 @@ _LSTransportMessageTypeIsMonitorType(_LSTransportMessageType type)
  * @retval  false otherwise
  *******************************************************************************
  */
-inline bool
+extern inline bool
 _LSTransportMessageIsMonitorType(const _LSTransportMessage *message)
 {
     return _LSTransportMessageTypeIsMonitorType(_LSTransportMessageGetType(message));
@@ -370,7 +370,7 @@ _LSTransportMessageIsMonitorType(const _LSTransportMessage *message)
  * @retval  false otherwise
  *******************************************************************************
  */
-inline bool
+extern inline bool
 _LSTransportMessageTypeIsErrorType(_LSTransportMessageType type)
 {
     switch (type)
@@ -394,7 +394,7 @@ _LSTransportMessageTypeIsErrorType(_LSTransportMessageType type)
  * @retval  false otherwise
  *******************************************************************************
  */
-inline bool
+extern inline bool
 _LSTransportMessageIsErrorType(const _LSTransportMessage *message)
 {
     return _LSTransportMessageTypeIsErrorType(_LSTransportMessageGetType(message));
@@ -411,7 +411,7 @@ _LSTransportMessageIsErrorType(const _LSTransportMessage *message)
  * @retval  false otherwise
  *******************************************************************************
  */
-inline bool
+extern inline bool
 _LSTransportMessageTypeIsReplyType(_LSTransportMessageType type)
 {
     if (_LSTransportMessageTypeIsErrorType(type))
@@ -441,13 +441,13 @@ _LSTransportMessageTypeIsReplyType(_LSTransportMessageType type)
  * @retval false otherwise
  *******************************************************************************
  */
-inline bool
+extern inline bool
 _LSTransportMessageIsReplyType(const _LSTransportMessage *message)
 {
     return _LSTransportMessageTypeIsReplyType(_LSTransportMessageGetType(message));
 }
 
-inline bool
+extern inline bool
 _LSTransportMessageIsConnectionFdType(const _LSTransportMessage *message)
 {
     switch (_LSTransportMessageGetType(message))
@@ -489,7 +489,7 @@ _LSTransportMessageGetError(const _LSTransportMessage *message)
  * @retval  id (0 means no timeout source id)
  *******************************************************************************
  */
-inline guint
+extern inline guint
 _LSTransportMessageGetTimeoutId(const _LSTransportMessage *message)
 {
     LS_ASSERT(message != NULL);
@@ -504,7 +504,7 @@ _LSTransportMessageGetTimeoutId(const _LSTransportMessage *message)
  * @param  timeout_id   IN  timeout source id (ret val from g_timeout_add())
  *******************************************************************************
  */
-inline void
+extern inline void
 _LSTransportMessageSetTimeoutId(_LSTransportMessage *message, guint timeout_id)
 {
     LS_ASSERT(message != NULL);
@@ -521,7 +521,7 @@ _LSTransportMessageSetTimeoutId(_LSTransportMessage *message, guint timeout_id)
  * @retval  state
  *******************************************************************************
  */
-inline _LSTransportConnectState
+extern inline _LSTransportConnectState
 _LSTransportMessageGetConnectState(const _LSTransportMessage * message)
 {
     LS_ASSERT(message != NULL);
@@ -537,7 +537,7 @@ _LSTransportMessageGetConnectState(const _LSTransportMessage * message)
  * @param  state    IN new state
  *******************************************************************************
  */
-inline void
+extern inline void
 _LSTransportMessageSetConnectState(_LSTransportMessage *message, _LSTransportConnectState state)
 {
     LS_ASSERT(message != NULL);
@@ -545,14 +545,14 @@ _LSTransportMessageSetConnectState(_LSTransportMessage *message, _LSTransportCon
 }
 
 
-inline int
+extern inline int
 _LSTransportMessageGetConnectionFd(const _LSTransportMessage *message)
 {
     LS_ASSERT(message != NULL);
     return message->connection_fd;
 }
 
-inline void
+extern inline void
 _LSTransportMessageSetConnectionFd(_LSTransportMessage *message, int fd)
 {
     LS_ASSERT(message != NULL);
@@ -571,7 +571,7 @@ _LSTransportMessageSetConnectionFd(_LSTransportMessage *message, int fd)
  * @retval  NULL on failure
  *******************************************************************************
  */
-inline _LSTransportClient*
+extern inline _LSTransportClient*
 _LSTransportMessageGetClient(const _LSTransportMessage *message)
 {
     LS_ASSERT(message != NULL);
@@ -587,7 +587,7 @@ _LSTransportMessageGetClient(const _LSTransportMessage *message)
  * @param  client   IN  client 
  *******************************************************************************
  */
-inline void
+extern inline void
 _LSTransportMessageSetClient(_LSTransportMessage *message, _LSTransportClient *client)
 {
     LS_ASSERT(message != NULL);
@@ -606,7 +606,7 @@ _LSTransportMessageSetClient(_LSTransportMessage *message, _LSTransportClient *c
  * @retval header
  *******************************************************************************
  */
-inline _LSTransportHeader*
+extern inline _LSTransportHeader*
 _LSTransportMessageGetHeader(const _LSTransportMessage *message)
 {
     LS_ASSERT(message != NULL);
@@ -621,7 +621,7 @@ _LSTransportMessageGetHeader(const _LSTransportMessage *message)
  * @param  header   IN  header 
  *******************************************************************************
  */
-inline void
+extern inline void
 _LSTransportMessageSetHeader(_LSTransportMessage *message, _LSTransportHeader *header)
 {
     LS_ASSERT(message != NULL);
@@ -639,7 +639,7 @@ _LSTransportMessageSetHeader(_LSTransportMessage *message, _LSTransportHeader *h
  * @retval  type
  *******************************************************************************
  */
-inline _LSTransportMessageType
+extern inline _LSTransportMessageType
 _LSTransportMessageGetType(const _LSTransportMessage *message)
 {
     return message->raw->header.type;
@@ -653,7 +653,7 @@ _LSTransportMessageGetType(const _LSTransportMessage *message)
  * @param  type     IN  type 
  *******************************************************************************
  */
-inline void
+extern inline void
 _LSTransportMessageSetType(_LSTransportMessage *message, _LSTransportMessageType type)
 {
     message->raw->header.type = type;
@@ -667,7 +667,7 @@ _LSTransportMessageSetType(_LSTransportMessage *message, _LSTransportMessageType
  * @param  token    IN  token 
  *******************************************************************************
  */
-inline void
+extern inline void
 _LSTransportMessageSetToken(_LSTransportMessage *message, LSMessageToken token)
 {
     message->raw->header.token = token;
@@ -682,7 +682,7 @@ _LSTransportMessageSetToken(_LSTransportMessage *message, LSMessageToken token)
  * @retval  token
  *******************************************************************************
  */
-inline LSMessageToken
+extern inline LSMessageToken
 _LSTransportMessageGetToken(const _LSTransportMessage *message)
 {
     return message->raw->header.token;
@@ -698,7 +698,7 @@ _LSTransportMessageGetToken(const _LSTransportMessage *message)
  * @retval  0 if message is incorrect type
  *******************************************************************************
  */
-inline LSMessageToken
+extern inline LSMessageToken
 _LSTransportMessageGetReplyToken(const _LSTransportMessage *message)
 {
     LS_ASSERT(message != NULL);
@@ -731,7 +731,7 @@ _LSTransportMessageGetReplyToken(const _LSTransportMessage *message)
  * @retval  body
  *******************************************************************************
  */
-inline char*
+extern inline char*
 _LSTransportMessageGetBody(const _LSTransportMessage *message)
 {
     /* TODO: differentiate between GetRawBody and GetBody -- this will be the
@@ -755,7 +755,7 @@ _LSTransportMessageGetBody(const _LSTransportMessage *message)
  * @retval body
  *******************************************************************************
  */
-inline char*
+extern inline char*
 _LSTransportMessageSetBody(_LSTransportMessage *message, const void *body, int body_len)
 {
     LS_ASSERT(message != NULL);
@@ -774,7 +774,7 @@ _LSTransportMessageSetBody(_LSTransportMessage *message, const void *body, int b
  * @retval  raw message
  *******************************************************************************
  */
-inline _LSTransportMessageRaw*
+extern inline _LSTransportMessageRaw*
 _LSTransportMessageGetRawMessage(_LSTransportMessage *message)
 {
     LS_ASSERT(message != NULL);
@@ -793,7 +793,7 @@ _LSTransportMessageGetRawMessage(_LSTransportMessage *message)
  * @retval  raw message
  *******************************************************************************
  */
-inline _LSTransportMessageRaw*
+extern inline _LSTransportMessageRaw*
 _LSTransportMessageSetRawMessage(_LSTransportMessage *message, _LSTransportMessageRaw *raw)
 {
     LS_ASSERT(message != NULL);
@@ -813,7 +813,7 @@ _LSTransportMessageSetRawMessage(_LSTransportMessage *message, _LSTransportMessa
  * @retval size in bytes
  *******************************************************************************
  */
-inline int
+extern inline int
 _LSTransportMessageGetBodySize(const _LSTransportMessage *message)
 {
     LS_ASSERT(message != NULL);
@@ -1017,7 +1017,7 @@ _LSTransportMessageGetPayload(const _LSTransportMessage *message)
  * @param  app_id   IN  application id
  *******************************************************************************
  */
-inline void
+extern inline void
 _LSTransportMessageSetAppId(_LSTransportMessage *message, const char *app_id)
 {
     LS_ASSERT(message != NULL);

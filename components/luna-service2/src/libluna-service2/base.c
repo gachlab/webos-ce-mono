@@ -164,7 +164,7 @@ LSDebugLogIncoming(const char *where, _LSTransportMessage *message)
 }
 
 #ifdef LSHANDLE_CHECK
-inline void
+extern inline void
 _lshandle_validate(LSHandle *sh)
 {
     if (sh && sh->history.magic_state_num != LSHANDLE_MAGIC_STATE_VALID)
