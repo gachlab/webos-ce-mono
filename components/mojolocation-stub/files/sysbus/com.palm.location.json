@@ -1,0 +1,14 @@
+{
+	"role": {
+		"allowedNames": ["com.palm.location"],
+		"type": "regular",
+		"exeName": "js"
+	},
+	"permissions": [
+		{
+			"inbound": ["*"],
+			"outbound": ["*"],
+			"service": "com.palm.location"
+		}
+	]
+}
