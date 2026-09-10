@@ -113,8 +113,13 @@ MojErr BusEntity::ToJson(MojObject& rep, bool includeActivities) const
 
 		std::for_each(m_associations.begin(), m_associations.end(),
 			boost::bind(&Activity::PushIdentityJson,
+				// GetActivity() esta sobrecargada (const y no-const) y el
+				// compilador ya no elige sola: el cast fija la version const,
+				// que es la que devuelve shared_ptr<const Activity>.
 				boost::bind<boost::shared_ptr<const Activity> >
-					(&ActivitySetAutoAssociation::GetActivity, _1),
+					(static_cast<boost::shared_ptr<const Activity>
+						(ActivityAutoAssociation::*)() const>
+						(&ActivitySetAutoAssociation::GetActivity), _1),
 				boost::ref(activities)));
 
 		err = rep.put(_T("activities"), activities);

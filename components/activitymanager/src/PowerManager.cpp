@@ -101,8 +101,11 @@ MojErr PowerManager::InfoToJson(MojObject& rep) const
 
 		std::for_each(m_poweredActivities.begin(), m_poweredActivities.end(),
 			boost::bind(&Activity::PushIdentityJson,
+				// GetActivity() sobrecargada (const y no-const): el cast fija la const
 				boost::bind<boost::shared_ptr<const Activity> >
-					(&PowerActivity::GetActivity, _1),
+					(static_cast<boost::shared_ptr<const Activity>
+						(PowerActivity::*)() const>
+						(&PowerActivity::GetActivity), _1),
 				boost::ref(poweredActivities)));
 
 		err = rep.put(_T("poweredActivities"), poweredActivities);

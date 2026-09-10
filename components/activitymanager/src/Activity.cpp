@@ -379,7 +379,7 @@ void Activity::ClearTrigger()
 
 bool Activity::HasTrigger() const
 {
-	return m_trigger;
+	return static_cast<bool>(m_trigger);
 }
 
 void Activity::Triggered(boost::shared_ptr<Trigger> trigger)
@@ -415,7 +415,7 @@ boost::shared_ptr<Callback> Activity::GetCallback()
 
 bool Activity::HasCallback() const
 {
-	return m_callback;
+	return static_cast<bool>(m_callback);
 }
 
 void Activity::CallbackFailed(boost::shared_ptr<Callback> callback,
@@ -979,7 +979,7 @@ boost::shared_ptr<PowerActivity> Activity::GetPowerActivity()
 
 bool Activity::IsPowerActivity() const
 {
-	return m_powerActivity;
+	return static_cast<bool>(m_powerActivity);
 }
 
 void Activity::PowerLockedNotification()

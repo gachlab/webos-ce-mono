@@ -60,7 +60,7 @@ void MojoTriggerSubscription::Unsubscribe()
 
 bool MojoTriggerSubscription::IsSubscribed() const
 {
-	return m_call;
+	return static_cast<bool>(m_call);
 }
 
 void MojoTriggerSubscription::ProcessResponse(MojServiceMessage *msg,
