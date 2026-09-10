@@ -1,0 +1,41 @@
+BUILD_TYPE ?= debug
+PLATFORM   := x86
+
+STAGING_INC_DIR := $(LUNA_STAGING)/include
+STAGING_LIB_DIR := $(LUNA_STAGING)/lib
+
+INCLUDES := -I$(STAGING_INC_DIR) -I$(STAGING_INC_DIR)/Yap
+LIBS := -L$(STAGING_LIB_DIR) -lYap -lAdapterBase
+
+INCLUDES += \
+   -I$(LUNA_STAGING)/include/webkit/npapi \
+   -I$(LUNA_STAGING)/usr/include \
+   -I$(QT_INSTALL_PREFIX)/include/ \
+   -I$(QT_INSTALL_PREFIX)/include/Qt \
+   -I$(QT_INSTALL_PREFIX)/include/QtCore \
+   -I$(QT_INSTALL_PREFIX)/include/QtGui \
+   -I$(QT_INSTALL_PREFIX)/include/QtNetwork
+
+LIBS += \
+   -L$(LUNA_STAGING)/lib \
+   -Wl,-rpath $(LUNA_STAGING)/lib \
+   -L$(LUNA_STAGING)/usr/lib \
+   -Wl,-rpath $(LUNA_STAGING)/usr/lib \
+   -L$(QT_INSTALL_PREFIX)/lib \
+   -lQtGui \
+   -lQtNetwork \
+   -lQtCore
+
+LOCAL_CFLAGS += -DISIS_DESKTOP
+
+include Makefile.inc
+
+install: all
+	@mkdir -p $(LUNA_STAGING)/lib/BrowserPlugins
+	install -m 0755 $(TARGET_SO) $(LUNA_STAGING)/lib/BrowserPlugins
+
+deb:
+	dpkg-buildpackage -rfakeroot
+
+.PHONY: stage
+stage: install
