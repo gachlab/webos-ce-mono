@@ -1,0 +1,14 @@
+{
+    "role": {
+        "exeName":"@WEBOS_INSTALL_BINDIR@/ls-monitor",
+        "type": "regular",
+        "allowedNames": ["com.palm.monitor", ""]
+    },
+    "permissions": [
+        {
+            "service":"com.palm.monitor",
+            "inbound":["*"],
+            "outbound":["*"]
+        }
+    ]
+}

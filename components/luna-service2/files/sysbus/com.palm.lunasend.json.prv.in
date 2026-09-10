@@ -1,0 +1,14 @@
+{
+    "role": {
+        "exeName":"@WEBOS_INSTALL_BINDIR@/luna-send",
+        "type": "privileged",
+        "allowedNames": ["", "com.palm.lunasend"]
+    },
+    "permissions": [
+        {
+            "service":"com.palm.lunasend",
+            "inbound":["*"],
+            "outbound":["*"]
+        }
+    ]
+}
