@@ -31,7 +31,9 @@ import subprocess
 import sys
 import os
 from os.path import join, dirname, abspath
-from types import DictType, StringTypes
+# Python 3 retiro types.DictType y types.StringTypes: son 'dict' y 'str'.
+DictType = dict
+StringTypes = (str,)
 root_dir = dirname(File('SConstruct').rfile().abspath)
 sys.path.insert(0, join(root_dir, 'tools'))
 import js2c, utils
@@ -651,7 +653,7 @@ SUFFIXES = {
 
 
 def Abort(message):
-  print message
+  print(message)
   sys.exit(1)
 
 
@@ -844,7 +846,7 @@ def AddOption(result, name, option):
   if 'guess' in option:
     # Option has a guess function
     guess = option.get('guess')
-    guess_env = Environment(options=result)
+    guess_env = Environment(variables=result)
     # Check if all options that the guess function depends on are set
     if 'depends' in option:
       for dependency in option.get('depends'):
@@ -861,7 +863,7 @@ def AddOption(result, name, option):
 
 
 def GetOptions():
-  result = Options()
+  result = Variables()
   result.Add('mode', 'compilation mode (debug, release)', 'release')
   result.Add('sample', 'build sample (shell, process, lineprocessor)', '')
   result.Add('cache', 'directory to use for scons build cache', '')
@@ -870,7 +872,7 @@ def GetOptions():
   options = SIMPLE_OPTIONS
   while len(options):
     postpone = {}
-    for (name, option) in options.iteritems():
+    for (name, option) in options.items():
       if not AddOption(result, name, option):
         postpone[name] = option
     options = postpone
@@ -878,7 +880,7 @@ def GetOptions():
 
 
 def GetTools(opts):
-  env = Environment(options=opts)
+  env = Environment(variables=opts)
   os = env['os']
   toolchain = env['toolchain']
   if os == 'win32' and toolchain == 'gcc':
@@ -965,10 +967,10 @@ def VerifyOptions(env):
   if env['cache'] and not os.path.isdir(env['cache']):
     Abort("The specified cache directory does not exist.")
   if not (env['arch'] == 'arm' or env['simulator'] == 'arm') and ('unalignedaccesses' in ARGUMENTS):
-    print env['arch']
-    print env['simulator']
+    print(env['arch'])
+    print(env['simulator'])
     Abort("Option unalignedaccesses only supported for the ARM architecture.")
-  for (name, option) in SIMPLE_OPTIONS.iteritems():
+  for (name, option) in SIMPLE_OPTIONS.items():
     if (not name in env):
       message = ("A value for option %s must be specified (%s)." %
           (name, ", ".join(option['values'])))
@@ -1014,7 +1016,7 @@ class BuildContext(object):
   def GetRelevantSources(self, source):
     result = []
     result += source.get('all', [])
-    for (name, value) in self.options.iteritems():
+    for (name, value) in self.options.items():
       source_value = source.get(name + ':' + value, [])
       if type(source_value) == dict:
         result += self.GetRelevantSources(source_value)
@@ -1025,7 +1027,7 @@ class BuildContext(object):
   def AppendFlags(self, options, added):
     if not added:
       return
-    for (key, value) in added.iteritems():
+    for (key, value) in added.items():
       if key.find(':') != -1:
         self.AddRelevantSubFlags(options, { key: value })
       else:
@@ -1037,7 +1039,7 @@ class BuildContext(object):
           options[key] = prefix + value
 
   def ConfigureObject(self, env, input, **kw):
-    if (kw.has_key('CPPPATH') and env.has_key('CPPPATH')):
+    if ('CPPPATH' in kw and 'CPPPATH' in env):
       kw['CPPPATH'] += env['CPPPATH']
     if self.options['library'] == 'static':
       return env.StaticObject(input, **kw)
@@ -1058,25 +1060,25 @@ def PostprocessOptions(options, os):
   if (options['simulator'] != 'none') and (options['arch'] != options['simulator']):
     if 'arch' in ARGUMENTS:
       # Print a warning if arch has explicitly been set
-      print "Warning: forcing architecture to match simulator (%s)" % options['simulator']
+      print("Warning: forcing architecture to match simulator (%s)" % options['simulator'])
     options['arch'] = options['simulator']
   if (options['prof'] != 'off') and (options['profilingsupport'] == 'off'):
     # Print a warning if profiling is enabled without profiling support
-    print "Warning: forcing profilingsupport on when prof is on"
+    print("Warning: forcing profilingsupport on when prof is on")
     options['profilingsupport'] = 'on'
   if os == 'win32' and options['pgo'] != 'off' and options['msvcltcg'] == 'off':
     if 'msvcltcg' in ARGUMENTS:
-      print "Warning: forcing msvcltcg on as it is required for pgo (%s)" % options['pgo']
+      print("Warning: forcing msvcltcg on as it is required for pgo (%s)" % options['pgo'])
     options['msvcltcg'] = 'on'
   if options['arch'] == 'mips':
     if ('regexp' in ARGUMENTS) and options['regexp'] == 'native':
       # Print a warning if native regexp is specified for mips
-      print "Warning: forcing regexp to interpreted for mips"
+      print("Warning: forcing regexp to interpreted for mips")
     options['regexp'] = 'interpreted'
   if options['liveobjectlist'] == 'on':
     if (options['debuggersupport'] != 'on') or (options['mode'] == 'release'):
       # Print a warning that liveobjectlist will implicitly enable the debugger
-      print "Warning: forcing debuggersupport on for liveobjectlist"
+      print("Warning: forcing debuggersupport on for liveobjectlist")
     options['debuggersupport'] = 'on'
     options['inspector'] = 'on'
     options['objectprint'] = 'on'
@@ -1208,7 +1210,7 @@ def BuildSpecific(env, mode, env_overrides, tools):
 def Build():
   opts = GetOptions()
   tools = GetTools(opts)
-  env = Environment(options=opts, tools=tools)
+  env = Environment(variables=opts, tools=tools)
 
   Help(opts.GenerateHelpText(env))
   VerifyOptions(env)

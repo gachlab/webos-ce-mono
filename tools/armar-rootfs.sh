@@ -46,6 +46,49 @@ cp -f "$C"/luna-init/files/conf/*.json "$ROOTFS/usr/palm/" 2>/dev/null
 cp -f "$C"/luna-init/files/conf/fonts/*.xml "$ROOTFS/usr/share/fonts/" 2>/dev/null
 cp -rf "$C"/isis-fonts/* "$ROOTFS/usr/share/fonts/" 2>/dev/null
 
+
+# --- Contenido: apps, frameworks y servicios (componentes que solo se copian) ---
+mkdir -p "$ROOTFS"/usr/palm/{applications,services,frameworks} "$ROOTFS"/etc/palm/db/{kinds,permissions}
+
+# Enyo: el framework sobre el que estan escritas todas las apps
+mkdir -p "$ROOTFS/usr/palm/frameworks/enyo/0.10/framework"
+cp -rf "$C"/enyo-1.0/framework/* "$ROOTFS/usr/palm/frameworks/enyo/0.10/framework/" 2>/dev/null
+ln -sfn 0.10 "$ROOTFS/usr/palm/frameworks/enyo/version" 2>/dev/null
+
+# Las apps de HP. Cada una lleva sus 'kinds' y permisos de db8.
+for APP in "$C"/core-apps/*/; do
+    [ -f "$APP/appinfo.json" ] || continue
+    cp -rf "$APP" "$ROOTFS/usr/palm/applications/" 2>/dev/null
+    cp -rf "$APP"/configuration/db/kinds/*       "$ROOTFS/etc/palm/db/kinds/"       2>/dev/null
+    cp -rf "$APP"/configuration/db/permissions/* "$ROOTFS/etc/palm/db/permissions/" 2>/dev/null
+done
+
+# Servicios de aplicacion (JS, corren sobre node)
+for SVC in "$C"/app-services/*/; do
+    [ -f "$SVC/services.json" ] || [ -f "$SVC/package.json" ] || continue
+    cp -rf "$SVC" "$ROOTFS/usr/palm/services/" 2>/dev/null
+    cp -rf "$SVC"/db/kinds/*       "$ROOTFS/etc/palm/db/kinds/"       2>/dev/null
+    cp -rf "$SVC"/db/permissions/* "$ROOTFS/etc/palm/db/permissions/" 2>/dev/null
+done
+
+# Frameworks: cada uno bajo <nombre>/version/1.0/
+for GRUPO in foundation-frameworks mojoservice-frameworks loadable-frameworks; do
+    for FW in "$C"/$GRUPO/*/; do
+        n=$(basename "$FW"); [ "$n" = "." ] && continue
+        case "$n" in .git|*.md|files) continue;; esac
+        mkdir -p "$ROOTFS/usr/palm/frameworks/$n/version/1.0"
+        cp -rf "$FW"/* "$ROOTFS/usr/palm/frameworks/$n/version/1.0/" 2>/dev/null
+    done
+done
+mkdir -p "$ROOTFS/usr/palm/frameworks/underscore/version/1.0"
+cp -rf "$C"/underscore/* "$ROOTFS/usr/palm/frameworks/underscore/version/1.0/" 2>/dev/null
+cp -f "$C"/mojoloader/mojoloader.js "$ROOTFS/usr/palm/frameworks/" 2>/dev/null
+
+echo "  apps:                $(ls "$ROOTFS/usr/palm/applications" 2>/dev/null | wc -l)"
+echo "  servicios:           $(ls "$ROOTFS/usr/palm/services" 2>/dev/null | wc -l)"
+echo "  frameworks:          $(ls "$ROOTFS/usr/palm/frameworks" 2>/dev/null | wc -l)"
+echo "  kinds de db8:        $(ls "$ROOTFS/etc/palm/db/kinds" 2>/dev/null | wc -l)"
+
 echo "rootfs armado en $ROOTFS"
 echo "  etc/palm:            $(ls "$ROOTFS/etc/palm" 2>/dev/null | wc -l) entradas"
 echo "  etc/ls2:             $(ls "$ROOTFS/etc/ls2" 2>/dev/null | wc -l) entradas"

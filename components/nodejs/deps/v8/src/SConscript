@@ -303,7 +303,7 @@ webos.js
 
 
 def Abort(message):
-  print message
+  print(message)
   sys.exit(1)
 
 

@@ -4,13 +4,15 @@
 # tests
 #
 
+# La propiedad LOCATION fue eliminada en CMake 4 (politica CMP0026). Su
+# reemplazo es la expresion generadora $<TARGET_FILE:...>, que ademas resuelve
+# sola la ruta segun la configuracion, sin necesitar la rama Debug/Release.
 if(${CMAKE_BUILD_TYPE} MATCHES Debug)
   set(test_bin_dir debug)
-  get_target_property(node_bin node DEBUG_LOCATION)
 else()
   set(test_bin_dir default)
-  get_target_property(node_bin node LOCATION)
 endif()
+set(node_bin $<TARGET_FILE:node>)
 
 file(GLOB_RECURSE node_tests ${CMAKE_SOURCE_DIR}/test/*)
 
@@ -64,10 +66,14 @@ endforeach()
 # each run
 configure_file(${CMAKE_SOURCE_DIR}/cmake/CTestCustom.cmake ${CMAKE_BINARY_DIR}/CTestCustom.cmake COPYONLY)
 
-add_custom_command(
-  TARGET node POST_BUILD
+# CMake exige que add_custom_command(TARGET ...) se declare en el mismo
+# directorio donde se creo el target, y 'node' se define en el CMakeLists padre.
+# Un add_custom_target con DEPENDS consigue lo mismo -- copiar el binario al
+# directorio de pruebas tras construirlo -- sin esa restriccion.
+add_custom_target(copiar_node_para_pruebas ALL
   COMMAND ${CMAKE_COMMAND} -E make_directory ${PROJECT_BINARY_DIR}/${test_bin_dir}
   COMMAND ${CMAKE_COMMAND} -E copy_if_different ${node_bin} ${PROJECT_BINARY_DIR}/${test_bin_dir}
+  DEPENDS node
   WORKING_DIRECTORY ${PROJECT_SOURCE_DIR})
 
 # this target gets overriden by ctest's test target
