@@ -93,9 +93,15 @@ function(webos_append_new_to_list listvar)
 	set(${listvar} ${ourvar} PARENT_SCOPE)
 endfunction()
 
+# Ubicacion real de este modulo. Capturada a nivel de archivo a proposito:
+# dentro de un macro(), CMAKE_CURRENT_LIST_DIR apunta al archivo que invoca.
+set(WEBOS_MODULES_SELF_DIR ${CMAKE_CURRENT_LIST_DIR})
+
 macro(_webos_check_init_version auth_version auth_qualifier)
 	if(EXISTS ${CMAKE_SOURCE_DIR}/webOS/webOS.cmake)
 		file(STRINGS ${CMAKE_SOURCE_DIR}/webOS/webOS.cmake _webos_contents)
+	elseif(EXISTS ${WEBOS_MODULES_SELF_DIR}/webOS.cmake)
+		file(STRINGS ${WEBOS_MODULES_SELF_DIR}/webOS.cmake _webos_contents)
 	else()
 		file(STRINGS ${CMAKE_ROOT}/Modules/webOS/webOS.cmake _webos_contents)
 	endif()
@@ -667,27 +673,32 @@ function(webos_build_library)
 	# If <target-name> begins with "lib", then the library name would begin with "liblib" unless its fixed, which is done here.
 	# NB. Can't just get the LIBRARY_OUTPUT_NAME properity, because it doesn't exist unless it's been assigned to (it doesn't
 	#     have a default value).
-	get_target_property(location ${webos_library_TARGET} LOCATION)
-	string(REGEX MATCH "[^/]+$" libname ${location})
-	string(SUBSTRING ${libname} 0 6 libnameprefix)
-	if(${libnameprefix} STREQUAL liblib)
+	# La propiedad LOCATION fue eliminada en CMake 4 (politica CMP0026).
+	# Sus dos usos aqui tienen equivalente moderno y mas directo:
+	#  1) si el nombre del target ya empieza por "lib", quitar el prefijo
+	#     para no terminar con "liblib..."
+	string(SUBSTRING ${webos_library_TARGET} 0 3 _webos_target_prefix)
+	if(_webos_target_prefix STREQUAL "lib")
 		# ASSERT(PREFIX is "lib")
 		set_target_properties(${webos_library_TARGET} PROPERTIES PREFIX "")
 	endif()
 
 	# Why can't install() figure this out without needing to be told?
 	if(UNIX)
-		if(${location} MATCHES "\\.a$")
+		#  2) estatica o compartida se decide por la propiedad TYPE del target,
+		#     que es la fuente de verdad, en vez de adivinar por el sufijo del archivo
+		get_target_property(_webos_target_type ${webos_library_TARGET} TYPE)
+		if(_webos_target_type STREQUAL "STATIC_LIBRARY")
 			set(kind ARCHIVE)
 			# Allow static libraries to be linked into shared ones. Without -fPIC, you can get this errors such as:
 			#   libXXX.a(YYY.o): relocation R_ARM_MOVW_ABS_NC against `a local symbol' can not be used when making a
 			#                    shared object; recompile with -fPIC
 			# Technically, it's not needed for x86, but supplying it does no harm.
 			set_target_properties(${webos_library_TARGET} PROPERTIES COMPILE_FLAGS -fPIC)
-		elseif(${location} MATCHES "\\.so$")
+		elseif(_webos_target_type STREQUAL "SHARED_LIBRARY" OR _webos_target_type STREQUAL "MODULE_LIBRARY")
 			set(kind LIBRARY)
 		else()
-			message(FATAL_ERROR "webos_build_library(): Unrecognized library suffix: ${location}")
+			message(FATAL_ERROR "webos_build_library(): tipo de libreria no reconocido: ${_webos_target_type}")
 		endif()
 	else()
 		message(FATAL_ERROR "INTERNAL ERROR: webos_build_library() needs work for non-UNIX builds.")
