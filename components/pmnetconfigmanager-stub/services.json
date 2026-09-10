@@ -1,0 +1,21 @@
+{
+"id": "com.palm.connectionmanager",
+"description": "ConnectionManager Stub Service",
+"activityTimeout": 3600,
+"services": [ {
+    "name": "com.palm.connectionmanager",
+    "description": "ConnectionManager Stub Service",
+    "commands": [
+            {
+            "name": "getStatus",
+            "assistant": "GetStatusCommandAssistant",
+            "public": true
+             },
+            {
+            "name": "getstatus",
+            "assistant": "GetStatusCommandAssistant",
+            "public": true
+             }
+           ]
+        }]
+}
