@@ -150,22 +150,38 @@ PmSockOpensslMatchCertInStore(struct x509_store_ctx_st*  const x509StoreCtx,
     /// @see X509_STORE_CTX_get1_issuer + X509_check_issued + X509_cmp
 
     X509_NAME* const subjName = X509_get_subject_name(cert);
-    X509_OBJECT installedObj;
+
+    /* OpenSSL 1.1 volvio X509_OBJECT opaca: ya no se puede reservar en la pila,
+     * ni leer installedObj.data.x509, y X509_OBJECT_free_contents desaparecio.
+     * Ahora se reserva con X509_OBJECT_new()/X509_OBJECT_free() y el certificado
+     * se obtiene con el accesor X509_OBJECT_get0_X509().
+     * Ademas X509_STORE_CTX_get_by_subject devuelve 1/<=0, no el tipo X509_LU_*. */
+    X509_OBJECT* const pInstalledObj = X509_OBJECT_new();
+    if (!pInstalledObj) {
+        PSL_LOG_ERROR("%s (cert=%p): ERROR: X509_OBJECT_new failed",
+                      __func__, cert);
+        return PSL_ERR_MEM;
+    }
+
     int const rc = X509_STORE_get_by_subject(x509StoreCtx, X509_LU_X509, subjName,
-                                             &installedObj); 
-    
+                                             pInstalledObj);
+
+    /* El puntero pertenece al objeto: hay que usarlo ANTES de liberarlo. */
+    X509* const pInstalledCert = (rc > 0)
+                                 ? X509_OBJECT_get0_X509(pInstalledObj)
+                                 : NULL;
+
     bool matched = false;
-
-    if (X509_LU_X509 == rc && installedObj.data.x509) {
-        matched = (0 == X509_cmp(cert, installedObj.data.x509));
+    if (pInstalledCert) {
+        matched = (0 == X509_cmp(cert, pInstalledCert));
     }
 
-    if (X509_LU_FAIL != rc) {
-        X509_OBJECT_free_contents(&installedObj);
-    }
+    bool const found = (NULL != pInstalledCert);
 
-    if (X509_LU_X509 != rc) {
-        PSL_LOG_DEBUG("%s (cert=%p): cert not found: X509_LU_=%d",
+    X509_OBJECT_free(pInstalledObj);
+
+    if (!found) {
+        PSL_LOG_DEBUG("%s (cert=%p): cert not found: rc=%d",
                       __func__, cert, rc);
         return PSL_ERR_NONE;
     }
@@ -179,7 +195,12 @@ PmSockOpensslMatchCertInStore(struct x509_store_ctx_st*  const x509StoreCtx,
     /**
      * Look through all certs with matching subject names
      */
-    int i = X509_OBJECT_idx_by_subject(x509StoreCtx->ctx->objs, X509_LU_X509, subjName);
+    /* X509_STORE_CTX y X509_STORE tambien son opacas desde OpenSSL 1.1:
+     * x509StoreCtx->ctx->objs pasa por dos accesores. */
+    X509_STORE* const pStore = X509_STORE_CTX_get0_store(x509StoreCtx);
+    STACK_OF(X509_OBJECT)* const pObjs = X509_STORE_get0_objects(pStore);
+
+    int i = X509_OBJECT_idx_by_subject(pObjs, X509_LU_X509, subjName);
     if (-1 == i) {
         PSL_LOG_WARNING("%s (cert=%p): ERROR: X509_OBJECT_idx_by_subject() " \
                         "found no certs with matching subject" \
@@ -188,14 +209,15 @@ PmSockOpensslMatchCertInStore(struct x509_store_ctx_st*  const x509StoreCtx,
         return PSL_ERR_NONE;
     }
 
-    for (; i < sk_X509_OBJECT_num(x509StoreCtx->ctx->objs); i++) {
-        X509_OBJECT* const pObj = sk_X509_OBJECT_value(x509StoreCtx->ctx->objs, i);
+    for (; i < sk_X509_OBJECT_num(pObjs); i++) {
+        X509_OBJECT* const pObj = sk_X509_OBJECT_value(pObjs, i);
+        X509* const pObjCert = X509_OBJECT_get0_X509(pObj);
 
-        if (0 != X509_NAME_cmp(subjName, X509_get_subject_name(pObj->data.x509))) {
+        if (0 != X509_NAME_cmp(subjName, X509_get_subject_name(pObjCert))) {
             continue;
         }
 
-        if (0 == X509_cmp(cert, pObj->data.x509)) {
+        if (0 == X509_cmp(cert, pObjCert)) {
             PSL_LOG_DEBUG("%s (cert=%p): cert found", __func__, cert);
             *pMatchRes = true;
             return PSL_ERR_NONE;

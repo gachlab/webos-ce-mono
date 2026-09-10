@@ -40,7 +40,11 @@ extern "C" {
  */
 #ifndef PSL_CONFIG_INLINE_FUNC
     #ifdef __GNUC__
-        #define PSL_CONFIG_INLINE_FUNC  extern __inline
+        /* Igual que en pmstatemachineengine: 'extern __inline' significaba
+         * "solo en linea, no emitas simbolo" bajo gnu89, y significa lo
+         * CONTRARIO en C99/C11, donde cada .c que incluye la cabecera emite su
+         * copia -> multiple definition. 'static __inline' es la intencion. */
+        #define PSL_CONFIG_INLINE_FUNC  static __inline
     #else
         #error "I don't know how to declare inline funcs in this build environment"
     #endif

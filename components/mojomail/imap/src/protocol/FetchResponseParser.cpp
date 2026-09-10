@@ -18,6 +18,8 @@
 
 #include "protocol/FetchResponseParser.h"
 #include <boost/regex.hpp>
+// Boost dejo de arrastrar scoped_array de forma transitiva; hay que incluirlo.
+#include <boost/scoped_array.hpp>
 #include "parser/ImapParser.h"
 #include "parser/Rfc3501Tokenizer.h"
 #include "parser/SemanticActions.h"

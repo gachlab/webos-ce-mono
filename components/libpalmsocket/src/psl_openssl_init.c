@@ -436,8 +436,11 @@ thread_safety_init(ThreadSafetyInfo* const pData)
 
     int i;
     for (i=0; i < pData->numLocks; i++) {
-        PSL_LOG_DEBUGLOW("%s: Creating thread lock type=%d (%s)",
-                         __func__, i, CRYPTO_get_lock_name(i));
+        /* CRYPTO_get_lock_name desaparecio con la API de locking en OpenSSL 1.1
+         * (la biblioteca ya es segura en hilos por dentro). Solo servia para
+         * nombrar el lock en este mensaje. */
+        PSL_LOG_DEBUGLOW("%s: Creating thread lock type=%d",
+                         __func__, i);
 
         /// @note The locks are of the non-recursive kind by default
         int const mutexInitRes = pthread_mutex_init(&(pData->pLocks[i].mutex),
@@ -485,8 +488,9 @@ thread_safety_cleanup(ThreadSafetyInfo* const pData)
 
     int i;
     for (i=0; i < pData->numLocks; i++) {
-        PSL_LOG_DEBUGLOW("%s: Destroying thread lock type=%d (%s)",
-                         __func__, i, CRYPTO_get_lock_name(i));
+        /* CRYPTO_get_lock_name desaparecio con la API de locking en OpenSSL 1.1 */
+        PSL_LOG_DEBUGLOW("%s: Destroying thread lock type=%d",
+                         __func__, i);
 
         pthread_mutex_destroy(&(pData->pLocks[i].mutex));
     }
@@ -533,9 +537,11 @@ static void
 lock_or_unlock_cb(int const mode, int const type, const char* const file,
                   int const line)
 {
-    PSL_LOG_DEBUGLOW("%s: threadId=%lu, mode=0x%X, type=%d (%s), caller=%s:%d",
+    /* Sin el nombre del lock: CRYPTO_get_lock_name se fue con la API de locking
+     * en OpenSSL 1.1, que ya es segura en hilos por dentro. */
+    PSL_LOG_DEBUGLOW("%s: threadId=%lu, mode=0x%X, type=%d, caller=%s:%d",
                      __func__, CRYPTO_thread_id(), (unsigned)mode, type,
-                     CRYPTO_get_lock_name(type), file, line);
+                     file, line);
 
     if (mode & CRYPTO_LOCK) {
         pthread_mutex_lock(&(gInitState.opensslData.threadSafety.pLocks[type].mutex));

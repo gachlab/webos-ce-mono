@@ -20,6 +20,9 @@
 #define COMMONDEFS_H_
 
 #include <boost/shared_ptr.hpp>
+#include <boost/make_shared.hpp>
+
+
 #include "core/MojCoreDefs.h"
 #include "core/MojErr.h"
 #include "core/MojRefCount.h"

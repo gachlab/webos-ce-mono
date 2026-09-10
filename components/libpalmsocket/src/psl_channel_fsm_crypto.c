@@ -1558,7 +1558,7 @@ crypto_do_renegotiate(PslChanFsmCryptoRenegotiateState*     const pState,
         "%s (fsm=%p): ENTERING: pState=%p, pFdWatch=%p, " \
         "PslChanFsmCryptoRenegPhase=%d, pState->PslError=%d, openSSL state=%d (%s)",
         __func__, pFsm, pState, pFdWatch, (int)pState->phase, pState->pslerr,
-        SSL_state(sslInfo->ssl), SSL_state_string_long(sslInfo->ssl));
+        SSL_get_state(sslInfo->ssl), SSL_state_string_long(sslInfo->ssl));
 
     #if 0
     PSL_ASSERT(!pFdWatch || (pFdWatch->numrecs <= 1));
@@ -1621,7 +1621,14 @@ crypto_do_renegotiate(PslChanFsmCryptoRenegotiateState*     const pState,
                               "wait for completion of renegotiation " \
                               "handshake per kPmSockRenegOpt_waitForClientHandshake",
                               __func__, pFsm);
-                sslInfo->ssl->state = SSL_ST_ACCEPT;
+                /* OJO: era 'sslInfo->ssl->state = SSL_ST_ACCEPT', escritura
+                 * directa al struct. OpenSSL 1.1 volvio SSL opaca y no expone
+                 * forma de fijar el estado del handshake. SSL_set_accept_state()
+                 * es la API soportada mas cercana: lleva la maquina de estados
+                 * por la via de 'accept'.
+                 * SIN VERIFICAR EN EJECUCION: este camino solo se ejerce en una
+                 * renegociacion TLS real, que no se ha probado aqui. */
+                SSL_set_accept_state(sslInfo->ssl);
                 pState->phase = kPslChanFsmCryptoRenegPhase_handshake;
             }
 
@@ -1659,7 +1666,7 @@ crypto_do_renegotiate(PslChanFsmCryptoRenegotiateState*     const pState,
         "pState->PslError=%d (%s), openSSL state=%d (%s)",
         __func__, pFsm, (int)isDone, (int)pState->phase, pState->pslerr,
         PmSockErrStringFromError(pState->pslerr),
-        SSL_state(sslInfo->ssl), SSL_state_string_long(sslInfo->ssl));
+        SSL_get_state(sslInfo->ssl), SSL_state_string_long(sslInfo->ssl));
 
     return isDone;
 }//crypto_do_renegotiate
@@ -1683,7 +1690,7 @@ crypto_start_renegotiation(PslChanFsm* pFsm)
     const PslChanFsmCryptoSharedInfo* const sslInfo = crypto_shared_info(pFsm);
 
     PSL_LOG_DEBUG("%s (fsm=%p): ENTERING: openSSL state=%d (%s)", __func__, pFsm,
-                  SSL_state(sslInfo->ssl),
+                  SSL_get_state(sslInfo->ssl),
                   SSL_state_string_long(sslInfo->ssl));
 
 
@@ -1709,7 +1716,7 @@ crypto_start_renegotiation(PslChanFsm* pFsm)
 
     PSL_LOG_DEBUG("%s (fsm=%p): LEAVING: PslError=%d (%s), openSSL state=%d (%s)",
                   __func__, pFsm, pslerr, PmSockErrStringFromError(pslerr),
-                  SSL_state(sslInfo->ssl), SSL_state_string_long(sslInfo->ssl));
+                  SSL_get_state(sslInfo->ssl), SSL_state_string_long(sslInfo->ssl));
     return pslerr;
 }//crypto_start_renegotiation
 
@@ -1728,7 +1735,7 @@ crypto_do_SSL_handshake(PslChanFsm*                const pFsm,
     const PslChanFsmCryptoSharedInfo* const sslInfo = crypto_shared_info(pFsm);
 
     PSL_LOG_DEBUG("%s (fsm=%p): ENTERING: connKind=%d, openSSL state=%d (%s)",
-                  __func__, pFsm, (int)sslInfo->connKind, SSL_state(sslInfo->ssl),
+                  __func__, pFsm, (int)sslInfo->connKind, SSL_get_state(sslInfo->ssl),
                   SSL_state_string_long(sslInfo->ssl));
 
     *pPslErr = 0;
@@ -1789,7 +1796,7 @@ crypto_do_SSL_handshake(PslChanFsm*                const pFsm,
     PSL_LOG_DEBUG("%s (fsm=%p): LEAVING: handshakeFinished=%d, PslError=%d (%s), " \
                   "openSSL state=%d (%s)",
                   __func__, pFsm, (int)handshakeFinished, *pPslErr,
-                  PmSockErrStringFromError(*pPslErr), SSL_state(sslInfo->ssl),
+                  PmSockErrStringFromError(*pPslErr), SSL_get_state(sslInfo->ssl),
                   SSL_state_string_long(sslInfo->ssl));
 
     return handshakeFinished;
@@ -1831,7 +1838,7 @@ crypto_ssl_peer_verify_callback(int                   preverify_ok,
             "%s (fsm=%p): Detected start of a new verification session: " \
             "first_verify_session=%d, openSSL state=%d (%s)", __func__, pFsm,
             (int)!sslInfo->pv.peerVerifyCalled,
-            SSL_state(sslInfo->ssl), SSL_state_string_long(sslInfo->ssl));
+            SSL_get_state(sslInfo->ssl), SSL_state_string_long(sslInfo->ssl));
         sslInfo->pv.verifyInProgress = true;
     }
 
@@ -1948,7 +1955,7 @@ crypto_ssl_peer_verify_callback(int                   preverify_ok,
         PSL_LOG_DEBUG(
             "%s (fsm=%p): Detected end of verification session: " \
             "openSSL state=%d (%s)", __func__, pFsm,
-            SSL_state(sslInfo->ssl), SSL_state_string_long(sslInfo->ssl));
+            SSL_get_state(sslInfo->ssl), SSL_state_string_long(sslInfo->ssl));
     }
 
     PSL_LOG_DEBUG("%s (fsm=%p): LEAVING: preverify_ok=%d, PslError=%d (%s), " \
@@ -2018,7 +2025,8 @@ crypto_resolve_peer_cert_error(PslChanFsm*     const pFsm,
 
         bool foundMatchingCert;
         PslError const pslerr = PmSockOpensslMatchCertInStore(
-            x509_ctx, x509_ctx->cert, 0/*opts*/, &foundMatchingCert);
+            x509_ctx, X509_STORE_CTX_get0_cert(x509_ctx), 0/*opts*/,
+            &foundMatchingCert);
         if (pslerr) {
             foundMatchingCert = false;
         }
@@ -3011,7 +3019,7 @@ crypto_read_low(PslChanFsm* const pFsm,
 
     PSL_LOG_DEBUG("%s (fsm=%p): ENTERING: requested cnt=%d, deferredIOAllowed=%d, " \
                   "openSSL state=%d (%s)", __func__, pFsm, cnt, (int)deferredIOAllowed,
-                  SSL_state(sslInfo->ssl), SSL_state_string_long(sslInfo->ssl));
+                  SSL_get_state(sslInfo->ssl), SSL_state_string_long(sslInfo->ssl));
 
     PSL_ASSERT(pDst || !cnt);
     PSL_ASSERT(cnt >= 0);
@@ -3170,7 +3178,7 @@ crypto_read_low(PslChanFsm* const pFsm,
         "terminating PslError=%d (%s), openSSL state=%d (%s)",
                   __func__, pFsm, cnt, *pNumRead, (int)ioAttempted, pslErrRes,
                   PmSockErrStringFromError(pslErrRes), 
-                  SSL_state(sslInfo->ssl), SSL_state_string_long(sslInfo->ssl));
+                  SSL_get_state(sslInfo->ssl), SSL_state_string_long(sslInfo->ssl));
 
     return pslErrRes;
 }// crypto_read_low
@@ -3254,7 +3262,7 @@ crypto_write_low(PslChanFsm*    const pFsm,
 
     PSL_LOG_DEBUG("%s (fsm=%p): ENTERING: requested cnt=%d, maxWrCnt=%d, " \
                   "openSSL state=%d (%s)", __func__, pFsm, cnt, maxWriteCnt,
-                  SSL_state(sslInfo->ssl), SSL_state_string_long(sslInfo->ssl));
+                  SSL_get_state(sslInfo->ssl), SSL_state_string_long(sslInfo->ssl));
 
     PslError pslErrRes = 0; // result error code to be returned
 
@@ -3348,7 +3356,7 @@ crypto_write_low(PslChanFsm*    const pFsm,
         "terminating PslError=%d (%s), openSSL state=%d (%s)",
         __func__, pFsm, *pNumWritten, *pDeferredWriteCnt, pslErrRes,
         PmSockErrStringFromError(pslErrRes),
-        SSL_state(sslInfo->ssl), SSL_state_string_long(sslInfo->ssl));
+        SSL_get_state(sslInfo->ssl), SSL_state_string_long(sslInfo->ssl));
 
     return pslErrRes;
 }//crypto_write_low

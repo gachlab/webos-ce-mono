@@ -25,7 +25,7 @@
 // Create a folder using / as the delimiter
 ImapFolderPtr CreateFolder(string name)
 {
-	ImapFolderPtr folder = make_shared<ImapFolder>();
+	ImapFolderPtr folder = boost::make_shared<ImapFolder>();
 	
 	size_t slash = name.find_first_of("/");
 	if(slash == string::npos)
