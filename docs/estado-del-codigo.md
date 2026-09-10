@@ -123,3 +123,42 @@ separacion en procesos y el formato de app. **Eso es webOS.** LuneOS cambio
 justamente esas cosas y termino siendo otro sistema.
 
 Es la diferencia entre **restaurar** y **reconstruir**.
+
+## nodejs: no hay que compilarlo
+
+El `nodejs` de HP es **0.4.12** (2011) y trae V8 dentro, que se construye con
+**SCons escrito en Python 2**. Portar eso es un proyecto con cola incierta.
+
+No hace falta. Los parches de HP a node (`#if WEBOS` en `node.cc`) son **limites
+de memoria para un aparato empotrado**:
+
+```c
+#define MAX_OLD_SPACE_OPTION  "--max_old_space_size 10485760"   // 10 MB
+static int max_stack_size = 524288;                             // 512 KB
+#if WEBOS
+  abort();          // en vez de exit(1)
+```
+
+Ninguno es funcionalidad de webOS: son ajustes para un TouchPad con 1 GB de RAM.
+
+**El camino barato es usar el node de la distribucion** (Debian trae v26) y portar
+solo lo que si es de webOS:
+
+| Pieza | Tamano | Que es |
+|---|---|---|
+| `sysbus` | 2660 lineas | El puente entre JS y el bus de luna. **El trabajo real** |
+| `dynaload` | 334 lineas | Carga dinamica |
+| `pmlog` | 104 lineas | Registro |
+
+Hay que pasarlos de la API cruda de V8 de node 0.4 a N-API.
+
+Y el JavaScript de los servicios (**17.671 lineas**) esta practicamente limpio:
+
+```
+require('sys')   3 usos   ->  se llama 'util' desde node 0.8
+new Buffer(      2 usos   ->  Buffer.from()
+require('webos') 15 usos  ->  el addon nativo
+```
+
+Cinco arreglos. Compilando V8 en cambio se pelea con un build system de Python 2
+para acabar con un motor de JavaScript de 2011.
