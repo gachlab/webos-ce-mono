@@ -1460,7 +1460,15 @@ void CardWindowManager::handleTouchUpdateMinimized(QTouchEvent* e)
 
         // ignore pen movements outside the vertical pillar around
         // the active window
-        QPointF mappedPos = m_draggedWin->mapFromParent(p.scenePos());
+        // mapFromScene, not mapFromParent: p.scenePos() is a scene position, and
+        // mapFromParent expects one in the card's parent. HP's Qt 5 branch was
+        // adapted from the mouse path twelve lines' worth of file below, where
+        // event->pos() really is a parent position, and the conversion was not
+        // changed with it. Measured on a drag over the card: mapFromParent gave
+        // 955 against bounds [-512,512], so every single move was discarded as
+        // being outside the card, and a card could never be thrown off screen.
+        // mapFromScene gives -45 for the same point.
+        QPointF mappedPos = m_draggedWin->mapFromScene(p.scenePos());
 
         if (mappedPos.x() < m_draggedWin->boundingRect().x() ||
             mappedPos.x() >= m_draggedWin->boundingRect().right()) {
@@ -1470,6 +1478,7 @@ void CardWindowManager::handleTouchUpdateMinimized(QTouchEvent* e)
         if (delta.y() == 0) {
             return;
         }
+
 
         if (!m_playedAngryCardStretchSound &&
             (delta.y() > kAngryCardThreshold) && playAngryCardSounds()) {
