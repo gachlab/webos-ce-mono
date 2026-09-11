@@ -11,6 +11,10 @@
 //  3. injection  an object the page can see before its own scripts run
 //  4. resource   a synchronous read of a local file from JavaScript, which is
 //                what palmGetResource() does
+//  5. native     a synchronous call from JavaScript answered by C++ in this
+//                process, through a URL scheme of our own: PalmSystem's
+//                properties and methods return their value on the spot, and
+//                QWebChannel, QtWebEngine's own bridge, is asynchronous only
 
 #include <QApplication>
 #include <QColor>
@@ -27,10 +31,29 @@
 #include <QWebEnginePage>
 #include <QWebEngineScript>
 #include <QWebEngineScriptCollection>
+#include <QWebEngineProfile>
+#include <QWebEngineUrlRequestJob>
+#include <QWebEngineUrlScheme>
+#include <QWebEngineUrlSchemeHandler>
 #include <QWebEngineView>
+#include <QBuffer>
 
 #include <cstdio>
 #include <functional>
+
+// Answers webos-bridge:///echo/<text> with "native:<text>", computed here.
+class BridgeHandler : public QWebEngineUrlSchemeHandler
+{
+public:
+    int calls = 0;
+    void requestStarted(QWebEngineUrlRequestJob* job) override
+    {
+        ++calls;
+        auto* body = new QBuffer(job);
+        body->setData("native:" + job->requestUrl().path().section('/', 2).toUtf8());
+        job->reply("text/plain", body);
+    }
+};
 
 static bool waitFor(const std::function<bool()>& done, int timeoutMs)
 {
@@ -54,7 +77,19 @@ static int report(const char* what, bool ok, const QString& detail)
 
 int main(int argc, char** argv)
 {
+    // A custom scheme has to be registered before the application exists.
+    QWebEngineUrlScheme scheme("webos-bridge");
+    scheme.setSyntax(QWebEngineUrlScheme::Syntax::Path);
+    // LocalScheme and SecureScheme are what let a file:// page -- which every
+    // webOS app is -- call it; without them the request never reaches the handler.
+    scheme.setFlags(QWebEngineUrlScheme::LocalScheme | QWebEngineUrlScheme::LocalAccessAllowed
+                    | QWebEngineUrlScheme::SecureScheme | QWebEngineUrlScheme::CorsEnabled
+                    | QWebEngineUrlScheme::FetchApiAllowed);
+    QWebEngineUrlScheme::registerScheme(scheme);
+
     QApplication app(argc, argv);
+    BridgeHandler bridge;
+    QWebEngineProfile::defaultProfile()->installUrlSchemeHandler("webos-bridge", &bridge);
     int failures = 0;
 
     QTemporaryDir dir;
@@ -73,7 +108,15 @@ int main(int argc, char** argv)
   xhr.open("GET", "resource.txt", false);
   var resource = "failed";
   try { xhr.send(); resource = xhr.responseText; } catch (e) { resource = "threw " + e; }
-  document.title = "loaded|" + injected + "|" + resource;
+  var bridge = new XMLHttpRequest();
+  var native = "failed";
+  try {
+    // Three slashes: with Syntax::Path there is no host, and "//echo" would be one.
+    bridge.open("GET", "webos-bridge:///echo/ping", false);
+    bridge.send();
+    native = bridge.responseText;
+  } catch (e) { native = "threw " + e; }
+  document.title = "loaded|" + injected + "|" + resource + "|" + native;
   document.addEventListener("click", function (e) {
     document.title = "clicked|" + e.clientX + "," + e.clientY;
   });
@@ -110,6 +153,9 @@ int main(int argc, char** argv)
                        "PalmSystem.launchParams seen by the page: " + parts.value(1));
     failures += report("resource", parts.value(2) == "from disk",
                        "synchronous XHR returned: " + parts.value(2));
+    failures += report("native", parts.value(3) == "native:ping",
+                       QString("synchronous XHR to webos-bridge:// returned: %1 (handler calls: %2)")
+                           .arg(parts.value(3)).arg(bridge.calls));
 
     // 1. render: poll, because the first frame arrives after loadFinished
     QColor pixel;
