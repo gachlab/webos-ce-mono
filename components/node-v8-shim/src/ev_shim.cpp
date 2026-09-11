@@ -247,30 +247,8 @@ void ev_check_init(ev_check* w, ev_check_cb cb)
     w->cb = cb;
 }
 
-// Keeps the loop from deciding it has nothing left to do.
-//
-// HP's node_ls2.cpp says this outright, about the ev_unref it left commented
-// out: "If we unref this there are cases where libev thinks there aren't any
-// remaining watchers and quits." A service that has answered everything asked of
-// it has no timers and no pending callbacks, and libuv reaches the same
-// conclusion -- the location service served three requests and then exited on
-// its own.
-//
-// So the check watcher, which is the one HP deliberately left referenced, gets
-// an explicit handle of its own that is started and never stopped. The cost is
-// the one HP accepted: `node -e "require('palmbus')"` no longer exits by itself.
-static uv_async_t gKeepAlive;
-static bool gKeepAliveStarted = false;
-
-static void KeepAliveNoop(uv_async_t*) {}
-
 void ev_check_start(struct ev_loop* loop, ev_check* w)
 {
-    if (!gKeepAliveStarted) {
-        uv_loop_t* l = Loop(loop);
-        if (l && uv_async_init(l, &gKeepAlive, KeepAliveNoop) == 0)
-            gKeepAliveStarted = true;
-    }
 
     if (w->active)
         return;
