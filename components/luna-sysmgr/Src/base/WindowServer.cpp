@@ -775,7 +775,11 @@ bool WindowServer::entregarComoToque(QMouseEvent* me)
 
 	QTouchEvent toque(tipo, dispositivoTactil(), me->modifiers(), estado, puntos);
 	toque.setAccepted(false);
-	QGraphicsView::viewportEvent(&toque);
+	// OJO: por QApplication::sendEvent, NO llamando a viewportEvent() a pelo.
+	// La llamada directa se salta la entrega normal de Qt, que es donde se monta
+	// la contabilidad interna del tactil, y el item nunca recibe el evento.
+	// Comprobado aislado en tests/tactil-en-qt5.cpp.
+	QApplication::sendEvent(viewport(), &toque);
 	return toque.isAccepted();
 }
 #endif

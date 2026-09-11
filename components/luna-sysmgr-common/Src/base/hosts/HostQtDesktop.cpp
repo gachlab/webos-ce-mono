@@ -224,7 +224,16 @@ public:
 	}
 
     void postGesture(KEYS::Key key) {
-		QWidget* window = QApplication::focusWidget();
+		// Iba a QApplication::focusWidget(), pero aqui NADA tiene el foco de
+		// teclado: tanto la barra de gestos como el boton de home se crean con
+		// Qt::NoFocus (lineas 103 y 111) justamente para no robarselo a la UI.
+		// Con focusWidget() devolviendo null, el "if (window)" se tragaba la
+		// tecla en silencio y el boton de home no hacia nada. La vista
+		// principal es el destinatario correcto.
+		QWidget* window = m_mainView;
+		if (!window)
+			window = QApplication::focusWidget();
+		g_warning("HOME: postGesture key=%d destino=%p", (int)key, (void*)window);
 		if (window) {
 			QApplication::postEvent(window, new QKeyEvent(QEvent::KeyPress, key,
 														  Qt::NoModifier));
@@ -246,6 +255,7 @@ public:
 private Q_SLOTS:
 
 	void slotHomeButtonClicked() {
+		g_warning("HOME: slotHomeButtonClicked, m_mainView=%p", (void*)m_mainView);
         postGesture(KEYS::Key_CoreNavi_Home);
 	}
 
