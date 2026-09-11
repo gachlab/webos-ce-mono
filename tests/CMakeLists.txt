@@ -114,6 +114,14 @@ add_test(NAME qtwebkit-compat COMMAND qtwebkit-compat)
 set_tests_properties(qtwebkit-compat PROPERTIES
     ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
 
+# The border box -webkit-border-image used to imply. Without it the calculator
+# measured its keys at 121x94 instead of 91x64 and sized its font from that.
+add_executable(border-image-box border-image-box.cpp)
+target_link_libraries(border-image-box PRIVATE qtwebkit-compat-lib)
+add_test(NAME border-image-box COMMAND border-image-box)
+set_tests_properties(border-image-box PROPERTIES
+    ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
 # --- the run script's process detection ---------------------------------------
 add_test(NAME long-process-name
          COMMAND "${CMAKE_CURRENT_SOURCE_DIR}/long-process-name.sh")

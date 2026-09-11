@@ -108,6 +108,31 @@ Traps found on the way, each confirmed before being fixed:
   forwarding to the browser adapter. Email needs the browser to render a message
   body and for nothing else: the rest of the app runs without one.
 
+- **`-webkit-border-image` used to imply a border box, and the apps are built on
+  that.** In the WebKit webOS shipped, an element with a border image took its
+  `border-width` even though no `border-style` was ever declared. Chromium
+  computes that border to 0. Measured in isolation: the same box is 100x100 with
+  no `border-style` and 140x140 with one. 75 of the 94 stylesheets in this tree
+  put `border-width` next to `-webkit-border-image` and never a `border-style`.
+  The image is still painted -- what is lost is the space it used to occupy.
+
+  The calculator shows the cost, and it cascades. Its keys ask for a 15px border
+  image, so a key measures 121x94 instead of 91x64; the app sizes its own font
+  from the key it measures (`Calculator.js`: `floor(min(h, w) * 0.9)`), so it
+  picks 84px where it used to pick 57px, and every two-character label -- MC, M+,
+  M-, MR -- spills out of its key. That is the "huge buttons" the shell showed.
+  Nothing was wrong with the fonts (Prelude resolves correctly through
+  `$ROOTFS/etc/fonts.conf`), with the legacy `-webkit-box` flexbox (still
+  distributes space correctly here), or with the card compositing (a texture
+  brush does scale with the item transform) -- each of those was measured and
+  ruled out before the border turned up.
+
+  `components/qtwebkit-compat` now injects a script at document creation that
+  walks the stylesheets and gives `border-style: solid; border-color: transparent`
+  to every rule carrying a border image and no style of its own. A rule that
+  declares its own `border-style` is left alone. `tests/border-image-box`
+  covers it, and fails (exit 1) when the injection is removed.
+
 Not done yet:
 
 - **Checked by hand on Qt 6:** the shell and the apps run, and the line QtWebKit

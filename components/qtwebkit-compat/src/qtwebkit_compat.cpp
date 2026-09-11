@@ -32,6 +32,7 @@ namespace {
 
 const char kScheme[] = "webos-bridge";
 const char kInjectedScriptName[] = "webos-document-creation";
+const char kBorderImageScriptName[] = "webos-border-image";
 
 // Before QApplication exists: a URL scheme can only be registered then, and
 // QtWebEngine wants shared GL contexts decided before the first one is made.
@@ -54,6 +55,58 @@ void beforeApplication()
         qputenv("QTWEBENGINE_CHROMIUM_FLAGS", "--disable-gpu");
 }
 Q_CONSTRUCTOR_FUNCTION(beforeApplication)
+
+// ---------------------------------------------------------------------------
+// The border box -webkit-border-image used to imply.
+//
+// In the WebKit webOS shipped, an element with a border image took its
+// border-width even though no border-style was ever declared. Chromium computes
+// that border to 0, and 75 of the 94 stylesheets in this tree put border-width
+// next to -webkit-border-image and no border-style at all -- so those controls
+// lose both their artwork and the space the artwork used to occupy.
+//
+// The calculator shows what that costs. Its keys carry a 15px border image;
+// without it a key measures 121x94 instead of 91x64, and the app sizes its own
+// font from the key it measures (Calculator.js: floor(min(h, w) * 0.9)), so it
+// picks 84px where it used to pick 57px and every two-character label -- MC, M+,
+// M-, MR -- spills out of its key. Giving the border box back restores the
+// layout HP designed, without touching HP's stylesheets.
+const char kBorderImageCompat[] = R"JS(
+(function () {
+    if (window.__webosBorderImage)
+        return;
+    window.__webosBorderImage = true;
+
+    function patch() {
+        var sheets = document.styleSheets;
+        for (var s = 0; s < sheets.length; s++) {
+            var rules;
+            // A stylesheet from another origin does not hand over its rules.
+            try { rules = sheets[s].cssRules; } catch (e) { continue; }
+            if (!rules)
+                continue;
+            for (var r = 0; r < rules.length; r++) {
+                var style = rules[r].style;
+                if (!style)
+                    continue;
+                var image = style.getPropertyValue("-webkit-border-image")
+                         || style.getPropertyValue("border-image")
+                         || style.getPropertyValue("border-image-source");
+                if (!image || image === "none")
+                    continue;
+                if (style.getPropertyValue("border-style"))
+                    continue;
+                style.setProperty("border-style", "solid");
+                if (!style.getPropertyValue("border-color"))
+                    style.setProperty("border-color", "transparent");
+            }
+        }
+    }
+
+    document.addEventListener("DOMContentLoaded", patch);
+    window.addEventListener("load", patch);
+})();
+)JS";
 
 // ---------------------------------------------------------------------------
 // The JavaScript side of the object bridge. Runs once per document, first.
@@ -551,6 +604,15 @@ QWebPage::QWebPage(QObject* parent)
     core.setWorldId(QWebEngineScript::MainWorld);
     core.setSourceCode(QString::fromLatin1(kBridgeCore));
     m_engine->scripts().insert(core);
+
+    // Separate from the bridge: prepareNewDocument() rewrites that one on every
+    // document, and this has nothing to do with the objects it publishes.
+    QWebEngineScript borderImage;
+    borderImage.setName(kBorderImageScriptName);
+    borderImage.setInjectionPoint(QWebEngineScript::DocumentCreation);
+    borderImage.setWorldId(QWebEngineScript::MainWorld);
+    borderImage.setSourceCode(QString::fromLatin1(kBorderImageCompat));
+    m_engine->scripts().insert(borderImage);
 }
 
 QWebPage::~QWebPage()
