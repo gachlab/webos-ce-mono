@@ -90,7 +90,6 @@ static const int kMaxDragSide = 64; // clamp the drag image to 128x128
 static const char *kOverlayState = "overlayViewState";
 
 #if defined TARGET_DESKTOP && (QT_VERSION >= QT_VERSION_CHECK(5, 0, 0))
-static const int kTouchPointYOffset = 50;
 #endif
 
 #define TEST_DISABLE_LAUNCHER3	1
@@ -789,9 +788,28 @@ bool OverlayWindowManager::sceneEvent(QEvent* event)
 }
 
 #if defined TARGET_DESKTOP && (QT_VERSION >= QT_VERSION_CHECK(5, 0, 0))
+
+// The touch events that reach the handlers below come from WindowServerLuna's
+// filter chain, which hands over the raw viewport event before QGraphicsView has
+// translated anything. So their positions are in viewport coordinates, while the
+// mouse twin further down is given this item's coordinates for free by the
+// scene. This brings the two onto the same footing.
+//
+// The sceneEvent branch that would have delivered them the other way is
+// unreachable: neither this class nor WindowManagerBase ever calls
+// setAcceptTouchEvents, so QGraphicsScene never offers it a touch.
+// tools/check-touch-opt-in.py keeps that honest.
+QPointF OverlayWindowManager::mapFilteredTouchPoint(const QPointF& viewportPos) const
+{
+	WindowServer* ws = WindowServer::instance();
+	if (!ws)
+		return viewportPos;
+	return mapFromScene(ws->mapToScene(viewportPos.toPoint()));
+}
+
 bool OverlayWindowManager::handleTouchBegin(QTouchEvent *e)
 {
-    QPointF p = e->touchPoints().first().scenePos();
+    QPointF p = mapFilteredTouchPoint(e->touchPoints().first().pos());
     Event ev;
 	ev.type = Event::PenDown;
 	ev.setMainFinger(true);
@@ -812,7 +830,7 @@ bool OverlayWindowManager::handleTouchBegin(QTouchEvent *e)
 
 bool OverlayWindowManager::handleTouchEnd(QTouchEvent *e)
 {
-    QPointF p = e->touchPoints().first().scenePos();
+    QPointF p = mapFilteredTouchPoint(e->touchPoints().first().pos());
     Event ev;
 	ev.setMainFinger(true);
 	ev.x = p.x();
@@ -841,7 +859,7 @@ bool OverlayWindowManager::handleTouchEnd(QTouchEvent *e)
 
 bool OverlayWindowManager::handleTouchUpdate(QTouchEvent *e)
 {
-    QPointF p = e->touchPoints().first().scenePos();
+    QPointF p = mapFilteredTouchPoint(e->touchPoints().first().pos());
     Event ev;
 	ev.type = Event::PenMove;
 	ev.setMainFinger(true);
@@ -1347,14 +1365,14 @@ void OverlayWindowManager::mapCoordToWindow(Window* win, int& x, int& y) const
     if (!win)
         return;
 
-#if defined TARGET_DESKTOP && (QT_VERSION >= QT_VERSION_CHECK(5, 0, 0))
-    y -= kTouchPointYOffset;
-#else
+    // This used to be "y -= 50" under Qt 5, with x left alone: a constant
+    // adjusted until it roughly lined up, because the position arriving here
+    // was in the wrong space to convert. It is now in this item's coordinates
+    // on both paths, so the real conversion works again.
     QPointF pt = win->mapFromItem(this, x, y);
     QRectF br = win->boundingRect();
     x = pt.x() - br.x();
     y = pt.y() - br.y();
-#endif
 }
 
 void OverlayWindowManager::slotLauncherOpened()

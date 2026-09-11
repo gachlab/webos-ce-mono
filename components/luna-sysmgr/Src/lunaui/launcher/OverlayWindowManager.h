@@ -171,6 +171,10 @@ private:
 
 	bool dockInAnimation() const;
 	void mapCoordToWindow(Window* win, int& x, int& y) const;
+#if defined TARGET_DESKTOP && (QT_VERSION >= QT_VERSION_CHECK(5, 0, 0))
+	// Viewport coordinates -> this item's. See the definition.
+	QPointF mapFilteredTouchPoint(const QPointF& viewportPos) const;
+#endif
 
 	void setupSearchPill();
 	void setupDock();

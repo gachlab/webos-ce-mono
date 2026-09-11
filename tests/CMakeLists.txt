@@ -90,6 +90,9 @@ add_test(NAME long-process-name
 add_test(NAME check-coordinate-spaces
          COMMAND python3 "${CMAKE_CURRENT_SOURCE_DIR}/../tools/check-coordinate-spaces.py"
                  "${CMAKE_CURRENT_SOURCE_DIR}/../components")
+add_test(NAME check-touch-opt-in
+         COMMAND python3 "${CMAKE_CURRENT_SOURCE_DIR}/../tools/check-touch-opt-in.py"
+                 "${CMAKE_CURRENT_SOURCE_DIR}/../components")
 add_test(NAME check-touch-vs-mouse
          COMMAND python3 "${CMAKE_CURRENT_SOURCE_DIR}/../tools/check-touch-vs-mouse.py"
                  "${CMAKE_CURRENT_SOURCE_DIR}/../components")

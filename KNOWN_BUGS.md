@@ -80,57 +80,30 @@ length limit. All five of HP's static services report alive.
 
 Guarded by tests/long-process-name.sh.
 
-### Just Type's touch coordinates go through a fudge factor
-
-**Not fixed. Found by sweeping HP's Qt 5 desktop branch, not by a symptom.**
+### Just Type's touch coordinates went through a fudge factor (fixed, unverified)
 
 `OverlayWindowManager::mapCoordToWindow` converts a position from the manager's
-coordinates into the window's. Under Qt 5 on the desktop it does not:
+coordinates into the window's. Under Qt 5 on the desktop it did not:
 
-    #if defined TARGET_DESKTOP && (QT_VERSION >= QT_VERSION_CHECK(5, 0, 0))
-        y -= kTouchPointYOffset;          // 50. x is not converted at all.
-    #else
-        QPointF pt = win->mapFromItem(this, x, y);
-        QRectF br = win->boundingRect();
-        x = pt.x() - br.x();
-        y = pt.y() - br.y();
-    #endif
+    y -= kTouchPointYOffset;          // 50. x was not converted at all.
 
-That is downstream of the cause: `handleTouchBegin/End/Update` read
-`scenePos()`, where the mouse twin a few lines below reads `pos()`. With the
-wrong space going in, the real conversion could not work, and a constant was
-subtracted until it roughly lined up.
+That was downstream of the cause. Its touch handlers read `scenePos()` where the
+mouse twin reads `pos()`, and the events reaching them come from
+`WindowServerLuna::sysmgrEventFilters` -- the raw viewport event, before
+QGraphicsView translated anything -- so nothing was in the space the conversion
+needed and a constant was subtracted until it roughly lined up.
 
-**Why it is not a one-line fix.** Those handlers are fed from two delivery paths
-at once -- `OverlayWindowManager::sceneEvent` and
-`WindowServerLuna::sysmgrEventFilters`, the latter only while universal search is
-open -- and the same accessor means different things in each
-(`tests/touch-coordinate-spaces-qt5.cpp` pins down which). Swapping the accessor
-fixes one path and breaks the other. It wants an explicit position argument, with
-each caller converting in its own space, and a way to exercise Just Type to check
-the result.
+The `sceneEvent` branch that would have delivered them the other way is
+unreachable: neither the class nor `WindowManagerBase` ever calls
+`setAcceptTouchEvents`. That is what made the fix tractable -- there is only one
+live path, so the position can be converted once, on the way in, and the real
+conversion restored.
 
-Guarded by `tools/check-touch-vs-mouse.py`, which lists it as known.
-
-### ~~tapAndHoldGesture is still rejected~~ (it was not)
-
-The log line that started this entry,
-
-    QuickLaunchBar::tapAndHoldGesture : Rejected; touch FSM reports no touchId
-    is currently tracked
-
-is the bar correctly refusing a tap-and-hold that Qt recognised somewhere it was
-not tracking a finger. Traced with a hold that actually landed on the bar:
-
-    QLB touchStart  id=33554433 fsmRunning=1 isTracking=0
-    QLB tapAndHold  fsmRunning=1 isTracking=1 registers=1   <- accepted
-
-Before the touch: isTracking=0, registers=0, rejected. After: tracking, and the
-gesture goes through. Nothing to fix.
-
-Second entry in this file that turned out to be a misread log line rather than a
-bug -- see the LunaUniversalSearchMgr one. A line that says "Rejected" is worth
-checking against the case where it should succeed before believing it.
+**Not verified by using it.** It builds, the shell runs, and
+`tools/check-touch-vs-mouse.py` no longer reports the mismatch, but driving Just
+Type with synthetic input did not work well enough to confirm taps land where
+they should. Worth trying by hand: open Just Type, tap in the field, and see
+whether the caret goes where you tapped.
 
 ### A line crosses the Just Type search field
 
