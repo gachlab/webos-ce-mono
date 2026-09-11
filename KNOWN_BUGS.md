@@ -10,31 +10,42 @@ own `build-webos-desktop.sh`. **If it fails there too, it is not our port.**
 
 ## Blocked on a missing dependency
 
-### The QML parts of the UI do not draw
+### ~~The QML parts of the UI do not draw~~ (fixed)
 
-**Symptom.** Notifications appear as an empty band with no text. The log only
-says `QQmlComponent: Component is not ready`, which explains nothing.
+**Symptom.** Notifications appeared as an empty band with no text. The log only
+said `QQmlComponent: Component is not ready`, which explains nothing.
 
-**Cause.** Two things, in order:
+**Cause.** Three things, in order:
 
-1. `qml-module-qtquick2` is not installed. `QQmlComponent` cannot resolve
-   `import QtQuick` and fails with that unhelpful message. Found by loading the
-   file with a minimal standalone loader, which does print the real error:
-   `module "QtQuick" is not installed`.
-2. All 34 QML files use `import Qt 4.7`, which is QML1. Qt5 removed
-   QtDeclarative. The elements they use (`Text`, `Image`, `Rectangle`,
-   `ListView`, `MouseArea`, `Behavior`, `anchors`) all exist in QtQuick 2, so
-   the port looks mechanical, but this has not been verified past (1).
+1. `qml-module-qtquick2` was not installed, so `QQmlComponent` could not resolve
+   the import. Found by loading the file with a minimal standalone loader
+   (`tools/qml-check.cpp`), which does print the real error.
+2. All 34 QML files opened with `import Qt 4.7`, which is QML 1; Qt 5 removed
+   QtDeclarative. Measured with that loader: 0/34 loaded, 30/34 after swapping
+   the import for `QtQuick 2.0`. The other 4 use types registered from C++ and
+   cannot be checked standalone.
+3. Even loading, none of it drew. A QtQuick 2 root is a `QQuickItem`, which is
+   not a `QGraphicsItem`, so the `qobject_cast<QGraphicsObject*>` at all seven
+   call sites returned null -- silently, and every site guards on null.
 
-**Affects more than notifications:** `QmlAlertWindow`, `SystemMenu`,
-`LockWindow` and `dimensionslauncher` all load QML.
+**Fix.** `QmlSceneItem` (`Src/base/QmlSceneItem.h`) hosts a QtQuick 2 scene
+inside the QGraphicsScene: an offscreen `QQuickWindow` driven by
+`QQuickRenderControl`, grabbed to a `QImage` and blitted in `paint()`, with
+scene events translated back into window events. Callers keep the QML root
+through `rootItem()`.
 
-**Ruled out.** There is no shim: `qml-module-qtquick2` is the engine
-(`libqtquick2plugin.so`), not an API surface. The `QtQuick1` compatibility
-module that could load QML1 was removed in Qt 5.6. HP's own non-QML path
-(`m_isOverlay == false`) covers only the dashboard, and we are already on it.
+**Worth knowing if this breaks again.**
 
-**Next step.** Install `qml-module-qtquick2`, then re-check (2).
+- Input arrives as touch, not mouse: `WindowServer::deliverAsTouch` converts it
+  and `MouseEventEater` swallows the rest. The host must
+  `setAcceptTouchEvents(true)` and forward touch.
+- `QQuickRenderControl::initialize()` warns and returns without initializing
+  unless handed the context that is already current. The shell draws through a
+  `QGLWidget`, so one usually is.
+
+**Still open in this area.** `SystemMenu.qml:71,73` logs
+`ReferenceError: inProgress is not defined`, and the 34 files in
+`components/luna-sysmgr-ce/` still carry the QML 1 import.
 
 ### Calendar and email open empty
 
