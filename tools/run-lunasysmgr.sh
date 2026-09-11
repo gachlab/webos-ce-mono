@@ -44,6 +44,50 @@ service_running() {
     [ -n "$(service_pids "$1")" ]
 }
 
+# A JavaScript service is asked about on the bus, not looked for in /proc.
+#
+# Looking for the process does not work. run-js-service is a shell script whose
+# exec leaves argv[0] as /bin/bash, and the service path is not on the command
+# line either -- bootstrap-node.js takes it and calls process.setArgs, which
+# rewrites the argv area. The bus is the real question anyway: a service that is
+# running but has not registered is not up as far as anything else is concerned.
+js_service_running() {   # js_service_running <service id>
+    local reply
+    # With a timeout: a call to a method the service does not have gets no
+    # reply at all, and luna-send waits for one forever. Without this the wait
+    # loop below never returns and LunaSysMgr is never started.
+    reply="$(timeout 3 "$S/usr/bin/luna-send" -n 1 "palm://$1/__ping" '{}' 2>&1)" || true
+    # A timeout means the service took the call and never answered, which only
+    # something that is registered can do.
+    case "$reply" in
+        *"does not exist"*) return 1 ;;
+        "") return 0 ;;
+        *) return 0 ;;
+    esac
+}
+
+# Stopping one does mean finding the process, and bootstrap-node.js is the
+# distinguishing part of the command line that survives.
+js_service_stop() {   # js_service_stop <service id>
+    local dir pid line pids=""
+    for dir in /proc/[0-9]*; do
+        pid="${dir#/proc/}"
+        { line="$(tr '\0' ' ' < "$dir/cmdline")"; } 2>/dev/null || continue
+        case "$line" in
+            *bootstrap-node.js*) pids="$pids $pid" ;;
+        esac
+    done
+    [ -n "$pids" ] && kill $pids 2>/dev/null
+    return 0
+}
+
+service_stop() {
+    local pids
+    pids="$(js_service_pids "$1")"
+    [ -n "$pids" ] && kill $pids 2>/dev/null
+    return 0
+}
+
 service_stop() {
     local pids
     pids="$(service_pids "$1")"
@@ -70,19 +114,19 @@ export QT_QPA_PLATFORM=xcb   # LunaSysMgr asks for the "palm" plugin, which came
 
 mkdir -p /tmp/webos/ls2 /tmp/webos/captures
 
-# ls-hubd y luna-send se toman de staging, no del arbol de build. El arbol vive
+# ls-hubd y luna-send se toman de staging, no del tree de build. El tree vive
 # en build-modern/<componente>/ y ese nombre depende de como se llame el
 # componente en el MANIFEST: la ruta que habia aqui era build-modern/ls2/, del
 # layout viejo, y dejo de existir en cuanto se construyo desde cero. staging es
 # la ubicacion estable.
 
 # Enter the namespace and re-enter this same script, so everything launched
-# below inherits it. Used by "run" and "servicios": both need to see the paths
+# below inherits it. Used by "run" and "services": both need to see the paths
 # webOS has hardcoded.
 # NOTE: never in "bus". ls-hubd has to stay outside -- it validates each client
 # by reading its /proc/<pid>/exe, and from inside another namespace that does
 # not match; LunaSysMgr dies with "Invalid permissions for (null)".
-entrar_namespace() {
+enter_namespace() {
   if [ -z "${WEBOS_EN_NAMESPACE:-}" ]; then
       export WEBOS_EN_NAMESPACE=1
       # tmpfs over /usr and over /usr/lib, remounting inside everything that
@@ -140,7 +184,7 @@ case "${1:-run}" in
     # service-bus.sh. Loads into db8 the schemas (kinds) and permissions that
     # live under /etc/palm/db. Without it mojodb-luna starts but answers "kind
     # not registered" to everything, and the apps come up empty.
-    entrar_namespace "$@"
+    enter_namespace "$@"
     # We start configurator ourselves, not ls-hubd. The hub lives OUTSIDE the
     # namespace, so whatever it launches cannot see /etc/palm/db/kinds and
     # configurator finds nothing to load.
@@ -154,8 +198,8 @@ case "${1:-run}" in
     done
     pkill -x configurator 2>/dev/null
     ;;
-  servicios)
-    entrar_namespace "$@"
+  services)
+    enter_namespace "$@"
     # HP's own list, from service-bus.sh (STATIC_SERVICES): the ones the bus does
     # not start on demand. Without them the shell draws but the apps have nothing
     # to read from -- hence the "Service does not exist: com.palm.systemservice /
@@ -171,18 +215,59 @@ case "${1:-run}" in
         "$L/$svc" > "/tmp/webos/$svc.log" 2>&1 &
         sleep 1
     done
+    # HP's JavaScript services. They are not in STATIC_SERVICES because on a
+    # device the hub starts them on demand -- which it cannot do here: ls-hubd
+    # runs outside the bwrap namespace on purpose (it identifies callers through
+    # /proc/<pid>/exe) and so cannot see /usr/palm/services. Starting them the
+    # way the C++ ones are started is the same end result.
+    #
+    # -k disables the activity timeout, which otherwise makes a service quit a
+    # few seconds after it stops being asked anything.
     sleep 2
     for svc in $ALL_SERVICES; do
         printf "%-24s %s\n" "$svc" "$(service_running "$L/$svc" && echo alive || echo DEAD)"
     done
     ;;
   run)
-    # Entrar al namespace una vez y reentrar en el mismo script, para que todo
-    # lo que se lance abajo lo herede (incluido WebAppMgr).
-    # OJO: esto va SOLO aqui, nunca en "bus". ls-hubd tiene que quedarse fuera:
-    # valida a cada cliente leyendo su /proc/<pid>/exe, y desde dentro de otro
-    # namespace no casa -- LunaSysMgr muere con "Invalid permissions for (null)".
-    entrar_namespace "$@"
+    # Enter the namespace once and re-enter this same script, so everything
+    # started below inherits it -- WebAppMgr included.
+    #
+    # This belongs here and nowhere else, and never in "bus": ls-hubd has to stay
+    # outside. It identifies every caller by reading /proc/<pid>/exe, and from
+    # inside another namespace that does not match -- LunaSysMgr then dies with
+    # "Invalid permissions for (null)".
+    enter_namespace "$@"
+
+    # HP's JavaScript services start here rather than alongside the C++ ones.
+    #
+    # They have to share a namespace that outlives them, and the services
+    # subcommand's does not: its bwrap exits as soon as it has printed the
+    # status, and the service goes with it. This one lasts as long as the shell.
+    #
+    # The hub cannot start them on demand either -- ls-hubd stays outside the
+    # namespace on purpose, because it identifies callers by reading
+    # /proc/<pid>/exe -- so they are started explicitly, the way HP's own static
+    # services are. -k disables the activity timeout that would otherwise stop
+    # them a few seconds after the last call.
+    JS_SERVICES="com.palm.location"
+    if [ -x /usr/lib/luna/run-js-service ] && [ -e /usr/palm/nodejs/node ]; then
+        for svc in $JS_SERVICES; do
+            [ -d "/usr/palm/services/$svc" ] || continue
+            js_service_stop "$svc"
+            # Wait for the old one to let go of its bus name before starting the
+            # new one, or the new one dies with "Attempted to register for a
+            # service name that already exists" -- which then looks like the
+            # service failing rather than the previous one still holding on.
+            for _ in $(seq 10); do js_service_running "$svc" || break; sleep 1; done
+
+            /usr/lib/luna/run-js-service -n -k "/usr/palm/services/$svc" \
+                > "/tmp/webos/$svc.log" 2>&1 &
+            # It loads mojoloader and the frameworks before it registers, which
+            # takes a few seconds.
+            for _ in $(seq 15); do js_service_running "$svc" && break; sleep 1; done
+            printf "%-24s %s\n" "$svc" "$(js_service_running "$svc" && echo alive || echo DEAD)"
+        done
+    fi
 
     # WebAppMgr NO se arranca por el bus: LunaSysMgr es el servidor IPC y
     # WebAppMgr el cliente que se conecta de vuelta, asi que tiene que existir
@@ -191,9 +276,9 @@ case "${1:-run}" in
     # demanda del dispositivo.
     "$ROOTFS/usr/lib/luna/LunaSysMgr" "${@:2}" &
     lsm=$!
-    # Esperar a que LunaSysMgr abra su socket IPC en vez de dormir a ciegas: con
-    # los servicios arriba tarda mas en arrancar, y si WebAppMgr llega antes
-    # muere con "Failed to connect to socket: Connection refused".
+    # Wait for LunaSysMgr to open its IPC socket rather than sleeping blindly:
+    # with the services up it takes longer to start, and a WebAppMgr that arrives
+    # first dies with "Failed to connect to socket: Connection refused".
     for _ in $(seq 40); do [ -S /tmp/pipcserver.sysmgr ] && break; sleep 1; done
     sleep 1
     "$ROOTFS/usr/lib/luna/WebAppMgr" > /tmp/webos/WebAppMgr.log 2>&1 &
@@ -204,6 +289,6 @@ case "${1:-run}" in
     for s in mojodb-luna LunaSysService filecache activitymanager LunaUniversalSearchMgr; do
         service_stop "$ROOTFS/usr/lib/luna/$s"
     done
-    pkill -x ls-hubd; echo "detenido"
+    pkill -x ls-hubd; echo "stopped"
     ;;
 esac

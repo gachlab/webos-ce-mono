@@ -147,7 +147,7 @@ mkdir -p "$ROOTFS/usr/palm/frameworks/underscore/version/1.0"
 cp -rf "$C"/underscore/* "$ROOTFS/usr/palm/frameworks/underscore/version/1.0/" 2>/dev/null
 cp -f "$C"/mojoloader/mojoloader.js "$ROOTFS/usr/palm/frameworks/" 2>/dev/null
 
-# --- servicios: ficheros de bus y binarios ---
+# --- services: bus files and binaries ---
 # Each component ships in desktop-support/ the four files ls-hubd needs, always
 # with the same pattern. Rather than listing them one by one (which is what HP's
 # script did, line by line), we walk them all.
@@ -385,6 +385,9 @@ if [ -n "$NODE_BIN" ]; then
 }
 JSON
     done
+    # The addons and the compat shim come from staging, where the node stage of
+    # tools/build.sh installed them.
+    cp -f "$S/usr/palm/nodejs/"*.node "$ROOTFS/usr/palm/nodejs/" 2>/dev/null || true
     cp -f "$R/components/node-v8-shim/js/webos-node-compat.js" "$ROOTFS/usr/palm/nodejs/"
     echo "  node:                $NODE_BIN bound at /usr/palm/nodejs/node"
 fi

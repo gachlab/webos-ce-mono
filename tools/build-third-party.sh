@@ -31,7 +31,7 @@ if [ ! -d "$SRC/.git" ]; then
 else
     echo "== $SRC already exists, reusing it =="
     git -C "$SRC" rev-parse HEAD | grep -q "^$REF" || {
-        echo "OJO: el arbol no esta en $REF. Se deja como esta." >&2
+        echo "OJO: el tree no esta en $REF. Se deja como esta." >&2
     }
 fi
 

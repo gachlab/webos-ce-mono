@@ -11,12 +11,22 @@
 'use strict';
 
 if (typeof process.setName !== 'function') {
-    // HP's set the process title. process.title does the same thing.
+    // HP's set the process title, and process.title does the same thing -- but
+    // on Linux that rewrites the process's own argv area, which is what ps and
+    // /proc/<pid>/cmdline read.
+    //
+    // So it has to be a string. bootstrap-node.js calls this with the service
+    // description object, and an earlier version coerced it with String(),
+    // which set every service's command line to the literal "[object Object]".
+    // Nothing could find its own processes after that.
     process.setName = function (name) {
+        if (typeof name !== 'string' || name === '') {
+            return;
+        }
         try {
-            process.title = String(name);
+            process.title = name;
         } catch (e) {
-            // Some platforms refuse a longer title than the original argv.
+            // Some platforms refuse a title longer than the original argv.
             // Nothing depends on it having worked.
         }
     };

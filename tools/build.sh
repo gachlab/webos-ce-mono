@@ -22,7 +22,10 @@ declare -A SKIP=(
     [qt4]="replaced by the system Qt5"
     [webkit]="replaced by QtWebKit 5.212; built by build-third-party.sh"
     [nodejs]="we use Debian node; HP's needs Python 2 and SCons"
-    [nodejs-module-webos-sysbus]="old v8 API addon, needs porting to N-API"
+    # The three addons are built from components/node-v8-shim/addons, which
+    # compiles HP's sources against the shim. Their own CMakeLists are HP's and
+    # need a node that no longer exists.
+    [nodejs-module-webos-sysbus]="built via components/node-v8-shim/addons"
     [nodejs-module-webos-pmlog]="same"
     [nodejs-module-webos-dynaload]="same"
     [WebKitSupplemental]="browser path (NPAPI), pending"
@@ -122,6 +125,23 @@ stage_qmake() {
     "$R/tools/build-qmake.sh"
 }
 
+stage_node_addons() {
+    echo "== node addons =="
+    # HP's three addons, built from his sources against components/node-v8-shim.
+    # Separate from the CMake stage because they are not one MANIFEST component:
+    # one project builds all three, which is what lets them share the shim.
+    if ! command -v node >/dev/null; then
+        echo "  no node on PATH; skipped"
+        return 0
+    fi
+    cmake -S "$R/components/node-v8-shim/addons" -B "$R/build-modern/node-addons" \
+          -DCMAKE_INSTALL_PREFIX="$R/build-modern/staging" > /tmp/webos/node-addons.log 2>&1 \
+      && cmake --build "$R/build-modern/node-addons" -j"$(nproc)" >> /tmp/webos/node-addons.log 2>&1 \
+      && cmake --install "$R/build-modern/node-addons" >> /tmp/webos/node-addons.log 2>&1 \
+      && echo "  pmloglib, palmbus, webos     OK" \
+      || { echo "  FAILED (see /tmp/webos/node-addons.log)"; return 1; }
+}
+
 stage_rootfs() {
     echo "== rootfs =="
     # The MANIFEST's "copiar" components are not built: they are JS, themes and
@@ -135,12 +155,13 @@ case "$STAGE" in
     autotools) stage_autotools ;;
     cmake)  stage_cmake ;;
     qmake)  stage_qmake ;;
+    node)   stage_node_addons ;;
     rootfs) stage_rootfs ;;
     all)   # NOTE the placement: the echoes go INSIDE the if, not loose after
             # the chain. They were outside and the script announced success even
             # when a stage had failed.
             if stage_third_party && stage_headers && stage_autotools \
-               && stage_cmake && stage_rootfs; then
+               && stage_cmake && stage_node_addons && stage_rootfs; then
                 echo
                 echo "Done. To start the shell:  tools/run-lunasysmgr.sh"
             else
