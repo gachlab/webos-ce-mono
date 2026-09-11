@@ -23,7 +23,7 @@ Item {
     }
 
     function setContent(menuContent) {
-        mainMenu.children = [content]
+        mainMenu.children = [menuContent]
     }
 
     signal menuScrollStarted();

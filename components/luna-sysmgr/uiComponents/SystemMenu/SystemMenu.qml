@@ -70,7 +70,7 @@ Item {
         airplane.airplaneOn = ((state == 2) || (state == 3));
         airplaneModeInProgress = ((state == 1) || (state == 2));
 
-        if(inProgress) {
+        if(airplaneModeInProgress) {
             wifi.close();
             vpn.close();
             bluetooth.close();

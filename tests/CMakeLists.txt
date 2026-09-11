@@ -39,6 +39,15 @@ add_test(NAME qml-loads-luna-sysmgr-ce
          COMMAND qml-loads-qt5 -platform offscreen
                  "${CMAKE_CURRENT_SOURCE_DIR}/../components/luna-sysmgr-ce/uiComponents")
 
+# --- undefined identifiers inside QML functions -------------------------------
+# Only the files that declare functions are worth calling; the rest are pure
+# declarative markup and qml-loads already covers them.
+add_executable(qml-functions-qt5 qml-functions-qt5.cpp)
+target_link_libraries(qml-functions-qt5 PRIVATE Qt5::Core Qt5::Gui Qt5::Qml Qt5::Quick)
+file(GLOB_RECURSE QML_WITH_FUNCTIONS "${SYSMGR}/uiComponents/*.qml")
+add_test(NAME qml-functions
+         COMMAND qml-functions-qt5 -platform offscreen ${QML_WITH_FUNCTIONS})
+
 # --- QmlSceneItem's contract -------------------------------------------------
 # Compiles the adapter straight out of the shell's tree: it is the thing under
 # test, and a copy here would drift.
