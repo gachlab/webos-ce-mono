@@ -35,6 +35,12 @@ export QT_QPA_PLATFORM=xcb   # LunaSysMgr asks for the "palm" plugin, which came
 
 mkdir -p /tmp/webos/ls2 /tmp/webos/captures
 
+# ls-hubd y luna-send se toman de staging, no del arbol de build. El arbol vive
+# en build-modern/<componente>/ y ese nombre depende de como se llame el
+# componente en el MANIFEST: la ruta que habia aqui era build-modern/ls2/, del
+# layout viejo, y dejo de existir en cuanto se construyo desde cero. staging es
+# la ubicacion estable.
+
 # Enter the namespace and re-enter this same script, so everything launched
 # below inherits it. Used by "run" and "servicios": both need to see the paths
 # webOS has hardcoded.
@@ -81,8 +87,8 @@ entrar_namespace() {
 case "${1:-run}" in
   bus)
     pkill -x ls-hubd 2>/dev/null; sleep 1
-    "$R/build-modern/ls2/src/ls-hubd/ls-hubd" --conf "$ROOTFS/etc/ls2/ls-private.conf" >/tmp/webos/ls-priv.log 2>&1 &
-    "$R/build-modern/ls2/src/ls-hubd/ls-hubd" --public --conf "$ROOTFS/etc/ls2/ls-public.conf" >/tmp/webos/ls-pub.log 2>&1 &
+    "$S/usr/sbin/ls-hubd" --conf "$ROOTFS/etc/ls2/ls-private.conf" >/tmp/webos/ls-priv.log 2>&1 &
+    "$S/usr/sbin/ls-hubd" --public --conf "$ROOTFS/etc/ls2/ls-public.conf" >/tmp/webos/ls-pub.log 2>&1 &
     sleep 2
     echo "ls-hubd: $(pgrep -xc ls-hubd) instancias"
     ;;
@@ -98,7 +104,7 @@ case "${1:-run}" in
     pkill -x configurator 2>/dev/null; sleep 1
     "$ROOTFS/usr/lib/luna/configurator" service > /tmp/webos/configurator.log 2>&1 &
     sleep 3
-    LS="$R/build-modern/ls2/src/luna-send/luna-send"
+    LS="$S/usr/bin/luna-send"
     for t in '{"types":["dbkinds","filecache"]}' '{"types":["dbpermissions"]}' '{"types":["activities"]}'; do
         echo "configurator <- $t"
         timeout 60 "$LS" -n 1 palm://com.palm.configurator/run "$t" 2>&1 | head -2
