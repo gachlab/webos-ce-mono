@@ -1,10 +1,19 @@
-// Reproduces HP's desktop Qt5 input design and checks what it actually produces.
+// Pins down why WindowServer::deliverAsTouch has to exist.
 //
 // Main.cpp installs a global MouseEventEater that calls e->ignore() and returns
 // true for EVERY mouse event. The intent is that, left unaccepted, Qt turns them
-// into touches via AA_SynthesizeTouchForUnhandledMouseEvents. The question is
-// whether that yields a TouchBegin, which is what webOS needs to register the
-// finger.
+// into touches via AA_SynthesizeTouchForUnhandledMouseEvents, giving webOS the
+// TouchBegin it needs to register a finger.
+//
+// It does not. Qt only synthesizes a touch from a mouse event that nobody
+// accepted, and QGraphicsView's viewport accepts the press before the attribute
+// ever gets a say -- so the eater swallows the mouse and nothing comes out the
+// other side. That is the finding this test pins down, and the reason the shell
+// builds its touch events by hand instead.
+//
+// So a PASS here means "no TouchBegin", which is the behaviour the workaround is
+// built on. If this ever starts failing, Qt changed and deliverAsTouch may no
+// longer be needed.
 //
 // Runs headless:  ./eater-synthesis-qt5 -platform offscreen
 #include <QApplication>
@@ -77,8 +86,10 @@ int main(int argc, char** argv)
 
     printf("mouse events eaten: %d\n", mice);
     printf("TouchBegin:%d  TouchUpdate:%d  TouchEnd:%d\n", touches[0], touches[1], touches[2]);
-    printf("%s\n", touches[0] > 0
-        ? "eater + synthesis DOES produce TouchBegin"
-        : "FAIL: the eater swallows the mouse and NO TouchBegin comes out");
-    return touches[0] > 0 ? 0 : 1;
+    const bool asExpected = (mice > 0 && touches[0] == 0);
+    printf("%s\n", asExpected
+        ? "OK: the eater swallows the mouse and no TouchBegin comes out,\n"
+          "    which is why WindowServer::deliverAsTouch builds them by hand"
+        : "FAIL: Qt now synthesizes a TouchBegin here -- recheck deliverAsTouch");
+    return asExpected ? 0 : 1;
 }
