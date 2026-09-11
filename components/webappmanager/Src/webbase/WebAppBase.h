@@ -22,6 +22,7 @@
 #include "SysMgrWebBridge.h"
 
 #include <QObject>
+#include <QPointer>
 
 #include <lunaservice.h>
 #include <palmimedefines.h>
@@ -107,7 +108,13 @@ class WebAppBase : public QObject {
     private:
         // app description
 
-        SysMgrWebBridge* m_page;
+        // A bridge can be the Qt child of another bridge -- openWindow() and the
+        // shell page both call setParent() -- and Qt deletes a child with its
+        // parent, behind this class's back. The raw pointer then passed the
+        // "if (m_page)" guards in cleanResources() and destroyActivity() read
+        // from freed memory: closing a card segfaulted WebAppMgr in
+        // QObject::parent(), and LunaSysMgr followed it out.
+        QPointer<SysMgrWebBridge> m_page;
         bool m_inCache;
         bool m_keepAlive;
 

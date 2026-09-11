@@ -145,6 +145,34 @@ Traps found on the way, each confirmed before being fixed:
   Measured on the calculator's own page: 84px and a 13px overflow before, 46px
   and the labels in their keys after.
 
+- **Closing a card killed WebAppMgr, and LunaSysMgr followed it out.** Caught
+  under gdb (`WEBOS_WAM_WRAPPER` runs WebAppMgr through a debugger):
+
+      #0  QObject::parent (this=0x555555d41c80)
+      #1  WebAppBase::destroyActivity      WebAppBase.cpp:257
+      #2  WebAppBase::cleanResources       WebAppBase.cpp:62
+      #3  WindowedWebApp::~WindowedWebApp  WindowedWebApp.cpp:106
+      #4  CardWebApp::~CardWebApp          CardWebApp.cpp:303
+      #6  WebAppManager::closeAppInternal  WebAppManager.cpp:1143
+      #7  WindowedWebApp::onClose          WindowedWebApp.cpp:290
+
+  `destroyActivity()` asks `m_page->parent()`, and `m_page` was freed memory:
+  not null, so it walked straight through the `if (!m_page)` guard above it. A
+  `SysMgrWebBridge` can be the Qt child of another bridge -- `openWindow()` and
+  the shell page both call `setParent()` -- and Qt deletes a child along with
+  its parent, without telling the `WebAppBase` that points at it. Making that
+  member a `QPointer<SysMgrWebBridge>` (the component already uses QPointer for
+  `m_jsObj`) nulls it when Qt destroys the object, so the existing guards do
+  what they were written to do.
+
+  Not the border-image adapter: the same crash, with the same signature, is in
+  the logs of a session that ran the binary built before any of that work.
+
+  Left alone, but worth knowing: the pointer the other way, `SysMgrWebBridge::
+  m_client`, is a raw `WebAppBase*` cleared only in `detach()`, and two places
+  assign it directly (`SysMgrWebBridge.cpp:383` and `:443`). Nothing observed
+  has fired it.
+
 Not done yet:
 
 - **Checked by hand on Qt 6:** the shell and the apps run, and the line QtWebKit
