@@ -266,6 +266,10 @@ protected:
 
 	virtual bool handleEvent(QEvent* event);
 	virtual bool viewportEvent(QEvent* event);
+#if defined(TARGET_DESKTOP) && (QT_VERSION >= QT_VERSION_CHECK(5, 0, 0))
+	// Traduce un evento de raton al QTouchEvent equivalente. Ver el .cpp.
+	bool entregarComoToque(QMouseEvent* me);
+#endif
 	virtual bool sysmgrEventFilters(QEvent* event) = 0;
 	virtual bool eventFilter(QObject *, QEvent *);
 

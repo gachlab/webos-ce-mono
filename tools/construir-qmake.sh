@@ -54,14 +54,24 @@ for c in ${@:-$ORDEN}; do
     if [ -z "$p" ]; then echo "$c: no es un componente qmake conocido"; fallo=1; continue; fi
 
     cd "$d" || { fallo=1; continue; }
-    # Empezar limpio: un .o truncado de una corrida en paralelo sobrevive a make.
-    rm -rf debug-x86 release-x86 .qmake.stash Makefile.Ubuntu*
+    # Por defecto es incremental. La limpieza existia por el .o truncado de las
+    # corridas en paralelo, pero como aqui se fuerza -j1 esa carrera no puede
+    # ocurrir; borrar siempre significaba recompilar 193.000 lineas por cambiar
+    # una. Con LIMPIAR=1 se fuerza el borrado.
+    if [ -n "${LIMPIAR:-}" ] || [ ! -f Makefile.Ubuntu ]; then
+        rm -rf debug-x86 release-x86 .qmake.stash Makefile.Ubuntu*
+        hacer_qmake=1
+    else
+        hacer_qmake=
+    fi
 
-    if ! "$QMAKE" "$p" -after \
-            "INCLUDEPATH += $INCS" \
-            "LIBS += -L$S/lib -L$S/usr/lib" > qmake.log 2>&1; then
-        printf "%-22s QMAKE FALLA   %s\n" "$c" "$(grep -m1 -iE 'error|cannot' qmake.log | cut -c1-60)"
-        fallo=1; continue
+    if [ -n "$hacer_qmake" ]; then
+        if ! "$QMAKE" "$p" -after \
+                "INCLUDEPATH += $INCS" \
+                "LIBS += -L$S/lib -L$S/usr/lib" > qmake.log 2>&1; then
+            printf "%-22s QMAKE FALLA   %s\n" "$c" "$(grep -m1 -iE 'error|cannot' qmake.log | cut -c1-60)"
+            fallo=1; continue
+        fi
     fi
 
     if ! make -f Makefile.Ubuntu -j1 > build.log 2>&1; then
