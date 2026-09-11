@@ -1,6 +1,6 @@
 #!/bin/bash
-# Barrido: intenta configurar+compilar cada componente CMake en Debian moderno.
-# No arregla nada; solo levanta el mapa de que se rompe y donde.
+# Sweep: tries to configure and build each CMake component on modern Debian.
+# It fixes nothing; it only maps what breaks and where.
 R="$(cd "$(dirname "$0")/.." && pwd)"
 S=$R/build-modern/staging
 export PKG_CONFIG_PATH=$S/lib/pkgconfig:$S/usr/share/pkgconfig:$S/usr/lib/pkgconfig
@@ -25,7 +25,7 @@ for c in "$@"; do
         printf "%-24s INSTALA FALLA %s\n" "$c" "$(grep -m1 -E 'cannot|Error' install.log | cut -c1-60)"
         continue
     fi
-    # ajustes de layout que el componente no hace solo (HP los hacia a mano)
+    # layout fixups the component does not do itself (HP did them by hand)
     [ -x "$R/tools/post-install/$c.sh" ] && "$R/tools/post-install/$c.sh" "$S"
     printf "%-24s OK\n" "$c"
 done

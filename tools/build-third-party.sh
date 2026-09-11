@@ -1,14 +1,14 @@
 #!/bin/bash
-# Construye QtWebKit 5.212, que es la unica dependencia que no vive en el repo.
+# Builds QtWebKit 5.212, the only dependency that does not live in this repo.
 #
-# Hace falta porque webappmanager y BrowserServer hablan por NPAPI, que es la
-# frontera que Palm dibujo entre el shell y el motor web. QtWebEngine (Chromium)
-# no expone NPAPI, asi que no sirve de reemplazo.
+# It is needed because webappmanager and BrowserServer talk over NPAPI, the
+# boundary Palm drew between the shell and the web engine. QtWebEngine
+# (Chromium) does not expose NPAPI, so it is not a replacement.
 #
-# No se vendorea: son cientos de MB que nadie va a editar. Se clona en la ref
-# exacta y se le aplica nuestro parche de portabilidad (ver patches/).
+# Not vendored: hundreds of MB nobody is going to edit. It is cloned at the
+# exact ref and our portability patch is applied (see patches/).
 #
-# Uso: tools/build-third-party.sh
+# Usage: tools/build-third-party.sh
 set -eu
 
 R="$(cd "$(dirname "$0")/.." && pwd)"
@@ -25,18 +25,18 @@ mkdir -p "$TP"
 
 if [ ! -d "$SRC/.git" ]; then
     echo "== clonando QtWebKit en $REF (unos 500 MB) =="
-    # Sin --depth: hace falta poder resolver el sha exacto.
+    # No --depth: we need to be able to resolve the exact sha.
     git clone "$ORIGEN" "$SRC"
     git -C "$SRC" checkout --detach "$REF"
 else
-    echo "== ya existe $SRC, se reutiliza =="
+    echo "== $SRC already exists, reusing it =="
     git -C "$SRC" rev-parse HEAD | grep -q "^$REF" || {
         echo "OJO: el arbol no esta en $REF. Se deja como esta." >&2
     }
 fi
 
-# El parche se aplica sobre el arbol limpio. Si ya esta aplicado, git lo dice y
-# se sigue: no es un error re-ejecutar el script.
+# The patch applies to a clean tree. If it is already applied, git says so and
+# we carry on: re-running the script is not an error.
 if git -C "$SRC" apply --check "$PARCHE" 2>/dev/null; then
     echo "== aplicando $PARCHE =="
     git -C "$SRC" apply "$PARCHE"
@@ -57,7 +57,7 @@ cmake -S "$SRC" -B "$BUILD" -G Ninja \
     -DENABLE_API_TESTS=OFF
 
 echo "== compilando (3293 objetos; tarda) =="
-# -j6 y no nproc: enlazar WebCore se come varios GB por proceso.
+# -j6 rather than nproc: linking WebCore eats several GB per process.
 ninja -C "$BUILD" -j"${JOBS:-6}"
 
 echo "== instalando en $PREFIX =="

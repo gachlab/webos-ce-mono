@@ -1,6 +1,6 @@
 #!/bin/bash
-# Importa cada componente con git subtree --squash, para que el commit registre
-# el repo y el sha de origen sin arrastrar la historia completa de 50 repos.
+# Imports each component with git subtree --squash, so the commit records the
+# source repo and sha without dragging in the full history of 50 repos.
 set -uo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"

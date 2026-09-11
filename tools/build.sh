@@ -1,48 +1,51 @@
 #!/bin/bash
-# Construye webOS completo sobre un Debian moderno, en el orden del MANIFEST.
+# Builds all of webOS on a modern Debian, in MANIFEST order.
 #
-# El orden NO es invento nuestro: es el de build-webos-desktop.sh de HP, que ya
-# venia ordenado topologicamente. MANIFEST.tsv lo conserva en su columna 1.
+# The order is not ours: it is HP's build-webos-desktop.sh, which already came
+# topologically sorted. MANIFEST.tsv keeps it in its first column.
 #
-# Uso:
-#   tools/build.sh              # todo
-#   tools/build.sh cmake        # una etapa: third-party | cabeceras | autotools | cmake | qmake | rootfs
+# Usage:
+#   tools/build.sh              # everything
+#   tools/build.sh cmake        # one stage: third-party | headers | autotools |
+#                               # cmake | qmake | rootfs
 set -u
 R="$(cd "$(dirname "$0")/.." && pwd)"
-ETAPA="${1:-todo}"
+STAGE="${1:-all}"
 S="$R/build-modern/staging"
 
-# Componentes que el MANIFEST marca como cmake/qmake pero que NO construimos, y
-# por que. Se listan aqui en vez de borrarlos del MANIFEST para que el manifiesto
-# siga siendo el inventario fiel de lo que libero HP.
-declare -A OMITIR=(
-    [cmake]="es la herramienta; usamos la del sistema"
-    [cmake-modules-webos]="son modulos CMake, se consumen por CMAKE_MODULE_PATH"
-    [qt4]="reemplazado por el Qt5 del sistema"
-    [webkit]="reemplazado por QtWebKit 5.212; lo construye build-third-party.sh"
-    [nodejs]="usamos el node de Debian; el de HP pide Python 2 y SCons"
-    [nodejs-module-webos-sysbus]="addon en API v8 vieja, falta portarlo a N-API"
-    [nodejs-module-webos-pmlog]="idem"
-    [nodejs-module-webos-dynaload]="idem"
-    [WebKitSupplemental]="camino del navegador (NPAPI), pendiente"
-    [AdapterBase]="camino del navegador (NPAPI), pendiente"
-    [BrowserServer]="camino del navegador (NPAPI), pendiente"
-    [BrowserAdapter]="camino del navegador (NPAPI), pendiente"
-    # OJO: db8 configura y compila sin leveldb, y Debian no lo empaqueta. Falta
-    # confirmar en ejecucion si mojodb-luna necesita ese backend o trae otro.
-    [leveldb]="db8 compila sin el; pendiente verificar en ejecucion"
+# Components the MANIFEST lists as cmake/qmake that we do NOT build, and why.
+# They are listed here instead of being removed from the MANIFEST so that the
+# manifest stays a faithful inventory of what HP released.
+declare -A SKIP=(
+    [cmake]="it is the tool itself; we use the system one"
+    [cmake-modules-webos]="CMake modules, consumed via CMAKE_MODULE_PATH"
+    [qt4]="replaced by the system Qt5"
+    [webkit]="replaced by QtWebKit 5.212; built by build-third-party.sh"
+    [nodejs]="we use Debian node; HP's needs Python 2 and SCons"
+    [nodejs-module-webos-sysbus]="old v8 API addon, needs porting to N-API"
+    [nodejs-module-webos-pmlog]="same"
+    [nodejs-module-webos-dynaload]="same"
+    [WebKitSupplemental]="browser path (NPAPI), pending"
+    [AdapterBase]="browser path (NPAPI), pending"
+    [BrowserServer]="browser path (NPAPI), pending"
+    [BrowserAdapter]="browser path (NPAPI), pending"
+    # NOTE: db8 configures and builds without leveldb, and Debian does not
+    # package it. Still to confirm at runtime whether mojodb-luna needs that
+    # backend or ships another.
+    [leveldb]="db8 builds without it; still to verify at runtime"
 )
 
-lista() {  # lista <sistema-de-build> -> nombres en orden del MANIFEST
+list_of() {  # list_of <build-system> -> names in MANIFEST order
     awk -F'\t' -v s="$1" 'NR>1 && $5==s {print $2}' "$R/MANIFEST.tsv"
 }
 
-seleccion() {
-    for c in $(lista "$1"); do
-        [ -n "${OMITIR[$c]:-}" ] && continue
-        # mojomail no es un componente: son cuatro proyectos CMake bajo el mismo
-        # directorio, sin CMakeLists arriba. HP los construye uno a uno, y
-        # 'common' tiene que ir primero porque los otros tres enlazan contra el.
+selected() {
+    for c in $(list_of "$1"); do
+        [ -n "${SKIP[$c]:-}" ] && continue
+        # mojomail is not one component: it is four CMake projects under the
+        # same directory, with no CMakeLists on top. HP builds them one by one,
+        # and 'common' has to go first because the other three link against
+        # it.
         if [ "$c" = mojomail ]; then
             echo mojomail/common mojomail/imap mojomail/pop mojomail/smtp
             continue
@@ -51,43 +54,43 @@ seleccion() {
     done
 }
 
-etapa_third_party() {
+stage_third_party() {
     echo "== third-party =="
-    # QtWebKit 5.212. Es lo unico que no vive en el repo y tarda lo suyo, asi
-    # que se salta si ya esta instalado.
+    # QtWebKit 5.212. The only thing that does not live in the repo, and it
+    # takes a while, so it is skipped when already installed.
     if [ -e "$R/build-modern/staging/qtwebkit/mkspecs/modules/qt_lib_webkit.pri" ]; then
-        echo "QtWebKit                ya instalado"
+        echo "QtWebKit                already installed"
     else
         "$R/tools/build-third-party.sh"
     fi
 }
 
-etapa_cabeceras() {
-    echo "== cabeceras =="
-    # Tres componentes son solo cabeceras: no se compilan, se copian a staging.
-    # HP lo hace linea a linea en su script y aqui faltaba por completo, asi que
-    # luna-sysmgr, keyboard-efigs y webappmanager no encontraban Common.h ni
-    # palmimedefines.h. Solo sale al construir desde cero: una vez copiadas,
-    # sobreviven a los rebuilds.
+stage_headers() {
+    echo "== headers =="
+    # Three components are headers only: they are not built, just copied into
+    # staging. HP does this line by line in its script and it was missing here
+    # entirely, so luna-sysmgr, keyboard-efigs and webappmanager could not find
+    # Common.h or palmimedefines.h. Only shows up on a clean build: once
+    # copied, they survive rebuilds.
     mkdir -p "$S/include/luna-sysmgr-common" "$S/include/ime" "$S/include/webkit/npapi"
 
     cp -f "$R"/components/luna-sysmgr-common/include/* "$S/include/luna-sysmgr-common/" 2>/dev/null
-    printf "  %-22s %s\n" "luna-sysmgr-common" "$(ls "$S/include/luna-sysmgr-common" | wc -l) cabeceras"
+    printf "  %-22s %s\n" "luna-sysmgr-common" "$(ls "$S/include/luna-sysmgr-common" | wc -l) headers"
 
     cp -f "$R"/components/luna-webkit-api/include/public/ime/*.h "$S/include/ime/" 2>/dev/null
     cp -f "$R"/components/luna-webkit-api/*.h                    "$S/include/ime/" 2>/dev/null
-    printf "  %-22s %s\n" "luna-webkit-api" "$(ls "$S/include/ime" | wc -l) cabeceras"
+    printf "  %-22s %s\n" "luna-webkit-api" "$(ls "$S/include/ime" | wc -l) headers"
 
     cp -f "$R"/components/npapi-headers/*.h "$S/include/webkit/npapi/" 2>/dev/null
-    printf "  %-22s %s\n" "npapi-headers" "$(ls "$S/include/webkit/npapi" | wc -l) cabeceras"
+    printf "  %-22s %s\n" "npapi-headers" "$(ls "$S/include/webkit/npapi" | wc -l) headers"
 }
 
-etapa_autotools() {
+stage_autotools() {
     echo "== autotools =="
-    for c in $(seleccion autotools); do
+    for c in $(selected autotools); do
         d=$R/build-modern/$c
         mkdir -p "$d"; cd "$d" || { echo "$c: sin directorio"; return 1; }
-        # cjson trae autogen.sh; el arbol de HP no incluye ./configure generado.
+        # cjson ships autogen.sh; HP's tree has no generated ./configure.
         [ -x "$R/components/$c/configure" ] || (cd "$R/components/$c" && ./autogen.sh >/dev/null 2>&1)
         if ! "$R/components/$c/configure" --prefix="$R/build-modern/staging" > cfg.log 2>&1 \
            || ! make -j"$(nproc)" > build.log 2>&1 || ! make install > install.log 2>&1; then
@@ -98,42 +101,42 @@ etapa_autotools() {
     done
 }
 
-etapa_cmake() {
+stage_cmake() {
     echo "== CMake =="
     # shellcheck disable=SC2046
-    "$R/tools/build-cmake.sh" $(seleccion cmake)
+    "$R/tools/build-cmake.sh" $(selected cmake)
 }
 
-etapa_qmake() {
+stage_qmake() {
     echo "== qmake =="
     "$R/tools/build-qmake.sh"
 }
 
-etapa_rootfs() {
+stage_rootfs() {
     echo "== rootfs =="
-    # Los componentes "copiar" del MANIFEST no se compilan: son JS, temas y
-    # datos. assemble-rootfs.sh los coloca junto a los binarios ya instalados.
+    # The MANIFEST's "copiar" components are not built: they are JS, themes and
+    # data. assemble-rootfs.sh places them next to the installed binaries.
     "$R/tools/assemble-rootfs.sh"
 }
 
-case "$ETAPA" in
-    third-party) etapa_third_party ;;
-    cabeceras) etapa_cabeceras ;;
-    autotools) etapa_autotools ;;
-    cmake)  etapa_cmake ;;
-    qmake)  etapa_qmake ;;
-    rootfs) etapa_rootfs ;;
-    todo)   # OJO con el orden: los echo van DENTRO del if, no sueltos detras de
-            # la cadena. Estaban fuera y el script anunciaba "Listo" aunque una
-            # etapa hubiera fallado.
-            if etapa_third_party && etapa_cabeceras && etapa_autotools \
-               && etapa_cmake && etapa_qmake && etapa_rootfs; then
+case "$STAGE" in
+    third-party) stage_third_party ;;
+    headers) stage_headers ;;
+    autotools) stage_autotools ;;
+    cmake)  stage_cmake ;;
+    qmake)  stage_qmake ;;
+    rootfs) stage_rootfs ;;
+    all)   # NOTE the placement: the echoes go INSIDE the if, not loose after
+            # the chain. They were outside and the script announced success even
+            # when a stage had failed.
+            if stage_third_party && stage_headers && stage_autotools \
+               && stage_cmake && stage_qmake && stage_rootfs; then
                 echo
-                echo "Listo. Para arrancar el shell:  tools/run-lunasysmgr.sh"
+                echo "Done. To start the shell:  tools/run-lunasysmgr.sh"
             else
                 echo
-                echo "FALLO: alguna etapa no termino bien. Mira los logs en build-modern/." >&2
+                echo "FAILED: a stage did not finish. See the logs in build-modern/." >&2
                 exit 1
             fi ;;
-    *)      echo "etapa desconocida: $ETAPA (third-party | cabeceras | autotools | cmake | qmake | rootfs | todo)"; exit 2 ;;
+    *)      echo "unknown stage: $STAGE (third-party | headers | autotools | cmake | qmake | rootfs | all)"; exit 2 ;;
 esac
