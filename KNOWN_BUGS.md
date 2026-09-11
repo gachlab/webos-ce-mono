@@ -62,11 +62,23 @@ N-API. No node process is running.
 
 ## Open, cause not yet found
 
-### LunaUniversalSearchMgr dies inside the namespace
+### ~~LunaUniversalSearchMgr dies inside the namespace~~ (never did)
 
-Four of HP's five static services run. This one exits immediately when started
-inside the bwrap namespace and survives outside it, so it is a path the
-namespace does not provide. Not yet traced. It is the Just Type search backend.
+It was reported dead in every status line while up to thirteen copies of it were
+running at once -- one leaked per launch, all session.
+
+Linux truncates a task's comm to 15 characters. `pgrep -x` and `pkill -x` match
+against comm, so for `LunaUniversalSearchMgr`, which is 22, they match nothing.
+The status line read that as dead, and the same truncation stopped the script's
+`pkill -x` from ever reaping the previous copy. pgrep does say so, on stderr:
+
+    pgrep: pattern that searches for process name longer than 15 characters
+           will result in zero matches
+
+run-lunasysmgr.sh now compares argv[0] out of /proc, which is exact and has no
+length limit. All five of HP's static services report alive.
+
+Guarded by tests/long-process-name.sh.
 
 ### tapAndHoldGesture is still rejected
 

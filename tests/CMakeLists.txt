@@ -64,6 +64,10 @@ target_link_libraries(qml-scene-item-qt5 PRIVATE
     Qt5::Core Qt5::Gui Qt5::Widgets Qt5::Qml Qt5::Quick ${GLIB_LIBRARIES})
 add_test(NAME qml-scene-item COMMAND qml-scene-item-qt5 -platform offscreen)
 
+# --- the run script's process detection ---------------------------------------
+add_test(NAME long-process-name
+         COMMAND "${CMAKE_CURRENT_SOURCE_DIR}/long-process-name.sh")
+
 # --- pbnjson ------------------------------------------------------------------
 find_library(PBNJSON_C NAMES pbnjson_c
              PATHS "${CMAKE_CURRENT_SOURCE_DIR}/../build-modern/staging/lib" NO_DEFAULT_PATH)

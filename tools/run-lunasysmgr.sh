@@ -20,6 +20,36 @@ R="$(cd "$(dirname "$0")/.." && pwd)"
 SELF="$R/tools/$(basename "$0")"   # absolute: there is a --chdir below
 S="$R/build-modern/staging"
 ROOTFS="$R/build-modern/rootfs"
+
+# Linux truncates a process's comm to 15 characters, so `pgrep -x` and
+# `pkill -x` silently match nothing for a longer name -- LunaUniversalSearchMgr
+# is 22, and for a whole session it was reported dead while thirteen copies of it
+# were running, because the same truncation stopped pkill from reaping them too.
+# Comparing argv[0] out of /proc is exact and has no length limit. A pgrep -f
+# regex would need the path escaped, and anchoring it with $ would miss
+# mojodb-luna, which is launched with arguments.
+service_pids() {   # service_pids <absolute path to the binary>
+    local target="$1" dir pid argv0
+    for dir in /proc/[0-9]*; do
+        pid="${dir#/proc/}"
+        # A process can vanish between the glob and the read; the redirection
+        # itself then fails, and bash reports that before 2>/dev/null applies.
+        { IFS= read -r -d "" argv0 < "$dir/cmdline"; } 2>/dev/null || continue
+        [ "$argv0" = "$target" ] && echo "$pid"
+    done
+    return 0
+}
+
+service_running() {
+    [ -n "$(service_pids "$1")" ]
+}
+
+service_stop() {
+    local pids
+    pids="$(service_pids "$1")"
+    [ -n "$pids" ] && kill $pids 2>/dev/null
+    return 0
+}
 # The qtwebkit one is there too because WebAppMgr links against our QtWebKit
 # 5.212, which is not on the host. ls-hubd inherits this environment and passes
 # it on to WebAppMgr when it starts it.
@@ -113,25 +143,24 @@ case "${1:-run}" in
     ;;
   servicios)
     entrar_namespace "$@"
-    # La lista es la de HP en service-bus.sh (STATIC_SERVICES): los que no se
-    # arrancan bajo demanda desde el bus. Sin ellos el shell dibuja pero las
-    # apps no tienen de donde leer -- de ahi los "Service does not exist:
-    # com.palm.systemservice / com.palm.preferences" del log.
-    pkill -x LunaSysService 2>/dev/null; pkill -x mojodb-luna 2>/dev/null
-    pkill -x activitymanager 2>/dev/null; pkill -x filecache 2>/dev/null
-    pkill -x LunaUniversalSearchMgr 2>/dev/null
-    sleep 1
+    # HP's own list, from service-bus.sh (STATIC_SERVICES): the ones the bus does
+    # not start on demand. Without them the shell draws but the apps have nothing
+    # to read from -- hence the "Service does not exist: com.palm.systemservice /
+    # com.palm.preferences" lines in the log.
     L="$ROOTFS/usr/lib/luna"
+    ALL_SERVICES="mojodb-luna LunaSysService filecache activitymanager LunaUniversalSearchMgr"
+    for svc in $ALL_SERVICES; do service_stop "$L/$svc"; done
+    sleep 1
     "$L/mojodb-luna" -c /etc/palm/mojodb.conf /var/db > /tmp/webos/mojodb.log 2>&1 &
     sleep 2
     for svc in LunaSysService filecache activitymanager LunaUniversalSearchMgr; do
-        [ -x "$L/$svc" ] || { echo "$svc: sin binario"; continue; }
+        [ -x "$L/$svc" ] || { echo "$svc: no binary"; continue; }
         "$L/$svc" > "/tmp/webos/$svc.log" 2>&1 &
         sleep 1
     done
     sleep 2
-    for svc in mojodb-luna LunaSysService filecache activitymanager LunaUniversalSearchMgr; do
-        printf "%-24s %s\n" "$svc" "$(pgrep -xc "$svc" 2>/dev/null | grep -q '^0$' && echo MUERTO || echo vivo)"
+    for svc in $ALL_SERVICES; do
+        printf "%-24s %s\n" "$svc" "$(service_running "$L/$svc" && echo alive || echo DEAD)"
     done
     ;;
   run)
@@ -159,7 +188,9 @@ case "${1:-run}" in
     ;;
   stop)
     pkill -x LunaSysMgr; pkill -x WebAppMgr
-    for s in mojodb-luna LunaSysService filecache activitymanager LunaUniversalSearchMgr; do pkill -x "$s" 2>/dev/null; done
+    for s in mojodb-luna LunaSysService filecache activitymanager LunaUniversalSearchMgr; do
+        service_stop "$ROOTFS/usr/lib/luna/$s"
+    done
     pkill -x ls-hubd; echo "detenido"
     ;;
 esac
