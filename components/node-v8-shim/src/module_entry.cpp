@@ -24,6 +24,7 @@ extern "C" void init(v8::Handle<v8::Object> target);
 
 static napi_value ShimInit(napi_env env, napi_value exports)
 {
+    v8::SetModuleEnv(env);
     v8::EnvScope scope(env);
     init(v8::Handle<v8::Object>(exports));
     return exports;

@@ -27,13 +27,31 @@ open(sys.argv[2], "w").write(
     "unsigned int pmloglib_js_len = %d;\n" % len(data))
 PY
 
-cat > "$BUILD/CMakeLists.txt" <<CMAKE
+# Quoted heredoc: CMake's own ${} must survive, so the paths go in afterwards.
+cat > "$BUILD/CMakeLists.txt" <<'CMAKE'
 cmake_minimum_required(VERSION 3.16)
 project(node-shim-test CXX)
-add_subdirectory($ROOT/components/node-v8-shim shim)
-webos_node_addon(pmloglib $ROOT/components/nodejs-module-webos-pmlog/src/pmloglib.cpp)
-target_include_directories(pmloglib PRIVATE $BUILD)
+add_subdirectory(@ROOT@/components/node-v8-shim shim)
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(GLIB REQUIRED glib-2.0)
+
+webos_node_addon(persistent @ROOT@/tests/node-shim/persistent_addon.cpp)
+
+webos_node_addon(pmloglib @ROOT@/components/nodejs-module-webos-pmlog/src/pmloglib.cpp)
+target_include_directories(pmloglib PRIVATE @BUILD@)
+
+# The one that matters: 2660 lines of HP's, none of them touched.
+set(SYSBUS @ROOT@/components/nodejs-module-webos-sysbus/src)
+webos_node_addon(palmbus
+    ${SYSBUS}/node_ls2.cpp ${SYSBUS}/node_ls2_base.cpp ${SYSBUS}/node_ls2_call.cpp
+    ${SYSBUS}/node_ls2_handle.cpp ${SYSBUS}/node_ls2_message.cpp
+    ${SYSBUS}/node_ls2_utils.cpp ${SYSBUS}/node_ls2_error_wrapper.cpp)
+target_include_directories(palmbus PRIVATE ${SYSBUS} ${GLIB_INCLUDE_DIRS}
+    @ROOT@/build-modern/staging/include)
+target_link_directories(palmbus PRIVATE @ROOT@/build-modern/staging/lib)
+target_link_libraries(palmbus PRIVATE ${GLIB_LIBRARIES} luna-service2)
 CMAKE
+sed -i "s|@ROOT@|$ROOT|g; s|@BUILD@|$BUILD|g" "$BUILD/CMakeLists.txt"
 
 cmake -S "$BUILD" -B "$BUILD/build" >/dev/null 2>&1 || {
     echo "FAIL: cmake configure"; cmake -S "$BUILD" -B "$BUILD/build" 2>&1 | tail -5; exit 1; }
@@ -65,4 +83,55 @@ console.log(bad === 0 ? 'OK' : 'FAIL');
 process.exit(bad === 0 ? 0 : 1);
 JS
 
-cd "$BUILD/build" && node check.js
+cat > "$BUILD/build/check-palmbus.js" <<'JS'
+const pb = require('./palmbus.node');
+let bad = 0;
+function has(cls, names) {
+    const proto = pb[cls] && pb[cls].prototype;
+    for (const n of names) {
+        const ok = proto && typeof proto[n] === 'function';
+        console.log(`  ${(cls + '.' + n).padEnd(40)} ${ok ? 'ok' : 'MISSING'}`);
+        if (!ok) bad++;
+    }
+}
+console.log(`  exports: ${Object.keys(pb).sort().join(', ')}`);
+// HP's own methods, off the FunctionTemplate prototypes.
+has('Handle', ['call', 'watch', 'subscribe', 'registerMethod', 'cancel', 'pushRole', 'unregister']);
+has('Message', ['payload', 'respond', 'category', 'method', 'token']);
+// And the EventEmitter the shim splices in, which method_dispatcher.js needs
+// for addListener('request').
+has('Handle', ['addListener', 'on', 'emit', 'removeListener']);
+has('Call', ['addListener', 'on', 'emit']);
+console.log(bad === 0 ? 'OK' : 'FAIL');
+process.exit(bad === 0 ? 0 : 1);
+JS
+
+cd "$BUILD/build" || exit 1
+export LD_LIBRARY_PATH="$ROOT/build-modern/staging/lib:${LD_LIBRARY_PATH:-}"
+
+cat > "$BUILD/build/check-persistent.js" <<'JS'
+const m = require('./persistent.node');
+let bad = 0;
+function check(what, got, want) {
+    const ok = got === want;
+    console.log(`  ${what.padEnd(40)} ${JSON.stringify(got)}${ok ? '' : '  <- expected ' + JSON.stringify(want)}`);
+    if (!ok) bad++;
+}
+// Both are read long after the init scope that created them closed.
+check('Persistent<String> survives', m.readSymbol(), 'response');
+check('typeof it is still string', typeof m.readSymbol(), 'string');
+check('Persistent<Object> survives', m.readObjectKey(), 'still here');
+console.log(bad === 0 ? 'OK' : 'FAIL');
+process.exit(bad === 0 ? 0 : 1);
+JS
+
+echo "Persistent across scopes:"
+node check-persistent.js || exit 1
+
+echo
+echo "pmloglib -- the whole path, native and embedded JavaScript:"
+node check.js || exit 1
+
+echo
+echo "palmbus -- 2660 lines of HP's, unmodified:"
+node check-palmbus.js

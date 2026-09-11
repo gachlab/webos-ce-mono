@@ -98,6 +98,13 @@ entrar_namespace() {
       for d in /usr/*;     do [ -e "$d" ] && rebind+=(--bind "$d" "$d"); done
       rebind+=(--tmpfs /usr/lib)
       for d in /usr/lib/*; do [ -e "$d" ] && rebind+=(--bind "$d" "$d"); done
+      # The node binary goes where HP's bus role says it lives. A bind, not a
+      # symlink: ls-hubd identifies a caller through /proc/<pid>/exe.
+      node_bind=()
+      node_real="$(command -v node 2>/dev/null || true)"
+      if [ -n "$node_real" ] && [ -e "$ROOTFS/usr/palm/nodejs/node" ]; then
+          node_bind=(--bind "$node_real" /usr/palm/nodejs/node)
+      fi
       rebind+=(--tmpfs /var)
       for d in /var/*;     do [ -e "$d" ] && rebind+=(--bind "$d" "$d"); done
       exec bwrap --dev-bind / / \
@@ -105,6 +112,7 @@ entrar_namespace() {
           --tmpfs /usr "${rebind[@]}" \
           --bind "$ROOTFS/usr/palm" /usr/palm \
           --bind "$ROOTFS/usr/lib/luna" /usr/lib/luna \
+          "${node_bind[@]}" \
           --bind "$ROOTFS/var/luna" /var/luna \
           --bind "$ROOTFS/var/palm" /var/palm \
           --chdir "$ROOTFS" \

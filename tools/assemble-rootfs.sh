@@ -295,3 +295,57 @@ echo "  etc/ls2:             $(ls "$ROOTFS/etc/ls2" 2>/dev/null | wc -l) entries
 echo "  luna-systemui:       $(ls "$ROOTFS/usr/lib/luna/system/luna-systemui" 2>/dev/null | wc -l) entries"
 echo "  luna-applauncher:    $(ls "$ROOTFS/usr/lib/luna/system/luna-applauncher" 2>/dev/null | wc -l) entries"
 echo "  bus roles:           $(ls "$ROOTFS/usr/share/ls2/roles/prv" "$ROOTFS/usr/share/ls2/roles/pub" 2>/dev/null | grep -c json)"
+
+# --- node: the path HP's own configuration expects ---
+#
+# Written at the end on purpose. HP's own role files are copied in above and
+# would overwrite this one -- which they silently did, so the hub kept reading
+# HP's version with no permissions block and the calls stayed denied.
+#
+# run-js-service runs $NODE=/usr/palm/nodejs/node and loads addons from the same
+# directory, and HP's bus role file grants permissions by that exact exeName. So
+# rather than teach either of them about a different node, the rootfs provides
+# the path they already look for.
+#
+# HP's own com.palm.nodejs.json has a "role" block and no "permissions" block,
+# which luna-service2 requires -- hence the "Unable to get permission from JSON"
+# line in the hub log. A permissions block is written alongside it here instead
+# of editing HP's file.
+NODE_BIN="$(command -v node 2>/dev/null || true)"
+if [ -n "$NODE_BIN" ]; then
+    mkdir -p "$ROOTFS/usr/palm/nodejs"
+    # A mount point, not a symlink. ls-hubd checks who is calling by reading
+    # /proc/<pid>/exe, which resolves a symlink to its target -- so the role
+    # above would be looked up under the real node path and not found. The run
+    # script bind-mounts the real binary onto this file inside the namespace,
+    # and then /proc/<pid>/exe reports the path the role names.
+    # rm first, and never write through what might be there.
+    #
+    # An earlier version of this created the mount point with ": > $file" while
+    # a symlink to the real node was still sitting at that path. The redirection
+    # followed the link and truncated the node installation to zero bytes.
+    rm -f "$ROOTFS/usr/palm/nodejs/node"
+    : > "$ROOTFS/usr/palm/nodejs/node"
+    chmod 0755 "$ROOTFS/usr/palm/nodejs/node"
+
+    for side in pub prv; do
+        cat > "$ROOTFS/usr/share/ls2/roles/$side/com.palm.nodejs.json" <<'JSON'
+{
+    "role": {
+        "exeName": "/usr/palm/nodejs/node",
+        "type": "privileged",
+        "allowedNames": ["", "com.palm.nodejs", "com.palm.service.*", "com.palm.app.*", "*"]
+    },
+    "permissions": [
+        {
+            "service": "com.palm.nodejs",
+            "inbound": ["*"],
+            "outbound": ["*"]
+        }
+    ]
+}
+JSON
+    done
+    echo "  node:                $NODE_BIN -> /usr/palm/nodejs/node"
+fi
+

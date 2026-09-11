@@ -47,6 +47,12 @@ namespace v8 {
 napi_env CurrentEnv();
 void SetCurrentEnv(napi_env env);
 
+// The env the addon was initialised with. Calls that arrive from JavaScript
+// bring their own; calls that arrive from the event loop -- a reply landing on
+// the bus, a GLib source firing -- do not, and this is what they use.
+napi_env ModuleEnv();
+void SetModuleEnv(napi_env env);
+
 // A scope guard for it, so an early return cannot leave the wrong env behind.
 class EnvScope {
 public:
@@ -67,26 +73,69 @@ class Function;
 template <typename T>
 class Handle {
 public:
-    Handle() : fValue(nullptr) {}
-    Handle(napi_value v) : fValue(v) {}                       // NOLINT: implicit, as in V8
-    template <typename U> Handle(const Handle<U>& other) : fValue(other.raw()) {}
+    Handle() : fValue(nullptr), fRef(nullptr) {}
+    Handle(napi_value v) : fValue(v), fRef(nullptr) {}        // NOLINT: implicit, as in V8
+    template <typename U> Handle(const Handle<U>& other)
+        : fValue(other.raw()), fRef(other.ref()) {}
+
+    // V8 offered Cast on both Handle and Local. Neither checks the type here:
+    // a napi_value is untyped, and the addons only ever narrow a value they
+    // already know the shape of.
+    template <typename U> static Handle<T> Cast(const Handle<U>& other) {
+        return Handle<T>(other.raw());
+    }
+
+    void Refresh() const;
 
     bool IsEmpty() const { return fValue == nullptr; }
-    void Clear() { fValue = nullptr; }
-    napi_value raw() const { return fValue; }
-    operator napi_value() const { return fValue; }
+    void Clear() { fValue = nullptr; fRef = nullptr; }
+
+    // The reference lives here, not only in Persistent, and raw() refreshes
+    // through it.
+    //
+    // It started in Persistent, with Persistent overriding raw(). That is wrong
+    // the moment a Persistent is passed where a Handle is expected -- which HP
+    // does constantly, Emit(response_symbol, ...) among them. The parameter
+    // slices to Handle, the non-virtual Handle::raw() runs, and the caller gets
+    // a napi_value whose scope closed during init. Making raw() virtual is not
+    // an option: these objects are reinterpret_cast onto each other and a vptr
+    // would move fValue away from offset zero.
+    napi_value raw() const { Refresh(); return fValue; }
+    napi_ref ref() const { return fRef; }
+    operator napi_value() const { Refresh(); return fValue; }
 
     // V8's Handle<T> held a T* and forwarded through it. Here it holds a
     // napi_value, and every T in this header reads it back as its own first
     // member -- see Value::self() -- so the handle's storage IS the object as
     // far as T is concerned. That is what makes HP's `handle->Method()` compile
     // unchanged.
-    T* operator->() const { return reinterpret_cast<T*>(const_cast<Handle*>(this)); }
-    T* operator*() const { return reinterpret_cast<T*>(const_cast<Handle*>(this)); }
+    // Refresh first: the methods reached through this read fValue directly, so
+    // a Persistent used as `template->GetFunction()` would otherwise work off
+    // the handle it had when it was created.
+    T* operator->() const { Refresh(); return reinterpret_cast<T*>(const_cast<Handle*>(this)); }
+    T* operator*() const { Refresh(); return reinterpret_cast<T*>(const_cast<Handle*>(this)); }
 
 protected:
+    // fValue must stay first: Value and its subclasses read it back through a
+    // reinterpret_cast of the handle. See Value::self().
     napi_value fValue;
+    napi_ref fRef;
 };
+
+template <typename T>
+void Handle<T>::Refresh() const
+{
+    if (!fRef)
+        return;
+    napi_env env = CurrentEnv();
+    napi_value box = nullptr;
+    if (napi_get_reference_value(env, fRef, &box) != napi_ok || !box)
+        return;
+    // The reference is always to a box; see Persistent<T>::New.
+    napi_value out = nullptr;
+    if (napi_get_named_property(env, box, "v", &out) == napi_ok && out)
+        const_cast<Handle*>(this)->fValue = out;
+}
 
 template <typename T>
 class Local : public Handle<T> {
@@ -96,46 +145,63 @@ public:
     template <typename U> Local(const Handle<U>& other) : Handle<T>(other.raw()) {}
     static Local<T> Cast(napi_value v) { return Local<T>(v); }
     template <typename U> static Local<T> Cast(const Handle<U>& h) { return Local<T>(h.raw()); }
+
+    // V8's Local<T>::New(handle) made a new local in the current scope. Handles
+    // here are already scoped values, so it is a copy.
+    template <typename U> static Local<T> New(const Handle<U>& h) { return Local<T>(h.raw()); }
+    static Local<T> New(napi_value v) { return Local<T>(v); }
 };
 
 
 template <typename T>
 class Persistent : public Handle<T> {
 public:
-    Persistent() : fRef(nullptr) {}
-    Persistent(napi_value v) : Handle<T>(v), fRef(nullptr) {}   // NOLINT
+    Persistent() {}
+    Persistent(napi_value v) : Handle<T>(v) {}                 // NOLINT
 
-    // V8 0.4 spelled this Persistent<T>::New(handle). It made the value outlive
-    // the enclosing HandleScope; a napi_ref does the same job.
+    // V8 0.4 spelled this Persistent<T>::New(handle): it made the value outlive
+    // the enclosing HandleScope. A napi_ref does the same, and lives in Handle
+    // so it survives being passed as one.
     template <typename U>
     static Persistent<T> New(const Handle<U>& handle) {
+        // Boxed, always.
+        //
+        // napi_create_reference only takes objects. Given a string it returns a
+        // null reference and reports success, so the Persistent keeps a handle
+        // that expires with the scope that made it. NODE_PSYMBOL builds exactly
+        // that -- Persistent<String>::New(String::NewSymbol("response")) -- and
+        // by the time a bus reply arrived the symbol had become whatever else
+        // was in that slot, so emit() was called with an object for a name:
+        // "Cannot convert object to primitive value".
+        //
+        // Putting the value in a one-property object and referencing that works
+        // for every type, so there is one path rather than two.
         Persistent<T> p;
         napi_env env = CurrentEnv();
-        napi_create_reference(env, handle.raw(), 1, &p.fRef);
-        p.fValue = handle.raw();
+        napi_value box = nullptr;
+        napi_create_object(env, &box);
+        napi_set_named_property(env, box, "v", handle.raw());
+        napi_ref ref = nullptr;
+        napi_create_reference(env, box, 1, &ref);
+        p.Adopt(handle.raw(), ref);
         return p;
     }
 
     void Dispose() {
-        if (fRef) {
-            napi_delete_reference(CurrentEnv(), fRef);
-            fRef = nullptr;
+        if (this->fRef) {
+            napi_delete_reference(CurrentEnv(), this->fRef);
+            this->fRef = nullptr;
         }
         this->fValue = nullptr;
     }
 
-    // A napi_value is only valid inside the scope that produced it, so a
-    // Persistent has to go back through its reference to be used later.
-    napi_value Resolved() const {
-        if (!fRef)
-            return this->fValue;
-        napi_value out = nullptr;
-        napi_get_reference_value(CurrentEnv(), fRef, &out);
-        return out;
-    }
+    napi_value Resolved() const { return this->raw(); }
 
 private:
-    napi_ref fRef;
+    void Adopt(napi_value value, napi_ref ref) {
+        this->fValue = value;
+        this->fRef = ref;
+    }
 };
 
 class HandleScope {

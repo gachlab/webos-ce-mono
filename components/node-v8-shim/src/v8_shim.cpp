@@ -17,8 +17,15 @@
 #include "node.h"
 
 #include <map>
+#include <cstdio>
+// SHIM_TRACE=1 prints what the shim is doing. Every bug in it so far was
+// found this way rather than by reading, so it stays.
+#define TRACE(...) do { if (getenv("SHIM_TRACE")) { fprintf(stderr, "[shim] " __VA_ARGS__); fputc(10, stderr); } } while (0)
 
 namespace v8 {
+
+// Defined in events_shim.cpp.
+void ApplyEventEmitterTo(napi_value prototype);
 
 // node 0.4's V8 API is implicitly single-isolate: HandleScope takes no
 // arguments, Context::GetCurrent takes none, String::New takes none. There is
@@ -27,8 +34,13 @@ namespace v8 {
 // thread_local is belt and braces rather than a requirement.
 static thread_local napi_env gEnv = nullptr;
 
+static napi_env gModuleEnv = nullptr;
+
 napi_env CurrentEnv() { return gEnv; }
 void SetCurrentEnv(napi_env env) { gEnv = env; }
+
+napi_env ModuleEnv() { return gModuleEnv; }
+void SetModuleEnv(napi_env env) { gModuleEnv = env; }
 
 Arguments::Arguments(napi_env env, napi_callback_info info)
     : fThis(nullptr), fData(nullptr), fIsConstructCall(false)
@@ -94,9 +106,17 @@ namespace {
 struct TemplateState {
     InvocationCallback constructor = nullptr;
     std::string className;
-    std::vector<napi_property_descriptor> methods;
-    std::vector<std::string> methodNames;   // the descriptors point into these
+
+    // Names and callbacks, not descriptors.
+    //
+    // The first version built a napi_property_descriptor per method as it went,
+    // with utf8name pointing at std::string::c_str() of an entry in a vector.
+    // Every push_back that reallocated left all the earlier pointers dangling,
+    // so methods came out with garbage names and some vanished. The descriptors
+    // are now built in GetFunction(), once the list cannot grow again.
+    std::vector<std::pair<std::string, InvocationCallback> > methods;
     napi_ref definedClass = nullptr;
+    bool inheritsEventEmitter = false;
 };
 
 // The state hangs off the handle object itself with napi_wrap.
@@ -153,13 +173,7 @@ void FunctionTemplate::SetPrototypeMethod(const char* name, InvocationCallback c
     TemplateState* state = StateFor(*reinterpret_cast<napi_value const*>(this));
     if (!state)
         return;
-    state->methodNames.push_back(name);
-    napi_property_descriptor d = {};
-    d.utf8name = state->methodNames.back().c_str();
-    d.method = CallbackBridge;
-    d.data = reinterpret_cast<void*>(callback);
-    d.attributes = napi_default;
-    state->methods.push_back(d);
+    state->methods.push_back(std::make_pair(std::string(name), callback));
 }
 
 Local<Function> FunctionTemplate::GetFunction()
@@ -176,19 +190,37 @@ Local<Function> FunctionTemplate::GetFunction()
         return Local<Function>(out);
     }
 
-    // The descriptors' utf8name pointers must stay valid across the call, which
-    // is why methodNames is a deque-like vector of strings owned by the state.
+    // Built here, where the list is final, so every utf8name points at a string
+    // that will not move before napi_define_class has read it.
+    std::vector<napi_property_descriptor> descriptors;
+    descriptors.reserve(state->methods.size());
+    for (size_t i = 0; i < state->methods.size(); ++i) {
+        napi_property_descriptor d = {};
+        d.utf8name = state->methods[i].first.c_str();
+        d.method = CallbackBridge;
+        d.data = reinterpret_cast<void*>(state->methods[i].second);
+        d.attributes = napi_default;
+        descriptors.push_back(d);
+    }
+
     napi_value cls = nullptr;
     const char* name = state->className.empty() ? "" : state->className.c_str();
     napi_status status = napi_define_class(
         env, name, NAPI_AUTO_LENGTH, CallbackBridge,
         reinterpret_cast<void*>(state->constructor),
-        state->methods.size(), state->methods.empty() ? nullptr : &state->methods[0],
+        descriptors.size(), descriptors.empty() ? nullptr : &descriptors[0],
         &cls);
     if (status != napi_ok)
         return Local<Function>();
 
     napi_create_reference(env, cls, 1, &state->definedClass);
+
+    if (state->inheritsEventEmitter) {
+        napi_value prototype = nullptr;
+        if (napi_get_named_property(env, cls, "prototype", &prototype) == napi_ok)
+            ApplyEventEmitterTo(prototype);
+    }
+
     return Local<Function>(cls);
 }
 
@@ -205,10 +237,16 @@ Handle<ObjectTemplate> FunctionTemplate::PrototypeTemplate()
     return Handle<ObjectTemplate>(*reinterpret_cast<napi_value const*>(this));
 }
 
-void FunctionTemplate::Inherit(const Handle<FunctionTemplate>&)
+void FunctionTemplate::Inherit(const Handle<FunctionTemplate>& parent)
 {
-    // node_ls2 never calls it; left as a no-op so a future caller fails loudly
-    // in a test rather than silently getting a broken prototype chain.
+    TemplateState* state = StateFor(*reinterpret_cast<napi_value const*>(this));
+    if (!state)
+        return;
+    // node_ls2_handle.cpp and node_ls2_call.cpp inherit from
+    // EventEmitter::constructor_template, which is an empty handle here. There
+    // is no other base class in play, so that is the whole question being asked.
+    if (parent.IsEmpty())
+        state->inheritsEventEmitter = true;
 }
 
 Handle<ObjectTemplate> ObjectTemplate::New()
@@ -396,6 +434,18 @@ void ObjectWrap::Wrap(v8::Handle<v8::Object> handle)
 v8::Local<v8::Object> ObjectWrap::handle() const
 {
     return v8::Local<v8::Object>(fHandle.Resolved());
+}
+
+void ObjectWrap::Ref()
+{
+    if (fHandle.ref())
+        napi_reference_ref(v8::CurrentEnv(), fHandle.ref(), nullptr);
+}
+
+void ObjectWrap::Unref()
+{
+    if (fHandle.ref())
+        napi_reference_unref(v8::CurrentEnv(), fHandle.ref(), nullptr);
 }
 
 void* ObjectWrap::UnwrapInternal(v8::Handle<v8::Object> handle)

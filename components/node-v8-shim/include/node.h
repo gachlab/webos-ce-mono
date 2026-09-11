@@ -41,6 +41,15 @@ public:
 
     v8::Local<v8::Object> handle() const;
 
+    // node 0.4 used these to keep the JavaScript object alive while C++ still
+    // held the wrapper -- LS2Call refs itself for the lifetime of a bus call.
+    // A napi_ref counts the same way.
+    //
+    // (These were missed when the shim's surface was first measured: the calls
+    //  are unqualified, so grepping for ObjectWrap::Ref found nothing.)
+    virtual void Ref();
+    virtual void Unref();
+
 protected:
     void Wrap(v8::Handle<v8::Object> handle);
 
@@ -61,5 +70,11 @@ void SetMethod(v8::Handle<v8::Object> target, const char* name,
 
 #define NODE_SET_METHOD(target, name, callback) \
     node::SetMethod((target), (name), (callback))
+
+// node 0.4 interned the string and made it persistent. Strings are not interned
+// separately here and nothing compares these by identity, so a plain string is
+// enough -- but it still has to survive the handle scope, hence Persistent.
+#define NODE_PSYMBOL(text) \
+    v8::Persistent<v8::String>::New(v8::String::NewSymbol(text))
 
 #endif /* WEBOS_NODE_SHIM_H */

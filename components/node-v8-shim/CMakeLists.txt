@@ -23,7 +23,7 @@ if (NOT EXISTS "${NODE_INCLUDE_DIR}/node_api.h")
 endif ()
 message(STATUS "node headers: ${NODE_INCLUDE_DIR}")
 
-add_library(node-v8-shim STATIC src/v8_shim.cpp)
+add_library(node-v8-shim STATIC src/v8_shim.cpp src/ev_shim.cpp src/events_shim.cpp)
 target_include_directories(node-v8-shim PUBLIC
     "${CMAKE_CURRENT_SOURCE_DIR}/include" "${NODE_INCLUDE_DIR}")
 
@@ -40,4 +40,17 @@ function(webos_node_addon NAME)
     target_link_libraries(${NAME} PRIVATE node-v8-shim)
     target_compile_definitions(${NAME} PRIVATE NODE_GYP_MODULE_NAME=${NAME})
     set_target_properties(${NAME} PROPERTIES PREFIX "" SUFFIX ".node")
+
+    # -Bsymbolic, and it is not optional.
+    #
+    # The shim defines v8::FunctionTemplate, v8::String and the rest, and so does
+    # the node binary that loads it -- the real V8, with the same mangled names,
+    # already in the global symbol table. Without this the dynamic linker
+    # resolves the addon's own calls to node's V8, which then runs on objects
+    # that are not V8 objects at all.
+    #
+    # It is not a link error and not a warning. The first symptom is a segfault
+    # inside v8::FunctionTemplate::InstanceTemplate with the addon on the stack
+    # below it, which is exactly how it was found.
+    target_link_options(${NAME} PRIVATE "LINKER:-Bsymbolic")
 endfunction()
