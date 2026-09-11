@@ -5,8 +5,8 @@
 # venia ordenado topologicamente. MANIFEST.tsv lo conserva en su columna 1.
 #
 # Uso:
-#   tools/construir.sh              # todo
-#   tools/construir.sh cmake        # una etapa: third-party | cabeceras | autotools | cmake | qmake | rootfs
+#   tools/build.sh              # todo
+#   tools/build.sh cmake        # una etapa: third-party | cabeceras | autotools | cmake | qmake | rootfs
 set -u
 R="$(cd "$(dirname "$0")/.." && pwd)"
 ETAPA="${1:-todo}"
@@ -19,7 +19,7 @@ declare -A OMITIR=(
     [cmake]="es la herramienta; usamos la del sistema"
     [cmake-modules-webos]="son modulos CMake, se consumen por CMAKE_MODULE_PATH"
     [qt4]="reemplazado por el Qt5 del sistema"
-    [webkit]="reemplazado por QtWebKit 5.212; lo construye construir-third-party.sh"
+    [webkit]="reemplazado por QtWebKit 5.212; lo construye build-third-party.sh"
     [nodejs]="usamos el node de Debian; el de HP pide Python 2 y SCons"
     [nodejs-module-webos-sysbus]="addon en API v8 vieja, falta portarlo a N-API"
     [nodejs-module-webos-pmlog]="idem"
@@ -58,7 +58,7 @@ etapa_third_party() {
     if [ -e "$R/build-modern/staging/qtwebkit/mkspecs/modules/qt_lib_webkit.pri" ]; then
         echo "QtWebKit                ya instalado"
     else
-        "$R/tools/construir-third-party.sh"
+        "$R/tools/build-third-party.sh"
     fi
 }
 
@@ -101,19 +101,19 @@ etapa_autotools() {
 etapa_cmake() {
     echo "== CMake =="
     # shellcheck disable=SC2046
-    "$R/tools/probar-servicios.sh" $(seleccion cmake)
+    "$R/tools/build-cmake.sh" $(seleccion cmake)
 }
 
 etapa_qmake() {
     echo "== qmake =="
-    "$R/tools/construir-qmake.sh"
+    "$R/tools/build-qmake.sh"
 }
 
 etapa_rootfs() {
     echo "== rootfs =="
     # Los componentes "copiar" del MANIFEST no se compilan: son JS, temas y
-    # datos. armar-rootfs.sh los coloca junto a los binarios ya instalados.
-    "$R/tools/armar-rootfs.sh"
+    # datos. assemble-rootfs.sh los coloca junto a los binarios ya instalados.
+    "$R/tools/assemble-rootfs.sh"
 }
 
 case "$ETAPA" in
@@ -129,7 +129,7 @@ case "$ETAPA" in
             if etapa_third_party && etapa_cabeceras && etapa_autotools \
                && etapa_cmake && etapa_qmake && etapa_rootfs; then
                 echo
-                echo "Listo. Para arrancar el shell:  tools/correr-lunasysmgr.sh"
+                echo "Listo. Para arrancar el shell:  tools/run-lunasysmgr.sh"
             else
                 echo
                 echo "FALLO: alguna etapa no termino bien. Mira los logs en build-modern/." >&2

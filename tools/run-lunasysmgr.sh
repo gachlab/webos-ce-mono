@@ -1,59 +1,63 @@
 #!/bin/bash
-# Levanta LunaSysMgr en un Linux moderno, sin instalar nada en el sistema.
+# Brings LunaSysMgr up on a modern Linux without installing anything on the
+# host.
 #
-# Hay dos clases de ruta absoluta que webOS espera del dispositivo:
+# webOS expects two kinds of absolute path from the device:
 #
-#  - Las que SON configurables (SystemPath, ApplicationPath, los Directories de
-#    ls2...). armar-rootfs.sh las reescribe apuntando al rootfs local.
-#  - Las que NO. /etc/palm/luna.conf esta clavada en Settings.cpp, y el HTML de
-#    las apps carga enyo con src="/usr/palm/frameworks/enyo/...". Esas hay que
-#    hacerlas existir de verdad, y para eso esta bwrap.
+#  - The ones that ARE configurable (SystemPath, ApplicationPath, ls2's
+#    Directories...). assemble-rootfs.sh rewrites those to point at the local
+#    rootfs.
+#  - The ones that are NOT. /etc/palm/luna.conf is hardcoded in Settings.cpp,
+#    and the apps' HTML loads enyo with src="/usr/palm/frameworks/enyo/...".
+#    Those have to actually exist, which is what bwrap is for.
 #
-# /etc/palm se monta directo. /usr/palm no se puede: /usr viene del sistema de
-# solo lectura y bwrap no puede crear ahi el punto de montaje. La salida es
-# poner un tmpfs sobre /usr, volver a montar dentro todo lo que ya habia, y
-# anadir /usr/palm. El sistema de verdad sigue sin tocarse.
+# /etc/palm mounts directly. /usr/palm cannot: /usr comes from the read-only
+# host and bwrap cannot create the mountpoint there. The way out is a tmpfs
+# over /usr, remounting inside everything that was already there, and adding
+# /usr/palm. The real system is still left untouched.
 set -u
 R="$(cd "$(dirname "$0")/.." && pwd)"
-SELF="$R/tools/$(basename "$0")"   # absoluta: abajo hay un --chdir
+SELF="$R/tools/$(basename "$0")"   # absolute: there is a --chdir below
 S="$R/build-modern/staging"
 ROOTFS="$R/build-modern/rootfs"
-# El de qtwebkit va tambien porque WebAppMgr enlaza contra nuestro QtWebKit
-# 5.212, que no esta en el sistema. ls-hubd hereda este entorno y se lo pasa a
-# WebAppMgr cuando lo arranca.
+# The qtwebkit one is there too because WebAppMgr links against our QtWebKit
+# 5.212, which is not on the host. ls-hubd inherits this environment and passes
+# it on to WebAppMgr when it starts it.
 export LD_LIBRARY_PATH="$S/lib:$S/usr/lib:$S/qtwebkit/lib/x86_64-linux-gnu"
-# Las fuentes Prelude viven en el rootfs, pero el codigo las busca en
-# /usr/share/fonts, que dentro del namespace es la del sistema. Sin esto webOS
-# dibuja con la fuente equivocada: 0 familias Prelude visibles, 59 en total.
-# Con el fonts.conf del rootfs (que INCLUYE el del sistema y solo suma un
-# directorio): 21 Prelude y 97 en total, sin perder ninguna de Debian.
+# The Prelude fonts live in the rootfs, but the code looks for them in
+# /usr/share/fonts, which inside the namespace is the host's. Without this webOS
+# draws with the wrong font: 0 Prelude families visible, 59 in total. With the
+# rootfs fonts.conf (which INCLUDES the host's and only adds one directory):
+# 21 Prelude and 97 in total, losing none of Debian's.
 export FONTCONFIG_FILE="$ROOTFS/etc/fonts.conf"
 export DISPLAY="${DISPLAY:-:0}"
-export QT_QPA_PLATFORM=xcb   # LunaSysMgr pide el plugin "palm", que era del Qt propio de HP
+export QT_QPA_PLATFORM=xcb   # LunaSysMgr asks for the "palm" plugin, which came with HP's own Qt
 
 mkdir -p /tmp/webos/ls2 /tmp/webos/captures
 
-# Entrar al namespace y reentrar en el mismo script, para que todo lo que se
-# lance abajo lo herede. Lo usan "run" y "servicios": los dos necesitan ver las
-# rutas que webOS lleva clavadas.
-# OJO: nunca en "bus". ls-hubd tiene que quedarse fuera -- valida a cada cliente
-# leyendo su /proc/<pid>/exe, y desde dentro de otro namespace no casa;
-# LunaSysMgr muere con "Invalid permissions for (null)".
+# Enter the namespace and re-enter this same script, so everything launched
+# below inherits it. Used by "run" and "servicios": both need to see the paths
+# webOS has hardcoded.
+# NOTE: never in "bus". ls-hubd has to stay outside -- it validates each client
+# by reading its /proc/<pid>/exe, and from inside another namespace that does
+# not match; LunaSysMgr dies with "Invalid permissions for (null)".
 entrar_namespace() {
   if [ -z "${WEBOS_EN_NAMESPACE:-}" ]; then
       export WEBOS_EN_NAMESPACE=1
-      # tmpfs sobre /usr y sobre /usr/lib, volviendo a montar dentro todo lo
-      # que ya habia, para poder anadir dos rutas que webOS lleva clavadas:
-      #   /usr/palm      -> el HTML de las apps carga enyo desde ahi
-      #   /usr/lib/luna  -> IMEManager.cpp:41 busca ahi el teclado virtual, y
-      #                     Settings.cpp:164 las posiciones del dock. Sin esto
-      #                     no se puede escribir y el dock sale vacio.
-      #   /var/luna      -> Settings.cpp y el launcher guardan ahi su estado
-      #                     (preferences/launcher3, launchpoints). Sin esto
-      #                     fallan 6 escrituras y el dock no recuerda nada.
-      #   /var/palm      -> PendingApplications lo abre al arrancar.
-      # Las demas rutas absolutas del codigo (/media/cryptofs, /media/internal,
-      # /usr/plugins...) no existen ni en el rootfs: son solo del dispositivo.
+      # tmpfs over /usr and over /usr/lib, remounting inside everything that
+      # was already there, so we can add the paths webOS has hardcoded:
+      #   /usr/palm      -> the apps' HTML loads enyo from there
+      #   /usr/lib/luna  -> IMEManager.cpp:41 looks there for the virtual
+      #                     keyboard, and Settings.cpp:164 for the dock
+      #                     positions. Without it you cannot type and the dock
+      #                     comes up empty.
+      #   /var/luna      -> Settings.cpp and the launcher store their state
+      #                     there (preferences/launcher3, launchpoints).
+      #                     Without it 6 writes fail and the dock remembers
+      #                     nothing.
+      #   /var/palm      -> PendingApplications opens it at startup.
+      # The other absolute paths in the code (/media/cryptofs, /media/internal,
+      # /usr/plugins...) do not exist in the rootfs either: device-only.
       rebind=()
       for d in /usr/*;     do [ -e "$d" ] && rebind+=(--bind "$d" "$d"); done
       rebind+=(--tmpfs /usr/lib)
@@ -83,15 +87,14 @@ case "${1:-run}" in
     echo "ls-hubd: $(pgrep -xc ls-hubd) instancias"
     ;;
   init)
-    # Inicializacion de una sola vez, copiada del caso "init" de service-bus.sh
-    # de HP. Carga en db8 los esquemas (kinds) y permisos que estan en
-    # /etc/palm/db. Sin esto mojodb-luna arranca pero responde "kind not
-    # registered" a todo, y las apps salen vacias.
-    # configurator no se lanza a mano: ls-hubd lo arranca al recibir la llamada.
+    # One-time initialisation, copied from the "init" case of HP's
+    # service-bus.sh. Loads into db8 the schemas (kinds) and permissions that
+    # live under /etc/palm/db. Without it mojodb-luna starts but answers "kind
+    # not registered" to everything, and the apps come up empty.
     entrar_namespace "$@"
-    # configurator lo arrancamos nosotros, no ls-hubd. El hub vive FUERA del
-    # namespace, asi que lo que el lance no ve /etc/palm/db/kinds y configurator
-    # no encuentra nada que cargar.
+    # We start configurator ourselves, not ls-hubd. The hub lives OUTSIDE the
+    # namespace, so whatever it launches cannot see /etc/palm/db/kinds and
+    # configurator finds nothing to load.
     pkill -x configurator 2>/dev/null; sleep 1
     "$ROOTFS/usr/lib/luna/configurator" service > /tmp/webos/configurator.log 2>&1 &
     sleep 3

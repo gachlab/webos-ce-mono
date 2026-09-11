@@ -48,13 +48,13 @@ Requiere Debian moderno (probado en sid) con Qt5, y las cabeceras de desarrollo
 de glib, sqlite3, openssl, libxml2 y boost.
 
 ```sh
-tools/construir.sh          # todo, en el orden del MANIFEST
-tools/correr-lunasysmgr.sh  # arranca el shell
+tools/build.sh          # todo, en el orden del MANIFEST
+tools/run-lunasysmgr.sh  # arranca el shell
 ```
 
 Cada etapa se puede correr sola: `autotools`, `cmake`, `qmake`, `rootfs`.
 
-`tools/correr-lunasysmgr.sh` **no instala nada en el sistema**. Solo `/etc/palm`
+`tools/run-lunasysmgr.sh` **no instala nada en el sistema**. Solo `/etc/palm`
 esta clavado en el codigo (`Settings.cpp`); todo lo demas es configurable, asi
 que se monta con `bwrap` un namespace donde `/etc/palm` apunta al rootfs local.
 

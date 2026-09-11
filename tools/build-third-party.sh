@@ -8,7 +8,7 @@
 # No se vendorea: son cientos de MB que nadie va a editar. Se clona en la ref
 # exacta y se le aplica nuestro parche de portabilidad (ver patches/).
 #
-# Uso: tools/construir-third-party.sh
+# Uso: tools/build-third-party.sh
 set -eu
 
 R="$(cd "$(dirname "$0")/.." && pwd)"
@@ -66,4 +66,4 @@ ninja -C "$BUILD" install
 echo
 echo "QtWebKit listo. Los .pri de modulo quedan en:"
 echo "  $PREFIX/mkspecs/modules"
-echo "construir-qmake.sh los encuentra solo via QMAKEPATH."
+echo "build-qmake.sh los encuentra solo via QMAKEPATH."

@@ -1,7 +1,7 @@
 #!/bin/bash
 # Construye los componentes qmake de webOS contra el Qt5 del sistema.
 #
-# Complementa a probar-servicios.sh, que solo sabe de CMake. Los proyectos
+# Complementa a build-cmake.sh, que solo sabe de CMake. Los proyectos
 # qmake de HP necesitan tres cosas que no son obvias:
 #
 #  1. -after en el qmake. Los .pro de HP ASIGNAN INCLUDEPATH ("INCLUDEPATH =
@@ -15,7 +15,7 @@
 #     que no instala en staging sino junto a los datos de ejecucion. Sin
 #     exportarlo, su "$$(ROOTFS)/usr/lib/luna" se resuelve a /usr/lib/luna.
 #
-# Uso: tools/construir-qmake.sh [componente...]   (sin argumentos: todos)
+# Uso: tools/build-qmake.sh [componente...]   (sin argumentos: todos)
 set -u
 
 R="$(cd "$(dirname "$0")/.." && pwd)"
@@ -58,6 +58,15 @@ for c in ${@:-$ORDEN}; do
     # corridas en paralelo, pero como aqui se fuerza -j1 esa carrera no puede
     # ocurrir; borrar siempre significaba recompilar 193.000 lineas por cambiar
     # una. Con LIMPIAR=1 se fuerza el borrado.
+    # Se vuelve a correr qmake tambien si el Makefile anterior salio de un qmake
+    # con avisos. Un "Failure to find" significa que una cabecera de HEADERS no
+    # existia entonces, y qmake la deja SIN regla de moc: el Makefile queda
+    # mudo para siempre aunque la cabecera aparezca despues. Asi se perdio
+    # IMEDataInterface, y el enlace fallaba con qt_metacall sin definir.
+    if [ -f qmake.log ] && grep -q "Failure to find" qmake.log; then
+        rm -f Makefile.Ubuntu*
+    fi
+
     if [ -n "${LIMPIAR:-}" ] || [ ! -f Makefile.Ubuntu ]; then
         rm -rf debug-x86 release-x86 .qmake.stash Makefile.Ubuntu*
         hacer_qmake=1
