@@ -777,7 +777,10 @@ bool OverlayWindowManager::sceneEvent(QEvent* event)
         } else if (e->type() == QEvent::TouchEnd ||
                    e->type() == QEvent::TouchCancel) {
             return handleTouchEnd(e);
-        } else if (e->type() == QEvent::TouchBegin) {
+        } else if (e->type() == QEvent::TouchUpdate) {
+            // Was TouchBegin, which the first branch above already took, so
+            // handleTouchUpdate could never run: nothing in the launcher
+            // overlay ever saw a drag move. Found by check-dead-branches.py.
             return handleTouchUpdate(e);
         }
     }

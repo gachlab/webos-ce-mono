@@ -30,6 +30,12 @@ foreach (t touch-in-qt5 eater-synthesis-qt5 home-gesture-qt5)
     add_test(NAME ${t} COMMAND ${t} -platform offscreen)
 endforeach ()
 
+# --- which coordinate space a touch point arrives in --------------------------
+add_executable(touch-coordinate-spaces-qt5 touch-coordinate-spaces-qt5.cpp)
+target_link_libraries(touch-coordinate-spaces-qt5 PRIVATE Qt5::Core Qt5::Gui Qt5::Widgets)
+add_test(NAME touch-coordinate-spaces
+         COMMAND touch-coordinate-spaces-qt5 -platform offscreen)
+
 # --- mouse to touch: a drag has to look like a drag -------------------------
 add_executable(mouse-to-touch-qt5
     mouse-to-touch-qt5.cpp
@@ -76,6 +82,17 @@ add_test(NAME qml-scene-item COMMAND qml-scene-item-qt5 -platform offscreen)
 # --- the run script's process detection ---------------------------------------
 add_test(NAME long-process-name
          COMMAND "${CMAKE_CURRENT_SOURCE_DIR}/long-process-name.sh")
+
+# --- static sweeps over the tree ---------------------------------------------
+# Both grew out of a real bug in HP's Qt 5 desktop branch, which never ran on a
+# device: a scene position handed to mapFromParent, and an else-if that repeated
+# an earlier condition so a whole handler was unreachable.
+add_test(NAME check-coordinate-spaces
+         COMMAND python3 "${CMAKE_CURRENT_SOURCE_DIR}/../tools/check-coordinate-spaces.py"
+                 "${CMAKE_CURRENT_SOURCE_DIR}/../components")
+add_test(NAME check-dead-branches
+         COMMAND python3 "${CMAKE_CURRENT_SOURCE_DIR}/../tools/check-dead-branches.py"
+                 "${CMAKE_CURRENT_SOURCE_DIR}/../components")
 
 # --- pbnjson ------------------------------------------------------------------
 find_library(PBNJSON_C NAMES pbnjson_c

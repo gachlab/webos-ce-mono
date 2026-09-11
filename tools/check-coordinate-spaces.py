@@ -16,8 +16,12 @@ discarded.
 
 That branch never ran on a device, so this sweeps for the same shape elsewhere.
 
+Some sites are known and deliberately left alone; they are listed in KNOWN
+below, each with the reason. Anything not on that list is a new finding.
+
 Usage:  check-coordinate-spaces.py <dir>...
-Exit 1 if anything is found.
+        check-coordinate-spaces.py --all <dir>...   also print the known ones
+Exit 1 if anything not on the list is found.
 """
 import os
 import re
@@ -38,6 +42,28 @@ RULES = [
 ]
 
 COMMENT = re.compile(r"^\s*(//|\*|/\*)")
+
+# Reviewed and left as they are. Keyed by the file's tail and the function the
+# hit sits in, so the line numbers can move without this going stale.
+KNOWN = {
+    ("lunaui/lockscreen/LockWindow.cpp", "mapFromScene"):
+        "correct: these events arrive as the raw viewport event through the "
+        "filter chain (TopLevelWindowManager::handleEvent), not through "
+        "QGraphicsScene delivery, so pos() is a scene position and needs "
+        "mapping. Pinned down in tests/touch-coordinate-spaces-qt5.cpp.",
+    ("lunaui/launcher/elements/bars/quicklaunchbar.cpp", "mapFromScene"):
+        "suspicious and untouched: reads pos() after setParentItem, so a "
+        "position in the old parent is read as a scene one. Long-standing HP "
+        "code on the drag-an-icon path; nobody has reported it and changing it "
+        "blind is worse than leaving it. Revisit with the gesture in hand.",
+}
+
+
+def known_reason(path, conversion):
+    for (tail, name), reason in KNOWN.items():
+        if path.replace("\\", "/").endswith(tail) and name == conversion:
+            return reason
+    return None
 
 
 def argument_of(text, call_start):
@@ -75,11 +101,13 @@ def scan(path):
 
 
 def main(argv):
-    roots = argv[1:]
+    argv = argv[1:]
+    show_known = "--all" in argv
+    roots = [a for a in argv if a != "--all"]
     if not roots:
         print(__doc__)
         return 2
-    total = 0
+    new, known = 0, 0
     for root in roots:
         for dirpath, _, files in os.walk(root):
             for fn in sorted(files):
@@ -87,13 +115,20 @@ def main(argv):
                     continue
                 path = os.path.join(dirpath, fn)
                 for n, name, expects, bad, line in scan(path):
-                    total += 1
+                    reason = known_reason(path, name)
+                    if reason:
+                        known += 1
+                        if show_known:
+                            print("%s:%d  (known)" % (path, n))
+                            print("    %s" % reason)
+                        continue
+                    new += 1
                     print("%s:%d" % (path, n))
                     print("    %s() wants %s, was given %s" % (name, expects, bad))
                     print("    %s" % line)
-    print("%d coordinate-space mismatches" % total)
-    print("OK" if total == 0 else "FAIL")
-    return 0 if total == 0 else 1
+    print("%d new mismatches, %d known" % (new, known))
+    print("OK" if new == 0 else "FAIL")
+    return 0 if new == 0 else 1
 
 
 if __name__ == "__main__":
