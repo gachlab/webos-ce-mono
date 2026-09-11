@@ -88,15 +88,14 @@ Still to do, in order:
 - ~~**The node addons** (`sysbus`, `pmlog`, `dynaload`)~~: done, unmodified,
   through `components/node-v8-shim` on node 26. HP's JavaScript services start
   on demand, which is what lets apps have background services.
-- **Qt 6** (in progress): LunaSysMgrCommon, LunaSysMgr, keyboard-efigs and
-  LunaSysService build against Debian's Qt 6.10 in their own tree
+- **Qt 6** (in progress): LunaSysMgrCommon, LunaSysMgr, keyboard-efigs,
+  LunaSysService and WebAppMgr build against Debian's Qt 6.10 in their own tree
   (`WEBOS_QT=6 tools/build-cmake.sh <components>` builds into `build-qt6/`), and
-  the test suite passes on both Qt versions. What Qt 6 removed comes back
-  through `components/qt6-compat`. Not run as a shell yet.
-- **WebAppMgr on QtWebEngine**, next: QtWebKit has no Qt 6 build worth depending
-  on, so WebAppMgr's web layer moves to Debian's QtWebEngine behind the
-  interfaces the apps use (`PalmSystem`, `PalmServiceBridge`, enyo's `WebView`).
-  That also replaces the browser path (`BrowserServer`/`BrowserAdapter`/
+  `WEBOS_QT=6 tools/run-lunasysmgr.sh run` runs them. What Qt 6 removed comes
+  back through `components/qt6-compat`; WebAppMgr's QtWebKit comes back through
+  `components/qtwebkit-compat`, on QtWebEngine. The test suite passes on both Qt
+  versions. The apps still have to be checked by hand on Qt 6. QtWebEngine also
+  replaces the browser path (`BrowserServer`/`BrowserAdapter`/
   `WebKitSupplemental`), which existed to render pages in another process.
 - **Synergy** (accounts and their transports, mojomail): last.
 

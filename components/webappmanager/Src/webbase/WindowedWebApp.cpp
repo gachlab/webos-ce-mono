@@ -446,7 +446,7 @@ void WindowedWebApp::inputEvent(sptr<Event> e)
             QMouseEvent* qtEvent = new QMouseEvent(QEvent::MouseMove, QPoint(evt->x, evt->y), Qt::NoButton, Qt::NoButton, 0);
             bridge->page()->event(qtEvent);
         } else if (evt->type == Event::PenFlick) {
-            QString script = QString().sprintf("if (window.Mojo && window.Mojo.handleGesture) {window.Mojo.handleGesture('flick', {x: %d, y: %d, timeStamp: %u, xVel: %d, yVel: %d})}", evt->x, evt->y, evt->time, evt->flickXVel, evt->flickYVel);
+            QString script = QString::asprintf("if (window.Mojo && window.Mojo.handleGesture) {window.Mojo.handleGesture('flick', {x: %d, y: %d, timeStamp: %u, xVel: %d, yVel: %d})}", evt->x, evt->y, evt->time, evt->flickXVel, evt->flickYVel);
             page()->page()->mainFrame()->evaluateJavaScript(script);
         }
     }
@@ -667,7 +667,8 @@ void WindowedWebApp::inputEvent(sptr<Event> e)
 void WindowedWebApp::onKeyEvent(const SysMgrKeyEvent& e)
 {
     QKeyEvent ev = e.qtEvent();
-    if (ev.key() == Qt::Key_Enter || ev.key() == Qt::Key_Return) {
+    bool enter = ev.key() == Qt::Key_Enter || ev.key() == Qt::Key_Return;
+    if (enter) {
         // Trap both key Enter and Return and make sure that we pass the key code as Qt::Key_Enter
         // This is because of a bug in WebCore/platform/qt/PlatformKeyboardEventQt.cpp.
         //
@@ -675,7 +676,12 @@ void WindowedWebApp::onKeyEvent(const SysMgrKeyEvent& e)
         // When SysMgr process sends the QKeyEvent the luna-sysmgr-ipc-messages will
         // turn the isNull() value from true to false, i.e. replace it with an empty string.
         // See NAYA-118 for more details
-        ev = QKeyEvent(ev.type(), Qt::Key_Enter, ev.modifiers(), QString());
+        //
+        // Built as a second event rather than assigned over the first: Qt 6
+        // deleted QKeyEvent's assignment operators.
+        QKeyEvent enterEvent(ev.type(), Qt::Key_Enter, ev.modifiers(), QString());
+        keyEvent(&enterEvent);
+        return;
     }
     keyEvent(&ev);
 }

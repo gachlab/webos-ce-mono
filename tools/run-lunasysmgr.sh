@@ -119,15 +119,19 @@ enter_namespace() {
           node_bind+=(--bind "$ROOTFS/usr/lib/libmemcpy.so" /usr/lib/libmemcpy.so)
       fi
       rebind+=(--tmpfs /var)
-      # WEBOS_QT=6 runs the Qt 6 build of the shell: its LunaSysMgr and its
-      # keyboard plugins, bound over the Qt 5 ones at the same paths, so the bus
-      # roles (which name the binary's path) and IMEManager (which loads from
-      # /usr/lib/luna) see no difference. Everything else is shared, WebAppMgr
-      # included: it talks to LunaSysMgr over IPC, which does not care which Qt
-      # either side was built with.
+      # WEBOS_QT=6 runs the Qt 6 build of the shell: its LunaSysMgr, its
+      # keyboard plugins and, once it is built, its WebAppMgr (QtWebEngine, through
+      # components/qtwebkit-compat), bound over the Qt 5 ones at the same paths,
+      # so the bus roles (which name the binary's path) and IMEManager (which
+      # loads from /usr/lib/luna) see no difference. Without a Qt 6 WebAppMgr the
+      # Qt 5 one keeps running: the two talk over IPC, which does not care which
+      # Qt either side was built with.
       qt6_binds=()
       if [ "${WEBOS_QT:-5}" = 6 ]; then
           qt6_binds+=(--bind "$R/build-qt6/staging/bin/LunaSysMgr" "$ROOTFS/usr/lib/luna/LunaSysMgr")
+          if [ -x "$R/build-qt6/staging/bin/WebAppMgr" ]; then
+              qt6_binds+=(--bind "$R/build-qt6/staging/bin/WebAppMgr" "$ROOTFS/usr/lib/luna/WebAppMgr")
+          fi
           for k in "$R"/build-qt6/rootfs/usr/lib/luna/libkeyboard-efigs-*.so; do
               [ -e "$k" ] && qt6_binds+=(--bind "$k" "/usr/lib/luna/$(basename "$k")")
           done
@@ -266,7 +270,15 @@ case "${1:-run}" in
     # first dies with "Failed to connect to socket: Connection refused".
     for _ in $(seq 40); do [ -S /tmp/pipcserver.sysmgr ] && break; sleep 1; done
     sleep 1
-    "$ROOTFS/usr/lib/luna/WebAppMgr" > /tmp/webos/WebAppMgr.log 2>&1 &
+    # A Qt 6 WebAppMgr needs build-qt6's libraries first, as LunaSysMgr does.
+    wam_libs="$LD_LIBRARY_PATH"
+    if [ "${WEBOS_QT:-5}" = 6 ] && [ -x "$R/build-qt6/staging/bin/WebAppMgr" ]; then
+        wam_libs="$lsm_libs"
+    fi
+    # WEBOS_WAM_WRAPPER names a program to start WebAppMgr through -- a script
+    # that runs it under gdb, say. It is inside the namespace and gets the same
+    # environment, so what it reports is what the shell sees.
+    LD_LIBRARY_PATH="$wam_libs" ${WEBOS_WAM_WRAPPER:+"$WEBOS_WAM_WRAPPER"} "$ROOTFS/usr/lib/luna/WebAppMgr" > /tmp/webos/WebAppMgr.log 2>&1 &
     wait $lsm
     ;;
   stop)

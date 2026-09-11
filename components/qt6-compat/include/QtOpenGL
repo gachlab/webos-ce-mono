@@ -1,0 +1,2 @@
+// QtOpenGL, removed in Qt 6: its QGL* classes come from qglcompat.h.
+#include "qglcompat.h"

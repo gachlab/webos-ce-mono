@@ -28,6 +28,10 @@ set(WEBOS_QT_MAJOR 5 CACHE STRING "Qt major version to build against: 5 or 6")
 find_package(Qt${WEBOS_QT_MAJOR} REQUIRED COMPONENTS Core Gui Network Widgets)
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(GLIB REQUIRED glib-2.0 gthread-2.0)
+# The library calls sqlite3 itself. Qt 5 builds never noticed it was not linked:
+# QtWebKit brought libsqlite3 into every executable that used this library. On
+# Qt 6 nothing does, and WebAppMgr failed to link on sqlite3_open & co.
+pkg_check_modules(SQLITE REQUIRED sqlite3)
 
 add_library(LunaSysMgrCommon SHARED
     Src/base/application/ApplicationDescriptionBase.cpp
@@ -98,6 +102,7 @@ target_compile_options(LunaSysMgrCommon PRIVATE
 target_link_libraries(LunaSysMgrCommon PUBLIC
     Qt::Core Qt::Gui Qt::Network Qt::Widgets
     ${GLIB_LDFLAGS}
+    ${SQLITE_LDFLAGS}
 )
 
 # Under Qt 6, the adapters for what it removed (components/qt6-compat).

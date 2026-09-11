@@ -48,6 +48,14 @@ public:
     void setBlueBufferSize(int size) { m_format.setBlueBufferSize(size); }
     void setAlphaBufferSize(int size) { m_format.setAlphaBufferSize(size); }
 
+    // Direct rendering has no QSurfaceFormat counterpart: every context Qt 6
+    // creates is direct where the platform allows it.
+    void setDirectRendering(bool) {}
+    void setDoubleBuffer(bool enable)
+    {
+        m_format.setSwapBehavior(enable ? QSurfaceFormat::DoubleBuffer : QSurfaceFormat::SingleBuffer);
+    }
+
     // Same split as sample buffers: alpha on, with a size only if one is given.
     void setAlpha(bool enable)
     {
@@ -60,6 +68,12 @@ public:
     static void setDefaultFormat(const QGLFormat& format) { QSurfaceFormat::setDefaultFormat(format.m_format); }
 
     QSurfaceFormat toSurfaceFormat() const { return m_format; }
+    static QGLFormat fromSurfaceFormat(const QSurfaceFormat& format)
+    {
+        QGLFormat f;
+        f.m_format = format;
+        return f;
+    }
 
 private:
     QSurfaceFormat m_format;
@@ -77,6 +91,15 @@ public:
         DefaultBindOption           = LinearFilteringBindOption | InvertedYBindOption | MipmapBindOption
     };
     Q_DECLARE_FLAGS(BindOptions, BindOption)
+
+    // A context of its own, as QGLContext(format) + create() made one in Qt 5.
+    explicit QGLContext(const QGLFormat& format);
+    ~QGLContext();
+    bool create(const QGLContext* shareContext = nullptr);
+    // QGLWidget::context() is QOpenGLWidget's here, which hands out the
+    // QOpenGLContext itself.
+    bool create(QOpenGLContext* shareContext);
+    QGLFormat format() const { return m_format; }
 
     // A QGLContext standing for whichever QOpenGLContext is current, or null
     // when none is. The same QOpenGLContext always yields the same object, and
@@ -96,9 +119,11 @@ public:
     void deleteTexture(GLuint id);
 
 private:
-    explicit QGLContext(QOpenGLContext* context) : m_context(context) {}
+    explicit QGLContext(QOpenGLContext* context) : m_context(context), m_owned(false) {}
 
     QOpenGLContext* m_context;
+    QGLFormat m_format;
+    bool m_owned;
 };
 
 Q_DECLARE_OPERATORS_FOR_FLAGS(QGLContext::BindOptions)
@@ -113,6 +138,18 @@ public:
     {
         setFormat(format.toSurfaceFormat());
     }
+
+    // QOpenGLWidget always creates its own context; the one handed in only
+    // contributes its format, and sharing comes from
+    // Qt::AA_ShareOpenGLContexts instead.
+    explicit QGLWidget(QGLContext* context, QWidget* parent = nullptr)
+        : QOpenGLWidget(parent)
+    {
+        if (context)
+            setFormat(context->format().toSurfaceFormat());
+    }
+
+    QGLFormat format() const { return QGLFormat::fromSurfaceFormat(QOpenGLWidget::format()); }
 };
 
 class QGLFramebufferObject : public QOpenGLFramebufferObject

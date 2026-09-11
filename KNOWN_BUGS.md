@@ -12,13 +12,25 @@ own `build-webos-desktop.sh`. **If it fails there too, it is not our port.**
 
 Builds against Debian's Qt 6.10 in `build-qt6/`, next to the Qt 5 build, which
 is left untouched: `WEBOS_QT=6 tools/build-cmake.sh luna-sysmgr-common luna-sysmgr
-keyboard-efigs luna-sysservice`. LunaSysMgr links against Qt 6 only (no Qt 5
-library in `ldd`). `tests/` passes on both: 14 of 14 on Qt 6 (the CE tree's QML
-test is Qt 5 only), 15 of 15 on Qt 5.
+keyboard-efigs luna-sysservice webappmanager`, and `WEBOS_QT=6
+tools/run-lunasysmgr.sh run` runs it. LunaSysMgr and WebAppMgr link against Qt 6
+only (no Qt 5 library in `ldd`); WebAppMgr renders with QtWebEngine. Running, the
+shell draws, WebAppMgr starts eight QtWebEngine processes, and the launcher and
+systemui reach "APP READY". `tests/` passes on both: 18 of 18 on Qt 6, 17 of 17 on
+Qt 5.
 
 How it was done: build against Qt 6, inventory every error with `make -k`, and
 fix each where it can be fixed without touching HP's code.
 
+- **WebAppMgr's QtWebKit** (`components/qtwebkit-compat`): the QtWebKit classes it
+  uses, over QtWebEngine, without changing WebAppMgr's web code. Pages render
+  offscreen and are grabbed; input goes to the view's focus proxy; objects added
+  with `addToJavaScriptWindowObject` become JavaScript proxies whose properties
+  and methods answer synchronously through a synchronous XHR to a
+  `webos-bridge:///` scheme answered in-process, and whose signals arrive through
+  `runJavaScript`. `tests/webengine-capabilities` checks each QtWebEngine
+  capability this relies on, and `tests/qtwebkit-compat` drives the layer the way
+  SysMgrWebBridge does.
 - **Adapters** (`components/qt6-compat`, only compiled for Qt 6): the `QGL*`
   classes over `QOpenGL*`, and a forced include that brings back `qrand`,
   `qSort`, `qFind`, `qVariantFromValue` and `qRegisterMetaTypeStreamOperators`
@@ -54,14 +66,30 @@ Traps found on the way, each confirmed before being fixed:
   (`Q_PROPERTY(LayoutItem * ...)` in icon.h). CMake passes `-b layoutitem.h` to
   moc instead of editing the header.
 
+- **WebAppMgr segfaulted in `__dynamic_cast` on its first `loadProgress`.** It is
+  built with `-fno-rtti` (HP's flag), so `SysMgrWebPage` has no type_info, and in
+  a Debug build Qt 6 dynamic_casts the receiver of a signal connected to a
+  member function. The layer connects through lambdas. `tests/qtwebkit-compat`
+  now subclasses QWebPage and builds with `-fno-rtti` and in Debug, and with the
+  member-function connections back it segfaults the same way; the tests had been
+  built without a build type, where Qt's checks do not exist, and passed.
+- **LunaSysMgrCommon calls sqlite3 without linking it.** QtWebKit used to bring
+  libsqlite3 into every executable, so nobody noticed until WebAppMgr stopped
+  linking QtWebKit. It is linked by the library now.
+- **A custom scheme is reachable from `file://` pages only when flagged
+  `LocalScheme` and `SecureScheme` and addressed without a host
+  (`webos-bridge:///...`).** Without either the request never reaches the handler.
+
 Not done yet:
 
-- **WebAppMgr** stops at configure on purpose: it is written against QtWebKit,
-  and its Qt 6 path is QtWebEngine.
-- **Nothing has run as a shell on Qt 6.** In particular `QGLWidget` over
-  `QOpenGLWidget` differs in one way that matters at runtime: Qt 5 created the
-  GL context in the constructor, Qt 6 only when the widget is first shown, so
-  `makeCurrent()` right after construction does nothing.
+- **The apps have not been checked by hand on Qt 6.** They start and run their
+  JavaScript; whether each draws and takes input correctly is still to see.
+- **`/usr/palm/frameworks/tellurium` is not in the rootfs,** so every enyo app logs
+  a failed load of `tellurium_config.json`. Not Qt 6's doing: the file exists in
+  `components/enyo-1.0` and assemble-rootfs.sh never installs that directory.
+- `QGLWidget` over `QOpenGLWidget` differs in one way that can matter at
+  runtime: Qt 5 created the GL context in the constructor, Qt 6 only when the
+  widget is first shown, so `makeCurrent()` right after construction does nothing.
 
 ---
 

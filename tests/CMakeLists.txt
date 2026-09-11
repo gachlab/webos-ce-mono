@@ -11,6 +11,14 @@
 cmake_minimum_required(VERSION 3.16)
 project(webos-tests CXX C)
 
+# Debug unless told otherwise, as tools/build-cmake.sh builds the components.
+# Qt's own checks (Q_ASSERT, and the receiver check on member-function
+# connections) only exist then, and a test that runs without them can pass
+# while the shell crashes: WebAppMgr segfaulted in one of those checks.
+if (NOT CMAKE_BUILD_TYPE)
+    set(CMAKE_BUILD_TYPE Debug CACHE STRING "Build type" FORCE)
+endif ()
+
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_AUTOMOC ON)
@@ -109,6 +117,17 @@ if (WEBOS_QT_MAJOR GREATER_EQUAL 6)
         # Runs without a display: QtWebEngine renders and takes input on the
         # offscreen platform too.
         set_tests_properties(webengine-capabilities PROPERTIES
+            ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
+        # QtWebKit's API as WebAppMgr uses it, on QtWebEngine.
+        add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/../components/qtwebkit-compat"
+                         "${CMAKE_CURRENT_BINARY_DIR}/qtwebkit-compat")
+        add_executable(qtwebkit-compat-qt6 qtwebkit-compat-qt6.cpp)
+        target_link_libraries(qtwebkit-compat-qt6 PRIVATE qtwebkit-compat)
+        # As WebAppMgr is built; see the test for why it matters.
+        target_compile_options(qtwebkit-compat-qt6 PRIVATE -fno-rtti)
+        add_test(NAME qtwebkit-compat COMMAND qtwebkit-compat-qt6)
+        set_tests_properties(qtwebkit-compat PROPERTIES
             ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
     endif ()
 endif ()

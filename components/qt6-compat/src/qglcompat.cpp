@@ -13,6 +13,32 @@ QHash<QOpenGLContext*, QGLContext*>& wrappers()
 
 } // namespace
 
+QGLContext::QGLContext(const QGLFormat& format)
+    : m_context(new QOpenGLContext), m_format(format), m_owned(true)
+{
+    m_context->setFormat(format.toSurfaceFormat());
+}
+
+QGLContext::~QGLContext()
+{
+    if (m_owned)
+        delete m_context;
+}
+
+bool QGLContext::create(const QGLContext* shareContext)
+{
+    if (shareContext && shareContext->contextHandle())
+        m_context->setShareContext(shareContext->contextHandle());
+    return m_context->create();
+}
+
+bool QGLContext::create(QOpenGLContext* shareContext)
+{
+    if (shareContext)
+        m_context->setShareContext(shareContext);
+    return m_context->create();
+}
+
 // Reached through a static function only, so the private constructor stays
 // private to everyone else.
 const QGLContext* QGLContext::currentContext()

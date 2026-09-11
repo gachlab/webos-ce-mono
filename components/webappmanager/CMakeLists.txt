@@ -34,11 +34,15 @@ list(APPEND CMAKE_PREFIX_PATH ${QTWEBKIT_CMAKE_DIRS})
 # built in its own tree by tools/build-cmake.sh (WEBOS_QT=6). Both provide the
 # versionless Qt:: targets used below.
 set(WEBOS_QT_MAJOR 5 CACHE STRING "Qt major version to build against: 5 or 6")
-if (NOT WEBOS_QT_MAJOR EQUAL 5)
-    message(FATAL_ERROR "WebAppMgr is written against QtWebKit, which has no Qt "
-        "${WEBOS_QT_MAJOR} build here. Its Qt 6 path goes through QtWebEngine and "
-        "is not written yet.")
-endif ()
+if (WEBOS_QT_MAJOR GREATER_EQUAL 6)
+    # No QtWebKit for Qt 6: its API comes from components/qtwebkit-compat, on
+    # QtWebEngine, and what else Qt 6 removed from components/qt6-compat.
+    find_package(Qt6 REQUIRED COMPONENTS Core Gui Network Widgets Quick OpenGL OpenGLWidgets)
+    add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../qt6-compat ${CMAKE_CURRENT_BINARY_DIR}/qt6-compat)
+    add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../qtwebkit-compat ${CMAKE_CURRENT_BINARY_DIR}/qtwebkit-compat)
+    set(WEBOS_WAM_QT_LIBS Qt::Core Qt::Gui Qt::Network Qt::Widgets Qt::Quick Qt::OpenGL
+        Qt::OpenGLWidgets qt6compat-gl qtwebkit-compat)
+else ()
 find_package(Qt5 REQUIRED COMPONENTS Core Gui Network Widgets Quick OpenGL)
 
 # Asked for as their own packages rather than as Qt5 components: component
@@ -46,6 +50,9 @@ find_package(Qt5 REQUIRED COMPONENTS Core Gui Network Widgets Quick OpenGL)
 # would never see the one under staging.
 find_package(Qt5WebKit REQUIRED)
 find_package(Qt5WebKitWidgets REQUIRED)
+set(WEBOS_WAM_QT_LIBS Qt5::Core Qt5::Gui Qt5::Network Qt5::Widgets Qt5::Quick Qt5::OpenGL
+    Qt5::WebKit Qt5::WebKitWidgets)
+endif ()
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(GLIB REQUIRED glib-2.0 gthread-2.0)
 pkg_check_modules(SQLITE REQUIRED sqlite3)
@@ -133,8 +140,7 @@ target_compile_options(WebAppMgr PRIVATE
 )
 
 target_link_libraries(WebAppMgr PRIVATE
-    Qt5::Core Qt5::Gui Qt5::Network Qt5::Widgets Qt5::Quick Qt5::OpenGL
-    Qt5::WebKit Qt5::WebKitWidgets
+    ${WEBOS_WAM_QT_LIBS}
     ${GLIB_LDFLAGS} ${SQLITE_LDFLAGS}
     OpenSSL::SSL OpenSSL::Crypto OpenGL::GL
     -L${WEBOS_STAGING}/lib -L${WEBOS_STAGING}/usr/lib

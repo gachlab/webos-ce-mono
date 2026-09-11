@@ -22,6 +22,10 @@
 #include <QObject>
 #include <QRandomGenerator>
 #include <QVariant>
+// Also pulled in by Qt 5's headers and used without an include by WebAppMgr.
+#include <QFile>
+#include <QTimer>
+#include <QUrlQuery>
 
 // qrand() and qsrand(): per thread in Qt 5, and an unseeded qrand() behaved as
 // if seeded with 1. A thread-local generator keeps both; QRandomGenerator's
