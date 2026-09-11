@@ -1,84 +1,103 @@
 # webOS CE — monorepo
 
-El código que **HP liberó** para webOS, en un solo repositorio que se clona una vez
-y se compila sin bajar nada de internet.
+The code **HP released as open source** for webOS, in one repository you clone
+once and build without downloading anything else.
 
-No contiene nada de LuneOS, LunaCE ni webOS OSE de LG. Solo el drop original de HP,
-en los tags exactos que su propio build script fijaba.
+Nothing from LuneOS, LunaCE or LG's webOS OSE. Only HP's original drop, at the
+exact tags its own build script pinned.
 
-## Por qué
+## Why
 
-El build original (`build-webos-desktop.sh`) no depende de código: depende de **URLs**.
-Descarga 45 zipballs de tags fijos repartidos en tres organizaciones de GitHub.
-Trece años después ya hay tres muertas:
+The original build (`build-webos-desktop.sh`) does not depend on code: it
+depends on **URLs**. It downloads 45 zipballs from fixed tags across three
+GitHub organisations. Thirteen years later three of them are already dead:
 
-| Descarga | Qué pasó |
+| Download | What happened |
 |---|---|
-| WebKit desde `github.com/downloads/...` | GitHub eliminó Downloads en 2013 |
-| leveldb desde `googlecode.com` | Google Code cerró en 2016 |
-| cmake precompilado de `cmake.org` | ya no alojan ese binario |
+| WebKit from `github.com/downloads/...` | GitHub removed Downloads in 2013 |
+| leveldb from `googlecode.com` | Google Code shut down in 2016 |
+| prebuilt cmake from `cmake.org` | that binary is no longer hosted |
 
-Y eso solo va a empeorar.
+And that only gets worse.
 
-## Estructura
+## Build
 
-- `components/` — las fuentes de HP, vendoreadas con `git subtree --squash`.
-  Cada una trae en su commit el repo y el sha exactos de donde salió.
-- `third-party/` — Qt 4.8 y WebKit **no** están vendoreados: son cientos de MB
-  que no se van a editar. Se consumen pineados como artefactos.
-- `patches/` — parches de portabilidad. **No vienen de HP**: son lo mínimo para que
-  el código de 2012 compile hoy. Cada uno explica en su cabecera qué arregla y por qué.
-- `MANIFEST.tsv` — los 55 componentes con su repo, su ref y su sistema de build.
-- `tools/build-webos-desktop.sh.reference` — el script original de HP. Se conserva
-  porque **su orden de llamadas es el grafo de dependencias**, ya ordenado
-  topológicamente. Es la fuente de la que sale la orquestación nueva.
-
-## Los dos LunaSysMgr
-
-Conviven a propósito:
-
-- `components/luna-sysmgr/` — el de **Open webOS** (`openwebos/luna-sysmgr`), que es
-  el que compila verde hoy. Es la referencia contra la cual comparar.
-- `components/luna-sysmgr-ce/` — el del **CE 3.0.5 del TouchPad**
-  (`woce/LunaSysMgr` en el commit "Push from tarball"), que es el objetivo.
-
-## Compilar
-
-Requiere Debian moderno (probado en sid) con Qt5, y las cabeceras de desarrollo
-de glib, sqlite3, openssl, libxml2 y boost.
+Needs a modern Debian (tested on sid) with Qt5, plus the development headers
+for glib, sqlite3, openssl, libxml2 and boost.
 
 ```sh
-tools/build.sh          # todo, en el orden del MANIFEST
-tools/run-lunasysmgr.sh  # arranca el shell
+tools/build.sh              # everything, in MANIFEST order
+tools/run-lunasysmgr.sh     # start the shell
 ```
 
-Cada etapa se puede correr sola: `autotools`, `cmake`, `qmake`, `rootfs`.
+Each stage can be run on its own: `third-party`, `headers`, `autotools`,
+`cmake`, `qmake`, `rootfs`.
 
-`tools/run-lunasysmgr.sh` **no instala nada en el sistema**. Solo `/etc/palm`
-esta clavado en el codigo (`Settings.cpp`); todo lo demas es configurable, asi
-que se monta con `bwrap` un namespace donde `/etc/palm` apunta al rootfs local.
+The first run builds QtWebKit 5.212, which takes a while and is the only
+dependency that does not live in this repository.
 
-## Estado
+`tools/run-lunasysmgr.sh` **installs nothing on your system**. Only
+`/etc/palm` is hardcoded in the code (`Settings.cpp`); everything else is
+configurable, so `bwrap` is used to build a namespace where the paths webOS
+expects point at the local rootfs.
 
-El shell corre. `LunaSysMgr` compila con gcc 16 y Qt 5.15 y arranca sobre X11
-—ver `docs/lunasysmgr-en-debian.png`— con **un solo cambio de codigo** en todo
-el componente (`KineticScroller.cpp`, un `qInf()` que Qt5 ya trae).
+## Layout
+
+- `components/` — HP's sources, vendored with `git subtree --squash`. Each
+  carries the source repo and sha in its import commit.
+- `third-party/` — QtWebKit is **not** vendored: hundreds of MB nobody will
+  edit. It is consumed at a pinned ref and built by `tools/build-third-party.sh`.
+- `patches/` — portability patches. **Not from HP**: the minimum for 2012 code
+  to build today. Each explains in its header what it fixes and why.
+- `tests/` — small standalone programs that reproduce a specific failure without
+  bringing the whole system up.
+- `MANIFEST.tsv` — the 55 components with their repo, ref and build system.
+- `tools/build-webos-desktop.sh.reference` — HP's original script, kept because
+  **its call order is the dependency graph**, already topologically sorted. It
+  is the source the new orchestration derives from.
+
+## The two LunaSysMgrs
+
+Both live here on purpose:
+
+- `components/luna-sysmgr/` — **Open webOS**'s (`openwebos/luna-sysmgr`), which
+  is what builds green today. The reference to compare against.
+- `components/luna-sysmgr-ce/` — the **TouchPad's CE 3.0.5**
+  (`woce/LunaSysMgr` at the "Push from tarball" commit), which is the target.
+
+## State
+
+The shell runs. `LunaSysMgr` builds with gcc 16 and Qt 5.15 and starts on X11
+— see `docs/lunasysmgr-on-debian.png`.
 
 | | |
 |---|---|
-| Compilan | 31 de los componentes que se construyen |
-| Codigo tocado | ~180 lineas sobre el drop de HP |
-| Toolchain | Debian sid, gcc 16, Qt 5.15, CMake del sistema |
+| Builds from scratch | 29 components |
+| Source changes over HP's drop | ~180 lines |
+| Toolchain | Debian sid, gcc 16, Qt 5.15, system CMake |
 
-Lo que falta, en orden:
+Working: the lock screen, the launcher, the dock, keyboard input, taps, apps
+opening as cards, db8 with its schemas loaded, and four of HP's five static
+services.
 
-- **QtWebKit 5.212** (`build-modern/third-party/`, parche en `patches/`). Es lo
-  que desbloquea `webappmanager` y con el las apps visibles.
-- **`webappmanager`**. Ya revisado: 69 archivos, cero bloqueadores de Qt5, y sus
-  cinco librerias ya estan en staging. Solo espera el motor.
-- **`luna-sysmgr-ce`** (el del TouchPad) portado a Qt5, usando como referencia
-  los 61 archivos donde el propio HP puso guardas `QT_VERSION_CHECK` en Open webOS.
-- **Los addons de node** (`sysbus`, `pmlog`, `dynaload`): API v8 vieja, hay que
-  llevarlos a N-API para correr los servicios sobre el node de Debian.
-- **El navegador** (`BrowserServer`/`BrowserAdapter`): dependen de NPAPI de
-  verdad, no solo de un include path. Es el trozo mas caro y va de ultimo.
+`KNOWN_BUGS.md` lists what is broken, what it depends on and what has already
+been ruled out — including which failures reproduce identically on HP's own
+Ubuntu 12.04 build, and so are not this port's doing.
+
+Still to do, in order:
+
+- **The node addons** (`sysbus`, `pmlog`, `dynaload`): old v8 API, need porting
+  to N-API. They are what unblocks the JS services, and with them calendar and
+  email.
+- **`luna-sysmgr-ce`** ported to Qt5, using as reference the 61 files where HP
+  themselves added `QT_VERSION_CHECK` guards in Open webOS.
+- **The browser** (`BrowserServer`/`BrowserAdapter`): these depend on real
+  NPAPI, not just an include path. The most expensive piece, and last.
+
+## Licence
+
+HP's code is Apache 2.0; see `LICENSE` and `NOTICE`. The tag `hp-original`
+marks the imported code before any change, so `git diff hp-original` shows
+exactly what was modified.
+
+Not affiliated with HP, Palm or LG.
