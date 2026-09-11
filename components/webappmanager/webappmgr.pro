@@ -96,6 +96,7 @@ SOURCES += \
         Main.cpp \
         MemoryWatcher.cpp \
         PalmSystem.cpp \
+        PalmServiceBridgeAdapter.cpp \
         ProcessManager.cpp \
         RemoteWindowData.cpp \
         SyncTask.cpp \
@@ -126,6 +127,7 @@ HEADERS += \
         MemoryWatcher.h \
         NewContentIndicatorEventFactory.h \
         PalmSystem.h \
+        PalmServiceBridgeAdapter.h \
         ProcessBase.h \
         ProcessManager.h \
         RemoteWindowData.h \

@@ -17,3 +17,9 @@ components/cjson/m4/
 components/*/debug-x86/
 components/*/Makefile.Ubuntu
 components/*/.qmake.stash
+
+# logs que dejan construir-qmake.sh y probar-servicios.sh junto al fuente
+components/*/qmake.log
+components/*/build.log
+components/*/install.log
+components/*/cfg.log

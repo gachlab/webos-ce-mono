@@ -1,4 +1,5 @@
 #include "SysMgrWebBridge.h"
+#include "PalmServiceBridgeAdapter.h"
 
 #include "Logging.h"
 #include "PalmSystem.h"
@@ -254,6 +255,37 @@ void SysMgrWebBridge::setupStageArgs(const char* json)
     }
 }
 
+// PalmServiceBridge: shim JS sobre el adaptador nativo.
+//
+// Las apps hacen "new PalmServiceBridge()", y addToJavaScriptWindowObject solo
+// publica instancias, no constructores. De ahi este shim: da la semantica de
+// constructor y delega en un objeto nativo por instancia. Ver
+// PalmServiceBridgeAdapter.h para el resto de la historia.
+static const char* kPalmServiceBridgeShim = R"JS(
+(function () {
+    function PalmServiceBridge() {
+        this.__nativo = PalmServiceBridgeFactory.create();
+        var propio = this;
+        this.__nativo.response.connect(function (cuerpo) {
+            if (propio.__cb)
+                propio.__cb(cuerpo);
+        });
+    }
+    PalmServiceBridge.prototype.call = function (url, carga) {
+        return this.__nativo.call(url, carga);
+    };
+    PalmServiceBridge.prototype.cancel = function () {
+        this.__nativo.cancel();
+    };
+    // onservicecallback se ASIGNA, no se llama.
+    Object.defineProperty(PalmServiceBridge.prototype, "onservicecallback", {
+        set: function (fn) { this.__cb = fn; },
+        get: function () { return this.__cb; }
+    });
+    window.PalmServiceBridge = PalmServiceBridge;
+})();
+)JS";
+
 void SysMgrWebBridge::addPalmSystemObject(void)
 {
     QWebFrame* frame = m_page->mainFrame();
@@ -270,6 +302,10 @@ void SysMgrWebBridge::addPalmSystemObject(void)
     frame->addToJavaScriptWindowObject("PalmSystem", m_jsObj);
 
     frame->evaluateJavaScript("function palmGetResource(a,b) { return PalmSystem.getResource(a,b); }");
+
+    frame->addToJavaScriptWindowObject("PalmServiceBridgeFactory",
+                                      new PalmServiceBridgeFactory(appId(), this));
+    frame->evaluateJavaScript(QString::fromLatin1(kPalmServiceBridgeShim));
 }
 
 void SysMgrWebBridge::setName(const char* name)
