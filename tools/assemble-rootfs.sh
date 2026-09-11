@@ -135,7 +135,7 @@ copy_without_tests() {   # copy_without_tests <source dir> <destination dir>
         done
 }
 
-# Frameworks: cada uno bajo <nombre>/version/1.0/
+# Frameworks: each one under <name>/version/1.0/
 for GRUPO in foundation-frameworks mojoservice-frameworks loadable-frameworks; do
     for FW in "$C"/$GRUPO/*/; do
         n=$(basename "$FW"); [ "$n" = "." ] && continue
@@ -329,10 +329,75 @@ cp -f "$R/components/mojoloader/mojoloader.js" "$ROOTFS/usr/palm/frameworks/" 2>
 for svc in "$R"/components/mojolocation-stub "$R"/components/pmnetconfigmanager-stub \
            "$R"/components/app-services/com.palm.service.*; do
     [ -f "$svc/services.json" ] || continue
-    id="$(python3 -c "import json,sys; print(json.load(open(sys.argv[1]))['id'])" "$svc/services.json" 2>/dev/null || true)"
+    id="$(python3 -c "import json,sys; print(json.load(open(sys.argv[1])).get('id', ''))" "$svc/services.json" 2>/dev/null || true)"
+    # HP's stubs name themselves with "id"; the app-services do not have one, and
+    # their directory already is the service name. Without this fallback all
+    # four were skipped outright -- no files, no role, no .service.
+    id="${id:-$(basename "$svc")}"
     [ -n "$id" ] || continue
     copy_without_tests "$svc" "$ROOTFS/usr/palm/services/$id"
+
+    # Its bus files: the role in files/sysbus, the .service in desktop-support.
+    # Without the role the hub refuses the service's own name; without the
+    # .service it has no way to start it when something calls.
+    cp -f "$svc"/files/sysbus/*.json "$ROOTFS/usr/share/ls2/roles/pub/" 2>/dev/null || true
+    cp -f "$svc"/files/sysbus/*.json "$ROOTFS/usr/share/ls2/roles/prv/" 2>/dev/null || true
+    cp -f "$svc"/desktop-support/*.service "$ROOTFS/usr/share/ls2/services/" 2>/dev/null || true
+    cp -f "$svc"/desktop-support/*.service "$ROOTFS/usr/share/ls2/system-services/" 2>/dev/null || true
 done
+
+# Directories configurator walks and HP's rootfs always had, even when empty.
+# Missing, each costs an "[error] Failed to open directory" in configurator's log
+# on every init -- no configuration fails because of them, but the errors bury
+# the ones that matter.
+mkdir -p "$ROOTFS/etc/palm/activities" "$ROOTFS/etc/palm/tempdb/permissions" \
+         "$ROOTFS/etc/palm/filecache_types"
+
+# db8's data directory. run-lunasysmgr.sh binds it at /var/db so the database
+# survives restarting the services; it has to exist for that bind to work.
+mkdir -p "$ROOTFS/var/db"
+
+# luna-send's own bus role, from HP's templates in luna-service2.
+#
+# Without it luna-send reaches the hub as an anonymous client with no
+# permissions: the public hub lets that through with a warning, the private one
+# refuses it outright, so nothing could call a service on the private bus from a
+# terminal. The templates leave the executable as @WEBOS_INSTALL_BINDIR@; the
+# hub identifies a caller through /proc/<pid>/exe, so it has to be the path
+# luna-send is really run from, which is staging.
+for side in pub prv; do
+    tpl="$C/luna-service2/files/sysbus/com.palm.lunasend.json.$side.in"
+    [ -f "$tpl" ] || continue
+    sed "s|@WEBOS_INSTALL_BINDIR@|$S/usr/bin|" "$tpl" \
+        > "$ROOTFS/usr/share/ls2/roles/$side/com.palm.lunasend.json"
+done
+
+# How the hub starts a JavaScript service when something calls it.
+#
+# ls-hubd runs outside the bwrap namespace on purpose -- it identifies every
+# caller through /proc/<pid>/exe -- so an Exec that runs run-js-service directly
+# finds no /usr/palm/services and exits with "Invalid service path". The Exec is
+# pointed at run-lunasysmgr.sh instead, which enters the same namespace the
+# shell uses and runs run-js-service from inside it. The services then start on
+# demand and quit when idle, which is how they behave on a device.
+sed -i -E "s|^Exec=[^ ]*run-js-service(.*)$|Exec=$R/tools/run-lunasysmgr.sh js-service\1|" \
+    "$ROOTFS"/usr/share/ls2/services/*.service \
+    "$ROOTFS"/usr/share/ls2/system-services/*.service 2>/dev/null
+
+# And every C++ service the hub might start on demand, for the same reason:
+# launched straight from the rootfs path it runs outside the namespace and sees
+# none of /etc/palm, /usr/palm or /var/db. See the ns-exec case in
+# run-lunasysmgr.sh for what that cost.
+sed -i -E "s|^Exec=$ROOTFS/usr/lib/luna/|Exec=$R/tools/run-lunasysmgr.sh ns-exec /usr/lib/luna/|" \
+    "$ROOTFS"/usr/share/ls2/services/*.service \
+    "$ROOTFS"/usr/share/ls2/system-services/*.service 2>/dev/null
+
+# run-js-service preloads /usr/lib/libmemcpy.so, an optimised memcpy that only
+# existed on the device. An empty library stands in for it, so every service
+# launch stops printing an ld.so error; the system memcpy is used either way.
+if [ ! -e "$ROOTFS/usr/lib/libmemcpy.so" ]; then
+    cc -shared -o "$ROOTFS/usr/lib/libmemcpy.so" -x c /dev/null 2>/dev/null || true
+fi
 echo "  js services:         $(ls "$ROOTFS/usr/palm/services" 2>/dev/null | wc -l) dirs, frameworks: $(ls "$ROOTFS/usr/palm/frameworks" 2>/dev/null | wc -l)"
 
 # --- node: the path HP's own configuration expects ---

@@ -47,47 +47,63 @@ through `rootItem()`.
 `ReferenceError: inProgress is not defined`, and the 34 files in
 `components/luna-sysmgr-ce/` still carry the QML 1 import.
 
-### ~~Calendar and email open empty~~ (the JavaScript services run now)
+### ~~Calendar and email open empty~~ (the JavaScript services run, on demand)
 
-A webOS JavaScript service boots on node 26 and answers on the bus:
+All six of HP's JavaScript services start when something calls them and answer,
+with LunaSysMgr and WebAppMgr up and nothing started by hand:
 
-    $ luna-send -n 1 palm://com.palm.location/getCurrentPosition '{}'
-    {"latitude":37.390196,"longitude":-122.037845,"returnValue":true, ...}
+    com.palm.location                    answered
+    com.palm.connectionmanager           answered
+    com.palm.service.accounts            answered
+    com.palm.service.contacts            answered
+    com.palm.service.contacts.linker     answered
+    com.palm.service.calendar.reminders  answered
 
-That is HP's `GetCurrentPositionCommandAssistant.js`, loaded by mojoloader over
-the foundations and mojoservice frameworks, through `run-js-service` and
-`bootstrap-node.js` -- all of it HP's, none of it changed -- on top of
-`components/node-v8-shim`. Checked by `tests/node-shim/service.sh`, which needs
-the bus and the static services up, so it is run by hand rather than by ctest.
+That is `tests/node-shim/service.sh`, which needs the bus and the static services
+up and so is run by hand. Underneath: HP's JavaScript unchanged, on node 26,
+through `components/node-v8-shim`.
 
-What it took, beyond the three addons:
+What had to be true for that, each of which was broken:
 
-- `Context` on node's own `vm` module rather than emulated. V8 gave each library
-  its own global; foundations needs both halves of that, and neither shortcut
-  works -- a function wrapper per script makes top-level vars local ("DB is not
-  defined"), and sharing the interpreter's global rebinds `exports` under the
-  closures ("exports.Comms is undefined"). `vm.createContext` is the real thing,
-  reachable from an addon through `process.mainModule.require('vm')`.
+- **The hub starts services through the namespace.** ls-hubd stays outside the
+  bwrap namespace on purpose -- it identifies callers through /proc/<pid>/exe --
+  so anything it launched straight from the rootfs saw the host's filesystem.
+  Every .service file now goes through `run-lunasysmgr.sh js-service` (for
+  JavaScript, via bash: run-js-service uses `==` in `[ ]`, which dash rejects) or
+  `run-lunasysmgr.sh ns-exec` (for C++).
+- **Every service's bus files are installed.** Four of the six were skipped
+  outright: the install read an `id` from services.json, and the app-services do
+  not have one.
+- **db8 keeps its data.** mojodb-luna wrote into the tmpfs over /var, so every
+  restart of the services emptied the database. /var/db is now bound from the
+  rootfs; the kinds survive a restart with no init in between, checked by asking
+  db8 for them.
+- **init loads the kinds.** When configurator started by init had not registered
+  in time, the hub launched a copy from outside the namespace, which found
+  nothing in /etc/palm/db/kinds -- 2 configurations instead of 41. With ns-exec
+  that copy sees the same paths.
+- **luna-send has a role.** HP's templates in luna-service2 were never installed,
+  so the private hub refused luna-send outright.
+- **Two of HP's JSON files parse.** The accounts services.json and the palmprofile
+  account template had trailing commas.
 
-- Seeding each context. A fresh vm context has none of node's globals, and
-  foundations decides whether it is on node by looking for `root.process.version`
-  -- without it, it takes the Mojo branch and calls `palmGetResource`, which only
-  ever existed in HP's build.
+**Worth knowing when checking any of this by hand:** luna-send's `-P` is the
+PUBLIC bus and no flag is private. A com.palm service listens on the private bus,
+and on the public one only if it has commands marked "public", so a non-public
+method answering "is not running" on `-P` is by design. db8 answering -3963
+"permission denied" to a find means the kind IS registered; -3970 means it is not.
 
-- A `--require` shim for what HP's patched node had: `process.setName`,
-  `process.setArgs`, `palmGetResource`, `palmPutResource`, `getenv`, `quit`, the
-  `sys` module alias, and `new Buffer`. Ten call sites across 32,000 lines of
-  JavaScript, which is why this is a shim and not a rewrite.
+**Still open.**
 
-- Tests excluded from the installed frameworks and services. They ship mock
-  versions of their own modules and call MojoLoader methods that exist only in a
-  test harness.
-
-**Still open.** The hub does not start these on demand: ls-hubd runs outside the
-bwrap namespace on purpose, so `/usr/palm/services` is not there for it to
-launch. They start the way HP's own static services do. Calendar and email
-additionally need their own back ends, which is a separate question from whether
-node runs.
+- `com.palm.tempdb`'s .service runs mojodb-luna on /var/db, the same directory as
+  com.palm.db. Nothing starts tempdb today; if something does, the two will
+  contend for the lock.
+- run-js-service prints `Failure writing to tasks file "/no-group/not-present"`
+  on every launch. That path is HP's own deliberate fallback for a device without
+  its cgroup setup, commented as such in the script; it is harmless.
+- The accounts service reports `Found 0 account templates`. Calendar and email
+  still need account back ends before they show anything, which is a separate
+  question from whether their services run.
 
 ---
 
