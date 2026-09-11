@@ -40,9 +40,22 @@ bool LunaServiceManager::init()
     LSError lserror;
     LSErrorInit(&lserror);
 
-    // The name carries the pid, as in HP's code. The com.palm.webappmgr role
-    // allows it through the "com.palm.luna-*" wildcard.
-    QByteArray id = QByteArray("com.palm.luna-") + QByteArray::number(static_cast<int>(getpid()));
+    // HP registered "com.palm.luna-<pid>". That cannot work here: the
+    // com.palm.webappmgr role lists "com.palm.luna-*" under allowedNames, so
+    // the name may be registered, but no role in the desktop drop declares
+    // PERMISSIONS for it -- and ls-hubd looks permissions up by exact name
+    // (LSHubPermissionMapLookup does a plain g_hash_table_lookup; the only
+    // wildcard is a special case for the media server). The result was every
+    // outbound call being denied:
+    //
+    //   "com.palm.luna-NNN" does not have sufficient outbound permissions
+    //   to communicate with "com.palm.db"
+    //
+    // A fixed name can be granted permissions, and one is enough because
+    // LunaServiceManager is a singleton inside the single WebAppMgr process.
+    // The caller identity apps are checked against is the appId, which travels
+    // separately as LSCallFromApplication's callerId.
+    QByteArray id("com.palm.webappmgr.bridge");
 
     if (!LSRegisterPalmService(id.constData(), &palmServiceHandle, &lserror))
         goto error;

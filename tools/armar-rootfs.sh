@@ -50,6 +50,11 @@ fi
 # --- la UI: estas dos son las que realmente dibujan ---
 mkdir -p "$ROOTFS/usr/lib/luna/system/luna-systemui"
 cp -rf "$C"/luna-systemui/* "$ROOTFS/usr/lib/luna/system/luna-systemui/" 2>/dev/null
+# El fondo de pantalla va dentro de un tar, no suelto (igual que las fuentes
+# Prelude en fonts.tgz). Sin extraerlo el lock screen sale negro: dentro esta
+# bluerocks.png, que es el fondo por defecto de webOS.
+tar xf "$C"/luna-systemui/images/wallpaper.tar \
+    -C "$ROOTFS/usr/lib/luna/system/luna-systemui/images" 2>/dev/null
 mkdir -p "$ROOTFS/usr/lib/luna/system/luna-applauncher"
 cp -rf "$C"/luna-applauncher/* "$ROOTFS/usr/lib/luna/system/luna-applauncher/" 2>/dev/null
 cp -f "$LS"/desktop-support/appinfo.json "$ROOTFS/usr/lib/luna/system/luna-applauncher/appinfo.json"
@@ -161,6 +166,51 @@ done
 sed -i -E "s|^Exec=[^ ]*/([^ /]+)|Exec=$ROOTFS/usr/lib/luna/\\1|" \
     "$ROOTFS"/usr/share/ls2/services/*.service \
     "$ROOTFS"/usr/share/ls2/system-services/*.service 2>/dev/null
+
+# Los dos stubs de servicio JS. HP los coloca uno a uno en su script; son los
+# que responden a com.palm.location y com.palm.connectionmanager, y sin ellos
+# el calendario falla con "getCalendars call failed" y el log se llena de
+# "com.palm.connectionmanager is not running".
+for par in "mojolocation-stub:com.palm.location" \
+           "pmnetconfigmanager-stub:com.palm.connectionmanager"; do
+    comp=${par%%:*}; svc=${par##*:}
+    [ -d "$C/$comp" ] || continue
+    mkdir -p "$ROOTFS/usr/palm/services/$svc"
+    cp -rf "$C/$comp"/*.json "$C/$comp"/*.js "$ROOTFS/usr/palm/services/$svc/" 2>/dev/null
+    cp -rf "$C/$comp"/files/sysbus/*.json "$ROOTFS/usr/share/ls2/roles/prv/" 2>/dev/null
+    cp -rf "$C/$comp"/files/sysbus/*.json "$ROOTFS/usr/share/ls2/roles/pub/" 2>/dev/null
+done
+
+# El lanzador de servicios JS, que es quien los arranca de verdad.
+if [ -d "$S/usr/palm/services/jsservicelauncher" ]; then
+    mkdir -p "$ROOTFS/usr/palm/services/jsservicelauncher"
+    cp -f "$S"/usr/palm/services/jsservicelauncher/* "$ROOTFS/usr/palm/services/jsservicelauncher/" 2>/dev/null
+fi
+
+# El puente de servicios de las apps (PalmServiceBridge) se registra en el bus
+# como "com.palm.webappmgr.bridge". Ningun rol del drop de escritorio declara
+# ese nombre --- es nuestro --- asi que se anade aqui, sobre el fichero ya
+# copiado, en vez de tocar el original de HP. Sin esto ls-hubd niega todo lo
+# saliente del puente y las apps no pueden consultar com.palm.db.
+for rf in "$ROOTFS"/usr/share/ls2/roles/prv/com.palm.webappmgr.json \
+          "$ROOTFS"/usr/share/ls2/roles/pub/com.palm.webappmgr.json; do
+    [ -e "$rf" ] || continue
+    python3 - "$rf" <<'PYEOF'
+import json, sys
+ruta = sys.argv[1]
+with open(ruta) as fh:
+    datos = json.load(fh)
+perms = datos.setdefault("permissions", [])
+nombres = datos.setdefault("role", {}).setdefault("allowedNames", [])
+if "com.palm.webappmgr.bridge" not in nombres:
+    nombres.append("com.palm.webappmgr.bridge")
+if not any(p.get("service") == "com.palm.webappmgr.bridge" for p in perms):
+    perms.append({"service": "com.palm.webappmgr.bridge",
+                  "inbound": ["*"], "outbound": ["*"]})
+    with open(ruta, "w") as fh:
+        json.dump(datos, fh, indent=4)
+PYEOF
+done
 
 # Un .service cuyo binario no tenemos solo sirve para que ls-hubd falle al
 # intentar arrancarlo bajo demanda (hoy: BrowserServer, que es el camino NPAPI
