@@ -112,12 +112,25 @@ the result.
 
 Guarded by `tools/check-touch-vs-mouse.py`, which lists it as known.
 
-### tapAndHoldGesture is still rejected
+### ~~tapAndHoldGesture is still rejected~~ (it was not)
 
-Ordinary taps work since mouse events are translated into touch events in
-`WindowServer::deliverAsTouch`. Long-press on the quick launch bar still logs
-`Rejected; touch FSM reports no touchId is currently tracked`, so the FSM is not
-fully fed for that gesture. Used for reordering icons.
+The log line that started this entry,
+
+    QuickLaunchBar::tapAndHoldGesture : Rejected; touch FSM reports no touchId
+    is currently tracked
+
+is the bar correctly refusing a tap-and-hold that Qt recognised somewhere it was
+not tracking a finger. Traced with a hold that actually landed on the bar:
+
+    QLB touchStart  id=33554433 fsmRunning=1 isTracking=0
+    QLB tapAndHold  fsmRunning=1 isTracking=1 registers=1   <- accepted
+
+Before the touch: isTracking=0, registers=0, rejected. After: tracking, and the
+gesture goes through. Nothing to fix.
+
+Second entry in this file that turned out to be a misread log line rather than a
+bug -- see the LunaUniversalSearchMgr one. A line that says "Rejected" is worth
+checking against the case where it should succeed before believing it.
 
 ### A line crosses the Just Type search field
 
