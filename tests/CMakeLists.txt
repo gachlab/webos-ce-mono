@@ -83,6 +83,9 @@ add_test(NAME qml-scene-item COMMAND qml-scene-item-qt5 -platform offscreen)
 add_test(NAME long-process-name
          COMMAND "${CMAKE_CURRENT_SOURCE_DIR}/long-process-name.sh")
 
+# --- HP's node 0.4 addons, unmodified, in a modern node ----------------------
+add_test(NAME node-shim COMMAND "${CMAKE_CURRENT_SOURCE_DIR}/node-shim/run.sh")
+
 # --- static sweeps over the tree ---------------------------------------------
 # Both grew out of a real bug in HP's Qt 5 desktop branch, which never ran on a
 # device: a scene position handed to mapFromParent, and an else-if that repeated
