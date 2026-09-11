@@ -228,6 +228,7 @@ add_executable(LunaSysMgr
     Src/sound/SoundPlayerDummy.cpp
     Src/sound/SoundPlayerPool.cpp
     Src/base/QmlSceneItem.cpp
+    Src/base/MouseToTouch.cpp
 
     # Q_OBJECT headers AUTOMOC would not find on its own. qmake ran moc over
     # everything in HEADERS; AUTOMOC pairs X.cpp with an X.h in the SAME

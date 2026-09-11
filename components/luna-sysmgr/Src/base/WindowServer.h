@@ -23,6 +23,7 @@
 #define WINDOWSERVER_H
 
 #include "Common.h"
+#include "MouseToTouch.h"
 
 #include <list>
 #include <string>
@@ -269,6 +270,7 @@ protected:
 #if defined(TARGET_DESKTOP) && (QT_VERSION >= QT_VERSION_CHECK(5, 0, 0))
 	// Translates a mouse event into the equivalent QTouchEvent. See the .cpp.
 	bool deliverAsTouch(QMouseEvent* me);
+	MouseToTouch m_mouseToTouch;
 #endif
 	virtual bool sysmgrEventFilters(QEvent* event) = 0;
 	virtual bool eventFilter(QObject *, QEvent *);

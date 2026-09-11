@@ -30,6 +30,15 @@ foreach (t touch-in-qt5 eater-synthesis-qt5 home-gesture-qt5)
     add_test(NAME ${t} COMMAND ${t} -platform offscreen)
 endforeach ()
 
+# --- mouse to touch: a drag has to look like a drag -------------------------
+add_executable(mouse-to-touch-qt5
+    mouse-to-touch-qt5.cpp
+    ${SYSMGR}/Src/base/MouseToTouch.cpp
+)
+target_include_directories(mouse-to-touch-qt5 PRIVATE ${SYSMGR}/Src/base)
+target_link_libraries(mouse-to-touch-qt5 PRIVATE Qt5::Core Qt5::Gui)
+add_test(NAME mouse-to-touch COMMAND mouse-to-touch-qt5 -platform offscreen)
+
 # --- every .qml file must load under QtQuick 2 -------------------------------
 add_executable(qml-loads-qt5 qml-loads-qt5.cpp)
 target_link_libraries(qml-loads-qt5 PRIVATE Qt5::Core Qt5::Gui Qt5::Qml Qt5::Quick)

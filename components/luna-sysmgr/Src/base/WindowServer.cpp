@@ -758,21 +758,22 @@ bool WindowServer::deliverAsTouch(QMouseEvent* me)
 	}
 
 	// A single finger, id 0. webOS supports several, but a mouse has only one.
-	QTouchEvent::TouchPoint point(0);
-	point.setState(state);
-	point.setPos(me->localPos());
-	point.setScenePos(me->windowPos());
-	point.setScreenPos(me->screenPos());
-	point.setLastPos(point.pos());
-	point.setLastScenePos(point.scenePos());
-	point.setLastScreenPos(point.screenPos());
-	point.setStartPos(point.pos());
-	point.setStartScenePos(point.scenePos());
-	point.setStartScreenPos(point.screenPos());
-	point.setPressure(state == Qt::TouchPointReleased ? 0.0 : 1.0);
-
+	//
+	// MEASURED, and worth knowing before trusting this function: it does not
+	// currently run. Tracing every input event the viewport receives over a full
+	// session gave 8 TouchBegin, 234 TouchUpdate, 8 TouchEnd and zero mouse
+	// events. MouseEventEater ignores the mouse, Qt's
+	// AA_SynthesizeTouchForUnhandledMouseEvents turns it into touch at the QPA
+	// layer, and real touch events are what arrive here. This is a fallback for
+	// a platform where that synthesis does not happen.
+	//
+	// The previous and initial positions still have to be carried across a drag,
+	// because the gesture code reads scenePos() - startScenePos() and
+	// scenePos() - lastScenePos(); filling all three with the current position
+	// makes both zero forever. See MouseToTouch, which is tested even though
+	// nothing reaches it today.
 	QList<QTouchEvent::TouchPoint> points;
-	points.append(point);
+	points.append(m_mouseToTouch.translate(me, state));
 
 	QTouchEvent touch(type, touchDevice(), me->modifiers(), state, points);
 	touch.setAccepted(false);
@@ -791,6 +792,23 @@ bool WindowServer::viewportEvent(QEvent* event)
 #ifdef DEBUG_RECORD_PAINT
 	struct timespec paintStart;
 #endif
+
+	// Set WEBOS_TRACE_TOUCH=1 to see which input events reach the viewport at
+	// all. This is how the card-dismiss gesture was tracked down, and how the
+	// mouse path above was found to be dead: it prints touch and mouse side by
+	// side, so "which of the two is this build actually using" stops being a
+	// guess.
+	if (g_getenv("WEBOS_TRACE_TOUCH")) {
+		switch (event->type()) {
+		case QEvent::MouseButtonPress:   g_message("VIEWPORT MousePress"); break;
+		case QEvent::MouseMove:          g_message("VIEWPORT MouseMove"); break;
+		case QEvent::MouseButtonRelease: g_message("VIEWPORT MouseRelease"); break;
+		case QEvent::TouchBegin:         g_message("VIEWPORT TouchBegin"); break;
+		case QEvent::TouchUpdate:        g_message("VIEWPORT TouchUpdate"); break;
+		case QEvent::TouchEnd:           g_message("VIEWPORT TouchEnd"); break;
+		default: break;
+		}
+	}
 
 	if(event->type() == QEvent::TouchBegin) {
 		m_fingerDownOnScreen = true;

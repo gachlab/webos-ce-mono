@@ -11,9 +11,17 @@
 // other side. That is the finding this test pins down, and the reason the shell
 // builds its touch events by hand instead.
 //
-// So a PASS here means "no TouchBegin", which is the behaviour the workaround is
-// built on. If this ever starts failing, Qt changed and deliverAsTouch may no
-// longer be needed.
+// CORRECTION, from measuring the running shell: in the real application the
+// synthesis DOES fire, and touch is the only thing the viewport ever receives --
+// 8 TouchBegin, 234 TouchUpdate, 8 TouchEnd and zero mouse events over a full
+// session. deliverAsTouch never runs.
+//
+// The difference is the harness, not Qt: this test injects mouse events with
+// QApplication::sendEvent, and the synthesis happens further out, in QPA, on
+// events that come from the window system. So what this pins down is narrower
+// than it looks -- an injected mouse event is not synthesized -- and it is NOT
+// evidence about how the shell behaves. The name is kept because the distinction
+// is worth having written down somewhere.
 //
 // Runs headless:  ./eater-synthesis-qt5 -platform offscreen
 #include <QApplication>
@@ -88,8 +96,9 @@ int main(int argc, char** argv)
     printf("TouchBegin:%d  TouchUpdate:%d  TouchEnd:%d\n", touches[0], touches[1], touches[2]);
     const bool asExpected = (mice > 0 && touches[0] == 0);
     printf("%s\n", asExpected
-        ? "OK: the eater swallows the mouse and no TouchBegin comes out,\n"
-          "    which is why WindowServer::deliverAsTouch builds them by hand"
-        : "FAIL: Qt now synthesizes a TouchBegin here -- recheck deliverAsTouch");
+        ? "OK: a mouse event injected with sendEvent is not synthesized into a\n"
+          "    touch. Says nothing about window-system events -- those are, and\n"
+          "    they are all the running shell ever sees."
+        : "FAIL: sendEvent-injected mouse events now synthesize a TouchBegin");
     return asExpected ? 0 : 1;
 }
