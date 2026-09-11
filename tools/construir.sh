@@ -94,8 +94,16 @@ case "$ETAPA" in
     cmake)  etapa_cmake ;;
     qmake)  etapa_qmake ;;
     rootfs) etapa_rootfs ;;
-    todo)   etapa_third_party && etapa_autotools && etapa_cmake && etapa_qmake && etapa_rootfs
-            echo
-            echo "Listo. Para arrancar el shell:  tools/correr-lunasysmgr.sh" ;;
+    todo)   # OJO con el orden: los echo van DENTRO del if, no sueltos detras de
+            # la cadena. Estaban fuera y el script anunciaba "Listo" aunque una
+            # etapa hubiera fallado.
+            if etapa_third_party && etapa_autotools && etapa_cmake && etapa_qmake && etapa_rootfs; then
+                echo
+                echo "Listo. Para arrancar el shell:  tools/correr-lunasysmgr.sh"
+            else
+                echo
+                echo "FALLO: alguna etapa no termino bien. Mira los logs en build-modern/." >&2
+                exit 1
+            fi ;;
     *)      echo "etapa desconocida: $ETAPA (third-party | autotools | cmake | qmake | rootfs | todo)"; exit 2 ;;
 esac

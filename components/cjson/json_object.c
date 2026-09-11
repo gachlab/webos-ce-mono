@@ -270,7 +270,12 @@ void json_object_object_add(struct json_object* this, const char *key,
 
 struct json_object* json_object_object_get(struct json_object* this, const char *key)
 {
-  struct json_object *result;
+  /* Initialised because json_object_object_get_ex() has an early
+   * "if (!this) return false;" that leaves *value untouched, so a NULL object
+   * made this return garbage. Its other failure path already sets *value to
+   * NULL, so NULL is the intended answer. gcc's -Wmaybe-uninitialized caught
+   * it; gcc 4.6 did not. */
+  struct json_object *result = NULL;
   json_object_object_get_ex(this, key, &result);
   return result;
 }
