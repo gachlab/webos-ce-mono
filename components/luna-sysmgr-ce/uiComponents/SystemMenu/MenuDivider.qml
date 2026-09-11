@@ -1,4 +1,4 @@
-import Qt 4.7
+import QtQuick 2.0
 
 Image {
     property int widthOffset: 7
