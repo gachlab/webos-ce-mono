@@ -86,6 +86,27 @@ What had to be true for that, each of which was broken:
   so the private hub refused luna-send outright.
 - **Two of HP's JSON files parse.** The accounts services.json and the palmprofile
   account template had trailing commas.
+- **There are account templates.** The accounts service lists every template
+  under /usr/palm/public/accounts, and HP's -- in mojomail and
+  app-services/account-templates -- were never installed, so it said `Found 0
+  account templates` and there was no kind of account to add. It now lists four:
+  com.palm.othermail, com.palm.palmprofile (contacts, calendar, tasks, memos,
+  phone, messaging, file storage), com.palm.imap and com.palm.pop.
+- **Reassembling with the bus up leaves the hub consistent.** ls-hubd reloads
+  whenever its .conf is written (inotify on the conf directory), and
+  assemble-rootfs.sh used to write it early and fix its paths midway, so a
+  running hub reloaded halfway through and kept a view with the JavaScript
+  services missing ("Service not listed in service files", every file correct on
+  disk). The .conf is now written last, only when it changes, and the running
+  hubs get one SIGHUP at the end. Checked by reassembling twice with everything
+  up: one reload per hub each time, all six services answering, no manual step.
+
+**Not a problem, though it looks like one:** `com.palm.tempdb`'s .service runs
+mojodb-luna on /var/db, the same directory as com.palm.db. HP's desktop config
+does too, and it is fine: one mojodb-luna process opens both services
+(MojDbLunaServiceApp.cpp opens MainDir and TempDir under the same directory), so
+the hub never has a second one to start. com.palm.tempdb answers with the single
+process that is already running.
 
 **Worth knowing when checking any of this by hand:** luna-send's `-P` is the
 PUBLIC bus and no flag is private. A com.palm service listens on the private bus,
@@ -95,15 +116,13 @@ method answering "is not running" on `-P` is by design. db8 answering -3963
 
 **Still open.**
 
-- `com.palm.tempdb`'s .service runs mojodb-luna on /var/db, the same directory as
-  com.palm.db. Nothing starts tempdb today; if something does, the two will
-  contend for the lock.
 - run-js-service prints `Failure writing to tasks file "/no-group/not-present"`
   on every launch. That path is HP's own deliberate fallback for a device without
   its cgroup setup, commented as such in the script; it is harmless.
-- The accounts service reports `Found 0 account templates`. Calendar and email
-  still need account back ends before they show anything, which is a separate
-  question from whether their services run.
+- Calendar and email have account types to add now, but no account has been
+  added and synced end to end. That needs the mail transports (mojomail-imap,
+  -pop, -smtp) running against a real server, a separate question from whether
+  their services run.
 
 ---
 

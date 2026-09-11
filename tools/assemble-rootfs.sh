@@ -13,7 +13,7 @@ mkdir -p "$ROOTFS"/usr/share/ls2/{roles/prv,roles/pub,services,system-services}
 mkdir -p "$ROOTFS"/usr/lib/luna/customization "$ROOTFS"/var/{db,luna,palm} "$ROOTFS"/usr/share/fonts
 
 # --- the bus ---
-cp -f "$R"/desktop-support/ls2/*.conf "$ROOTFS/etc/ls2/"
+# Its .conf files are written at the very end of this script; see there for why.
 
 # --- LunaSysMgr: configuration, bus roles, sounds ---
 LS="$C/luna-sysmgr"
@@ -292,11 +292,6 @@ mkdir -p "$ROOTFS"/usr/lib/luna/applications "$ROOTFS"/usr/palm/sysmgr/{images,l
 sed -i -E "/^(ApplicationPath|SystemPath|SystemResourcesPath|SystemLocalePath|AppLauncherPath|LaunchPointsPath|PreferencesPath)=/ s#(=|:)/#\\1$ROOTFS/#g" \
     "$ROOTFS/etc/palm/luna.conf"
 
-# Same for the bus: ls2's .conf files point at /usr/share/ls2/... and ls-hubd
-# could find neither the roles nor the services, so LunaSysMgr never registered
-# com.palm.applicationManager and nothing could be launched.
-sed -i -E "s#^(Directories=)/#\\1$ROOTFS/#" "$ROOTFS"/etc/ls2/*.conf
-
 echo "rootfs assembled at $ROOTFS"
 echo "  apps:                $(ls "$ROOTFS/usr/palm/applications" 2>/dev/null | wc -l)"
 echo "  services:            $(ls "$ROOTFS/usr/palm/services" 2>/dev/null | wc -l)"
@@ -370,6 +365,18 @@ for side in pub prv; do
     [ -f "$tpl" ] || continue
     sed "s|@WEBOS_INSTALL_BINDIR@|$S/usr/bin|" "$tpl" \
         > "$ROOTFS/usr/share/ls2/roles/$side/com.palm.lunasend.json"
+done
+
+# Account templates. The accounts service lists every <type>/*.json under
+# /usr/palm/public/accounts (TEMPLATE_ROOTS in accounts.js). HP ships them with
+# the components that own each account type -- mojomail's IMAP, POP and "other
+# mail", and palmprofile -- and they were never installed, so the service said
+# "Found 0 account templates" and there was no kind of account to add. That is
+# the rest of why calendar and email came up empty.
+mkdir -p "$ROOTFS/usr/palm/public/accounts"
+for d in "$C"/mojomail/*/files/usr/palm/public/accounts/* "$C"/app-services/account-templates/*/*; do
+    [ -d "$d" ] || continue
+    cp -rf "$d" "$ROOTFS/usr/palm/public/accounts/"
 done
 
 # How the hub starts a JavaScript service when something calls it.
@@ -457,3 +464,41 @@ JSON
     echo "  node:                $NODE_BIN bound at /usr/palm/nodejs/node"
 fi
 
+# The bus's own .conf files, written last and only when they change.
+#
+# ls2's .conf files point at /usr/share/ls2/..., where ls-hubd could find
+# neither the roles nor the services, so they are repointed at the rootfs.
+#
+# ls-hubd watches the directory its .conf lives in with inotify and reloads --
+# conf, roles, service files -- whenever the .conf is written. Copying it early
+# and fixing its paths late made a running hub reload twice in the middle of
+# this script: once reading HP's unrepointed paths ("Error opening directory
+# /usr/share/ls2/roles/prv"), and once before the JavaScript services' .service
+# files were back in place. Nothing touched the .conf after that, so the hub kept
+# a view with those services missing -- "Service not listed in service files" --
+# with every file correct on disk.
+#
+# So each .conf is built beside the real one and moved over it only if it
+# differs, and the running hubs get one SIGHUP once everything they read is
+# complete. That makes this the last step of the script: the first version of
+# this fix sat before the JavaScript services section, so the SIGHUP landed a
+# second before their .service files and role were written, and the hub kept
+# the same incomplete view.
+for conf in "$R"/desktop-support/ls2/*.conf; do
+    dest="$ROOTFS/etc/ls2/$(basename "$conf")"
+    sed -E "s#^(Directories=)/#\\1$ROOTFS/#" "$conf" > "$dest.new"
+    if cmp -s "$dest.new" "$dest"; then
+        rm -f "$dest.new"
+    else
+        mv -f "$dest.new" "$dest"
+    fi
+done
+
+hubs=""
+for d in /proc/[0-9]*; do
+    [ "$(readlink "$d/exe" 2>/dev/null)" = "$S/usr/sbin/ls-hubd" ] && hubs="$hubs ${d#/proc/}"
+done
+if [ -n "$hubs" ]; then
+    kill -HUP $hubs 2>/dev/null
+    echo "  ls-hubd:             reloaded ($(echo $hubs | wc -w) running)"
+fi
