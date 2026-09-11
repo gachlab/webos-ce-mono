@@ -89,6 +89,25 @@ Traps found on the way, each confirmed before being fixed:
   it is not running and waits for com.palm.db before configuring: 41 kinds and 66
   permissions, 0 failed, and the apps fill up.
 
+- **What a clean start leaves in the logs, so none of it gets investigated
+  twice.** With the kinds loaded first, email walks its whole startup: carrier
+  defaults, account list, `com.palm.app.email.prefs:1` created and loaded, the
+  folder and email change processors watching, the card opening, and MailApp
+  reaching its first-launch view with the one account template we install.
+  Calendar reaches first launch too. What is left is noise with a known cause:
+  * `enyo.xhr.request() exception ... tellurium_config.json` -- enyo catches this
+    itself (`try { send() } catch` in enyo-build.js) and returns undefined.
+    Tellurium is left out on purpose, and a device without it logs the same line.
+  * `_CallAcquire failed` -- a `g_debug()` in luna-service2's own client
+    (callmap.c:1090) when a reply arrives for a call already off the map.
+  * `Service does not exist: com.palm.power` / `com.palm.audio` / `com.palm.vpn`
+    -- components this tree does not build.
+  * `calendar.AppIcon.updateIconFailed` -- the app-icon update service is absent.
+  The single real failure left is `this.$.body.setRedirects is not a function`
+  (MessageDisplay.js:906, HtmlView.js:99), which is enyo's WebView control
+  forwarding to the browser adapter. Email needs the browser to render a message
+  body and for nothing else: the rest of the app runs without one.
+
 Not done yet:
 
 - **Checked by hand on Qt 6:** the shell and the apps run, and the line QtWebKit
