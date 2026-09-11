@@ -77,34 +77,73 @@ const char kBorderImageCompat[] = R"JS(
         return;
     window.__webosBorderImage = true;
 
-    function patch() {
-        var sheets = document.styleSheets;
-        for (var s = 0; s < sheets.length; s++) {
-            var rules;
-            // A stylesheet from another origin does not hand over its rules.
-            try { rules = sheets[s].cssRules; } catch (e) { continue; }
-            if (!rules)
+    function patchSheet(sheet) {
+        var rules, changed = 0;
+        // A stylesheet from another origin does not hand over its rules.
+        try { rules = sheet.cssRules; } catch (e) { return 0; }
+        if (!rules)
+            return 0;
+        for (var r = 0; r < rules.length; r++) {
+            var style = rules[r].style;
+            if (!style)
                 continue;
-            for (var r = 0; r < rules.length; r++) {
-                var style = rules[r].style;
-                if (!style)
-                    continue;
-                var image = style.getPropertyValue("-webkit-border-image")
-                         || style.getPropertyValue("border-image")
-                         || style.getPropertyValue("border-image-source");
-                if (!image || image === "none")
-                    continue;
-                if (style.getPropertyValue("border-style"))
-                    continue;
-                style.setProperty("border-style", "solid");
-                if (!style.getPropertyValue("border-color"))
-                    style.setProperty("border-color", "transparent");
-            }
+            var image = style.getPropertyValue("-webkit-border-image")
+                     || style.getPropertyValue("border-image")
+                     || style.getPropertyValue("border-image-source");
+            if (!image || image === "none")
+                continue;
+            if (style.getPropertyValue("border-style"))
+                continue;
+            style.setProperty("border-style", "solid");
+            if (!style.getPropertyValue("border-color"))
+                style.setProperty("border-color", "transparent");
+            changed++;
         }
+        return changed;
+    }
+
+    function patch() {
+        var changed = 0;
+        for (var s = 0; s < document.styleSheets.length; s++)
+            changed += patchSheet(document.styleSheets[s]);
+        if (!changed)
+            return;
+
+        // Everything just got smaller by the border, and an app that measured
+        // itself first is still holding the old number. The calculator reads a
+        // key back and sizes its font from it, so it kept 84px for a key that is
+        // now 71px wide and the labels came out worse than with no border at
+        // all. A resize is what these apps -- and enyo's own controls -- listen
+        // to in order to measure again.
+        window.setTimeout(function () {
+            window.dispatchEvent(new Event("resize"));
+        }, 0);
     }
 
     document.addEventListener("DOMContentLoaded", patch);
     window.addEventListener("load", patch);
+
+    // enyo adds its stylesheets from script (dom.js: makeElement("link")), so
+    // some of them arrive after both of those events.
+    if (window.MutationObserver) {
+        new MutationObserver(function (records) {
+            for (var i = 0; i < records.length; i++) {
+                var added = records[i].addedNodes;
+                for (var n = 0; n < added.length; n++) {
+                    var node = added[n];
+                    if (!node.tagName)
+                        continue;
+                    var tag = node.tagName.toLowerCase();
+                    if (tag === "style")
+                        patch();
+                    else if (tag === "link")
+                        node.addEventListener("load", patch);
+                }
+            }
+        // document, not documentElement: this runs at document creation, and
+        // there is no <html> yet to observe.
+        }).observe(document, { childList: true, subtree: true });
+    }
 })();
 )JS";
 

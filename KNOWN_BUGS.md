@@ -133,6 +133,18 @@ Traps found on the way, each confirmed before being fixed:
   declares its own `border-style` is left alone. `tests/border-image-box`
   covers it, and fails (exit 1) when the injection is removed.
 
+  Restoring the border is only half of it, and the half on its own looks worse
+  than the bug. Every box shrinks by the border it just got back, while an app
+  that already measured itself keeps the number it computed without one: the
+  calculator held its 84px font for keys that were now 71px wide, and the labels
+  spilled further than before. So the adapter dispatches a `resize` once it has
+  changed something, which is what enyo's controls and the apps listen to in
+  order to measure again (`Calculator.js: resizeHandler`). It also watches for
+  stylesheets that arrive later, because enyo adds its own from script
+  (`dom.js: makeElement("link")`), after DOMContentLoaded and after load.
+  Measured on the calculator's own page: 84px and a 13px overflow before, 46px
+  and the labels in their keys after.
+
 Not done yet:
 
 - **Checked by hand on Qt 6:** the shell and the apps run, and the line QtWebKit

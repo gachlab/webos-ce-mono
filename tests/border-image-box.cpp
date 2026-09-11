@@ -58,7 +58,10 @@ int main(int argc, char** argv)
         "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==");
 
     page.mainFrame()->setHtml(QStringLiteral(
-        "<html><head><style>"
+        "<html><head>"
+        "<script>window.__resizes = 0;"
+        "        window.addEventListener('resize', function () { window.__resizes++; });</script>"
+        "<style>"
         "  div { width: 100px; height: 100px; }"
         "  .framed   { border-width: 15px; -webkit-border-image: url(%1) 1 1 1 1 stretch stretch; }"
         "  .plain    { border-width: 15px; }"
@@ -97,6 +100,19 @@ int main(int argc, char** argv)
     check("element without one", width("plain"), 100);
     // An author who did declare a style keeps it.
     check("element with its own border-style", width("explicit"), 130);
+
+    // Restoring the border shrinks every one of these boxes, and an app that
+    // already measured itself has to be told. Without this the calculator kept
+    // the 84px font it had computed for a key that was no longer that size.
+    const int resizes = page.mainFrame()
+                            ->evaluateJavaScript(QStringLiteral("window.__resizes"))
+                            .toInt();
+    if (resizes < 1) {
+        ++failures;
+        std::printf("%-46s %4d (expected >= 1)  FAILED\n", "a resize follows, so the page measures again", resizes);
+    } else {
+        std::printf("%-46s %4d  ok\n", "a resize follows, so the page measures again", resizes);
+    }
 
     const QString explicitStyle = borderStyle("explicit");
     if (explicitStyle != QStringLiteral("dashed")) {
