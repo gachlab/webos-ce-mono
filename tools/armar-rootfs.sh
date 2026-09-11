@@ -110,6 +110,23 @@ echo "  servicios:           $(ls "$ROOTFS/usr/palm/services" 2>/dev/null | wc -
 echo "  frameworks:          $(ls "$ROOTFS/usr/palm/frameworks" 2>/dev/null | wc -l)"
 echo "  kinds de db8:        $(ls "$ROOTFS/etc/palm/db/kinds" 2>/dev/null | wc -l)"
 
+# --- reapuntar las rutas de luna.conf al rootfs ---
+# Son absolutas del dispositivo (/usr/palm/..., /var/luna/...). Con bwrap solo
+# se puede montar /etc/palm, porque es la unica ruta clavada en el codigo
+# (Settings.cpp); las demas no se pueden montar encima porque /usr y /var son
+# de solo lectura dentro del namespace y bwrap no puede crear ahi el punto de
+# montaje. Pero no hace falta: luna.conf existe precisamente para configurarlas.
+# Sin esto LunaSysMgr dibuja el shell pero no encuentra NINGUNA app.
+mkdir -p "$ROOTFS"/usr/lib/luna/applications "$ROOTFS"/usr/palm/sysmgr/{images,localization} \
+         "$ROOTFS"/var/luna/{launchpoints,preferences}
+sed -i -E "/^(ApplicationPath|SystemPath|SystemResourcesPath|SystemLocalePath|AppLauncherPath|LaunchPointsPath|PreferencesPath)=/ s#(=|:)/#\\1$ROOTFS/#g" \
+    "$ROOTFS/etc/palm/luna.conf"
+
+# Lo mismo para el bus: los .conf de ls2 apuntan a /usr/share/ls2/... y ls-hubd
+# no encontraba ni los roles ni los servicios, asi que LunaSysMgr no llegaba a
+# registrar com.palm.applicationManager y nada se podia lanzar.
+sed -i -E "s#^(Directories=)/#\\1$ROOTFS/#" "$ROOTFS"/etc/ls2/*.conf
+
 echo "rootfs armado en $ROOTFS"
 echo "  etc/palm:            $(ls "$ROOTFS/etc/palm" 2>/dev/null | wc -l) entradas"
 echo "  etc/ls2:             $(ls "$ROOTFS/etc/ls2" 2>/dev/null | wc -l) entradas"

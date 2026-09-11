@@ -220,7 +220,15 @@ WebAppManager::WebAppManager()
 #if defined(TARGET_DEVICE)
     static const char *argv[] = { "./WebAppManager", "-platform", "webos", NULL };
 #else
-    static const char *argv[] = { "./WebAppManager", "-platform", "minimal", NULL };
+    // Era "minimal". En Qt5 ese plugin no trae base de fuentes: 0 familias, y
+    // QFontInfo(qGuiApp->font()).family() sale vacia. RenderThemeQt se la pasa
+    // tal cual a QtWebKit al resolver el "font: <system>" de su propia hoja de
+    // estilo de agente de usuario, y hashear esa familia vacia es un SIGSEGV.
+    // "offscreen" cumple el mismo proposito -- WebAppMgr no abre ventanas,
+    // dibuja en memoria compartida y LunaSysMgr compone -- pero si tiene
+    // fuentes. En el Qt 4.8 de HP no existia QPA y -platform se ignoraba, asi
+    // que esto nunca fue un problema para ellos.
+    static const char *argv[] = { "./WebAppManager", "-platform", "offscreen", NULL };
 #endif
 
     static int argc = 3;
