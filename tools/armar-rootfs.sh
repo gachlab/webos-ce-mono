@@ -66,6 +66,27 @@ cp -f "$LS"/desktop-support/appinfo.json "$ROOTFS/usr/lib/luna/system/luna-appla
 cp -f "$C"/luna-init/files/conf/*.json "$ROOTFS/usr/palm/" 2>/dev/null
 cp -f "$C"/luna-init/files/conf/fonts/*.xml "$ROOTFS/usr/share/fonts/" 2>/dev/null
 cp -rf "$C"/isis-fonts/* "$ROOTFS/usr/share/fonts/" 2>/dev/null
+# Las Prelude van dentro de un tarball, no sueltas. Son LA tipografia de webOS:
+# sin ellas el reloj grande de la pantalla de bloqueo no se dibuja.
+tar xzf "$C"/luna-init/files/conf/fonts/fonts.tgz -C "$ROOTFS/usr/share/fonts/" 2>/dev/null
+
+# --- recursos graficos de LunaSysMgr ---
+# Sin images/ la pantalla de bloqueo sale negra: no hay candado, ni chrome, ni
+# iconos. Son 286 ficheros. Salio de comparar el rootfs contra el de la VM de
+# Ubuntu 12.04, que es la referencia que si funciona.
+mkdir -p "$ROOTFS"/usr/palm/sysmgr/{images,localization,low-memory,uiComponents}
+cp -rf "$LS"/images/*        "$ROOTFS/usr/palm/sysmgr/images/" 2>/dev/null
+cp -rf "$LS"/low-memory/*    "$ROOTFS/usr/palm/sysmgr/low-memory/" 2>/dev/null
+cp -rf "$LS"/uiComponents/*  "$ROOTFS/usr/palm/sysmgr/uiComponents/" 2>/dev/null
+
+# --- esquemas y politicas que el script de HP tambien colocaba ---
+mkdir -p "$ROOTFS"/etc/palm/schemas "$ROOTFS"/etc/palm/db_kinds "$ROOTFS"/etc/palm/db/permissions
+cp -rf "$LS"/conf/*.schema "$ROOTFS/etc/palm/schemas/" 2>/dev/null
+cp -f "$LS"/mojodb/com.palm.securitypolicy        "$ROOTFS/etc/palm/db_kinds/" 2>/dev/null
+cp -f "$LS"/mojodb/com.palm.securitypolicy.device "$ROOTFS/etc/palm/db_kinds/" 2>/dev/null
+cp -f "$LS"/mojodb/com.palm.securitypolicy.permissions "$ROOTFS/etc/palm/db/permissions/com.palm.securitypolicy" 2>/dev/null
+mkdir -p "$ROOTFS"/etc/palm/launcher3
+cp -rf "$LS"/conf/launcher3/* "$ROOTFS/etc/palm/launcher3/" 2>/dev/null
 
 
 # --- Contenido: apps, frameworks y servicios (componentes que solo se copian) ---
