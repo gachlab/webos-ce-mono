@@ -822,9 +822,13 @@ static bool jsax_parse_internal(PJSAXCallbacks *parser, raw_buffer input, JSchem
 	jschema_state_release(&internalCtxt.m_validation);
 #endif
 
-#ifndef NDEBUG
-	assert(yajl_get_error(handle, 0, NULL, 0) == NULL);
-#endif
+	// NOTE yajl 1 had no way to ask "was there an error?" other than the
+	// status code, and this assert was dead weight there because pbnjson was
+	// shipped with NDEBUG. Under yajl 2 it is actively wrong:
+	// yajl_get_error() always allocates and returns a string -- after a fully
+	// successful parse it yields "unknown error\n" -- so the assert can never
+	// hold, and calling it here would also leak the buffer. parseResult above
+	// is the real answer, and it has already been handled.
 
 	yajl_free(handle);
 	return true;
