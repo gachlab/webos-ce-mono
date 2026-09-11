@@ -21,12 +21,10 @@
 #if (QT_VERSION >= QT_VERSION_CHECK(5, 0, 0))
 
 #include <QMouseEvent>
-#if (QT_VERSION >= QT_VERSION_CHECK(6, 0, 0))
 // QEventPoint is read-only in Qt 6; QMutableEventPoint is how Qt's own input
 // code fills one in. It keeps a QPointer<QWindow>, so QWindow has to be complete.
 #include <QWindow>
 #include <QtGui/private/qeventpoint_p.h>
-#endif
 
 QTouchEvent::TouchPoint MouseToTouch::translate(const QMouseEvent* event, Qt::TouchPointState state)
 {
@@ -47,7 +45,6 @@ QTouchEvent::TouchPoint MouseToTouch::translate(const QMouseEvent* event, Qt::To
 		m_lastScreenPos = screenPos;
 	}
 
-#if (QT_VERSION >= QT_VERSION_CHECK(6, 0, 0))
 	// Qt 6 derives the local and scene start and last positions from the
 	// global ones, so those are the only ones stored.
 	QTouchEvent::TouchPoint point = QMutableEventPoint::withTimeStamp(
@@ -55,20 +52,6 @@ QTouchEvent::TouchPoint MouseToTouch::translate(const QMouseEvent* event, Qt::To
 	QMutableEventPoint::setGlobalPressPosition(point, m_startScreenPos);
 	QMutableEventPoint::setGlobalLastPosition(point, m_lastScreenPos);
 	QMutableEventPoint::setPressure(point, state == Qt::TouchPointReleased ? 0.0 : 1.0);
-#else
-	QTouchEvent::TouchPoint point(0);
-	point.setState(state);
-	point.setPos(pos);
-	point.setScenePos(scenePos);
-	point.setScreenPos(screenPos);
-	point.setLastPos(m_lastPos);
-	point.setLastScenePos(m_lastScenePos);
-	point.setLastScreenPos(m_lastScreenPos);
-	point.setStartPos(m_startPos);
-	point.setStartScenePos(m_startScenePos);
-	point.setStartScreenPos(m_startScreenPos);
-	point.setPressure(state == Qt::TouchPointReleased ? 0.0 : 1.0);
-#endif
 
 	m_lastPos = pos;
 	m_lastScenePos = scenePos;

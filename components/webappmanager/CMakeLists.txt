@@ -18,41 +18,17 @@ set(CMAKE_INCLUDE_CURRENT_DIR ON)
 
 set(WEBOS_STAGING "${CMAKE_INSTALL_PREFIX}")
 
-# QtWebKit 5.212 is not a system package: tools/build-third-party.sh installs it
-# under staging/qtwebkit. Point CMake at its package configs before looking.
-if(NOT DEFINED WEBOS_QTWEBKIT)
-    set(WEBOS_QTWEBKIT "${CMAKE_INSTALL_PREFIX}/qtwebkit")
-endif()
-file(GLOB QTWEBKIT_CMAKE_DIRS "${WEBOS_QTWEBKIT}/lib/*/cmake")
-list(APPEND CMAKE_PREFIX_PATH ${QTWEBKIT_CMAKE_DIRS})
-
 # OpenGL comes from the .pro's "contains(CONFIG_BUILD, opengl): QT += opengl".
-# It is what brings QGLWidget, which CardWebApp.cpp includes -- and one of the
-# 14 files that will need changing if this ever moves to Qt6, where QGLWidget is
-# gone in favour of QOpenGLWidget.
-# Qt 5 or 6. Qt 5 is the build that runs today; 6 is where the stack is moving,
-# built in its own tree by tools/build-cmake.sh (WEBOS_QT=6). Both provide the
-# versionless Qt:: targets used below.
-set(WEBOS_QT_MAJOR 5 CACHE STRING "Qt major version to build against: 5 or 6")
-if (WEBOS_QT_MAJOR GREATER_EQUAL 6)
-    # No QtWebKit for Qt 6: its API comes from components/qtwebkit-compat, on
-    # QtWebEngine, and what else Qt 6 removed from components/qt6-compat.
-    find_package(Qt6 REQUIRED COMPONENTS Core Gui Network Widgets Quick OpenGL OpenGLWidgets)
-    add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../qt6-compat ${CMAKE_CURRENT_BINARY_DIR}/qt6-compat)
-    add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../qtwebkit-compat ${CMAKE_CURRENT_BINARY_DIR}/qtwebkit-compat)
-    set(WEBOS_WAM_QT_LIBS Qt::Core Qt::Gui Qt::Network Qt::Widgets Qt::Quick Qt::OpenGL
-        Qt::OpenGLWidgets qt6compat-gl qtwebkit-compat)
-else ()
-find_package(Qt5 REQUIRED COMPONENTS Core Gui Network Widgets Quick OpenGL)
-
-# Asked for as their own packages rather than as Qt5 components: component
-# lookup goes through Qt5Config.cmake, which only searches next to itself, so it
-# would never see the one under staging.
-find_package(Qt5WebKit REQUIRED)
-find_package(Qt5WebKitWidgets REQUIRED)
-set(WEBOS_WAM_QT_LIBS Qt5::Core Qt5::Gui Qt5::Network Qt5::Widgets Qt5::Quick Qt5::OpenGL
-    Qt5::WebKit Qt5::WebKitWidgets)
-endif ()
+# It is what brings QGLWidget, which CardWebApp.cpp includes; Qt 6 replaced it
+# with QOpenGLWidget, and components/qt6-compat puts QGLWidget back on top of it.
+#
+# There is no QtWebKit here: the API WebAppMgr is written against comes from
+# components/qtwebkit-compat, on QtWebEngine.
+find_package(Qt6 REQUIRED COMPONENTS Core Gui Network Widgets Quick OpenGL OpenGLWidgets)
+add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../qt6-compat ${CMAKE_CURRENT_BINARY_DIR}/qt6-compat)
+add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../qtwebkit-compat ${CMAKE_CURRENT_BINARY_DIR}/qtwebkit-compat)
+set(WEBOS_WAM_QT_LIBS Qt::Core Qt::Gui Qt::Network Qt::Widgets Qt::Quick Qt::OpenGL
+    Qt::OpenGLWidgets qt6compat-gl qtwebkit-compat-lib)
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(GLIB REQUIRED glib-2.0 gthread-2.0)
 pkg_check_modules(SQLITE REQUIRED sqlite3)

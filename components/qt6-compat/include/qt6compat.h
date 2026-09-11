@@ -1,9 +1,9 @@
-// Forced into every C++ translation unit of a Qt 6 build (see CMakeLists.txt).
+// Forced into every C++ translation unit (see CMakeLists.txt).
 //
 // Qt 6 removed a handful of free functions that HP's code calls, and its
 // headers include less than Qt 5's did. Everything here either brings a removed
 // function back on top of its Qt 6 replacement, or restores an include the code
-// relied on getting for free. Under Qt 5 this file is never included.
+// relied on getting for free.
 
 #ifndef QT6COMPAT_H
 #define QT6COMPAT_H

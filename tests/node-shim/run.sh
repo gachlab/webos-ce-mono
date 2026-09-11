@@ -11,7 +11,7 @@
 set -u
 HERE="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$HERE/../.."
-BUILD="${1:-$ROOT/build-modern/node-shim-test}"
+BUILD="${1:-$ROOT/build/node-shim-test}"
 
 command -v node >/dev/null || { echo "SKIP: no node on PATH"; exit 0; }
 
@@ -47,8 +47,8 @@ webos_node_addon(palmbus
     ${SYSBUS}/node_ls2_handle.cpp ${SYSBUS}/node_ls2_message.cpp
     ${SYSBUS}/node_ls2_utils.cpp ${SYSBUS}/node_ls2_error_wrapper.cpp)
 target_include_directories(palmbus PRIVATE ${SYSBUS} ${GLIB_INCLUDE_DIRS}
-    @ROOT@/build-modern/staging/include)
-target_link_directories(palmbus PRIVATE @ROOT@/build-modern/staging/lib)
+    @ROOT@/build/staging/include)
+target_link_directories(palmbus PRIVATE @ROOT@/build/staging/lib)
 target_link_libraries(palmbus PRIVATE ${GLIB_LIBRARIES} luna-service2)
 
 # dynaload: loads a script into what V8 called its own context.
@@ -113,7 +113,7 @@ process.exit(bad === 0 ? 0 : 1);
 JS
 
 cd "$BUILD/build" || exit 1
-export LD_LIBRARY_PATH="$ROOT/build-modern/staging/lib:${LD_LIBRARY_PATH:-}"
+export LD_LIBRARY_PATH="$ROOT/build/staging/lib:${LD_LIBRARY_PATH:-}"
 
 cat > "$BUILD/build/check-persistent.js" <<'JS'
 const m = require('./persistent.node');

@@ -52,15 +52,12 @@ Rectangle {
 
 #include "touch-events.h"
 
-#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
 #include <QTest>
-#endif
 
 static bool sendTouch(QGraphicsView *view, QEvent::Type type,
                       Qt::TouchPointState state, const QPointF &viewPos)
 {
-#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
-    // Qt 6's QQuickWindow only accepts a touch point its device already
+    // QQuickWindow only accepts a touch point its device already
     // tracks as active, and a device only tracks the points that came in
     // through the platform. An event handed to sendEvent() never did, so it
     // was dropped with "point is not in activePoints". QTest injects through
@@ -74,17 +71,6 @@ static bool sendTouch(QGraphicsView *view, QEvent::Type type,
     else
         QTest::touchEvent(view->viewport(), device).release(1, viewPos.toPoint());
     return true;
-#else
-    QList<QTouchEvent::TouchPoint> points;
-    points << TestTouch::point(1, state, viewPos);
-
-    QTouchEvent ev = TestTouch::event(type, state, points);
-#if QT_VERSION < QT_VERSION_CHECK(6, 0, 0)
-    // Qt 6 keeps the target per point and sets it during delivery.
-    ev.setTarget(view->viewport());
-#endif
-    return QApplication::sendEvent(view->viewport(), &ev);
-#endif
 }
 
 int main(int argc, char **argv)

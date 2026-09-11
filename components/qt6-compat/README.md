@@ -4,8 +4,7 @@ What Qt 6 removed and webOS's code still uses, rebuilt on top of what Qt 6 has.
 Same idea as `components/node-v8-shim`: the old code keeps calling the interface
 it was written against, and the adapter maps it onto the modern one.
 
-Only used when a component builds against Qt 6 (`WEBOS_QT_MAJOR=6`, which is what
-`WEBOS_QT=6 tools/build-cmake.sh` sets). The Qt 5 build does not see it.
+Pulled in by every component that uses Qt.
 
 ## What is here
 

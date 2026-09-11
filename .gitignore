@@ -1,3 +1,5 @@
+build/
+# The Qt 5 and the first Qt 6 trees, from before there was a single build/.
 build-modern/
 build-qt6/
 # autotools generates these inside cjson's tree

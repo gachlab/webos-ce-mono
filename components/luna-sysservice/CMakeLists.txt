@@ -57,24 +57,10 @@ webos_add_compiler_flags(ALL ${PBNJSON_CPP_CFLAGS})
 pkg_check_modules(LS2 REQUIRED luna-service2)
 webos_add_compiler_flags(ALL ${LS2_CFLAGS})
 
-# Qt 5 or 6. Qt 5 is the build that runs today; 6 is where the stack is moving,
-# built in its own tree by tools/build-cmake.sh (WEBOS_QT=6). Both provide the
-# versionless Qt:: targets used below.
-set(WEBOS_QT_MAJOR 5 CACHE STRING "Qt major version to build against: 5 or 6")
-find_package(Qt${WEBOS_QT_MAJOR}Widgets)
-if (NOT Qt${WEBOS_QT_MAJOR}Widgets_FOUND)
-    message(STATUS "Using Qt4")
-    # -- We need to only check for QtGui, it will pull
-    # -- in necessary dependencies
-    pkg_check_modules(QTGUI REQUIRED QtGui)
-    webos_add_compiler_flags(ALL ${QTGUI_CFLAGS})
-    set(QT_LDFLAGS ${QTWIDGETS_LDFLAGS} ${QTGUI_LDFLAGS} ${QTCORE_LDFLAGS})
-else ()
-    # -- check for Qt5Widgets will suffice as it will pull in
-    # -- necessary other Qt5 dependencies
-    message(STATUS "Using Qt${WEBOS_QT_MAJOR}")
-    set(QT_LDFLAGS Qt::Widgets)
-endif ()
+# HP looked for Qt5Widgets and fell back to Qt4 through pkg-config. Widgets
+# still pulls in the rest of Qt this needs.
+find_package(Qt6 REQUIRED COMPONENTS Widgets)
+set(QT_LDFLAGS Qt::Widgets)
 
 # -- check for uriparser
 pkg_check_modules(URIPARSER REQUIRED liburiparser)

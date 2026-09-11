@@ -179,4 +179,4 @@ int main(int argc, char** argv)
     return failures ? 1 : 0;
 }
 
-#include "qtwebkit-compat-qt6.moc"
+#include "qtwebkit-compat.moc"

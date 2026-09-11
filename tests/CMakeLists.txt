@@ -1,8 +1,8 @@
 # The tests. Each is a standalone program that runs headless and returns 0 or 1,
 # so they can be run by hand as easily as by ctest:
 #
-#   cmake -S tests -B build-modern/tests && cmake --build build-modern/tests
-#   ctest --test-dir build-modern/tests --output-on-failure
+#   cmake -S tests -B build/tests && cmake --build build/tests
+#   ctest --test-dir build/tests --output-on-failure
 #
 # They exist so the shell does not have to be brought up to find out whether
 # something works. Anything learned the hard way by launching LunaSysMgr belongs
@@ -11,10 +11,10 @@
 cmake_minimum_required(VERSION 3.16)
 project(webos-tests CXX C)
 
-# Debug unless told otherwise, as tools/build-cmake.sh builds the components.
-# Qt's own checks (Q_ASSERT, and the receiver check on member-function
-# connections) only exist then, and a test that runs without them can pass
-# while the shell crashes: WebAppMgr segfaulted in one of those checks.
+# Debug unless told otherwise, as tools/build.sh builds the components. Qt's own
+# checks (Q_ASSERT, and the receiver check on member-function connections) only
+# exist then, and a test that runs without them can pass while the shell
+# crashes: WebAppMgr segfaulted in one of those checks.
 if (NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Debug CACHE STRING "Build type" FORCE)
 endif ()
@@ -23,114 +23,96 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_AUTOMOC ON)
 
-# Qt 5 or 6. Qt 5 is the build that runs today; 6 is where the stack is moving,
-# built in its own tree by tools/build-cmake.sh (WEBOS_QT=6). Both provide the
-# versionless Qt:: targets used below.
-set(WEBOS_QT_MAJOR 5 CACHE STRING "Qt major version to build against: 5 or 6")
-find_package(Qt${WEBOS_QT_MAJOR} REQUIRED COMPONENTS Core Gui Widgets Qml Quick)
-# The staging tree the tests read webOS headers and libraries from.
-set(WEBOS_STAGING "${CMAKE_CURRENT_SOURCE_DIR}/../build-modern/staging"
-    CACHE PATH "webOS staging tree matching WEBOS_QT_MAJOR")
-# Under Qt 6, touch points are built through QMutableEventPoint (touch-events.h,
-# and MouseToTouch and QmlSceneItem, which the tests compile): private API.
-if (WEBOS_QT_MAJOR GREATER_EQUAL 6)
-    find_package(Qt6 REQUIRED COMPONENTS GuiPrivate Test)
-    set(WEBOS_QT6_TEST_MODULES Qt::GuiPrivate)
-    # qml-scene-item injects its touches through QTest under Qt 6.
-    set(WEBOS_QT6_QTEST Qt::Test)
-endif ()
+find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets Qml Quick Test)
+# Touch points are built through QMutableEventPoint -- here in touch-events.h,
+# and in MouseToTouch and QmlSceneItem, which these tests compile: private API.
+find_package(Qt6 REQUIRED COMPONENTS GuiPrivate)
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(GLIB REQUIRED glib-2.0)
+
+# The staging tree the tests read webOS headers and libraries from.
+set(WEBOS_STAGING "${CMAKE_CURRENT_SOURCE_DIR}/../build/staging"
+    CACHE PATH "webOS staging tree")
 
 enable_testing()
 
 set(SYSMGR "${CMAKE_CURRENT_SOURCE_DIR}/../components/luna-sysmgr")
 
 # --- input plumbing, no webOS ------------------------------------------------
-foreach (t touch-in-qt5 eater-synthesis-qt5 home-gesture-qt5)
+foreach (t touch-in eater-synthesis home-gesture)
     add_executable(${t} ${t}.cpp)
-    target_link_libraries(${t} PRIVATE Qt::Core Qt::Gui Qt::Widgets ${WEBOS_QT6_TEST_MODULES})
+    target_link_libraries(${t} PRIVATE Qt::Core Qt::Gui Qt::Widgets Qt::GuiPrivate)
     add_test(NAME ${t} COMMAND ${t} -platform offscreen)
 endforeach ()
 
 # --- which coordinate space a touch point arrives in --------------------------
-add_executable(touch-coordinate-spaces-qt5 touch-coordinate-spaces-qt5.cpp)
-target_link_libraries(touch-coordinate-spaces-qt5 PRIVATE Qt::Core Qt::Gui Qt::Widgets ${WEBOS_QT6_TEST_MODULES})
+add_executable(touch-coordinate-spaces touch-coordinate-spaces.cpp)
+target_link_libraries(touch-coordinate-spaces PRIVATE Qt::Core Qt::Gui Qt::Widgets Qt::GuiPrivate)
 add_test(NAME touch-coordinate-spaces
-         COMMAND touch-coordinate-spaces-qt5 -platform offscreen)
+         COMMAND touch-coordinate-spaces -platform offscreen)
 
 # --- mouse to touch: a drag has to look like a drag -------------------------
-add_executable(mouse-to-touch-qt5
-    mouse-to-touch-qt5.cpp
+add_executable(mouse-to-touch
+    mouse-to-touch.cpp
     ${SYSMGR}/Src/base/MouseToTouch.cpp
 )
-target_include_directories(mouse-to-touch-qt5 PRIVATE ${SYSMGR}/Src/base)
-target_link_libraries(mouse-to-touch-qt5 PRIVATE Qt::Core Qt::Gui ${WEBOS_QT6_TEST_MODULES})
-add_test(NAME mouse-to-touch COMMAND mouse-to-touch-qt5 -platform offscreen)
+target_include_directories(mouse-to-touch PRIVATE ${SYSMGR}/Src/base)
+target_link_libraries(mouse-to-touch PRIVATE Qt::Core Qt::Gui Qt::GuiPrivate)
+add_test(NAME mouse-to-touch COMMAND mouse-to-touch -platform offscreen)
 
 # --- every .qml file must load under QtQuick 2 -------------------------------
-add_executable(qml-loads-qt5 qml-loads-qt5.cpp)
-target_link_libraries(qml-loads-qt5 PRIVATE Qt::Core Qt::Gui Qt::Qml Qt::Quick)
+add_executable(qml-loads qml-loads.cpp)
+target_link_libraries(qml-loads PRIVATE Qt::Core Qt::Gui Qt::Qml Qt::Quick)
 add_test(NAME qml-loads-luna-sysmgr
-         COMMAND qml-loads-qt5 -platform offscreen "${SYSMGR}/uiComponents")
-# luna-sysmgr-ce is kept for reference and not built; its QML is only checked
-# against the Qt 5 it was ported to, not carried forward to Qt 6.
-if (WEBOS_QT_MAJOR EQUAL 5)
-    add_test(NAME qml-loads-luna-sysmgr-ce
-             COMMAND qml-loads-qt5 -platform offscreen
-                     "${CMAKE_CURRENT_SOURCE_DIR}/../components/luna-sysmgr-ce/uiComponents")
-endif ()
+         COMMAND qml-loads -platform offscreen "${SYSMGR}/uiComponents")
 
 # --- undefined identifiers inside QML functions -------------------------------
 # Only the files that declare functions are worth calling; the rest are pure
 # declarative markup and qml-loads already covers them.
-add_executable(qml-functions-qt5 qml-functions-qt5.cpp)
-target_link_libraries(qml-functions-qt5 PRIVATE Qt::Core Qt::Gui Qt::Qml Qt::Quick)
+add_executable(qml-functions qml-functions.cpp)
+target_link_libraries(qml-functions PRIVATE Qt::Core Qt::Gui Qt::Qml Qt::Quick)
 file(GLOB_RECURSE QML_WITH_FUNCTIONS "${SYSMGR}/uiComponents/*.qml")
 add_test(NAME qml-functions
-         COMMAND qml-functions-qt5 -platform offscreen ${QML_WITH_FUNCTIONS})
+         COMMAND qml-functions -platform offscreen ${QML_WITH_FUNCTIONS})
 
 # --- QmlSceneItem's contract -------------------------------------------------
 # Compiles the adapter straight out of the shell's tree: it is the thing under
 # test, and a copy here would drift.
-add_executable(qml-scene-item-qt5
-    qml-scene-item-qt5.cpp
+add_executable(qml-scene-item
+    qml-scene-item.cpp
     ${SYSMGR}/Src/base/QmlSceneItem.cpp
 )
 # QmlSceneItem.cpp opens with the shell's Common.h, which luna-sysmgr-common
 # installs into staging.
-target_include_directories(qml-scene-item-qt5 PRIVATE
+target_include_directories(qml-scene-item PRIVATE
     ${SYSMGR}/Src ${SYSMGR}/Src/base ${GLIB_INCLUDE_DIRS}
     "${WEBOS_STAGING}/include/luna-sysmgr-common")
-target_link_libraries(qml-scene-item-qt5 PRIVATE
-    Qt::Core Qt::Gui Qt::Widgets Qt::Qml Qt::Quick ${GLIB_LIBRARIES} ${WEBOS_QT6_TEST_MODULES} ${WEBOS_QT6_QTEST})
-add_test(NAME qml-scene-item COMMAND qml-scene-item-qt5 -platform offscreen)
+target_link_libraries(qml-scene-item PRIVATE
+    Qt::Core Qt::Gui Qt::Widgets Qt::Qml Qt::Quick Qt::GuiPrivate Qt::Test ${GLIB_LIBRARIES})
+add_test(NAME qml-scene-item COMMAND qml-scene-item -platform offscreen)
 
-# --- what WebAppMgr needs from a web engine, on QtWebEngine (Qt 6 only) ------
-if (WEBOS_QT_MAJOR GREATER_EQUAL 6)
-    find_package(Qt6 COMPONENTS WebEngineWidgets)
-    if (Qt6WebEngineWidgets_FOUND)
-        add_executable(webengine-capabilities-qt6 webengine-capabilities-qt6.cpp)
-        target_link_libraries(webengine-capabilities-qt6 PRIVATE
-            Qt::Core Qt::Gui Qt::Widgets Qt::WebEngineWidgets Qt::Test)
-        add_test(NAME webengine-capabilities COMMAND webengine-capabilities-qt6)
-        # Runs without a display: QtWebEngine renders and takes input on the
-        # offscreen platform too.
-        set_tests_properties(webengine-capabilities PROPERTIES
-            ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+# --- what WebAppMgr needs from a web engine, and the layer built on it --------
+find_package(Qt6 REQUIRED COMPONENTS WebEngineWidgets)
 
-        # QtWebKit's API as WebAppMgr uses it, on QtWebEngine.
-        add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/../components/qtwebkit-compat"
-                         "${CMAKE_CURRENT_BINARY_DIR}/qtwebkit-compat")
-        add_executable(qtwebkit-compat-qt6 qtwebkit-compat-qt6.cpp)
-        target_link_libraries(qtwebkit-compat-qt6 PRIVATE qtwebkit-compat)
-        # As WebAppMgr is built; see the test for why it matters.
-        target_compile_options(qtwebkit-compat-qt6 PRIVATE -fno-rtti)
-        add_test(NAME qtwebkit-compat COMMAND qtwebkit-compat-qt6)
-        set_tests_properties(qtwebkit-compat PROPERTIES
-            ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
-    endif ()
-endif ()
+add_executable(webengine-capabilities webengine-capabilities.cpp)
+target_link_libraries(webengine-capabilities PRIVATE
+    Qt::Core Qt::Gui Qt::Widgets Qt::WebEngineWidgets Qt::Test)
+add_test(NAME webengine-capabilities COMMAND webengine-capabilities)
+# Runs without a display: QtWebEngine renders and takes input on the offscreen
+# platform too.
+set_tests_properties(webengine-capabilities PROPERTIES
+    ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
+# QtWebKit's API as WebAppMgr uses it, on QtWebEngine.
+add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/../components/qtwebkit-compat"
+                 "${CMAKE_CURRENT_BINARY_DIR}/qtwebkit-compat-lib")
+add_executable(qtwebkit-compat qtwebkit-compat.cpp)
+target_link_libraries(qtwebkit-compat PRIVATE qtwebkit-compat-lib)
+# As WebAppMgr is built; see the test for why it matters.
+target_compile_options(qtwebkit-compat PRIVATE -fno-rtti)
+add_test(NAME qtwebkit-compat COMMAND qtwebkit-compat)
+set_tests_properties(qtwebkit-compat PROPERTIES
+    ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
 
 # --- the run script's process detection ---------------------------------------
 add_test(NAME long-process-name

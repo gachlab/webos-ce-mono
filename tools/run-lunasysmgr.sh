@@ -18,8 +18,8 @@
 set -u
 R="$(cd "$(dirname "$0")/.." && pwd)"
 SELF="$R/tools/$(basename "$0")"   # absolute: there is a --chdir below
-S="$R/build-modern/staging"
-ROOTFS="$R/build-modern/rootfs"
+S="$R/build/staging"
+ROOTFS="$R/build/rootfs"
 
 # Linux truncates a process's comm to 15 characters, so `pgrep -x` and
 # `pkill -x` silently match nothing for a longer name -- LunaUniversalSearchMgr
@@ -50,10 +50,9 @@ service_stop() {
     [ -n "$pids" ] && kill $pids 2>/dev/null
     return 0
 }
-# The qtwebkit one is there too because WebAppMgr links against our QtWebKit
-# 5.212, which is not on the host. ls-hubd inherits this environment and passes
-# it on to WebAppMgr when it starts it.
-export LD_LIBRARY_PATH="$S/lib:$S/usr/lib:$S/qtwebkit/lib/x86_64-linux-gnu"
+# ls-hubd inherits this environment and passes it on to whatever it starts,
+# WebAppMgr and the JavaScript services included.
+export LD_LIBRARY_PATH="$S/lib:$S/usr/lib"
 
 # bootstrap-node.js calls process.setName and process.setArgs, which existed
 # only in HP's patched node. --require supplies them without run-js-service or
@@ -70,11 +69,10 @@ export QT_QPA_PLATFORM=xcb   # LunaSysMgr asks for the "palm" plugin, which came
 
 mkdir -p /tmp/webos/ls2 /tmp/webos/captures
 
-# ls-hubd and luna-send come from staging, not from the build tree. The tree
-# lives in build-modern/<component>/, and that name follows whatever the
-# component is called in the MANIFEST: the path that used to be here was
-# build-modern/ls2/, from the old layout, and it stopped existing the moment the
-# project was built from zero. staging is the location that stays put.
+# ls-hubd and luna-send come from staging, not from a component's build
+# directory. Those are named after the component in the MANIFEST, and the path
+# that used to be here (build/ls2/) stopped existing the moment the project was
+# built from zero. staging is the location that stays put.
 
 # Enter the namespace and re-enter this same script, so everything launched
 # below inherits it. Used by "run" and "services": both need to see the paths
@@ -119,30 +117,12 @@ enter_namespace() {
           node_bind+=(--bind "$ROOTFS/usr/lib/libmemcpy.so" /usr/lib/libmemcpy.so)
       fi
       rebind+=(--tmpfs /var)
-      # WEBOS_QT=6 runs the Qt 6 build of the shell: its LunaSysMgr, its
-      # keyboard plugins and, once it is built, its WebAppMgr (QtWebEngine, through
-      # components/qtwebkit-compat), bound over the Qt 5 ones at the same paths,
-      # so the bus roles (which name the binary's path) and IMEManager (which
-      # loads from /usr/lib/luna) see no difference. Without a Qt 6 WebAppMgr the
-      # Qt 5 one keeps running: the two talk over IPC, which does not care which
-      # Qt either side was built with.
-      qt6_binds=()
-      if [ "${WEBOS_QT:-5}" = 6 ]; then
-          qt6_binds+=(--bind "$R/build-qt6/staging/bin/LunaSysMgr" "$ROOTFS/usr/lib/luna/LunaSysMgr")
-          if [ -x "$R/build-qt6/staging/bin/WebAppMgr" ]; then
-              qt6_binds+=(--bind "$R/build-qt6/staging/bin/WebAppMgr" "$ROOTFS/usr/lib/luna/WebAppMgr")
-          fi
-          for k in "$R"/build-qt6/rootfs/usr/lib/luna/libkeyboard-efigs-*.so; do
-              [ -e "$k" ] && qt6_binds+=(--bind "$k" "/usr/lib/luna/$(basename "$k")")
-          done
-      fi
       for d in /var/*;     do [ -e "$d" ] && rebind+=(--bind "$d" "$d"); done
       exec bwrap --dev-bind / / \
           --bind "$ROOTFS/etc/palm" /etc/palm \
           --tmpfs /usr "${rebind[@]}" \
           --bind "$ROOTFS/usr/palm" /usr/palm \
           --bind "$ROOTFS/usr/lib/luna" /usr/lib/luna \
-          "${qt6_binds[@]}" \
           "${node_bind[@]}" \
           --bind "$ROOTFS/var/luna" /var/luna \
           --bind "$ROOTFS/var/palm" /var/palm \
@@ -160,7 +140,7 @@ case "${1:-run}" in
     "$S/usr/sbin/ls-hubd" --conf "$ROOTFS/etc/ls2/ls-private.conf" >/tmp/webos/ls-priv.log 2>&1 &
     "$S/usr/sbin/ls-hubd" --public --conf "$ROOTFS/etc/ls2/ls-public.conf" >/tmp/webos/ls-pub.log 2>&1 &
     sleep 2
-    echo "ls-hubd: $(pgrep -xc ls-hubd) instancias"
+    echo "ls-hubd: $(pgrep -xc ls-hubd) instances"
     ;;
   init)
     # One-time initialisation, copied from the "init" case of HP's
@@ -255,30 +235,17 @@ case "${1:-run}" in
     # already. HP did the same in run-luna-sysmgr.sh -- LunaSysMgr, wait, then
     # WebAppMgr. The ls2 .service files are only for on-demand starts on the
     # device.
-    # The Qt 6 LunaSysMgr needs its own LunaSysMgrCommon, which has the same
-    # soname as the Qt 5 one, and LD_LIBRARY_PATH wins over the binary's RUNPATH.
-    # So its staging goes first -- for LunaSysMgr only: WebAppMgr, started below
-    # from this same environment, is still Qt 5.
-    lsm_libs="$LD_LIBRARY_PATH"
-    if [ "${WEBOS_QT:-5}" = 6 ]; then
-        lsm_libs="$R/build-qt6/staging/lib:$R/build-qt6/staging/usr/lib:$LD_LIBRARY_PATH"
-    fi
-    LD_LIBRARY_PATH="$lsm_libs" "$ROOTFS/usr/lib/luna/LunaSysMgr" "${@:2}" &
+    "$ROOTFS/usr/lib/luna/LunaSysMgr" "${@:2}" &
     lsm=$!
     # Wait for LunaSysMgr to open its IPC socket rather than sleeping blindly:
     # with the services up it takes longer to start, and a WebAppMgr that arrives
     # first dies with "Failed to connect to socket: Connection refused".
     for _ in $(seq 40); do [ -S /tmp/pipcserver.sysmgr ] && break; sleep 1; done
     sleep 1
-    # A Qt 6 WebAppMgr needs build-qt6's libraries first, as LunaSysMgr does.
-    wam_libs="$LD_LIBRARY_PATH"
-    if [ "${WEBOS_QT:-5}" = 6 ] && [ -x "$R/build-qt6/staging/bin/WebAppMgr" ]; then
-        wam_libs="$lsm_libs"
-    fi
     # WEBOS_WAM_WRAPPER names a program to start WebAppMgr through -- a script
     # that runs it under gdb, say. It is inside the namespace and gets the same
     # environment, so what it reports is what the shell sees.
-    LD_LIBRARY_PATH="$wam_libs" ${WEBOS_WAM_WRAPPER:+"$WEBOS_WAM_WRAPPER"} "$ROOTFS/usr/lib/luna/WebAppMgr" > /tmp/webos/WebAppMgr.log 2>&1 &
+    ${WEBOS_WAM_WRAPPER:+"$WEBOS_WAM_WRAPPER"} "$ROOTFS/usr/lib/luna/WebAppMgr" > /tmp/webos/WebAppMgr.log 2>&1 &
     wait $lsm
     ;;
   stop)

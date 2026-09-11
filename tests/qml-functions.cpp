@@ -165,4 +165,4 @@ int main(int argc, char **argv)
     return bad == 0 ? 0 : 1;
 }
 
-#include "qml-functions-qt5.moc"
+#include "qml-functions.moc"

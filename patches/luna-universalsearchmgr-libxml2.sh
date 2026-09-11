@@ -1,13 +1,17 @@
 #!/bin/sh
-# PARCHE DE PORTABILIDAD -- no viene de HP.
+# PORTABILITY PATCH -- not from HP. Already applied to the vendored source:
+# this script is kept because it is the explanation of that difference, which
+# `git diff hp-original -- components/luna-universalsearchmgr` shows. Nothing
+# runs it during a build.
 #
-# HP castea la cadena de formato a (const xmlChar*):
+# HP casts the format string to (const xmlChar*):
 #     xmlStrPrintf (buf, 1024, (const xmlChar*) "&%s=%s", name, value);
-# pero la libxml2 de Ubuntu 12.04 (2.7.8) declara:
+# while libxml2 declares:
 #     int xmlStrPrintf(xmlChar *buf, int len, const char *msg, ...);
-# HP compilaba contra su propia libxml2, cuya firma tomaba const xmlChar*.
-# Con gcc 4.6 esto es error, no warning. Son 3 llamadas en OpenSearchHandler.cpp.
+# HP built against its own libxml2, whose signature took const xmlChar*.
+# Anywhere else that is an error, not a warning. Three calls, all in
+# OpenSearchHandler.cpp.
 SRC="$1/Src/OpenSearchHandler.cpp"
-[ -f "$SRC" ] || { echo "no existe $SRC"; exit 1; }
+[ -f "$SRC" ] || { echo "$SRC does not exist"; exit 1; }
 sed -i 's/(const xmlChar[*]) "?%s=%s"/(const char*) "?%s=%s"/; s/(const xmlChar[*]) "&%s=%s"/(const char*) "\&%s=%s"/; s/(const xmlChar[*]) "%s=%s"/(const char*) "%s=%s"/' "$SRC"
-echo "parche libxml2 aplicado: $(grep -c "xmlStrPrintf (buf, 1024, (const char\*)" "$SRC") de 3 llamadas convertidas"
+echo "libxml2 patch applied: $(grep -c "xmlStrPrintf (buf, 1024, (const char\*)" "$SRC") of 3 calls converted"

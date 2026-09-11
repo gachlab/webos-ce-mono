@@ -19,7 +19,7 @@
 set -u
 HERE="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$HERE/../.."
-STAGING="$ROOT/build-modern/staging"
+STAGING="$ROOT/build/staging"
 SEND="$STAGING/usr/bin/luna-send"
 export LD_LIBRARY_PATH="$STAGING/lib:$STAGING/usr/lib"
 

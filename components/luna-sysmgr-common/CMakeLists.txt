@@ -21,11 +21,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_AUTOMOC ON)          # replaces qmake's implicit moc pass
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
 
-# Qt 5 or 6. Qt 5 is the build that runs today; 6 is where the stack is moving,
-# built in its own tree by tools/build-cmake.sh (WEBOS_QT=6). Both provide the
-# versionless Qt:: targets used below.
-set(WEBOS_QT_MAJOR 5 CACHE STRING "Qt major version to build against: 5 or 6")
-find_package(Qt${WEBOS_QT_MAJOR} REQUIRED COMPONENTS Core Gui Network Widgets)
+find_package(Qt6 REQUIRED COMPONENTS Core Gui Network Widgets)
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(GLIB REQUIRED glib-2.0 gthread-2.0)
 # The library calls sqlite3 itself. Qt 5 builds never noticed it was not linked:
@@ -105,11 +101,9 @@ target_link_libraries(LunaSysMgrCommon PUBLIC
     ${SQLITE_LDFLAGS}
 )
 
-# Under Qt 6, the adapters for what it removed (components/qt6-compat).
-if (WEBOS_QT_MAJOR GREATER_EQUAL 6)
-    add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../qt6-compat ${CMAKE_CURRENT_BINARY_DIR}/qt6-compat)
-    target_link_libraries(LunaSysMgrCommon PRIVATE qt6compat)
-endif ()
+# The adapters for what Qt 6 removed (components/qt6-compat).
+add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../qt6-compat ${CMAKE_CURRENT_BINARY_DIR}/qt6-compat)
+target_link_libraries(LunaSysMgrCommon PRIVATE qt6compat)
 
 # qmake gives Qt libraries a version by default: libLunaSysMgrCommon.so.1.0.0
 # with soname .so.1. Everything already built links against that soname, so it

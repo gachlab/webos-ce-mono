@@ -22,19 +22,19 @@ And that only gets worse.
 
 ## Build
 
-Needs a modern Debian (tested on sid) with Qt5, plus the development headers
-for glib, sqlite3, openssl, libxml2 and boost.
+Needs a modern Debian (tested on sid) with Qt 6 -- `qt6-base-dev`,
+`qt6-base-private-dev`, `qt6-declarative-dev`, `qt6-declarative-private-dev`,
+`qt6-webengine-dev`, `qt6-scxml-dev` -- plus the development headers for glib,
+sqlite3, openssl, libxml2 and boost.
 
 ```sh
 tools/build.sh              # everything, in MANIFEST order
 tools/run-lunasysmgr.sh     # start the shell
 ```
 
-Each stage can be run on its own: `third-party`, `headers`, `autotools`,
-`cmake`, `qmake`, `rootfs`.
-
-The first run builds QtWebKit 5.212, which takes a while and is the only
-dependency that does not live in this repository.
+Each stage can be run on its own: `headers`, `autotools`, `cmake`, `node`,
+`rootfs`. Everything lands in `build/`, and nothing outside the repository is
+downloaded or compiled.
 
 `tools/run-lunasysmgr.sh` **installs nothing on your system**. Only
 `/etc/palm` is hardcoded in the code (`Settings.cpp`); everything else is
@@ -45,8 +45,6 @@ expects point at the local rootfs.
 
 - `components/` — HP's sources, vendored with `git subtree --squash`. Each
   carries the source repo and sha in its import commit.
-- `third-party/` — QtWebKit is **not** vendored: hundreds of MB nobody will
-  edit. It is consumed at a pinned ref and built by `tools/build-third-party.sh`.
 - `patches/` — portability patches. **Not from HP**: the minimum for 2012 code
   to build today. Each explains in its header what it fixes and why.
 - `tests/` — small standalone programs that reproduce a specific failure without
@@ -66,14 +64,14 @@ expects point at the local rootfs.
 
 ## State
 
-The shell runs. `LunaSysMgr` builds with gcc 16 and Qt 5.15 and starts on X11
+The shell runs. `LunaSysMgr` builds with gcc 16 and Qt 6.10 and starts on X11
 — see `docs/lunasysmgr-on-debian.png`.
 
 | | |
 |---|---|
 | Builds from scratch | 29 components |
 | Source changes over HP's drop | ~180 lines |
-| Toolchain | Debian sid, gcc 16, Qt 5.15 (Qt 6.10 in progress), system CMake |
+| Toolchain | Debian sid, gcc 16, Qt 6.10 + QtWebEngine, system CMake |
 
 Working: the lock screen, the launcher, the dock, keyboard input, taps, apps
 opening as cards, db8 with its schemas loaded, and four of HP's five static
@@ -88,15 +86,11 @@ Still to do, in order:
 - ~~**The node addons** (`sysbus`, `pmlog`, `dynaload`)~~: done, unmodified,
   through `components/node-v8-shim` on node 26. HP's JavaScript services start
   on demand, which is what lets apps have background services.
-- **Qt 6** (in progress): LunaSysMgrCommon, LunaSysMgr, keyboard-efigs,
-  LunaSysService and WebAppMgr build against Debian's Qt 6.10 in their own tree
-  (`WEBOS_QT=6 tools/build-cmake.sh <components>` builds into `build-qt6/`), and
-  `WEBOS_QT=6 tools/run-lunasysmgr.sh run` runs them. What Qt 6 removed comes
-  back through `components/qt6-compat`; WebAppMgr's QtWebKit comes back through
-  `components/qtwebkit-compat`, on QtWebEngine. The test suite passes on both Qt
-  versions, and the shell and the apps run on it. QtWebEngine also
-  replaces the browser path (`BrowserServer`/`BrowserAdapter`/
-  `WebKitSupplemental`), which existed to render pages in another process.
+- ~~**Qt 6**~~: done, and the only build there is. What Qt 6 removed comes back
+  through `components/qt6-compat`; the QtWebKit API WebAppMgr is written against
+  comes back through `components/qtwebkit-compat`, on QtWebEngine. That also
+  covers what the browser path (`BrowserServer`/`BrowserAdapter`/
+  `WebKitSupplemental`) existed for: rendering pages in another process.
 - **Synergy** (accounts and their transports, mojomail): last.
 
 ## Licence

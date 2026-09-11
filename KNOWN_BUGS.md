@@ -8,19 +8,16 @@ own `build-webos-desktop.sh`. **If it fails there too, it is not our port.**
 
 ---
 
-## Qt 6 port (in progress)
+## The Qt 6 port
 
-Builds against Debian's Qt 6.10 in `build-qt6/`, next to the Qt 5 build, which
-is left untouched: `WEBOS_QT=6 tools/build-cmake.sh luna-sysmgr-common luna-sysmgr
-keyboard-efigs luna-sysservice webappmanager`, and `WEBOS_QT=6
-tools/run-lunasysmgr.sh run` runs it. LunaSysMgr and WebAppMgr link against Qt 6
-only (no Qt 5 library in `ldd`); WebAppMgr renders with QtWebEngine. Running, the
-shell draws, WebAppMgr starts eight QtWebEngine processes, and the launcher and
-systemui reach "APP READY". `tests/` passes on both: 18 of 18 on Qt 6, 17 of 17 on
-Qt 5.
+The build is Qt 6.10 with QtWebEngine, in `build/`: `tools/build.sh`, then
+`tools/run-lunasysmgr.sh`. There is no Qt 5 build any more and nothing compiles
+QtWebKit 5.212. The shell draws, WebAppMgr starts its QtWebEngine processes, and
+the apps run.
 
 How it was done: build against Qt 6, inventory every error with `make -k`, and
-fix each where it can be fixed without touching HP's code.
+fix each where it can be fixed without touching HP's code. The Qt 5 build stayed
+alongside until the apps ran on Qt 6, and was then dropped.
 
 - **WebAppMgr's QtWebKit** (`components/qtwebkit-compat`): the QtWebKit classes it
   uses, over QtWebEngine, without changing WebAppMgr's web code. Pages render
@@ -264,9 +261,8 @@ Two thin horizontal lines are drawn inside the search input, one through the
 text. It is an Enyo `RichText`; the CSS renders differently on QtWebKit 5.212
 than on HP's WebKit. Cosmetic.
 
-On the Qt 6 build, where WebAppMgr renders with QtWebEngine, the lines are gone
-from the apps (checked by hand). The Qt 5 build, still on QtWebKit 5.212, keeps
-them.
+QtWebEngine does not draw them, so they are gone (checked by hand). They were
+only ever a QtWebKit 5.212 rendering difference.
 
 ---
 

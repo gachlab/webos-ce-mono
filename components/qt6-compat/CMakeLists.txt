@@ -1,9 +1,7 @@
 # qt6-compat: what Qt 6 removed and webOS's code still uses, rebuilt on top of
 # what Qt 6 has -- the same idea as components/node-v8-shim, for Qt.
 #
-# Not a component of its own: the components that use Qt pull it in, and only
-# when they build against Qt 6 (WEBOS_QT_MAJOR=6). Under Qt 5 nothing here is
-# compiled.
+# Not a component of its own: the components that use Qt pull it in.
 #
 #   add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../qt6-compat
 #                    ${CMAKE_CURRENT_BINARY_DIR}/qt6-compat)

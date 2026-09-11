@@ -4,21 +4,23 @@
 set -uo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
-ok=0; fallo=0; salt=0
-while IFS=$'\t' read -r orden name repo ref build; do
-    [ "$orden" = "orden" ] && continue
-    [ "$repo" = "EXTERNO" ] && { echo "-- $name: externo, no se vendorea"; salt=$((salt+1)); continue; }
+imported=0; failed=0; skipped=0
+while IFS=$'\t' read -r order name repo ref build; do
+    [ "$order" = "orden" ] && continue
+    [ "$repo" = "EXTERNO" ] && { echo "-- $name: external, not vendored"; skipped=$((skipped+1)); continue; }
     case "$name" in
-        qt4|webkit) echo "-- $name: third-party pineado, no se vendorea"; salt=$((salt+1)); continue;;
+        # Qt and WebKit are not vendored and not built any more: the build uses
+        # Debian's Qt 6 and QtWebEngine.
+        qt4|webkit) echo "-- $name: not vendored"; skipped=$((skipped+1)); continue;;
     esac
-    [ -d "components/$name" ] && { echo "== $name: ya importado"; salt=$((salt+1)); continue; }
+    [ -d "components/$name" ] && { echo "== $name: already imported"; skipped=$((skipped+1)); continue; }
     echo "++ $name  <-  $repo @ $ref"
     if git subtree add --prefix="components/$name" "https://github.com/$repo" \
-         "refs/tags/$ref" --squash -m "import: $name desde $repo @ $ref" >/dev/null 2>&1; then
-        ok=$((ok+1))
+         "refs/tags/$ref" --squash -m "import: $name from $repo @ $ref" >/dev/null 2>&1; then
+        imported=$((imported+1))
     else
-        echo "   FALLO $name"; fallo=$((fallo+1))
+        echo "   FAILED $name"; failed=$((failed+1))
     fi
 done < MANIFEST.tsv
 echo
-echo "importados: $ok   fallidos: $fallo   saltados: $salt"
+echo "imported: $imported   failed: $failed   skipped: $skipped"

@@ -19,27 +19,20 @@ set(CMAKE_INCLUDE_CURRENT_DIR ON)
 
 set(WEBOS_STAGING "${CMAKE_INSTALL_PREFIX}")
 
-# Qt 5 or 6. Qt 5 is the build that runs today; 6 is where the stack is moving,
-# built in its own tree by tools/build-cmake.sh (WEBOS_QT=6). Both provide the
-# versionless Qt:: targets used below.
-set(WEBOS_QT_MAJOR 5 CACHE STRING "Qt major version to build against: 5 or 6")
-find_package(Qt${WEBOS_QT_MAJOR} REQUIRED COMPONENTS Core Gui Network Widgets Quick Qml OpenGL Sql)
+find_package(Qt6 REQUIRED COMPONENTS Core Gui Network Widgets Quick Qml OpenGL Sql)
 # Qt 6 moved QOpenGLWidget and its relatives out of Gui into OpenGLWidgets.
 # Qt 6 also moved QStateMachine and its transitions into their own module
 # (Debian: qt6-scxml-dev). MouseToTouch and QmlSceneItem fill in touch points
 # through QMutableEventPoint, which is private API (GuiPrivate). The rest of
 # what Qt 6 removed comes back through components/qt6-compat.
-if (WEBOS_QT_MAJOR GREATER_EQUAL 6)
-    find_package(Qt6 REQUIRED COMPONENTS OpenGLWidgets StateMachine GuiPrivate)
-    add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../qt6-compat ${CMAKE_CURRENT_BINARY_DIR}/qt6-compat)
-    set(WEBOS_QT6_MODULES Qt::OpenGLWidgets Qt::StateMachine Qt::GuiPrivate qt6compat-gl)
-    # Qt 6's moc needs the complete type behind every pointer-typed property.
-    # icon.h declares Q_PROPERTY(LayoutItem * ...) with LayoutItem only forward
-    # declared, which Qt 5 accepted. -b puts the definition in front of every
-    # generated moc file instead of editing HP's header.
-    list(APPEND CMAKE_AUTOMOC_MOC_OPTIONS -b
-         "${CMAKE_CURRENT_SOURCE_DIR}/Src/lunaui/launcher/elements/page/icon_layouts/layoutitem.h")
-endif ()
+find_package(Qt6 REQUIRED COMPONENTS OpenGLWidgets StateMachine GuiPrivate)
+add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../qt6-compat ${CMAKE_CURRENT_BINARY_DIR}/qt6-compat)
+# Qt 6's moc needs the complete type behind every pointer-typed property.
+# icon.h declares Q_PROPERTY(LayoutItem * ...) with LayoutItem only forward
+# declared, which Qt 5 accepted. -b puts the definition in front of every
+# generated moc file instead of editing HP's header.
+list(APPEND CMAKE_AUTOMOC_MOC_OPTIONS -b
+     "${CMAKE_CURRENT_SOURCE_DIR}/Src/lunaui/launcher/elements/page/icon_layouts/layoutitem.h")
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(GLIB REQUIRED glib-2.0 gthread-2.0)
 pkg_check_modules(SQLITE REQUIRED sqlite3)
@@ -345,7 +338,8 @@ find_package(Threads REQUIRED)
 # nyx (CoreNaviLeds.cpp calls it directly) and the OpenSSL pair.
 target_link_libraries(LunaSysMgr PRIVATE
     Qt::Core Qt::Gui Qt::Network Qt::Widgets
-    Qt::Quick Qt::Qml Qt::OpenGL Qt::Sql ${WEBOS_QT6_MODULES}
+    Qt::Quick Qt::Qml Qt::OpenGL Qt::Sql
+    Qt::OpenGLWidgets Qt::StateMachine Qt::GuiPrivate qt6compat-gl
     ${GLIB_LDFLAGS} ${SQLITE_LDFLAGS} OpenGL::GL
     OpenSSL::SSL OpenSSL::Crypto Threads::Threads
     -L${WEBOS_STAGING}/lib -L${WEBOS_STAGING}/usr/lib
