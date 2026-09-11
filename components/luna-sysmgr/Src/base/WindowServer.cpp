@@ -723,64 +723,65 @@ bool WindowServer::eventFilter(QObject *obj, QEvent *event)
 }
 
 #if defined(TARGET_DESKTOP) && (QT_VERSION >= QT_VERSION_CHECK(5, 0, 0))
-// webOS se maneja por toques, no por clicks: Page::sceneEvent solo registra un
-// dedo cuando le llega un QEvent::TouchBegin, y sin ese registro cada gesto se
-// descarta con "Rejected; touch FSM reports no touchId is currently tracked".
+// webOS is driven by touches, not clicks: Page::sceneEvent only registers a
+// finger when it receives a QEvent::TouchBegin, and without that registration
+// every gesture is dropped with "Rejected; touch FSM reports no touchId is
+// currently tracked".
 //
-// Qt trae AA_SynthesizeTouchForUnhandledMouseEvents, que Main.cpp activa, pero
-// solo sintetiza a partir de eventos de raton que NADIE acepto. QGraphicsView
-// acepta el press, asi que el TouchBegin no llegaba nunca: en el log salian 0
-// touch-begin y 8 touch-end. De ahi que la flecha del dock respondiera (no usa
-// el FSM) y los iconos del launcher no.
+// Qt offers AA_SynthesizeTouchForUnhandledMouseEvents, which Main.cpp enables,
+// but it only synthesizes from mouse events that nobody accepted, and
+// QGraphicsView accepts the press. So TouchBegin never arrived: the log showed
+// 0 touch-begin and 8 touch-end. That is why the dock arrow responded (it does
+// not consult the FSM) and the launcher icons did not.
 //
-// Se traduce a mano, que es determinista y no depende de quien acepte que.
-static QTouchDevice* dispositivoTactil()
+// Translating by hand is deterministic and does not depend on who accepts what.
+static QTouchDevice* touchDevice()
 {
-	static QTouchDevice* dispositivo = 0;
-	if (!dispositivo) {
-		dispositivo = new QTouchDevice;
-		dispositivo->setType(QTouchDevice::TouchScreen);
-		dispositivo->setCapabilities(QTouchDevice::Position);
+	static QTouchDevice* device = 0;
+	if (!device) {
+		device = new QTouchDevice;
+		device->setType(QTouchDevice::TouchScreen);
+		device->setCapabilities(QTouchDevice::Position);
 	}
-	return dispositivo;
+	return device;
 }
 
-bool WindowServer::entregarComoToque(QMouseEvent* me)
+bool WindowServer::deliverAsTouch(QMouseEvent* me)
 {
-	QEvent::Type tipo;
-	Qt::TouchPointState estado;
+	QEvent::Type type;
+	Qt::TouchPointState state;
 	switch (me->type()) {
-	case QEvent::MouseButtonPress:   tipo = QEvent::TouchBegin;  estado = Qt::TouchPointPressed;   break;
-	case QEvent::MouseMove:          tipo = QEvent::TouchUpdate; estado = Qt::TouchPointMoved;     break;
-	case QEvent::MouseButtonRelease: tipo = QEvent::TouchEnd;    estado = Qt::TouchPointReleased;  break;
+	case QEvent::MouseButtonPress:   type = QEvent::TouchBegin;  state = Qt::TouchPointPressed;   break;
+	case QEvent::MouseMove:          type = QEvent::TouchUpdate; state = Qt::TouchPointMoved;     break;
+	case QEvent::MouseButtonRelease: type = QEvent::TouchEnd;    state = Qt::TouchPointReleased;  break;
 	default: return false;
 	}
 
-	// Un solo dedo, id 0. webOS soporta varios, pero un raton solo tiene uno.
-	QTouchEvent::TouchPoint punto(0);
-	punto.setState(estado);
-	punto.setPos(me->localPos());
-	punto.setScenePos(me->windowPos());
-	punto.setScreenPos(me->screenPos());
-	punto.setLastPos(punto.pos());
-	punto.setLastScenePos(punto.scenePos());
-	punto.setLastScreenPos(punto.screenPos());
-	punto.setStartPos(punto.pos());
-	punto.setStartScenePos(punto.scenePos());
-	punto.setStartScreenPos(punto.screenPos());
-	punto.setPressure(estado == Qt::TouchPointReleased ? 0.0 : 1.0);
+	// A single finger, id 0. webOS supports several, but a mouse has only one.
+	QTouchEvent::TouchPoint point(0);
+	point.setState(state);
+	point.setPos(me->localPos());
+	point.setScenePos(me->windowPos());
+	point.setScreenPos(me->screenPos());
+	point.setLastPos(point.pos());
+	point.setLastScenePos(point.scenePos());
+	point.setLastScreenPos(point.screenPos());
+	point.setStartPos(point.pos());
+	point.setStartScenePos(point.scenePos());
+	point.setStartScreenPos(point.screenPos());
+	point.setPressure(state == Qt::TouchPointReleased ? 0.0 : 1.0);
 
-	QList<QTouchEvent::TouchPoint> puntos;
-	puntos.append(punto);
+	QList<QTouchEvent::TouchPoint> points;
+	points.append(point);
 
-	QTouchEvent toque(tipo, dispositivoTactil(), me->modifiers(), estado, puntos);
-	toque.setAccepted(false);
-	// OJO: por QApplication::sendEvent, NO llamando a viewportEvent() a pelo.
-	// La llamada directa se salta la entrega normal de Qt, que es donde se monta
-	// la contabilidad interna del tactil, y el item nunca recibe el evento.
-	// Comprobado aislado en tests/tactil-en-qt5.cpp.
-	QApplication::sendEvent(viewport(), &toque);
-	return toque.isAccepted();
+	QTouchEvent touch(type, touchDevice(), me->modifiers(), state, points);
+	touch.setAccepted(false);
+	// NOTE: via QApplication::sendEvent, NOT by calling viewportEvent() directly.
+	// The direct call bypasses Qt's normal delivery, which is where the internal
+	// touch bookkeeping is set up, and the item never receives the event.
+	// Verified in isolation in tests/touch-in-qt5.cpp.
+	QApplication::sendEvent(viewport(), &touch);
+	return touch.isAccepted();
 }
 #endif
 
@@ -811,7 +812,7 @@ bool WindowServer::viewportEvent(QEvent* event)
 			return true;
 		}
 #if defined(TARGET_DESKTOP) && (QT_VERSION >= QT_VERSION_CHECK(5, 0, 0))
-		entregarComoToque(static_cast<QMouseEvent*>(event));
+		deliverAsTouch(static_cast<QMouseEvent*>(event));
 #endif
 		break;
 	case QEvent::MouseButtonPress:
@@ -820,7 +821,7 @@ bool WindowServer::viewportEvent(QEvent* event)
 			return true;
 		}
 #if defined(TARGET_DESKTOP) && (QT_VERSION >= QT_VERSION_CHECK(5, 0, 0))
-		entregarComoToque(static_cast<QMouseEvent*>(event));
+		deliverAsTouch(static_cast<QMouseEvent*>(event));
 #endif
 		break;
 	case QEvent::Gesture: {

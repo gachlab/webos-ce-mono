@@ -57,12 +57,12 @@ extern "C" {
  * Define the appropriate inline attribute for inline functions
  */
 #ifndef FSM_CONFIG_INLINE_FUNC
-    // Era 'extern __inline'. Bajo gnu89 (el default de gcc 4.x) eso significaba
-    // "solo en linea, no emitas simbolo", que es lo correcto para una funcion
-    // DEFINIDA en una cabecera. En C99/C11 el significado esta INVERTIDO:
-    // 'extern inline' emite definicion externa, asi que cada .c que incluya
-    // esta cabecera emitia su copia y el enlace fallaba con multiple definition.
-    // 'static inline' es el idioma correcto y equivale a la intencion original.
+    // This was 'extern __inline'. Under gnu89 (gcc 4.x's default) that meant
+    // "inline only, emit no symbol", which is correct for a function DEFINED in
+    // a header. In C99/C11 the meaning is INVERTED: 'extern inline' emits an
+    // external definition, so every .c including this header emitted its own
+    // copy and linking failed with multiple definition. 'static inline' is the
+    // correct idiom and matches the original intent.
     #define FSM_CONFIG_INLINE_FUNC  static __inline
 #endif
 

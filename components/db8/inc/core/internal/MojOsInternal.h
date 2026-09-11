@@ -344,9 +344,9 @@ inline MojErr MojThreadDetach(MojThreadT thread)
 inline MojErr MojThreadYield()
 {
 #ifdef __USE_GNU
-	// glibc declaro obsoleta pthread_yield() en favor de sched_yield(), que es
-	// POSIX y hace exactamente lo mismo. Como db8 compila con -Werror, el aviso
-	// de obsolescencia rompia el build.
+	// glibc deprecated pthread_yield() in favour of sched_yield(), which is
+	// POSIX and does exactly the same. Since db8 builds with -Werror, the
+	// deprecation warning broke the build.
 	return (MojErr) sched_yield();
 #else
  	pthread_yield_np();

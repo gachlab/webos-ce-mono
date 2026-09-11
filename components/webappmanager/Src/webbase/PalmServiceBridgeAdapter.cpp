@@ -1,13 +1,13 @@
-// Ver PalmServiceBridgeAdapter.h para el porque de todo esto.
+// See PalmServiceBridgeAdapter.h for why any of this exists.
 #include "PalmServiceBridgeAdapter.h"
 
 #include <glib.h>
 #include <unistd.h>
 
 // -------------------------------------------------------------------------
-// LunaServiceManager: portado de LunaServiceMgr.cpp de HP.
-// Lo unico que cambia son las cadenas (WTF::String -> QByteArray) y la poda de
-// los buses de prioridad.
+// LunaServiceManager: ported from HP's LunaServiceMgr.cpp.
+// The only changes are the strings (WTF::String -> QByteArray) and dropping the
+// priority buses.
 // -------------------------------------------------------------------------
 
 static bool message_filter(LSHandle*, LSMessage* reply, void* ctx)
@@ -40,8 +40,8 @@ bool LunaServiceManager::init()
     LSError lserror;
     LSErrorInit(&lserror);
 
-    // El nombre lleva el pid, como en HP. El role de com.palm.webappmgr lo
-    // permite con el comodin "com.palm.luna-*".
+    // The name carries the pid, as in HP's code. The com.palm.webappmgr role
+    // allows it through the "com.palm.luna-*" wildcard.
     QByteArray id = QByteArray("com.palm.luna-") + QByteArray::number(static_cast<int>(getpid()));
 
     if (!LSRegisterPalmService(id.constData(), &palmServiceHandle, &lserror))
@@ -72,8 +72,8 @@ unsigned long LunaServiceManager::call(const char* uri, const char* payload,
     if (callerId && !(*callerId))
         callerId = 0;
 
-    // HP usaba el bus privado siempre que la llamada viniera de un documento con
-    // frame, o sea siempre que la hace una app de verdad.
+    // HP used the private bus whenever the call came from a document with a
+    // frame, that is, whenever a real app makes it.
     LSHandle* serviceHandle = privateBus;
 
     if (!LSCallFromApplication(serviceHandle, uri, payload, callerId,
@@ -109,7 +109,7 @@ void LunaServiceManager::cancel(LunaServiceManagerListener* listener)
 }
 
 // -------------------------------------------------------------------------
-// El adaptador propiamente dicho
+// The adapter itself
 // -------------------------------------------------------------------------
 
 PalmServiceBridgeAdapter::PalmServiceBridgeAdapter(const QString& appId, QObject* parent)
@@ -129,9 +129,9 @@ int PalmServiceBridgeAdapter::call(const QString& uri, const QString& payload)
     if (!mgr)
         return 0;
 
-    // HP sacaba el callerId evaluando "PalmSystem.getIdentifier()" dentro del
-    // documento, porque desde WebCore no habia forma mas directa. Aqui el
-    // appId nos llega ya hecho desde SysMgrWebBridge.
+    // HP obtained the callerId by evaluating "PalmSystem.getIdentifier()" inside
+    // the document, because from WebCore there was no more direct way. Here the
+    // appId already reaches us from SysMgrWebBridge.
     return static_cast<int>(mgr->call(uri.toUtf8().constData(),
                                       payload.toUtf8().constData(),
                                       this, m_appId.constData()));
@@ -145,8 +145,8 @@ void PalmServiceBridgeAdapter::cancel()
 
 void PalmServiceBridgeAdapter::serviceResponse(const char* body)
 {
-    // luna-service2 esta enganchado al contexto glib por defecto, que es el que
-    // bombea el event loop de Qt en Linux: esto llega en el hilo correcto.
+    // luna-service2 is attached to the default glib context, which is what
+    // drives Qt's event loop on Linux: this arrives on the right thread.
     Q_EMIT response(QString::fromUtf8(body));
 }
 
@@ -158,7 +158,7 @@ PalmServiceBridgeFactory::PalmServiceBridgeFactory(const QString& appId, QObject
 
 QObject* PalmServiceBridgeFactory::create()
 {
-    // Colgado de la fabrica, que vive lo que vive la pagina. Asi el objeto no se
-    // muere mientras JS lo tenga, y se destruye entero al cerrar la app.
+    // Parented to the factory, which lives as long as the page. That keeps the
+    // object alive while JS holds it, and tears it all down when the app closes.
     return new PalmServiceBridgeAdapter(m_appId, this);
 }

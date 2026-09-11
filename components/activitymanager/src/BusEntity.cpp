@@ -113,9 +113,9 @@ MojErr BusEntity::ToJson(MojObject& rep, bool includeActivities) const
 
 		std::for_each(m_associations.begin(), m_associations.end(),
 			boost::bind(&Activity::PushIdentityJson,
-				// GetActivity() esta sobrecargada (const y no-const) y el
-				// compilador ya no elige sola: el cast fija la version const,
-				// que es la que devuelve shared_ptr<const Activity>.
+				// GetActivity() is overloaded (const and non-const) and the
+				// compiler no longer picks on its own: the cast pins the const
+				// version, which is the one returning shared_ptr<const Activity>.
 				boost::bind<boost::shared_ptr<const Activity> >
 					(static_cast<boost::shared_ptr<const Activity>
 						(ActivityAutoAssociation::*)() const>

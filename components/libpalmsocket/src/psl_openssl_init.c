@@ -436,9 +436,9 @@ thread_safety_init(ThreadSafetyInfo* const pData)
 
     int i;
     for (i=0; i < pData->numLocks; i++) {
-        /* CRYPTO_get_lock_name desaparecio con la API de locking en OpenSSL 1.1
-         * (la biblioteca ya es segura en hilos por dentro). Solo servia para
-         * nombrar el lock en este mensaje. */
+        /* CRYPTO_get_lock_name went away with the locking API in OpenSSL 1.1
+         * (the library is internally thread-safe now). It only served to name
+         * the lock in this message. */
         PSL_LOG_DEBUGLOW("%s: Creating thread lock type=%d",
                          __func__, i);
 
@@ -488,7 +488,7 @@ thread_safety_cleanup(ThreadSafetyInfo* const pData)
 
     int i;
     for (i=0; i < pData->numLocks; i++) {
-        /* CRYPTO_get_lock_name desaparecio con la API de locking en OpenSSL 1.1 */
+        /* CRYPTO_get_lock_name went away with the locking API in OpenSSL 1.1 */
         PSL_LOG_DEBUGLOW("%s: Destroying thread lock type=%d",
                          __func__, i);
 
@@ -537,8 +537,8 @@ static void
 lock_or_unlock_cb(int const mode, int const type, const char* const file,
                   int const line)
 {
-    /* Sin el nombre del lock: CRYPTO_get_lock_name se fue con la API de locking
-     * en OpenSSL 1.1, que ya es segura en hilos por dentro. */
+    /* No lock name: CRYPTO_get_lock_name went away with the locking API in
+     * OpenSSL 1.1, which is internally thread-safe now. */
     PSL_LOG_DEBUGLOW("%s: threadId=%lu, mode=0x%X, type=%d, caller=%s:%d",
                      __func__, CRYPTO_thread_id(), (unsigned)mode, type,
                      file, line);

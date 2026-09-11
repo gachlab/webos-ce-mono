@@ -338,8 +338,8 @@ void CurlConnection::GlibcurlCallback(void* data)
 
 				switch(msg->data.result) {
 					/* CURLE_SSL_CACERT es un alias de CURLE_PEER_FAILED_VERIFICATION
-					 * desde curl 7.62 (mismo valor), asi que tenerlos ambos es un
-					 * caso duplicado. Aqui caian los dos al mismo bloque. */
+					 * since curl 7.62 (same value), so listing both is a
+					 * duplicate case. Both fell into the same block here. */
 					case CURLE_PEER_FAILED_VERIFICATION:
 					case CURLE_SSL_ISSUER_ERROR:
 					{
@@ -487,9 +487,9 @@ HttpConnection::ConnectionError CurlConnection::GetErrorCode(CURLcode code)
 		case CURLE_SSL_CIPHER:
 			return HTTP_ERROR_SSL_CIPHER;
 		/* OJO, cambio de comportamiento inevitable: CURLE_SSL_CACERT y
-		 * CURLE_PEER_FAILED_VERIFICATION son el mismo valor desde curl 7.62.
+		 * CURLE_PEER_FAILED_VERIFICATION are the same value since curl 7.62.
 		 * Antes devolvian HTTP_ERROR_SSL_CACERT y HTTP_ERROR_PEER_FAILED_VERIFICATION
-		 * respectivamente; ahora ese codigo unico devuelve el segundo. */
+		 * respectively; now that single code returns the second one. */
 		case CURLE_BAD_CONTENT_ENCODING:
 			return HTTP_ERROR_BAD_CONTENT_ENCODING;
 		case CURLE_LDAP_INVALID_URL:

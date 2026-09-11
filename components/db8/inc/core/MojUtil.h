@@ -56,10 +56,10 @@ template<class T>
 MojSize MojBinarySearch(T key, const T* array, MojSize numElems);
 
 template<class T, class COMP>
-// Sin argumento por defecto: la sobrecarga de dos argumentos de abajo ya cubre
-// ese caso, y repetir el default entre declaraciones lo prohibe C++ (el orden de
-// inclusion hace que MojUtilInternal.h declare esta plantilla antes que este
-// archivo, asi que aqui seria una redeclaracion).
+// No default argument: the two-argument overload below already covers that
+// case, and C++ forbids repeating a default across declarations (include order
+// makes MojUtilInternal.h declare this template before this file, so here it
+// would be a redeclaration).
 void MojQuickSort(T* array, MojSize numElems, const COMP& comp);
 template<class T>
 void MojQuickSort(T* array, MojSize numElems);

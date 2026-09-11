@@ -42,9 +42,9 @@ static const qreal sFlickScalar = 2225;
 static const qreal kMaxSpeed = 100;
 static const qreal kDefaultFriction = 8e-4;
 
-// Qt incorporo qInf() a QtGlobal en la serie 5.x, con firma 'double qInf()'.
-// La definicion local de HP la ambigua. Se conserva solo para Qt4, siguiendo el
-// mismo estilo de guardas que HP uso en los otros 61 archivos del puerto.
+// Qt added qInf() to QtGlobal in the 5.x series, with signature 'double
+// qInf()'. HP's local definition makes it ambiguous. It is kept for Qt4 only,
+// following the same guard style HP used in the other 61 files of the port.
 #if (QT_VERSION < QT_VERSION_CHECK(5, 0, 0))
 static inline const qreal qInf()
 {

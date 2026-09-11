@@ -71,8 +71,9 @@ pkg_check_modules(DB8 REQUIRED db8)
 include_directories(${DB8_INCLUDE_DIRS})
 webos_add_compiler_flags(ALL ${DB8_CFLAGS_OTHER})
 
-# El componente 'system' de Boost es header-only desde 1.69 y ya no se distribuye
-# como libreria separada; pedirlo hace fallar la busqueda. filesystem lo arrastra.
+# Boost's 'system' component has been header-only since 1.69 and is no longer
+# shipped as a separate library; asking for it makes the lookup fail. filesystem
+# pulls it in.
 find_package(Boost REQUIRED COMPONENTS filesystem)
 include_directories(${Boost_INCLUDE_DIRS})
 

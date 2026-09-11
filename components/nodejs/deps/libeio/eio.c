@@ -52,7 +52,7 @@
 #include <errno.h>
 #include <stddef.h>
 #include <stdlib.h>
-#include <stdio.h> /* rename(): antes llegaba por un include transitivo */
+#include <stdio.h> /* rename(): used to arrive via a transitive include */
 #include <string.h>
 #include <errno.h>
 #include <sys/types.h>

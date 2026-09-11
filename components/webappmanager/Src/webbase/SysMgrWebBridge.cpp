@@ -255,29 +255,29 @@ void SysMgrWebBridge::setupStageArgs(const char* json)
     }
 }
 
-// PalmServiceBridge: shim JS sobre el adaptador nativo.
+// PalmServiceBridge: JS shim over the native adapter.
 //
-// Las apps hacen "new PalmServiceBridge()", y addToJavaScriptWindowObject solo
-// publica instancias, no constructores. De ahi este shim: da la semantica de
-// constructor y delega en un objeto nativo por instancia. Ver
-// PalmServiceBridgeAdapter.h para el resto de la historia.
+// Apps do "new PalmServiceBridge()", and addToJavaScriptWindowObject only
+// publishes instances, not constructors. Hence this shim: it provides the
+// constructor semantics and delegates to one native object per instance.
+// See PalmServiceBridgeAdapter.h for the rest of the story.
 static const char* kPalmServiceBridgeShim = R"JS(
 (function () {
     function PalmServiceBridge() {
-        this.__nativo = PalmServiceBridgeFactory.create();
-        var propio = this;
-        this.__nativo.response.connect(function (cuerpo) {
-            if (propio.__cb)
-                propio.__cb(cuerpo);
+        this.__native = PalmServiceBridgeFactory.create();
+        var self = this;
+        this.__native.response.connect(function (body) {
+            if (self.__cb)
+                self.__cb(body);
         });
     }
-    PalmServiceBridge.prototype.call = function (url, carga) {
-        return this.__nativo.call(url, carga);
+    PalmServiceBridge.prototype.call = function (url, payload) {
+        return this.__native.call(url, payload);
     };
     PalmServiceBridge.prototype.cancel = function () {
-        this.__nativo.cancel();
+        this.__native.cancel();
     };
-    // onservicecallback se ASIGNA, no se llama.
+    // onservicecallback is ASSIGNED, not called.
     Object.defineProperty(PalmServiceBridge.prototype, "onservicecallback", {
         set: function (fn) { this.__cb = fn; },
         get: function () { return this.__cb; }

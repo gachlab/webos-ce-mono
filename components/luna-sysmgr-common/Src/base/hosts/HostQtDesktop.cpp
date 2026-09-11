@@ -224,12 +224,12 @@ public:
 	}
 
     void postGesture(KEYS::Key key) {
-		// Iba a QApplication::focusWidget(), pero aqui NADA tiene el foco de
-		// teclado: tanto la barra de gestos como el boton de home se crean con
-		// Qt::NoFocus (lineas 103 y 111) justamente para no robarselo a la UI.
-		// Con focusWidget() devolviendo null, el "if (window)" se tragaba la
-		// tecla en silencio y el boton de home no hacia nada. La vista
-		// principal es el destinatario correcto.
+		// This used QApplication::focusWidget(), but NOTHING here holds keyboard
+		// focus: both the gesture strip and the home button are created with
+		// Qt::NoFocus precisely so they do not steal it from the UI. With
+		// focusWidget() returning null, the "if (window)" swallowed the key
+		// silently and the home button did nothing. The main view is the right
+		// recipient.
 		QWidget* window = m_mainView;
 		if (!window)
 			window = QApplication::focusWidget();

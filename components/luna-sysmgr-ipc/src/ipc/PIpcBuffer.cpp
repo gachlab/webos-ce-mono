@@ -167,9 +167,9 @@ PIpcBuffer::~PIpcBuffer()
 	// pthread_mutex_destroy is deliberately not called to avoid
 	// the issue of ownership. on Linux pthread_mutex_destroy does
 	// nothing apart from checking that the mutex is unlocked
-    // Era 'm_data > 0': comparacion ORDENADA de un void* contra el entero 0.
-    // Los compiladores lo toleraban; desde hace varias versiones es error.
-    // La intencion es simplemente comprobar que no sea nulo.
+    // This was 'm_data > 0': an ORDERED comparison of a void* against the
+    // integer 0. Compilers used to tolerate it; for several versions now it is
+    // an error. The intent is simply to check it is not null.
     if (m_data != NULL) {
 
 		if (m_lockCount)

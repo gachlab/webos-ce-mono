@@ -909,19 +909,19 @@ MojErr ActivityManager::InfoToJson(MojObject& rep) const
 
 	std::set_difference(
 		boost::make_transform_iterator(m_idTable.cbegin(),
-			// shared_from_this() viene de boost::enable_shared_from_this y esta
-			// sobrecargada (const y no-const). El cast fija la version const, que
-			// es la que devuelve shared_ptr<const Activity>. El puntero a miembro
-			// es de la clase BASE, porque ahi esta declarada.
+			// shared_from_this() comes from boost::enable_shared_from_this and is
+			// overloaded (const and non-const). The cast pins the const version,
+			// which is the one returning shared_ptr<const Activity>. The member
+			// pointer is on the BASE class, because that is where it is declared.
 			boost::bind<boost::shared_ptr<const Activity> >
 				(static_cast<boost::shared_ptr<const Activity>
 					(boost::enable_shared_from_this<Activity>::*)() const>
 					(&Activity::shared_from_this), _1)),
 		boost::make_transform_iterator(m_idTable.cend(),
-			// shared_from_this() viene de boost::enable_shared_from_this y esta
-			// sobrecargada (const y no-const). El cast fija la version const, que
-			// es la que devuelve shared_ptr<const Activity>. El puntero a miembro
-			// es de la clase BASE, porque ahi esta declarada.
+			// shared_from_this() comes from boost::enable_shared_from_this and is
+			// overloaded (const and non-const). The cast pins the const version,
+			// which is the one returning shared_ptr<const Activity>. The member
+			// pointer is on the BASE class, because that is where it is declared.
 			boost::bind<boost::shared_ptr<const Activity> >
 				(static_cast<boost::shared_ptr<const Activity>
 					(boost::enable_shared_from_this<Activity>::*)() const>

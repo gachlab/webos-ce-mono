@@ -1,28 +1,28 @@
 /*
- * Adaptador de PalmServiceBridge.
+ * PalmServiceBridge adapter.
  *
- * PalmServiceBridge era un objeto nativo de la WebKit propia de HP
+ * PalmServiceBridge was a native object of HP's own WebKit
  * (isis-project/WebKit @ 0.54, Source/WebCore/platform/webos/). QtWebKit 5.212
- * no lo tiene, y portar aquello significaria meter IDL, generadores de bindings
- * y ficheros de build dentro de WebCore.
+ * does not have it, and porting that would mean adding IDL, binding generators
+ * and build files inside WebCore.
  *
- * No hace falta. Aquel codigo eran dos mitades muy distintas:
+ * That is not necessary. The original code was two very different halves:
  *
- *   LunaServiceMgr.cpp    289 lineas, CERO referencias a WebCore. Puro
- *                         luna-service2 + glib. Se reusa casi tal cual.
- *   PalmServiceBridge.cpp 413 lineas, 24 referencias a WebCore
+ *   LunaServiceMgr.cpp    289 lines, ZERO references to WebCore. Pure
+ *                         luna-service2 + glib. Reused almost verbatim.
+ *   PalmServiceBridge.cpp 413 lines, 24 references to WebCore
  *                         (ActiveDOMObject, EventTarget, ScriptExecutionContext).
- *                         Eso es lo unico que hay que sustituir.
+ *                         That is the only part that needs replacing.
  *
- * Aqui se sustituye por un QObject expuesto con addToJavaScriptWindowObject, que
- * es el mismo mecanismo con el que webOS ya publica PalmSystem. Solo API publica
- * de Qt: cero parches a WebKit.
+ * Here it is replaced by a QObject exposed with addToJavaScriptWindowObject,
+ * the same mechanism webOS already uses to publish PalmSystem. Public Qt API
+ * only: no patches to WebKit.
  *
- * La superficie se midio antes de escribirla, instrumentando el puente con un
- * doble que solo registraba llamadas. Con las 7 apps arrancando: 43 instancias,
- * y siempre el mismo trio -- new, onservicecallback=, call(uri, payload).
- * Nunca version(), nunca token(). cancel() tampoco salio, pero se implementa
- * igual: son diez lineas y sin el se quedan vivas las suscripciones.
+ * The surface was measured before writing it, by instrumenting the bridge with
+ * a stub that only logged calls. With the 7 apps starting up: 43 instances, and
+ * always the same trio -- new, onservicecallback=, call(uri, payload). Never
+ * version(), never token(). cancel() did not show up either, but it is
+ * implemented anyway: it is ten lines and without it subscriptions leak.
  */
 #ifndef PALMSERVICEBRIDGEADAPTER_H
 #define PALMSERVICEBRIDGEADAPTER_H
@@ -31,7 +31,7 @@
 #include <QString>
 #include <lunaservice.h>
 
-// De LunaServiceMgr.h de HP, sin cambios de fondo.
+// From HP's LunaServiceMgr.h, no substantive changes.
 struct LunaServiceManagerListener {
     LunaServiceManagerListener() : listenerToken(LSMESSAGE_TOKEN_INVALID), sh(0) { }
     virtual ~LunaServiceManagerListener() { }
@@ -40,9 +40,9 @@ struct LunaServiceManagerListener {
     LSHandle* sh;
 };
 
-// De LunaServiceMgr.h de HP. Se omiten los buses de prioridad media y alta: HP
-// los tenia solo para que com.palm.app.phone adelantara al resto, y esa app no
-// esta en el drop de escritorio.
+// From HP's LunaServiceMgr.h. The medium and high priority buses are omitted:
+// HP had them only so com.palm.app.phone could jump the queue, and that app is
+// not part of the desktop drop.
 class LunaServiceManager {
 public:
     static LunaServiceManager* instance();
@@ -59,7 +59,7 @@ private:
     LSPalmService* palmServiceHandle;
 };
 
-// Un puente por cada "new PalmServiceBridge()" del lado JS.
+// One bridge per "new PalmServiceBridge()" on the JS side.
 class PalmServiceBridgeAdapter : public QObject, public LunaServiceManagerListener {
     Q_OBJECT
 public:
@@ -79,9 +79,9 @@ private:
     QByteArray m_appId;
 };
 
-// addToJavaScriptWindowObject publica una INSTANCIA, no un constructor, y las
-// apps hacen "new PalmServiceBridge()". De ahi la fabrica: el shim JS la llama
-// desde su propio constructor.
+// addToJavaScriptWindowObject publishes an INSTANCE, not a constructor, and
+// apps do "new PalmServiceBridge()". Hence the factory: the JS shim calls it
+// from its own constructor.
 class PalmServiceBridgeFactory : public QObject {
     Q_OBJECT
 public:

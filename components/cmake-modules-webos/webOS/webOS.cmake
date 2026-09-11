@@ -93,8 +93,8 @@ function(webos_append_new_to_list listvar)
 	set(${listvar} ${ourvar} PARENT_SCOPE)
 endfunction()
 
-# Ubicacion real de este modulo. Capturada a nivel de archivo a proposito:
-# dentro de un macro(), CMAKE_CURRENT_LIST_DIR apunta al archivo que invoca.
+# Real location of this module. Captured at file scope on purpose: inside a
+# macro(), CMAKE_CURRENT_LIST_DIR points at the calling file instead.
 set(WEBOS_MODULES_SELF_DIR ${CMAKE_CURRENT_LIST_DIR})
 
 macro(_webos_check_init_version auth_version auth_qualifier)
@@ -673,10 +673,10 @@ function(webos_build_library)
 	# If <target-name> begins with "lib", then the library name would begin with "liblib" unless its fixed, which is done here.
 	# NB. Can't just get the LIBRARY_OUTPUT_NAME properity, because it doesn't exist unless it's been assigned to (it doesn't
 	#     have a default value).
-	# La propiedad LOCATION fue eliminada en CMake 4 (politica CMP0026).
-	# Sus dos usos aqui tienen equivalente moderno y mas directo:
-	#  1) si el nombre del target ya empieza por "lib", quitar el prefijo
-	#     para no terminar con "liblib..."
+	# The LOCATION property was removed in CMake 4 (policy CMP0026).
+	# Both uses here have a modern, more direct equivalent:
+	#  1) if the target name already starts with "lib", drop the prefix so we
+	#     do not end up with "liblib..."
 	string(SUBSTRING ${webos_library_TARGET} 0 3 _webos_target_prefix)
 	if(_webos_target_prefix STREQUAL "lib")
 		# ASSERT(PREFIX is "lib")
@@ -685,8 +685,8 @@ function(webos_build_library)
 
 	# Why can't install() figure this out without needing to be told?
 	if(UNIX)
-		#  2) estatica o compartida se decide por la propiedad TYPE del target,
-		#     que es la fuente de verdad, en vez de adivinar por el sufijo del archivo
+		#  2) static vs shared comes from the target's TYPE property, which is
+		#     the source of truth, instead of guessing from the file suffix
 		get_target_property(_webos_target_type ${webos_library_TARGET} TYPE)
 		if(_webos_target_type STREQUAL "STATIC_LIBRARY")
 			set(kind ARCHIVE)

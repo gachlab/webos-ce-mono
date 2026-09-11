@@ -23,9 +23,9 @@ Name: PmStateMachineEngine
 Description: @WEBOS_PROJECT_SUMMARY@
 Version: @WEBOS_COMPONENT_VERSION@
 Libs: -L${libdir} -lPmStateMachineEngine
-# La libreria se compila con -DFSM_CONFIG_WEBOS_FEATURES=1, pero la declaracion
-# publica de FsmDbgEnableLoggingViaPmLogLib esta tras #ifdef
-# STATE_MACHINE_ENGINE_WEBOS_FEATURES, que es su equivalente publico. Sin
-# exportarlo aqui, los consumidores no ven la declaracion: en 2012 eso era solo
-# un aviso de declaracion implicita, pero desde gcc 14 es error.
+# The library is built with -DFSM_CONFIG_WEBOS_FEATURES=1, but the public
+# declaration of FsmDbgEnableLoggingViaPmLogLib sits behind #ifdef
+# STATE_MACHINE_ENGINE_WEBOS_FEATURES, which is its public equivalent. Without
+# exporting it here, consumers do not see the declaration: in 2012 that was only
+# an implicit-declaration warning, but since gcc 14 it is an error.
 Cflags: -I${includedir} -DSTATE_MACHINE_ENGINE_WEBOS_FEATURES

@@ -151,11 +151,11 @@ PmSockOpensslMatchCertInStore(struct x509_store_ctx_st*  const x509StoreCtx,
 
     X509_NAME* const subjName = X509_get_subject_name(cert);
 
-    /* OpenSSL 1.1 volvio X509_OBJECT opaca: ya no se puede reservar en la pila,
-     * ni leer installedObj.data.x509, y X509_OBJECT_free_contents desaparecio.
-     * Ahora se reserva con X509_OBJECT_new()/X509_OBJECT_free() y el certificado
-     * se obtiene con el accesor X509_OBJECT_get0_X509().
-     * Ademas X509_STORE_CTX_get_by_subject devuelve 1/<=0, no el tipo X509_LU_*. */
+    /* OpenSSL 1.1 made X509_OBJECT opaque: it can no longer be allocated on the
+     * stack, installedObj.data.x509 cannot be read, and X509_OBJECT_free_contents
+     * is gone. It is now allocated with X509_OBJECT_new()/X509_OBJECT_free() and
+     * the certificate comes from the X509_OBJECT_get0_X509() accessor.
+     * Also X509_STORE_CTX_get_by_subject returns 1/<=0, not the X509_LU_* type. */
     X509_OBJECT* const pInstalledObj = X509_OBJECT_new();
     if (!pInstalledObj) {
         PSL_LOG_ERROR("%s (cert=%p): ERROR: X509_OBJECT_new failed",
@@ -166,7 +166,7 @@ PmSockOpensslMatchCertInStore(struct x509_store_ctx_st*  const x509StoreCtx,
     int const rc = X509_STORE_get_by_subject(x509StoreCtx, X509_LU_X509, subjName,
                                              pInstalledObj);
 
-    /* El puntero pertenece al objeto: hay que usarlo ANTES de liberarlo. */
+    /* The pointer is owned by the object: use it BEFORE freeing it. */
     X509* const pInstalledCert = (rc > 0)
                                  ? X509_OBJECT_get0_X509(pInstalledObj)
                                  : NULL;
@@ -195,8 +195,8 @@ PmSockOpensslMatchCertInStore(struct x509_store_ctx_st*  const x509StoreCtx,
     /**
      * Look through all certs with matching subject names
      */
-    /* X509_STORE_CTX y X509_STORE tambien son opacas desde OpenSSL 1.1:
-     * x509StoreCtx->ctx->objs pasa por dos accesores. */
+    /* X509_STORE_CTX and X509_STORE are opaque too since OpenSSL 1.1:
+     * x509StoreCtx->ctx->objs now goes through two accessors. */
     X509_STORE* const pStore = X509_STORE_CTX_get0_store(x509StoreCtx);
     STACK_OF(X509_OBJECT)* const pObjs = X509_STORE_get0_objects(pStore);
 

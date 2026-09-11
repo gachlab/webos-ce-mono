@@ -778,24 +778,25 @@ static bool jsax_parse_internal(PJSAXCallbacks *parser, raw_buffer input, JSchem
 #endif
 
 	yajl_handle handle = yajl_alloc(&my_bounce, NULL, &internalCtxt);
-	// yajl 2 movio la configuracion del struct yajl_parser_config a yajl_config().
-	// OJO con el segundo: en yajl 1 el campo era checkUTF8, donde 0 = no validar.
-	// En yajl 2 la opcion esta INVERTIDA (yajl_dont_validate_strings), asi que
-	// aquel 0 se traduce en un 1 aqui.
+	// yajl 2 moved configuration out of the yajl_parser_config struct into
+	// yajl_config().
+	// NOTE on the second one: in yajl 1 the field was checkUTF8, where 0 = do
+	// not validate. In yajl 2 the option is INVERTED
+	// (yajl_dont_validate_strings), so that 0 becomes a 1 here.
 	yajl_config(handle, yajl_allow_comments, comments);
 	yajl_config(handle, yajl_dont_validate_strings, 1);
 
 	parseResult = yajl_parse(handle, (unsigned char *)input.m_str, input.m_len);
 	if (parseResult == yajl_status_ok) {
-		// yajl 2 exige cerrar el parseo explicitamente: el estado
-		// yajl_status_insufficient_data de yajl 1 ya no existe y la deteccion de
-		// entrada incompleta se movio aqui.
+		// yajl 2 requires closing the parse explicitly: yajl 1's
+		// yajl_status_insufficient_data state is gone and detection of
+		// incomplete input moved here.
 		//
-		// NOTA verificada por mutacion: quitando esta llamada, jdom_parse() sigue
-		// rechazando JSON truncado, porque la validacion propia de pbnjson lo
-		// detecta antes. O sea que por esta via no es observable. Se mantiene por
-		// ser el uso correcto de la API de yajl 2 y porque las rutas SAX y de
-		// streaming si dependen del cierre explicito.
+		// NOTE verified by mutation: removing this call, jdom_parse() still
+		// rejects truncated JSON, because pbnjson's own validation catches it
+		// first. So it is not observable through this path. It is kept because
+		// it is the correct use of the yajl 2 API and because the SAX and
+		// streaming paths do depend on the explicit close.
 		parseResult = yajl_complete_parse(handle);
 	}
 	if (ctxt != NULL) *ctxt = jsax_getContext(&internalCtxt);

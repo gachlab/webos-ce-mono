@@ -690,12 +690,9 @@ int main( int argc, char** argv)
 #endif
 
 #if defined TARGET_DESKTOP && (QT_VERSION >= QT_VERSION_CHECK(5, 0, 0))
-    // Movido de DESPUES de construir la QApplication a ANTES. Los atributos que
-    // cambian como se despachan los eventos tienen que estar puestos cuando el
-    // plugin QPA arranca. Con el orden original solo se sintetizaba TouchEnd y
-    // nunca TouchBegin, asi que el FSM tactil de webOS no llegaba a registrar
-    // ningun toque ("Rejected; touch FSM reports no touchId is currently
-    // tracked") y los clicks no hacian nada.
+    // Moved from AFTER constructing the QApplication to BEFORE it. Attributes
+    // that change how events are dispatched must be set by the time the QPA
+    // plugin starts up.
     QCoreApplication::setAttribute(Qt::AA_SynthesizeTouchForUnhandledMouseEvents, true);
 #endif
 

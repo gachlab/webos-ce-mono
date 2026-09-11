@@ -501,9 +501,9 @@ psl_err_process_and_purge_openssl_err_stack(
         }
 
         const int libNum = ERR_GET_LIB(opensslErr);
-        /* OpenSSL 3.0 dejo de guardar el codigo de funcion en el error y
-         * elimino ERR_GET_FUNC. Se conserva el campo del log como 0 para no
-         * cambiar el formato del mensaje. */
+        /* OpenSSL 3.0 stopped storing the function code in the error and
+         * removed ERR_GET_FUNC. The log field is kept as 0 so the message
+         * format does not change. */
         const int funcCode = 0;
         const int reasonCode = ERR_GET_REASON(opensslErr);
 

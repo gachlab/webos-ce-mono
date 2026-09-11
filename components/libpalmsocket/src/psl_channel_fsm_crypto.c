@@ -1621,13 +1621,13 @@ crypto_do_renegotiate(PslChanFsmCryptoRenegotiateState*     const pState,
                               "wait for completion of renegotiation " \
                               "handshake per kPmSockRenegOpt_waitForClientHandshake",
                               __func__, pFsm);
-                /* OJO: era 'sslInfo->ssl->state = SSL_ST_ACCEPT', escritura
-                 * directa al struct. OpenSSL 1.1 volvio SSL opaca y no expone
-                 * forma de fijar el estado del handshake. SSL_set_accept_state()
-                 * es la API soportada mas cercana: lleva la maquina de estados
-                 * por la via de 'accept'.
-                 * SIN VERIFICAR EN EJECUCION: este camino solo se ejerce en una
-                 * renegociacion TLS real, que no se ha probado aqui. */
+                /* NOTE: this was 'sslInfo->ssl->state = SSL_ST_ACCEPT', a direct
+                 * write into the struct. OpenSSL 1.1 made SSL opaque and exposes
+                 * no way to set the handshake state. SSL_set_accept_state() is
+                 * the closest supported API: it drives the state machine down
+                 * the 'accept' path.
+                 * NOT VERIFIED AT RUNTIME: this path is only exercised by a real
+                 * TLS renegotiation, which has not been tested here. */
                 SSL_set_accept_state(sslInfo->ssl);
                 pState->phase = kPslChanFsmCryptoRenegPhase_handshake;
             }

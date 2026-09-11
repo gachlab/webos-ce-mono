@@ -220,14 +220,14 @@ WebAppManager::WebAppManager()
 #if defined(TARGET_DEVICE)
     static const char *argv[] = { "./WebAppManager", "-platform", "webos", NULL };
 #else
-    // Era "minimal". En Qt5 ese plugin no trae base de fuentes: 0 familias, y
-    // QFontInfo(qGuiApp->font()).family() sale vacia. RenderThemeQt se la pasa
-    // tal cual a QtWebKit al resolver el "font: <system>" de su propia hoja de
-    // estilo de agente de usuario, y hashear esa familia vacia es un SIGSEGV.
-    // "offscreen" cumple el mismo proposito -- WebAppMgr no abre ventanas,
-    // dibuja en memoria compartida y LunaSysMgr compone -- pero si tiene
-    // fuentes. En el Qt 4.8 de HP no existia QPA y -platform se ignoraba, asi
-    // que esto nunca fue un problema para ellos.
+    // This was "minimal". On Qt5 that plugin ships no font database: 0
+    // families, and QFontInfo(qGuiApp->font()).family() comes back empty.
+    // RenderThemeQt hands that empty family straight to QtWebKit while
+    // resolving "font: <system>" in its own user-agent stylesheet, and hashing
+    // it segfaults. "offscreen" serves the same purpose -- WebAppMgr opens no
+    // windows, it draws into shared memory and LunaSysMgr composites -- but it
+    // does have fonts. HP's Qt 4.8 had no QPA and ignored -platform, so this
+    // was never a problem for them.
     static const char *argv[] = { "./WebAppManager", "-platform", "offscreen", NULL };
 #endif
 
@@ -250,8 +250,8 @@ WebAppManager::WebAppManager()
 WebAppManager::~WebAppManager()
 {
 	delete m_wkEventListener;
-	// Era "= false": en C++03 false convertia a puntero nulo, C++11 quito esa
-	// conversion. El resto del fichero usa 0 para lo mismo.
+	// This was "= false": in C++03 false converted to a null pointer, C++11
+	// removed that conversion. The rest of the file uses 0 for the same thing.
 	sInstance = 0;
     delete m_Application;
 }

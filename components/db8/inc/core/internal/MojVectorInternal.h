@@ -305,8 +305,8 @@ MojErr MojVector<T, EQ, COMP>::sort()
 	if (size() > 1) {
 		MojErr err = ensureWritable();
 		MojErrCheck(err);
-		// El comparador va explicito: el argumento por defecto se retiro de la
-		// declaracion porque C++ no deja repetirlo entre redeclaraciones.
+		// The comparator is explicit: the default argument was removed from the
+		// declaration because C++ forbids repeating it across redeclarations.
 		MojQuickSort<T, COMP>(m_begin, size(), COMP());
 	}
 	return MojErrNone;

@@ -165,8 +165,8 @@ void MojQuickSortImpl(T* array, MojSize left, MojSize right, const COMP& comp)
 }
 
 template<class T, class COMP>
-// El argumento por defecto ya esta en la declaracion de MojUtil.h; C++ prohibe
-// repetirlo en la redeclaracion. Se quita aqui y se conserva alla.
+// The default argument already lives in MojUtil.h's declaration; C++ forbids
+// repeating it in a redeclaration. Dropped here, kept there.
 inline void MojQuickSort(T* array, MojSize numElems, const COMP& comp)
 {
 	return MojQuickSortImpl<T, COMP>(array, 0, numElems, comp);

@@ -51,10 +51,10 @@ static bool isPrivilegedAppId(const char *appId)
 static bool fexists(string filename)
 {
   ifstream ifile(filename.c_str());
-  // C++98 daba a los streams un 'operator void*' implicito, asi que 'return ifile'
-  // se convertia solo a bool. C++11 lo reemplazo por un 'explicit operator bool',
-  // que ya no convierte implicitamente. El static_cast lo invoca y conserva
-  // exactamente la semantica anterior (equivale a !ifile.fail()).
+  // C++98 gave streams an implicit 'operator void*', so 'return ifile'
+  // converted to bool on its own. C++11 replaced it with an 'explicit operator
+  // bool', which no longer converts implicitly. The static_cast invokes it and
+  // preserves the previous semantics exactly (equivalent to !ifile.fail()).
   return static_cast<bool>(ifile);
 }
 
