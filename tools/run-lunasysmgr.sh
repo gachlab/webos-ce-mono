@@ -119,12 +119,26 @@ enter_namespace() {
           node_bind+=(--bind "$ROOTFS/usr/lib/libmemcpy.so" /usr/lib/libmemcpy.so)
       fi
       rebind+=(--tmpfs /var)
+      # WEBOS_QT=6 runs the Qt 6 build of the shell: its LunaSysMgr and its
+      # keyboard plugins, bound over the Qt 5 ones at the same paths, so the bus
+      # roles (which name the binary's path) and IMEManager (which loads from
+      # /usr/lib/luna) see no difference. Everything else is shared, WebAppMgr
+      # included: it talks to LunaSysMgr over IPC, which does not care which Qt
+      # either side was built with.
+      qt6_binds=()
+      if [ "${WEBOS_QT:-5}" = 6 ]; then
+          qt6_binds+=(--bind "$R/build-qt6/staging/bin/LunaSysMgr" "$ROOTFS/usr/lib/luna/LunaSysMgr")
+          for k in "$R"/build-qt6/rootfs/usr/lib/luna/libkeyboard-efigs-*.so; do
+              [ -e "$k" ] && qt6_binds+=(--bind "$k" "/usr/lib/luna/$(basename "$k")")
+          done
+      fi
       for d in /var/*;     do [ -e "$d" ] && rebind+=(--bind "$d" "$d"); done
       exec bwrap --dev-bind / / \
           --bind "$ROOTFS/etc/palm" /etc/palm \
           --tmpfs /usr "${rebind[@]}" \
           --bind "$ROOTFS/usr/palm" /usr/palm \
           --bind "$ROOTFS/usr/lib/luna" /usr/lib/luna \
+          "${qt6_binds[@]}" \
           "${node_bind[@]}" \
           --bind "$ROOTFS/var/luna" /var/luna \
           --bind "$ROOTFS/var/palm" /var/palm \
@@ -237,7 +251,15 @@ case "${1:-run}" in
     # already. HP did the same in run-luna-sysmgr.sh -- LunaSysMgr, wait, then
     # WebAppMgr. The ls2 .service files are only for on-demand starts on the
     # device.
-    "$ROOTFS/usr/lib/luna/LunaSysMgr" "${@:2}" &
+    # The Qt 6 LunaSysMgr needs its own LunaSysMgrCommon, which has the same
+    # soname as the Qt 5 one, and LD_LIBRARY_PATH wins over the binary's RUNPATH.
+    # So its staging goes first -- for LunaSysMgr only: WebAppMgr, started below
+    # from this same environment, is still Qt 5.
+    lsm_libs="$LD_LIBRARY_PATH"
+    if [ "${WEBOS_QT:-5}" = 6 ]; then
+        lsm_libs="$R/build-qt6/staging/lib:$R/build-qt6/staging/usr/lib:$LD_LIBRARY_PATH"
+    fi
+    LD_LIBRARY_PATH="$lsm_libs" "$ROOTFS/usr/lib/luna/LunaSysMgr" "${@:2}" &
     lsm=$!
     # Wait for LunaSysMgr to open its IPC socket rather than sleeping blindly:
     # with the services up it takes longer to start, and a WebAppMgr that arrives
