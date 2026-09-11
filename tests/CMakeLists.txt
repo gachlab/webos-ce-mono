@@ -98,6 +98,21 @@ target_link_libraries(qml-scene-item-qt5 PRIVATE
     Qt::Core Qt::Gui Qt::Widgets Qt::Qml Qt::Quick ${GLIB_LIBRARIES} ${WEBOS_QT6_TEST_MODULES} ${WEBOS_QT6_QTEST})
 add_test(NAME qml-scene-item COMMAND qml-scene-item-qt5 -platform offscreen)
 
+# --- what WebAppMgr needs from a web engine, on QtWebEngine (Qt 6 only) ------
+if (WEBOS_QT_MAJOR GREATER_EQUAL 6)
+    find_package(Qt6 COMPONENTS WebEngineWidgets)
+    if (Qt6WebEngineWidgets_FOUND)
+        add_executable(webengine-capabilities-qt6 webengine-capabilities-qt6.cpp)
+        target_link_libraries(webengine-capabilities-qt6 PRIVATE
+            Qt::Core Qt::Gui Qt::Widgets Qt::WebEngineWidgets Qt::Test)
+        add_test(NAME webengine-capabilities COMMAND webengine-capabilities-qt6)
+        # Runs without a display: QtWebEngine renders and takes input on the
+        # offscreen platform too.
+        set_tests_properties(webengine-capabilities PROPERTIES
+            ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+    endif ()
+endif ()
+
 # --- the run script's process detection ---------------------------------------
 add_test(NAME long-process-name
          COMMAND "${CMAKE_CURRENT_SOURCE_DIR}/long-process-name.sh")
