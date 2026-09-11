@@ -123,14 +123,33 @@ add_test(NAME check-dead-branches
                  "${CMAKE_CURRENT_SOURCE_DIR}/../components")
 
 # --- pbnjson ------------------------------------------------------------------
+# pbnjson installs into usr/ under staging. These looked only in lib/, found
+# nothing, and pbnjson-smoke was skipped on every run without anyone noticing.
 find_library(PBNJSON_C NAMES pbnjson_c
-             PATHS "${WEBOS_STAGING}/lib" NO_DEFAULT_PATH)
-if (PBNJSON_C)
+             PATHS "${WEBOS_STAGING}/lib" "${WEBOS_STAGING}/usr/lib" NO_DEFAULT_PATH)
+find_library(PBNJSON_CPP NAMES pbnjson_cpp
+             PATHS "${WEBOS_STAGING}/lib" "${WEBOS_STAGING}/usr/lib" NO_DEFAULT_PATH)
+find_path(PBNJSON_INCLUDE pbnjson.h
+          PATHS "${WEBOS_STAGING}/include" "${WEBOS_STAGING}/usr/include" NO_DEFAULT_PATH)
+if (PBNJSON_C AND PBNJSON_INCLUDE)
     add_executable(pbnjson-smoke pbnjson-smoke.c)
-    target_include_directories(pbnjson-smoke PRIVATE
-        "${WEBOS_STAGING}/include")
+    target_include_directories(pbnjson-smoke PRIVATE "${PBNJSON_INCLUDE}")
     target_link_libraries(pbnjson-smoke PRIVATE ${PBNJSON_C})
     add_test(NAME pbnjson-smoke COMMAND pbnjson-smoke)
+
+    # JValue from a std::string: an assertion that assumed copy-on-write strings
+    # aborted LunaSysMgr as soon as the virtual keyboard was enabled.
+    if (PBNJSON_CPP)
+        add_executable(pbnjson-cxx-string pbnjson-cxx-string.cpp)
+        target_include_directories(pbnjson-cxx-string PRIVATE "${PBNJSON_INCLUDE}")
+        target_link_libraries(pbnjson-cxx-string PRIVATE ${PBNJSON_CPP} ${PBNJSON_C})
+        add_test(NAME pbnjson-cxx-string COMMAND pbnjson-cxx-string)
+        # libpbnjson_cpp needs libpbnjson_c, and the executable's RUNPATH does
+        # not apply to a library's own dependencies.
+        get_filename_component(PBNJSON_LIBDIR "${PBNJSON_CPP}" DIRECTORY)
+        set_tests_properties(pbnjson-cxx-string PROPERTIES
+            ENVIRONMENT "LD_LIBRARY_PATH=${PBNJSON_LIBDIR}")
+    endif ()
 else ()
-    message(STATUS "pbnjson not staged yet; skipping pbnjson-smoke")
+    message(WARNING "pbnjson not found under ${WEBOS_STAGING}; its tests are not built")
 endif ()

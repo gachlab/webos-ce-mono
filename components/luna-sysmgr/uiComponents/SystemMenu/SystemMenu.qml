@@ -34,7 +34,9 @@ Item {
             height = maxHeight;
         }
         // WORK-AROUND: changing the height directly was not causing atYEnd to update.. this pokes it
-        flickableArea.resizeContent(flickableArea.contentWidth, flickableArea.contentHeight, 0.0);
+        // The third argument is the point to keep in place. Qt 5 took 0.0 for it;
+        // Qt 6 refuses a number there ("Could not convert argument 2 to QPointF").
+        flickableArea.resizeContent(flickableArea.contentWidth, flickableArea.contentHeight, Qt.point(0, 0));
     }
 
     function setMaximumHeight(height) {

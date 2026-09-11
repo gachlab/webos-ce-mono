@@ -58,9 +58,10 @@ JValue::JValue(jvalue_ref toOwn)
 JValue::JValue(jvalue_ref parsed, std::string input)
 	: m_jval(parsed), m_input(input)
 {
-	// if this assertion doesn't hole the optimization parameters in parse are
-	// invalid.
-	assert(input.c_str() == m_input.c_str());
+	// HP asserted here that copying the string shared its buffer. That held
+	// for the copy-on-write std::string of 2012's libstdc++ and never holds
+	// for the C++11 one, so the assertion aborted on every call. Nothing
+	// relied on it: the parser copies its input (DOMOPT_NOOPT).
 	PJ_DBG_CXX_STR(std::cerr << "Have handle to string at " << (void*)m_input.c_str() << std::endl);
 }
 
@@ -87,7 +88,11 @@ JValue::JValue(const std::string &value)
 	: m_input(value)
 {
 	PJ_DBG_CXX_STR(std::cerr << "Have handle to string at " << (void*)m_input.c_str() << std::endl);
-	assert(m_input.c_str() == value.c_str());
+	// No assertion that m_input shares value's buffer: that was a property of
+	// copy-on-write strings, and it aborted LunaSysMgr as soon as the virtual
+	// keyboard built a JValue from a std::string. With
+	// PBNJSON_ZERO_COPY_STL_STR off (JValue.h) the jvalue copies the bytes below
+	// and never points into either string.
 #if PBNJSON_ZERO_COPY_STL_STR
 	m_jval = jstring_create_nocopy(strToRawBuffer(m_input));
 	assert(jstring_get_fast(m_jval).m_str == m_input.c_str());
