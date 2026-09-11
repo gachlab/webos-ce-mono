@@ -1,5 +1,2 @@
 nombre	origen	ref	tipo
-qt4	https://github.com/openwebos/qt	refs/tags/submissions/4	git
-webkit	https://github.com/isis-project/WebKit	refs/tags/0.54	git
-cmake	https://cmake.org/files/v2.8/cmake-2.8.7.tar.gz	2.8.7	tarball
-leveldb	https://github.com/google/leveldb/archive/refs/tags/v1.9.tar.gz	v1.9	tarball
+qtwebkit	https://github.com/qtwebkit/qtwebkit.git	756e1c8f23dc2720471298281c421c0076d02df8	git

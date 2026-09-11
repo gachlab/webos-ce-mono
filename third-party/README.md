@@ -1,21 +1,32 @@
 # third-party — pineado, no vendoreado
 
-Estos cuatro **no** viven en el repo. Son cientos de MB que nadie va a editar:
-meterlos convertiría el clon en algo que nadie quiere hacer.
+Aquí vive una sola dependencia, y no está en el repo: son cientos de MB que
+nadie va a editar, y meterlos convertiría el clon en algo que nadie quiere
+hacer. Se consume en una ref fija.
 
-Se consumen como artefactos en una ref fija, y se cachean localmente
-(`~/.cache/webos-ce/`) para que un rebuild no vuelva a bajarlos.
+| Qué | Origen | Ref |
+|---|---|---|
+| QtWebKit 5.212 | `qtwebkit/qtwebkit` | `756e1c8f` (27-may-2024) |
 
-| Qué | Origen | Ref | Nota |
-|---|---|---|---|
-| Qt 4.8 (fork de HP) | `openwebos/qt` | `submissions/4` | Qt de HP, con `qmake-palm` y `moc-palm` |
-| WebKit (fork de Isis) | `isis-project/WebKit` | `0.54` | ~800 MB comprimido. Trae los LayoutTests |
-| cmake | `cmake.org` | `2.8.7` | **Solo el tarball de fuente**: el binario precompilado ya no existe (404) |
-| leveldb | `google/leveldb` | `v1.9` | Google Code cerró en 2016. El tarball de GitHub se extrae como `leveldb-1.9`, no `leveldb-1.9.0` |
+La construye `tools/construir-third-party.sh`, que clona en ese sha exacto,
+aplica `patches/qtwebkit-5.212-debian-sid.patch` y compila. `construir.sh`
+la llama como primera etapa y la salta si ya está instalada.
 
-## Por qué WebKit no se puede simplemente sustituir
+## Por qué QtWebKit y no otro motor
 
-El `desktop.pri` de HP espera un WebKit **con V8 y con el bridge de servicios de Palm**
-(`ENABLE_PALM_SERVICE_BRIDGE`). No es un WebKit de la época cualquiera: es el de Isis
-con los parches de HP. Cambiarlo por uno vivo es parte de modernizar el toolchain,
-que es otro proyecto.
+`webappmanager` y `BrowserServer` hablan por **NPAPI**, que es la frontera que
+Palm dibujó entre el shell y el motor web. QtWebEngine es Chromium y no expone
+NPAPI, así que no es un reemplazo: sustituirlo obligaría a rehacer esa costura.
+
+Lo que sí hay es futuro: **movableink/webkit** mantiene el puerto Qt sobre
+WebKit moderno (último merge con upstream en 2025), con la misma API pública
+—`QWebPage`, `QWebFrame`, `QWebSettings`— que usa `webappmanager`. Es Qt6 y
+tampoco trae NPAPI, pero demuestra que este camino no está muerto.
+
+## Lo que ya no se pinea
+
+El drop original de HP pineaba además **Qt 4.8** (su propio fork, con
+`qmake-palm`), la **WebKit de Isis** con V8, **cmake 2.8.7** y **leveldb 1.9**.
+Nada de eso hace falta ahora: Qt5 y CMake salen de Debian, y db8 compila sin
+leveldb. Se deja escrito aquí porque es la diferencia de fondo entre aquel
+build y éste.

@@ -6,7 +6,7 @@
 #
 # Uso:
 #   tools/construir.sh              # todo
-#   tools/construir.sh cmake        # una etapa: autotools | cmake | qmake | rootfs
+#   tools/construir.sh cmake        # una etapa: third-party | autotools | cmake | qmake | rootfs
 set -u
 R="$(cd "$(dirname "$0")/.." && pwd)"
 ETAPA="${1:-todo}"
@@ -18,7 +18,7 @@ declare -A OMITIR=(
     [cmake]="es la herramienta; usamos la del sistema"
     [cmake-modules-webos]="son modulos CMake, se consumen por CMAKE_MODULE_PATH"
     [qt4]="reemplazado por el Qt5 del sistema"
-    [webkit]="reemplazado por QtWebKit 5.212 en third-party/"
+    [webkit]="reemplazado por QtWebKit 5.212; lo construye construir-third-party.sh"
     [nodejs]="usamos el node de Debian; el de HP pide Python 2 y SCons"
     [nodejs-module-webos-sysbus]="addon en API v8 vieja, falta portarlo a N-API"
     [nodejs-module-webos-pmlog]="idem"
@@ -41,6 +41,17 @@ seleccion() {
         [ -n "${OMITIR[$c]:-}" ] && continue
         echo "$c"
     done
+}
+
+etapa_third_party() {
+    echo "== third-party =="
+    # QtWebKit 5.212. Es lo unico que no vive en el repo y tarda lo suyo, asi
+    # que se salta si ya esta instalado.
+    if [ -e "$R/build-modern/staging/qtwebkit/mkspecs/modules/qt_lib_webkit.pri" ]; then
+        echo "QtWebKit                ya instalado"
+    else
+        "$R/tools/construir-third-party.sh"
+    fi
 }
 
 etapa_autotools() {
@@ -78,12 +89,13 @@ etapa_rootfs() {
 }
 
 case "$ETAPA" in
+    third-party) etapa_third_party ;;
     autotools) etapa_autotools ;;
     cmake)  etapa_cmake ;;
     qmake)  etapa_qmake ;;
     rootfs) etapa_rootfs ;;
-    todo)   etapa_autotools && etapa_cmake && etapa_qmake && etapa_rootfs
+    todo)   etapa_third_party && etapa_autotools && etapa_cmake && etapa_qmake && etapa_rootfs
             echo
             echo "Listo. Para arrancar el shell:  tools/correr-lunasysmgr.sh" ;;
-    *)      echo "etapa desconocida: $ETAPA (autotools | cmake | qmake | rootfs | todo)"; exit 2 ;;
+    *)      echo "etapa desconocida: $ETAPA (third-party | autotools | cmake | qmake | rootfs | todo)"; exit 2 ;;
 esac
