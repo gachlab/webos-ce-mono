@@ -689,12 +689,19 @@ int main( int argc, char** argv)
     qInstallMessageHandler(qtMsgHandler);
 #endif
 
+#if defined TARGET_DESKTOP && (QT_VERSION >= QT_VERSION_CHECK(5, 0, 0))
+    // Movido de DESPUES de construir la QApplication a ANTES. Los atributos que
+    // cambian como se despachan los eventos tienen que estar puestos cuando el
+    // plugin QPA arranca. Con el orden original solo se sintetizaba TouchEnd y
+    // nunca TouchBegin, asi que el FSM tactil de webOS no llegaba a registrar
+    // ningun toque ("Rejected; touch FSM reports no touchId is currently
+    // tracked") y los clicks no hacian nada.
+    QCoreApplication::setAttribute(Qt::AA_SynthesizeTouchForUnhandledMouseEvents, true);
+#endif
+
 	QApplication app(argc, argv);
 	QApplication::setStartDragDistance(settings->tapRadius);
 	QApplication::setDoubleClickInterval (Settings::LunaSettings()->tapDoubleClickDuration);
-#if defined TARGET_DESKTOP && (QT_VERSION >= QT_VERSION_CHECK(5, 0, 0))
-    QCoreApplication::setAttribute(Qt::AA_SynthesizeTouchForUnhandledMouseEvents, true);
-#endif
 
 	host->show();
 
