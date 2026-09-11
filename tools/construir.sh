@@ -6,10 +6,11 @@
 #
 # Uso:
 #   tools/construir.sh              # todo
-#   tools/construir.sh cmake        # una etapa: third-party | autotools | cmake | qmake | rootfs
+#   tools/construir.sh cmake        # una etapa: third-party | cabeceras | autotools | cmake | qmake | rootfs
 set -u
 R="$(cd "$(dirname "$0")/.." && pwd)"
 ETAPA="${1:-todo}"
+S="$R/build-modern/staging"
 
 # Componentes que el MANIFEST marca como cmake/qmake pero que NO construimos, y
 # por que. Se listan aqui en vez de borrarlos del MANIFEST para que el manifiesto
@@ -39,6 +40,13 @@ lista() {  # lista <sistema-de-build> -> nombres en orden del MANIFEST
 seleccion() {
     for c in $(lista "$1"); do
         [ -n "${OMITIR[$c]:-}" ] && continue
+        # mojomail no es un componente: son cuatro proyectos CMake bajo el mismo
+        # directorio, sin CMakeLists arriba. HP los construye uno a uno, y
+        # 'common' tiene que ir primero porque los otros tres enlazan contra el.
+        if [ "$c" = mojomail ]; then
+            echo mojomail/common mojomail/imap mojomail/pop mojomail/smtp
+            continue
+        fi
         echo "$c"
     done
 }
@@ -52,6 +60,26 @@ etapa_third_party() {
     else
         "$R/tools/construir-third-party.sh"
     fi
+}
+
+etapa_cabeceras() {
+    echo "== cabeceras =="
+    # Tres componentes son solo cabeceras: no se compilan, se copian a staging.
+    # HP lo hace linea a linea en su script y aqui faltaba por completo, asi que
+    # luna-sysmgr, keyboard-efigs y webappmanager no encontraban Common.h ni
+    # palmimedefines.h. Solo sale al construir desde cero: una vez copiadas,
+    # sobreviven a los rebuilds.
+    mkdir -p "$S/include/luna-sysmgr-common" "$S/include/ime" "$S/include/webkit/npapi"
+
+    cp -f "$R"/components/luna-sysmgr-common/include/* "$S/include/luna-sysmgr-common/" 2>/dev/null
+    printf "  %-22s %s\n" "luna-sysmgr-common" "$(ls "$S/include/luna-sysmgr-common" | wc -l) cabeceras"
+
+    cp -f "$R"/components/luna-webkit-api/include/public/ime/*.h "$S/include/ime/" 2>/dev/null
+    cp -f "$R"/components/luna-webkit-api/*.h                    "$S/include/ime/" 2>/dev/null
+    printf "  %-22s %s\n" "luna-webkit-api" "$(ls "$S/include/ime" | wc -l) cabeceras"
+
+    cp -f "$R"/components/npapi-headers/*.h "$S/include/webkit/npapi/" 2>/dev/null
+    printf "  %-22s %s\n" "npapi-headers" "$(ls "$S/include/webkit/npapi" | wc -l) cabeceras"
 }
 
 etapa_autotools() {
@@ -90,6 +118,7 @@ etapa_rootfs() {
 
 case "$ETAPA" in
     third-party) etapa_third_party ;;
+    cabeceras) etapa_cabeceras ;;
     autotools) etapa_autotools ;;
     cmake)  etapa_cmake ;;
     qmake)  etapa_qmake ;;
@@ -97,7 +126,8 @@ case "$ETAPA" in
     todo)   # OJO con el orden: los echo van DENTRO del if, no sueltos detras de
             # la cadena. Estaban fuera y el script anunciaba "Listo" aunque una
             # etapa hubiera fallado.
-            if etapa_third_party && etapa_autotools && etapa_cmake && etapa_qmake && etapa_rootfs; then
+            if etapa_third_party && etapa_cabeceras && etapa_autotools \
+               && etapa_cmake && etapa_qmake && etapa_rootfs; then
                 echo
                 echo "Listo. Para arrancar el shell:  tools/correr-lunasysmgr.sh"
             else
@@ -105,5 +135,5 @@ case "$ETAPA" in
                 echo "FALLO: alguna etapa no termino bien. Mira los logs en build-modern/." >&2
                 exit 1
             fi ;;
-    *)      echo "etapa desconocida: $ETAPA (third-party | autotools | cmake | qmake | rootfs | todo)"; exit 2 ;;
+    *)      echo "etapa desconocida: $ETAPA (third-party | cabeceras | autotools | cmake | qmake | rootfs | todo)"; exit 2 ;;
 esac
