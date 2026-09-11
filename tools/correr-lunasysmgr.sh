@@ -10,7 +10,10 @@ set -u
 R="$(cd "$(dirname "$0")/.." && pwd)"
 S="$R/build-modern/staging"
 ROOTFS="$R/build-modern/rootfs"
-export LD_LIBRARY_PATH="$S/lib:$S/usr/lib"
+# El de qtwebkit va tambien porque WebAppMgr enlaza contra nuestro QtWebKit
+# 5.212, que no esta en el sistema. ls-hubd hereda este entorno y se lo pasa a
+# WebAppMgr cuando lo arranca.
+export LD_LIBRARY_PATH="$S/lib:$S/usr/lib:$S/qtwebkit/lib/x86_64-linux-gnu"
 export DISPLAY="${DISPLAY:-:0}"
 export QT_QPA_PLATFORM=xcb   # LunaSysMgr pide el plugin "palm", que era del Qt propio de HP
 

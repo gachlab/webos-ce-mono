@@ -242,7 +242,9 @@ WebAppManager::WebAppManager()
 WebAppManager::~WebAppManager()
 {
 	delete m_wkEventListener;
-	sInstance = false;
+	// Era "= false": en C++03 false convertia a puntero nulo, C++11 quito esa
+	// conversion. El resto del fichero usa 0 para lo mismo.
+	sInstance = 0;
     delete m_Application;
 }
 

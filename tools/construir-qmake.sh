@@ -28,6 +28,12 @@ export LD_LIBRARY_PATH=$S/lib:$S/usr/lib
 
 QMAKE=${QMAKE:-/usr/lib/qt5/bin/qmake}
 
+# QtWebKit 5.212 no viene en Debian; lo construimos aparte (ver patches/). Sus
+# .pri de modulo viven en su propio mkspecs, y qmake solo los encuentra por
+# QMAKEPATH. Sin esto, "QT += webkit webkitwidgets" falla con "Unknown module".
+QTWEBKIT=${QTWEBKIT:-$S/qtwebkit}
+[ -d "$QTWEBKIT/mkspecs/modules" ] && export QMAKEPATH="$QTWEBKIT"
+
 # El orden es el del MANIFEST, que a su vez es el del script de HP.
 ORDEN="luna-sysmgr-common luna-sysmgr keyboard-efigs webappmanager"
 declare -A PRO=(

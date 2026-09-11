@@ -1,0 +1,1 @@
+/usr/lib/qt5/bin/qmake -install qinstall -exe debug-x86/WebAppMgr /home/gcarrillo/repos/personal/webos-ce-mono/build-modern/staging/bin/WebAppMgr

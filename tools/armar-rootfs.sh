@@ -34,6 +34,27 @@ cp -rf "$LS"/sounds/* "$ROOTFS/usr/palm/sounds/" 2>/dev/null
 mkdir -p "$ROOTFS/usr/lib/luna"
 cp -f "$LS"/debug-x86/LunaSysMgr "$ROOTFS/usr/lib/luna/LunaSysMgr"
 
+# --- WebAppMgr: el proceso que corre las apps web ---
+# No se lanza a mano. Es un servicio de LS2: LunaSysMgr le habla por el bus
+# (WebAppMgrProxy) y ls-hubd lo arranca solo, leyendo el Exec= de estos .service.
+WAM="$R/components/webappmanager"
+if [ -x "$WAM/debug-x86/WebAppMgr" ]; then
+    cp -f "$WAM"/debug-x86/WebAppMgr "$ROOTFS/usr/lib/luna/WebAppMgr"
+    cp -f "$WAM"/desktop-support/com.palm.webappmgr.json.prv    "$ROOTFS/usr/share/ls2/roles/prv/com.palm.webappmgr.json"
+    cp -f "$WAM"/desktop-support/com.palm.webappmgr.json.pub    "$ROOTFS/usr/share/ls2/roles/pub/com.palm.webappmgr.json"
+    cp -f "$WAM"/desktop-support/com.palm.webappmgr.service.prv "$ROOTFS/usr/share/ls2/system-services/com.palm.webappmgr.service"
+    cp -f "$WAM"/desktop-support/com.palm.webappmgr.service.pub "$ROOTFS/usr/share/ls2/services/com.palm.webappmgr.service"
+fi
+
+# Los .service traen "Exec=/usr/lib/luna/..." absoluto, que en el dispositivo era
+# correcto. Aqui ls-hubd corre FUERA del bwrap (solo LunaSysMgr entra), asi que
+# resolveria esa ruta contra el sistema de verdad, donde no hay nada. Se
+# reapunta al rootfs. HP resolvia lo mismo con symlinks desde /usr/lib/luna,
+# pero eso exige root y toca el sistema.
+sed -i "s|^Exec=/usr/lib/luna/|Exec=$ROOTFS/usr/lib/luna/|" \
+    "$ROOTFS"/usr/share/ls2/services/*.service \
+    "$ROOTFS"/usr/share/ls2/system-services/*.service 2>/dev/null
+
 # --- la UI: estas dos son las que realmente dibujan ---
 mkdir -p "$ROOTFS/usr/lib/luna/system/luna-systemui"
 cp -rf "$C"/luna-systemui/* "$ROOTFS/usr/lib/luna/system/luna-systemui/" 2>/dev/null
