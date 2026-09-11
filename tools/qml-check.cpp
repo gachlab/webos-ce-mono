@@ -16,6 +16,6 @@ int main(int argc, char** argv)
             printf("%s\n", qPrintable(e.toString()));
         return 1;
     }
-    printf("OK: %s carga\n", argv[1]);
+    printf("OK: %s loads\n", argv[1]);
     return 0;
 }
