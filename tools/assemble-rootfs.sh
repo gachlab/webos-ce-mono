@@ -121,13 +121,26 @@ for SVC in "$C"/app-services/*/; do
     cp -rf "$SVC"/db/permissions/* "$ROOTFS/etc/palm/db/permissions/" 2>/dev/null
 done
 
+# Tests are excluded. They are not just dead weight: the frameworks ship mock
+# versions of their own modules under jasminetest/, and the service test helpers
+# call MojoLoader methods that do not exist outside a test harness.
+copy_without_tests() {   # copy_without_tests <source dir> <destination dir>
+    mkdir -p "$2"
+    (cd "$1" && find . \( -type d -name test -o -type d -name tests \
+                        -o -type d -name spec -o -type d -name jasminetest \) -prune -o \
+                     -type f -print) \
+        | while read -r f; do
+            mkdir -p "$2/$(dirname "$f")"
+            cp -f "$1/$f" "$2/$f"
+        done
+}
+
 # Frameworks: cada uno bajo <nombre>/version/1.0/
 for GRUPO in foundation-frameworks mojoservice-frameworks loadable-frameworks; do
     for FW in "$C"/$GRUPO/*/; do
         n=$(basename "$FW"); [ "$n" = "." ] && continue
         case "$n" in .git|*.md|files) continue;; esac
-        mkdir -p "$ROOTFS/usr/palm/frameworks/$n/version/1.0"
-        cp -rf "$FW"/* "$ROOTFS/usr/palm/frameworks/$n/version/1.0/" 2>/dev/null
+        copy_without_tests "${FW%/}" "$ROOTFS/usr/palm/frameworks/$n/version/1.0"
     done
 done
 mkdir -p "$ROOTFS/usr/palm/frameworks/underscore/version/1.0"
@@ -310,13 +323,7 @@ if [ -d "$MSL" ]; then
           "$ROOTFS/usr/palm/services/jsservicelauncher/" 2>/dev/null || true
     [ -d "$MSL/jslauncher" ] && cp -rf "$MSL/jslauncher" "$ROOTFS/usr/palm/services/jsservicelauncher/"
 fi
-
-# Frameworks are looked up by name on NODE_PATH, so each one keeps its own
-# directory with its manifest and javascript/ beside it.
-for fw in "$R"/components/foundation-frameworks/*/ "$R"/components/mojoservice-frameworks/*/; do
-    [ -f "$fw/manifest.json" ] || continue
-    cp -rf "$fw" "$ROOTFS/usr/palm/frameworks/"
-done
+cp -f "$R/components/mojoloader/mojoloader.js" "$ROOTFS/usr/palm/frameworks/" 2>/dev/null || true
 
 # The services. Only the ones that are pure JavaScript are useful yet.
 for svc in "$R"/components/mojolocation-stub "$R"/components/pmnetconfigmanager-stub \
@@ -324,8 +331,7 @@ for svc in "$R"/components/mojolocation-stub "$R"/components/pmnetconfigmanager-
     [ -f "$svc/services.json" ] || continue
     id="$(python3 -c "import json,sys; print(json.load(open(sys.argv[1]))['id'])" "$svc/services.json" 2>/dev/null || true)"
     [ -n "$id" ] || continue
-    mkdir -p "$ROOTFS/usr/palm/services/$id"
-    cp -rf "$svc"/. "$ROOTFS/usr/palm/services/$id/" 2>/dev/null || true
+    copy_without_tests "$svc" "$ROOTFS/usr/palm/services/$id"
 done
 echo "  js services:         $(ls "$ROOTFS/usr/palm/services" 2>/dev/null | wc -l) dirs, frameworks: $(ls "$ROOTFS/usr/palm/frameworks" 2>/dev/null | wc -l)"
 

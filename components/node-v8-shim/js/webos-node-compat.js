@@ -27,3 +27,75 @@ if (typeof process.setArgs !== 'function') {
     // There is no way to do that from JavaScript now, and nothing reads it back.
     process.setArgs = function () {};
 }
+
+// `sys` was renamed to `util` in node 0.8 and removed later. mojoloader.js and
+// fork_server.js still require it -- two files in the whole runtime path, which
+// is why this is an alias rather than an edit to either.
+const Module = require('module');
+const originalLoad = Module._load;
+Module._load = function (request, parent, isMain) {
+    if (request === 'sys') {
+        return originalLoad.call(this, 'util', parent, isMain);
+    }
+    return originalLoad.call(this, request, parent, isMain);
+};
+
+// new Buffer() throws in a modern node. Two call sites in the frameworks.
+if (typeof Buffer !== 'undefined' && !Buffer.__webosCompatPatched) {
+    const RealBuffer = Buffer;
+    const Patched = function (arg, encodingOrOffset, length) {
+        if (!(this instanceof Patched)) {
+            return Patched(arg, encodingOrOffset, length);
+        }
+        if (typeof arg === 'number') {
+            return RealBuffer.alloc(arg);
+        }
+        return RealBuffer.from(arg, encodingOrOffset, length);
+    };
+    Patched.prototype = RealBuffer.prototype;
+    Object.setPrototypeOf(Patched, RealBuffer);
+    Patched.__webosCompatPatched = true;
+    global.Buffer = Patched;
+}
+
+// Globals HP's node build provided and a stock one does not.
+//
+// mojoloader copies these from the loading environment into each library it
+// loads (see _propogateGlobals), so defining them here is enough for the
+// frameworks and services to find them.
+const fs = require('fs');
+
+if (typeof global.palmGetResource !== 'function') {
+    // Reads a file and returns its contents. mojoloader uses it to load
+    // JavaScript, and mojoservice's AppController to read services.json.
+    global.palmGetResource = function (path) {
+        try {
+            return fs.readFileSync(path, 'utf8');
+        } catch (e) {
+            return undefined;
+        }
+    };
+}
+
+if (typeof global.palmPutResource !== 'function') {
+    global.palmPutResource = function (path, contents) {
+        try {
+            fs.writeFileSync(path, contents);
+            return true;
+        } catch (e) {
+            return false;
+        }
+    };
+}
+
+if (typeof global.quit !== 'function') {
+    global.quit = function (code) {
+        process.exit(typeof code === 'number' ? code : 0);
+    };
+}
+
+if (typeof global.getenv !== 'function') {
+    global.getenv = function (name) {
+        return process.env[name];
+    };
+}

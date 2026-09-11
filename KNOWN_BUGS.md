@@ -47,46 +47,47 @@ through `rootItem()`.
 `ReferenceError: inProgress is not defined`, and the 34 files in
 `components/luna-sysmgr-ce/` still carry the QML 1 import.
 
-### Calendar and email open empty
+### ~~Calendar and email open empty~~ (the JavaScript services run now)
 
-They depend on JS services that run on node. Where that stands:
+A webOS JavaScript service boots on node 26 and answers on the bus:
 
-**The addons work.** `pmloglib`, `palmbus` and `webos` (dynaload) build from HP's
-sources with nothing changed in them and load in node 26, through
-`components/node-v8-shim`. A real call goes out and comes back:
+    $ luna-send -n 1 palm://com.palm.location/getCurrentPosition '{}'
+    {"latitude":37.390196,"longitude":-122.037845,"returnValue":true, ...}
 
-    LISTENER DISPARADO
-    payload: { "utc": 1789143937, "timezone": "America/Los_Angeles", ... }
+That is HP's `GetCurrentPositionCommandAssistant.js`, loaded by mojoloader over
+the foundations and mojoservice frameworks, through `run-js-service` and
+`bootstrap-node.js` -- all of it HP's, none of it changed -- on top of
+`components/node-v8-shim`. Checked by `tests/node-shim/service.sh`, which needs
+the bus and the static services up, so it is run by hand rather than by ctest.
 
-**The launcher starts.** `run-js-service` accepts the service path, node runs
-`bootstrap-node.js`, and `mojoloader` is found and begins loading frameworks.
-That needed `/usr/palm/nodejs/node` as a bind mount (ls-hubd identifies callers
-through `/proc/<pid>/exe`, so a symlink resolves to the wrong path), a
-permissions block HP's `com.palm.nodejs.json` does not have, and a `--require`
-shim for `process.setName` and `process.setArgs`, which existed only in HP's
-patched node.
+What it took, beyond the three addons:
 
-**Where it stops.** Loading the `foundations` framework:
+- `Context` on node's own `vm` module rather than emulated. V8 gave each library
+  its own global; foundations needs both halves of that, and neither shortcut
+  works -- a function wrapper per script makes top-level vars local ("DB is not
+  defined"), and sharing the interpreter's global rebinds `exports` under the
+  closures ("exports.Comms is undefined"). `vm.createContext` is the real thing,
+  reachable from an addon through `process.mainModule.require('vm')`.
 
-    MojoLoader.builtinLibName is not a function
-    TypeError: Cannot read properties of undefined (reading 'AjaxCall')
+- Seeding each context. A fresh vm context has none of node's globals, and
+  foundations decides whether it is on node by looking for `root.process.version`
+  -- without it, it takes the Mojo branch and calls `palmGetResource`, which only
+  ever existed in HP's build.
 
-That is above the shim -- `mojoloader.js` and the frameworks disagreeing about
-an interface -- not a V8 or N-API question. `SHIM_TRACE=1` prints what each
-script threw, which the loaders otherwise swallow.
+- A `--require` shim for what HP's patched node had: `process.setName`,
+  `process.setArgs`, `palmGetResource`, `palmPutResource`, `getenv`, `quit`, the
+  `sys` module alias, and `new Buffer`. Ten call sites across 32,000 lines of
+  JavaScript, which is why this is a shim and not a rewrite.
 
-**One known compromise in the shim.** V8 gave each loaded library its own
-context; N-API has one and cannot make another. `Context` therefore maps to the
-interpreter's global, which gives the scripts of a library the two things they
-actually depend on -- each other's top-level vars, and a shared `exports` -- but
-not isolation between libraries. Their exports do not collide, because
-mojoloader reads each library's before loading the next; their top-level vars
-do. If that turns out to matter, node's `vm` module is the honest answer rather
-than a wider emulation.
+- Tests excluded from the installed frameworks and services. They ship mock
+  versions of their own modules and call MojoLoader methods that exist only in a
+  test harness.
 
-**Not our port, for the part that was measured.** The reference VM fails with the
-same `Accounts.getAccounts: 0 accounts and 0 templates` and
-`CalendarsManager.getCalendarsFailed()`.
+**Still open.** The hub does not start these on demand: ls-hubd runs outside the
+bwrap namespace on purpose, so `/usr/palm/services` is not there for it to
+launch. They start the way HP's own static services do. Calendar and email
+additionally need their own back ends, which is a separate question from whether
+node runs.
 
 ---
 

@@ -354,30 +354,81 @@ void TryCatch::Reset() { fError = nullptr; }
 
 // --- context and scripts ----------------------------------------------------
 
-// V8 gave each context its own global object. N-API has one, and there is no
-// way to make another.
+// Contexts are node's own, from the vm module, not an emulation.
 //
-// What dynaload actually needs from a context is narrower than isolation: the
-// scripts of one library must see each other's top-level vars -- db.js declares
-// `var DB` and typedowndb.js just uses DB -- and share one `exports`, and the
-// object holding all of that must come back to mojoloader, which reads
-// `.exports` off it.
+// V8 gave each library its own context with its own global object, and HP's
+// dynaload relies on both halves of that: the scripts of one library share a
+// global, so db.js can declare `var DB` for typedowndb.js to use, and each
+// library's `exports` stays bound to its own object, so the onLoad closure
+// foundations registers still sees its own Comms rather than whichever library
+// loaded last.
 //
-// The interpreter's own global does all three. A top-level var in a script run
-// through napi_run_script becomes a property of it, `exports` set on it is
-// visible to every script, and it is a real object that outlives the scope.
+// Emulating it does not work. Wrapping each script in a function gives it the
+// right names but makes the top-level vars local, and using the interpreter's
+// global shares the vars but rebinds `exports` under the closures' feet. The
+// first cost "DB is not defined", the second "exports.Comms is undefined".
 //
-// What is lost is the isolation: two libraries loaded one after another share a
-// global rather than getting one each. mojoloader reads a library's exports
-// immediately after loading it, before the next one starts, so the exports
-// themselves do not collide -- but their top-level vars do. An earlier version
-// tried to keep a separate object in step with the global around every script
-// and was harder to reason about than this, without being right either.
-//
-// If that isolation turns out to matter, node's vm module is the honest answer,
-// reached from here rather than emulated.
+// node still has real contexts: vm.createContext gives a contextified object
+// whose properties are that context's globals, and vm.runInContext runs a
+// script against it. Reaching the module from an addon takes going through
+// process.mainModule, since require() is not in scope for napi_run_script.
+namespace {
+
+napi_value Vm(napi_env env)
+{
+    static thread_local napi_ref cached = nullptr;
+    if (cached) {
+        napi_value out = nullptr;
+        if (napi_get_reference_value(env, cached, &out) == napi_ok && out)
+            return out;
+    }
+    napi_value source = nullptr;
+    const char* code =
+        "(process.mainModule ? process.mainModule.require('vm') : null)";
+    if (napi_create_string_utf8(env, code, NAPI_AUTO_LENGTH, &source) != napi_ok)
+        return nullptr;
+    napi_value module = nullptr;
+    if (napi_run_script(env, source, &module) != napi_ok) {
+        napi_value pending = nullptr;
+        napi_get_and_clear_last_exception(env, &pending);
+        return nullptr;
+    }
+    napi_valuetype type;
+    if (napi_typeof(env, module, &type) != napi_ok || type != napi_object)
+        return nullptr;
+    napi_create_reference(env, module, 1, &cached);
+    return module;
+}
+
+napi_value CallVm(napi_env env, const char* method, int argc, napi_value* argv)
+{
+    napi_value vm = Vm(env);
+    if (!vm)
+        return nullptr;
+    napi_value function = nullptr;
+    if (napi_get_named_property(env, vm, method, &function) != napi_ok)
+        return nullptr;
+    napi_valuetype type;
+    if (napi_typeof(env, function, &type) != napi_ok || type != napi_function)
+        return nullptr;
+    napi_value out = nullptr;
+    if (napi_call_function(env, vm, function, argc, argv, &out) != napi_ok) {
+        napi_value pending = nullptr;
+        napi_get_and_clear_last_exception(env, &pending);
+        return nullptr;
+    }
+    return out;
+}
+
+// The context a script should run in, or null for the interpreter's own.
+thread_local napi_value gContext = nullptr;
+
+}  // namespace
+
 Handle<Context> Context::GetCurrent()
 {
+    if (gContext)
+        return Handle<Context>(gContext);
     napi_value global = nullptr;
     napi_get_global(CurrentEnv(), &global);
     return Handle<Context>(global);
@@ -385,18 +436,69 @@ Handle<Context> Context::GetCurrent()
 
 Handle<Context> Context::New()
 {
-    return GetCurrent();
+    napi_env env = CurrentEnv();
+
+    napi_value sandbox = nullptr;
+    napi_create_object(env, &sandbox);
+
+    // A fresh vm context starts with none of node's globals, and HP's code
+    // assumes a context that had them: foundations decides whether it is running
+    // on node by looking for root.process.version, and takes its Mojo branch --
+    // palmGetResource, which only ever existed in HP's build -- when it cannot
+    // find it.
+    //
+    // These are seeded rather than copied wholesale so it stays obvious what the
+    // scripts are being given.
+    {
+        napi_value host = nullptr;
+        napi_get_global(env, &host);
+        static const char* kSeed[] = {
+            "process", "console", "Buffer", "setTimeout", "clearTimeout",
+            "setInterval", "clearInterval", "setImmediate", "clearImmediate",
+            "palmGetResource", "palmPutResource", "getenv", "quit",
+            "JSON", "Math", "Date", "RegExp", "Error", "TypeError"
+        };
+        for (size_t i = 0; i < sizeof(kSeed) / sizeof(kSeed[0]); ++i) {
+            bool has = false;
+            if (napi_has_named_property(env, host, kSeed[i], &has) != napi_ok || !has)
+                continue;
+            napi_value value = nullptr;
+            if (napi_get_named_property(env, host, kSeed[i], &value) == napi_ok)
+                napi_set_named_property(env, sandbox, kSeed[i], value);
+        }
+    }
+
+    // Without vm there is no second context to be had; falling back to the
+    // interpreter's keeps single-library cases working rather than failing here.
+    napi_value contextified = CallVm(env, "createContext", 1, &sandbox);
+    if (!contextified) {
+        napi_value global = nullptr;
+        napi_get_global(env, &global);
+        return Handle<Context>(global);
+    }
+
+    napi_ref keep = nullptr;
+    napi_create_reference(env, contextified, 1, &keep);
+    return Handle<Context>(contextified);
 }
 
 Local<Object> Context::Global()
 {
-    napi_value global = nullptr;
-    napi_get_global(CurrentEnv(), &global);
-    return Local<Object>(global);
+    // A contextified object IS its context's global: what is set on it is what
+    // the scripts see, and what they declare shows up on it afterwards.
+    napi_value self = *reinterpret_cast<napi_value const*>(this);
+    return Local<Object>(self);
 }
 
-Context::Scope::Scope(const Handle<Context>&) : fPrevious(nullptr) {}
-Context::Scope::~Scope() {}
+Context::Scope::Scope(const Handle<Context>& context) : fPrevious(gContext)
+{
+    gContext = context.raw();
+}
+
+Context::Scope::~Scope()
+{
+    gContext = fPrevious;
+}
 
 // V8 compiled a script and ran it later. N-API only offers napi_run_script,
 // which does both, so the source is held and run on demand.
@@ -442,6 +544,12 @@ Local<Value> Script::Run()
     napi_value source = nullptr;
     if (napi_create_string_utf8(env, text.c_str(), text.size(), &source) != napi_ok)
         return Local<Value>();
+
+    if (gContext) {
+        napi_value args[2] = { source, gContext };
+        napi_value result = CallVm(env, "runInContext", 2, args);
+        return Local<Value>(result);
+    }
 
     napi_value out = nullptr;
     if (napi_run_script(env, source, &out) != napi_ok) {
