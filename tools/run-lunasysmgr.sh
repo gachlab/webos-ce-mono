@@ -148,6 +148,23 @@ case "${1:-run}" in
     # live under /etc/palm/db. Without it mojodb-luna starts but answers "kind
     # not registered" to everything, and the apps come up empty.
     enter_namespace "$@"
+    # db8 has to be answering before configurator runs: it registers every kind
+    # by calling com.palm.db. Run before the services were up, configurator
+    # rejected all 35 of them with "com.palm.db is not running" and left the
+    # database empty -- which looks like working apps with nothing in them: memos
+    # opens empty and refuses to add, calendar retries getCalendars forever with
+    # "kind not registered".
+    L="$ROOTFS/usr/lib/luna"
+    if ! service_running "$L/mojodb-luna"; then
+        echo "db8 was not running; starting it"
+        "$L/mojodb-luna" -c /etc/palm/mojodb.conf /var/db > /tmp/webos/mojodb.log 2>&1 &
+    fi
+    for _ in $(seq 30); do
+        timeout 3 "$S/usr/bin/luna-send" -n 1 palm://com.palm.db/find '{"query":{"from":"com.palm.db.kind:1"}}' </dev/null 2>&1 \
+            | grep -q 'is not running' || break
+        sleep 1
+    done
+
     # We start configurator ourselves, not ls-hubd. The hub lives OUTSIDE the
     # namespace, so whatever it launches cannot see /etc/palm/db/kinds and
     # configurator finds nothing to load.
