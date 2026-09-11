@@ -23,6 +23,8 @@
 #define DOCKMODEMENUMANAGER_H
 
 #include "Common.h"
+#include "QmlItem.h"
+#include "QmlSceneItem.h"
 
 #include "WindowManagerBase.h"
 
@@ -53,7 +55,7 @@ public:
 	void resize(int width, int height);
 
     DockModeAppMenuContainer* dockAppContainer();
-	QGraphicsObject* getAppMenu() const { return m_menuObject; }
+	QmlItem* getAppMenu() const { return m_menuObject; }
 	StatusBar* statusBar() const { return m_statusBar; }
 	bool isAppMenuOpen() const { return m_appMenuOpened; }
 
@@ -105,7 +107,11 @@ private:
 #else
     QQmlComponent* m_qmlNotifMenu;
 #endif
-    QGraphicsObject* m_menuObject;
+    QmlItem* m_menuObject;
+#if (QT_VERSION >= QT_VERSION_CHECK(5, 0, 0))
+    // Host for the QtQuick 2 scene; see QmlSceneItem.
+    QmlSceneItem* m_menuSurface = 0;
+#endif
 
 	std::string m_currentApp;
 };

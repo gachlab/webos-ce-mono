@@ -69,6 +69,8 @@
 #include <sys/file.h>
 
 #include <QApplication>
+
+#include "QmlSceneItem.h"
 #include <QtGui>
 #include <QtGlobal> 
 
@@ -694,6 +696,12 @@ int main( int argc, char** argv)
     // that change how events are dispatched must be set by the time the QPA
     // plugin starts up.
     QCoreApplication::setAttribute(Qt::AA_SynthesizeTouchForUnhandledMouseEvents, true);
+#endif
+
+#if (QT_VERSION >= QT_VERSION_CHECK(5, 0, 0))
+    // Same reason: the QtQuick scene graph backend is picked the first time a
+    // QQuickWindow is created and never reconsidered.
+    QmlSceneItem::setUpSoftwareBackend();
 #endif
 
 	QApplication app(argc, argv);

@@ -60,10 +60,23 @@ QmlAlertWindow::QmlAlertWindow(const QString& path, int width, int height)
         m_qmlComp = new QQmlComponent(qmlEngine, url, this);
 #endif
         if (m_qmlComp) {
+#if (QT_VERSION < QT_VERSION_CHECK(5, 0, 0))
 			m_gfxObj = qobject_cast<QGraphicsObject*>(m_qmlComp->create());
+#else
+			m_gfxSurface = new QmlSceneItem(m_qmlComp, this);
+			m_gfxObj = m_gfxSurface->rootItem();
+			if (!m_gfxObj) {
+				delete m_gfxSurface;
+				m_gfxSurface = 0;
+			}
+#endif
 			if (m_gfxObj) {
+#if (QT_VERSION < QT_VERSION_CHECK(5, 0, 0))
 				m_gfxObj->setPos(-width/2, -height/2);
 				m_gfxObj->setParentItem(this);
+#else
+				m_gfxSurface->setPos(-width/2, -height/2);
+#endif
 
 				connect(m_gfxObj, SIGNAL(okButtonPressed()), SLOT(slotClose()), Qt::QueuedConnection);
 			}

@@ -23,6 +23,8 @@
 #define QMLALERTWINDOW_H
 
 #include "Common.h"
+#include "QmlItem.h"
+#include "QmlSceneItem.h"
 
 #include "AlertWindow.h"
 
@@ -59,7 +61,11 @@ private:
 #else
     QQmlComponent* m_qmlComp;
 #endif
-	QGraphicsObject* m_gfxObj;
+	QmlItem* m_gfxObj;
+#if (QT_VERSION >= QT_VERSION_CHECK(5, 0, 0))
+	// Host for the QtQuick 2 scene; see QmlSceneItem.
+	QmlSceneItem* m_gfxSurface = 0;
+#endif
 };
 
 #endif /* MEMORYALERTWINDOW_H */

@@ -75,6 +75,9 @@ static std::string airplaneModeStateText[4] = { // $$$ LOCALIZE
 SystemMenu::SystemMenu(int width, int height, bool restricted)
 	: m_qmlMenu(0)
 	, m_menuObject(0)
+#if (QT_VERSION >= QT_VERSION_CHECK(5, 0, 0))
+	, m_menuSurface(0)
+#endif
 	, m_wifiMenu(0)
 	, m_vpnMenu(0)
 	, m_bluetoothMenu(0)
@@ -183,19 +186,38 @@ void SystemMenu::init()
          m_qmlMenu = new QQmlComponent(qmlEngine, url, this);
 #endif
 		 if(m_qmlMenu) {
+#if (QT_VERSION < QT_VERSION_CHECK(5, 0, 0))
 			 m_menuObject = qobject_cast<QGraphicsObject *>(m_qmlMenu->create());
+#else
+			 // A QtQuick 2 item cannot live in a QGraphicsScene, so it is hosted
+			 // by a QmlSceneItem which is what actually goes into the scene. The
+			 // menu object itself is still the QML root, so every property,
+			 // signal and findChild() below is unchanged.
+			 m_menuSurface = new QmlSceneItem(m_qmlMenu, this);
+			 m_menuObject = m_menuSurface->rootItem();
+			 if (!m_menuObject) {
+				 delete m_menuSurface;
+				 m_menuSurface = 0;
+			 }
+#endif
 			 if(m_menuObject) {
-				 m_menuObject->setParentItem(this);
 				 m_rightEdgeOffset = m_menuObject->property("edgeOffset").toInt();
 				 prepareGeometryChange();
 				 m_bounds = QRect(-m_menuObject->boundingRect().width()/2, -m_menuObject->boundingRect().height()/2,
 						          m_menuObject->boundingRect().width(), m_menuObject->boundingRect().height());
+#if (QT_VERSION < QT_VERSION_CHECK(5, 0, 0))
+				 m_menuObject->setParentItem(this);
 				 m_menuObject->setPos(m_bounds.x(),m_bounds.y());
+#else
+				 // Position the host: the QML root stays at the origin of its
+				 // own offscreen window.
+				 m_menuSurface->setPos(m_bounds.x(),m_bounds.y());
+#endif
 
 				 // locate the children menu objects
-				 m_wifiMenu = m_menuObject->findChild<QGraphicsObject*>("wifiMenu");
-				 m_bluetoothMenu = m_menuObject->findChild<QGraphicsObject*>("bluetoothMenu");
-				 m_vpnMenu = m_menuObject->findChild<QGraphicsObject*>("vpnMenu");
+				 m_wifiMenu = m_menuObject->findChild<QmlItem*>("wifiMenu");
+				 m_bluetoothMenu = m_menuObject->findChild<QmlItem*>("bluetoothMenu");
+				 m_vpnMenu = m_menuObject->findChild<QmlItem*>("vpnMenu");
 
 				 // Connect the menu signals
 				 connect(m_menuObject,SIGNAL(closeSystemMenu()), SLOT(slotCloseSystemMenu()));
@@ -254,7 +276,7 @@ void SystemMenu::init()
 				 connect(m_menuObject,SIGNAL(airplaneModeTriggered()), SLOT(slotAirplaneModeTriggered()));
 		 }
 		 else {
-				 QGraphicsObject* airplaneMode = m_menuObject->findChild<QGraphicsObject*>("airplaneMode");
+				 QmlItem* airplaneMode = m_menuObject->findChild<QmlItem*>("airplaneMode");
 				 if (airplaneMode)
 					 airplaneMode->setProperty ("selectable", false);
 		 }
@@ -964,7 +986,7 @@ void SystemMenu::slotPositiveSpaceChangeFinished(QRect rect)
 		int height = rect.height()+10;
 		int currentHeight = m_menuObject->property("height").toInt()+10;
 		QMetaObject::invokeMethod(m_menuObject, "setHeight", Q_ARG(QVariant, height));
-		QGraphicsObject* flickable = m_menuObject->findChild<QGraphicsObject*>("flickableArea");
+		QmlItem* flickable = m_menuObject->findChild<QmlItem*>("flickableArea");
 	}
 }
 
@@ -1010,8 +1032,14 @@ void SystemMenu::tick()
  // -----------------------------------------------------------------------------------
      // Animated Spinner element exposed to QML for the System Menu
  // -----------------------------------------------------------------------------------
+#if (QT_VERSION < QT_VERSION_CHECK(5, 0, 0))
  AnimatedSpinner::AnimatedSpinner(QObject *parent)
  	: m_anim(this, "currentFrame", this)
+#else
+ AnimatedSpinner::AnimatedSpinner(QQuickItem *parent)
+ 	: QQuickPaintedItem(parent)
+ 	, m_anim(this, "currentFrame", this)
+#endif
  	, m_duration(1000)
  {
  	Settings* settings = Settings::LunaSettings();
@@ -1023,6 +1051,12 @@ void SystemMenu::tick()
     m_currentFrame = 0;
 
     m_bounds = QRectF(0, 0, m_img.width(), m_img.width());
+#if (QT_VERSION >= QT_VERSION_CHECK(5, 0, 0))
+    // QQuickItem has no implicit size: without this the item is 0x0 and
+    // QQuickPaintedItem never calls paint().
+    setWidth(m_bounds.width());
+    setHeight(m_bounds.height());
+#endif
 
     m_anim.setLoopCount(-1);
     m_anim.setDuration(m_duration);
@@ -1058,12 +1092,16 @@ void SystemMenu::tick()
  	setVisible(m_on);
  }
 
+#if (QT_VERSION < QT_VERSION_CHECK(5, 0, 0))
  QRectF AnimatedSpinner::boundingRect() const
  {
  	return m_bounds;
  }
 
  void AnimatedSpinner::paint(QPainter* painter, const QStyleOptionGraphicsItem* option, QWidget* widget)
+#else
+ void AnimatedSpinner::paint(QPainter* painter)
+#endif
  {
      qreal angle = m_currentFrame * 360.0 / m_nFrames;
      painter->translate(m_bounds.width()/2, m_bounds.height()/2);

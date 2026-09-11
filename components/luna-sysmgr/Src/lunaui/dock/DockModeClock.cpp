@@ -20,6 +20,8 @@
 
 
 #include "DockModeClock.h"
+#include "QmlItem.h"
+#include "QmlSceneItem.h"
 #include <cjson/json.h>
 #include "HostBase.h"
 #include "Settings.h"
@@ -57,7 +59,11 @@ public:
 	void resizeEventSync(int w, int h);
 	virtual void focusEvent (bool enable);
 private:
-	QGraphicsObject* m_clockObject;
+	QmlItem* m_clockObject;
+#if (QT_VERSION >= QT_VERSION_CHECK(5, 0, 0))
+	// Host for the QtQuick 2 scene; see QmlSceneItem.
+	QmlSceneItem* m_clockSurface = 0;
+#endif
 
 #if (QT_VERSION < QT_VERSION_CHECK(5, 0, 0))
 	QDeclarativeComponent* m_qmlNotifMenu;
@@ -94,10 +100,23 @@ DockModeClockWindow::DockModeClockWindow(const QPixmap& pixmap, DockModeWindowMa
         m_qmlNotifMenu = new QQmlComponent(qmlEngine, url, this);
 #endif
 		if(m_qmlNotifMenu) {
+#if (QT_VERSION < QT_VERSION_CHECK(5, 0, 0))
 			m_clockObject = qobject_cast<QGraphicsObject *>(m_qmlNotifMenu->create());
+#else
+			m_clockSurface = new QmlSceneItem(m_qmlNotifMenu, this);
+			m_clockObject = m_clockSurface->rootItem();
+			if (!m_clockObject) {
+				delete m_clockSurface;
+				m_clockSurface = 0;
+			}
+#endif
 			if(m_clockObject) {
+#if (QT_VERSION < QT_VERSION_CHECK(5, 0, 0))
 				m_clockObject->setPos (boundingRect().x(), boundingRect().y());
 				m_clockObject->setParentItem(this);
+#else
+				m_clockSurface->setPos (boundingRect().x(), boundingRect().y());
+#endif
 			}
 		}
 	}

@@ -24,6 +24,11 @@
 
 
 #include <QGraphicsObject>
+#if (QT_VERSION >= QT_VERSION_CHECK(5, 0, 0))
+#include <QQuickPaintedItem>
+#endif
+#include "QmlItem.h"
+#include "QmlSceneItem.h"
 #include <QPropertyAnimation>
 #include <QTimer>
 #include "StatusBarServicesConnector.h"
@@ -124,12 +129,15 @@ private:
     QQmlComponent* m_qmlMenu;
 #endif
 	// Top Level Menu Object
-	QGraphicsObject* m_menuObject;
+	QmlItem* m_menuObject;
+#if (QT_VERSION >= QT_VERSION_CHECK(5, 0, 0))
+	QmlSceneItem* m_menuSurface = 0;
+#endif
 
 	// Children Menu Objects
-	QGraphicsObject* m_wifiMenu;
-	QGraphicsObject* m_vpnMenu;
-	QGraphicsObject* m_bluetoothMenu;
+	QmlItem* m_wifiMenu;
+	QmlItem* m_vpnMenu;
+	QmlItem* m_bluetoothMenu;
 
 	bool m_wifiMenuOpened;
 	bool m_wifiOn;
@@ -182,14 +190,28 @@ Q_SIGNALS:
 
 
 
+// Registered into QML as SystemMenu.AnimatedSpinner. Under QML 1 a plain
+// QGraphicsObject could be instantiated inside a .qml file, because QML 1 items
+// were themselves QGraphicsObjects. A QtQuick 2 scene has no place for one:
+// visual QML types must derive from QQuickItem. QQuickPaintedItem is the
+// QPainter-backed one, which is exactly what this spinner needs -- it rotates a
+// pixmap -- so the body of paint() is unchanged.
+#if (QT_VERSION < QT_VERSION_CHECK(5, 0, 0))
  class AnimatedSpinner : public QGraphicsObject
+#else
+ class AnimatedSpinner : public QQuickPaintedItem
+#endif
   {
       Q_OBJECT
       Q_PROPERTY(int duration READ duration WRITE setDuration)
       Q_PROPERTY(bool on READ on WRITE setOn)
       Q_PROPERTY(int currentFrame READ currentFrame WRITE setCurrentFrame)
   public:
+#if (QT_VERSION < QT_VERSION_CHECK(5, 0, 0))
       AnimatedSpinner(QObject *parent = 0);
+#else
+      AnimatedSpinner(QQuickItem *parent = 0);
+#endif
       ~AnimatedSpinner();
 
       int duration() const { return m_duration; }
@@ -201,8 +223,14 @@ Q_SIGNALS:
       int on() const { return m_on; }
       void setOn(const bool on );
 
+#if (QT_VERSION < QT_VERSION_CHECK(5, 0, 0))
   	QRectF boundingRect() const;
   	void paint(QPainter* painter, const QStyleOptionGraphicsItem* option, QWidget* widget);
+#else
+  	// QQuickItem already provides boundingRect() from width()/height(), which
+  	// the constructor sets from the pixmap.
+  	void paint(QPainter* painter);
+#endif
 
   private:
     int m_duration;

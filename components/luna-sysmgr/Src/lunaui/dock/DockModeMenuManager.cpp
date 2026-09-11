@@ -124,12 +124,26 @@ void DockModeMenuManager::init()
         m_qmlNotifMenu = new QQmlComponent(qmlEngine, url, this);
 #endif
 		if(m_qmlNotifMenu) {
+#if (QT_VERSION < QT_VERSION_CHECK(5, 0, 0))
 			m_menuObject = qobject_cast<QGraphicsObject *>(m_qmlNotifMenu->create());
+#else
+			m_menuSurface = new QmlSceneItem(m_qmlNotifMenu, this);
+			m_menuObject = m_menuSurface->rootItem();
+			if (!m_menuObject) {
+				delete m_menuSurface;
+				m_menuSurface = 0;
+			}
+#endif
 			if(m_menuObject) {
 				int offset = m_menuObject->property("edgeOffset").toInt();
+#if (QT_VERSION < QT_VERSION_CHECK(5, 0, 0))
 				m_menuObject->setPos (boundingRect().x() - offset, boundingRect().y() + Settings::LunaSettings()->positiveSpaceTopPadding);
 				m_menuObject->setZValue (100);
 				m_menuObject->setParentItem(this);
+#else
+				m_menuSurface->setPos (boundingRect().x() - offset, boundingRect().y() + Settings::LunaSettings()->positiveSpaceTopPadding);
+				m_menuSurface->setZValue (100);
+#endif
 				QMetaObject::invokeMethod(m_menuObject, "setMaximumHeight", Q_ARG(QVariant, m_appMenuContainer->getMaximumHeightForMenu()));
 			}
 		}
@@ -191,7 +205,11 @@ void DockModeMenuManager::resize(int width, int height)
 
 	if (m_menuObject) {
 		int offset = m_menuObject->property("edgeOffset").toInt();
+#if (QT_VERSION < QT_VERSION_CHECK(5, 0, 0))
 		m_menuObject->setPos (boundingRect().x() - offset, boundingRect().y() + Settings::LunaSettings()->positiveSpaceTopPadding);
+#else
+		m_menuSurface->setPos (boundingRect().x() - offset, boundingRect().y() + Settings::LunaSettings()->positiveSpaceTopPadding);
+#endif
 	}
 
 	if(m_statusBar) {

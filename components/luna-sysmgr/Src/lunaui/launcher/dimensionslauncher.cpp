@@ -1360,11 +1360,26 @@ void LauncherObject::fullSizeInit(quint32 width,quint32 height)
         m_qmlAppInfoDialog = new QQmlComponent(qmlEngine, url, this);
 #endif
 		if(m_qmlAppInfoDialog) {
+#if (QT_VERSION < QT_VERSION_CHECK(5, 0, 0))
 			m_appInfoDialog = qobject_cast<QGraphicsObject *>(m_qmlAppInfoDialog->create());
+#else
+			m_appInfoDialogSurface = new QmlSceneItem(m_qmlAppInfoDialog, this);
+			m_appInfoDialog = m_appInfoDialogSurface->rootItem();
+			if (!m_appInfoDialog) {
+				delete m_appInfoDialogSurface;
+				m_appInfoDialogSurface = 0;
+			}
+#endif
 			if(m_appInfoDialog) {
+#if (QT_VERSION < QT_VERSION_CHECK(5, 0, 0))
 				m_appInfoDialog->setAcceptTouchEvents(true);
 				m_appInfoDialog->setPos (-m_appInfoDialog->boundingRect().width()/2, -m_appInfoDialog->boundingRect().height()/2);
 				m_appInfoDialog->setParentItem(this);
+#else
+				m_appInfoDialogSurface->setAcceptTouchEvents(true);
+				m_appInfoDialogSurface->setPos (-m_appInfoDialog->boundingRect().width()/2,
+				                                -m_appInfoDialog->boundingRect().height()/2);
+#endif
 				m_appInfoDialog->setVisible(false);
 				m_appInfoDialog->setOpacity(0.0);
 
@@ -3226,10 +3241,17 @@ void LauncherObject::showAppInfoDialog(const QString& dialogTitle,
 	m_appInfoDialog->setProperty("dialogTitle",dialogTitle);
 	m_appInfoDialog->setProperty("dialogMessage",innerText);
 	m_appInfoDialog->setProperty("numberOfButtons",(int)(showRemoveButton ? 2 : 1));
+#if (QT_VERSION < QT_VERSION_CHECK(5, 0, 0))
 	m_appInfoDialog->setPos (dialogPos.x()-m_appInfoDialog->boundingRect().width()/2,
 							dialogPos.y()-m_appInfoDialog->boundingRect().height());
 
 	m_appInfoDialog->setZValue(100.0);
+#else
+	m_appInfoDialogSurface->setPos (dialogPos.x()-m_appInfoDialog->boundingRect().width()/2,
+							dialogPos.y()-m_appInfoDialog->boundingRect().height());
+
+	m_appInfoDialogSurface->setZValue(100.0);
+#endif
 	QMetaObject::invokeMethod(m_appInfoDialog, "fade", Q_ARG(QVariant, true),
 														Q_ARG(QVariant,DynamicsSettings::settings()->appInfoDialogFadeInTime));
 	blockPageInteraction();

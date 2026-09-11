@@ -32,6 +32,8 @@
 #include <QObject>
 #include <QPointer>
 #include <QGraphicsObject>
+#include "QmlItem.h"
+#include "QmlSceneItem.h"
 #include <QPropertyAnimation>
 #if (QT_VERSION < QT_VERSION_CHECK(5, 0, 0))
 #include <QDeclarativeComponent>
@@ -253,7 +255,12 @@ private:
     QQmlComponent* m_qmlUnlockDialog;
 #endif
 	InputItem* m_unlockPanel;
-	QGraphicsObject* m_unlockDialog;
+	QmlItem* m_unlockDialog;
+#if (QT_VERSION >= QT_VERSION_CHECK(5, 0, 0))
+	// Hosts for the two QtQuick 2 scenes; see QmlSceneItem.
+	QmlSceneItem* m_unlockPanelSurface = 0;
+	QmlSceneItem* m_unlockDialogSurface = 0;
+#endif
 
 
 	QString m_newPasscode;

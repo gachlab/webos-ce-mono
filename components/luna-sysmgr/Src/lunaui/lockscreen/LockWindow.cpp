@@ -350,6 +350,10 @@ LockWindow::LockWindow(uint32_t maxWidth, uint32_t maxHeight)
 	, m_statusBar(0)
 	, m_unlockPanel(0)
 	, m_unlockDialog(0)
+#if (QT_VERSION >= QT_VERSION_CHECK(5, 0, 0))
+	, m_unlockPanelSurface(0)
+	, m_unlockDialogSurface(0)
+#endif
 	, m_setupNewPin(false)
 	, m_setupNewPassword(false)
 
@@ -494,20 +498,27 @@ void LockWindow::init()
         m_qmlUnlockPanel = new QQmlComponent(qmlEngine, url, this);
 #endif
         if(m_qmlUnlockPanel) {
+#if (QT_VERSION < QT_VERSION_CHECK(5, 0, 0))
 			m_unlockPanel = qobject_cast<InputItem *>(m_qmlUnlockPanel->create());
+#else
+			// InputItem is a QQuickItem under Qt 5, so it cannot be parented
+			// into this QGraphicsScene directly. QmlSceneItem is what goes into
+			// the scene; the panel itself stays the QML root.
+			m_unlockPanelSurface = new QmlSceneItem(m_qmlUnlockPanel, this);
+			m_unlockPanel = qobject_cast<InputItem *>(m_unlockPanelSurface->rootItem());
+			if (!m_unlockPanel) {
+				delete m_unlockPanelSurface;
+				m_unlockPanelSurface = 0;
+			}
+#endif
 			if(m_unlockPanel) {
 
 #if (QT_VERSION < QT_VERSION_CHECK(5, 0, 0))
                 m_unlockPanel->setPos (-m_unlockPanel->boundingRect().width()/2, -m_unlockPanel->boundingRect().height()/2);
-#else
-                m_unlockPanel->setX (-m_unlockPanel->boundingRect().width()/2);
-                m_unlockPanel->setY (-m_unlockPanel->boundingRect().height()/2);
-#endif
-
-#if (QT_VERSION < QT_VERSION_CHECK(5, 0, 0))
 				static_cast<QGraphicsObject*>(m_unlockPanel)->setParentItem(this);
 #else
-                m_unlockPanel->setParent(this);
+                m_unlockPanelSurface->setPos (-m_unlockPanel->boundingRect().width()/2,
+                                              -m_unlockPanel->boundingRect().height()/2);
 #endif
 				m_unlockPanel->setVisible(false);
 				m_unlockPanel->setOpacity(0.0);
@@ -526,10 +537,27 @@ void LockWindow::init()
         m_qmlUnlockDialog = new QQmlComponent(qmlEngine, url, this);
 #endif
 		if(m_qmlUnlockDialog) {
+#if (QT_VERSION < QT_VERSION_CHECK(5, 0, 0))
 			m_unlockDialog = qobject_cast<QGraphicsObject *>(m_qmlUnlockDialog->create());
-			if(m_unlockPanel) {
+#else
+			m_unlockDialogSurface = new QmlSceneItem(m_qmlUnlockDialog, this);
+			m_unlockDialog = m_unlockDialogSurface->rootItem();
+			if (!m_unlockDialog) {
+				delete m_unlockDialogSurface;
+				m_unlockDialogSurface = 0;
+			}
+#endif
+			// HP's guard tested m_unlockPanel here. That was a latent null
+			// dereference: the two components load independently, and the
+			// dialog is what gets used on the next three lines.
+			if(m_unlockDialog) {
+#if (QT_VERSION < QT_VERSION_CHECK(5, 0, 0))
 				m_unlockDialog->setPos (-m_unlockDialog->boundingRect().width()/2, -m_unlockDialog->boundingRect().height()/2);
 				m_unlockDialog->setParentItem(this);
+#else
+				m_unlockDialogSurface->setPos (-m_unlockDialog->boundingRect().width()/2,
+				                               -m_unlockDialog->boundingRect().height()/2);
+#endif
 				m_unlockDialog->setVisible(false);
 				m_unlockDialog->setOpacity(0.0);
 
@@ -2171,7 +2199,12 @@ void LockWindow::showDialog()
 	if(!m_unlockDialog)
 		return;
 
+#if (QT_VERSION < QT_VERSION_CHECK(5, 0, 0))
 	m_unlockDialog->setPos (-m_unlockDialog->boundingRect().width()/2, -m_unlockDialog->boundingRect().height());
+#else
+	m_unlockDialogSurface->setPos (-m_unlockDialog->boundingRect().width()/2,
+	                               -m_unlockDialog->boundingRect().height());
+#endif
 
 	QMetaObject::invokeMethod(m_unlockDialog, "fade", Q_ARG(QVariant, true), Q_ARG(QVariant, AS(lockFadeDuration)));
 }

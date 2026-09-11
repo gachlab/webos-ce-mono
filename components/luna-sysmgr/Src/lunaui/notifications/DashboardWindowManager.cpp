@@ -168,9 +168,20 @@ void DashboardWindowManager::init()
              m_qmlNotifMenu = new QQmlComponent(qmlEngine, url, this);
 #endif
              if(m_qmlNotifMenu) {
+#if (QT_VERSION < QT_VERSION_CHECK(5, 0, 0))
 				 m_menuObject = qobject_cast<QGraphicsObject *>(m_qmlNotifMenu->create());
+#else
+				 m_menuSurface = new QmlSceneItem(m_qmlNotifMenu, this);
+				 m_menuObject = m_menuSurface->rootItem();
+				 if (!m_menuObject) {
+					 delete m_menuSurface;
+					 m_menuSurface = 0;
+				 }
+#endif
 				 if(m_menuObject) {
+#if (QT_VERSION < QT_VERSION_CHECK(5, 0, 0))
 					 m_menuObject->setParentItem(this);
+#endif
 					 m_notifMenuRightEdgeOffset = m_menuObject->property("edgeOffset").toInt();
 
 					 QMetaObject::invokeMethod(m_menuObject, "setMaximumHeight", Q_ARG(QVariant, m_dashboardWinContainer->getMaximumHeightForMenu()));
@@ -243,7 +254,11 @@ void DashboardWindowManager::init()
 		if (m_menuObject) {
 			int uiHeight = SystemUiController::instance()->currentUiHeight();
 			// temporary location just until the status bar tell us where to place the dashboard container
+#if (QT_VERSION < QT_VERSION_CHECK(5, 0, 0))
 			m_menuObject->setPos(0, -uiHeight/2 + Settings::LunaSettings()->positiveSpaceTopPadding);
+#else
+			m_menuSurface->setPos(0, -uiHeight/2 + Settings::LunaSettings()->positiveSpaceTopPadding);
+#endif
 		}
 
 		// Connect the signal to process events after animation is complete
@@ -1263,7 +1278,11 @@ void DashboardWindowManager::resize(int width, int height)
 
 		// Set the new position of the m_dashboardWinContainer
 		if (m_menuObject) {
+#if (QT_VERSION < QT_VERSION_CHECK(5, 0, 0))
 			m_menuObject->setPos(xLocDashWinCtr, yLocDashWinCtr);
+#else
+			m_menuSurface->setPos(xLocDashWinCtr, yLocDashWinCtr);
+#endif
 		}
 
 		positionAlertWindowContainer();

@@ -270,7 +270,7 @@ void StatusBar::init()
 
 		if(m_notifGroup) {
 			// tie the DashboardWindowContainer to the menu item group
-			QGraphicsObject* dashboardMenu = 0;
+			QmlItem* dashboardMenu = 0;
 			dashboardMenu = ((DashboardWindowManager*)(((WindowServerLuna*)WindowServer::instance())->dashboardWindowManager()))->dashboardMenu();
 			if(dashboardMenu) {
 				dashboardMenu->setOpacity(0.0);
@@ -281,7 +281,7 @@ void StatusBar::init()
 
 		if (m_type == TypeDockMode) {
 			DockModeMenuManager* dmm = (DockModeMenuManager*)(((WindowServerLuna*)WindowServer::instance())->dockModeMenuManager());
-			QGraphicsObject* dockModeAppMenu = dmm->getAppMenu();
+			QmlItem* dockModeAppMenu = dmm->getAppMenu();
 			if(dockModeAppMenu) {
 				dockModeAppMenu->setOpacity(0.0);
 				dockModeAppMenu->setVisible(false);

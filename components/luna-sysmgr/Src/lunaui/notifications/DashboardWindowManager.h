@@ -23,6 +23,8 @@
 #define DASHBOARDWINDOWMANAGER_H
 
 #include "Common.h"
+#include "QmlItem.h"
+#include "QmlSceneItem.h"
 #include "Timer.h"
 #include "Window.h"
 #include "WindowManagerBase.h"
@@ -119,7 +121,7 @@ public:
 		return m_dashboardWinContainer;
 	}
 
-	inline QGraphicsObject* dashboardMenu() const {
+	inline QmlItem* dashboardMenu() const {
 		return m_menuObject;
 	}
 
@@ -236,7 +238,11 @@ private:
     QQmlComponent* m_qmlNotifMenu;
 #endif
 	// Top Level Menu Object
-	QGraphicsObject* m_menuObject;
+	QmlItem* m_menuObject;
+#if (QT_VERSION >= QT_VERSION_CHECK(5, 0, 0))
+	// Host for the QtQuick 2 scene; see QmlSceneItem.
+	QmlSceneItem* m_menuSurface = 0;
+#endif
 	int m_notifMenuRightEdgeOffset;
 	//bool m_goingUp;
 	bool m_inDockModeAnimation;

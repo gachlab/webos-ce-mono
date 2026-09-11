@@ -23,6 +23,8 @@
 #define DIMENSIONSLAUNCHER_H_
 
 #include <QUuid>
+#include "QmlItem.h"
+#include "QmlSceneItem.h"
 #include <QRectF>
 #include <QVector>
 #include <QList>
@@ -595,7 +597,11 @@ protected:
     QQmlComponent* m_qmlAppInfoDialog;
 #endif
 
-	QGraphicsObject* m_appInfoDialog;
+	QmlItem* m_appInfoDialog;
+#if (QT_VERSION >= QT_VERSION_CHECK(5, 0, 0))
+	// Host for the QtQuick 2 scene; see QmlSceneItem.
+	QmlSceneItem* m_appInfoDialogSurface = 0;
+#endif
 
 	IconBase* m_iconShowingFeedback;
 	QTimer    m_feedbackTimer;

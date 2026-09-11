@@ -23,6 +23,7 @@
 #define STATUSBAR_H
 
 #include "Window.h"
+#include "QmlItem.h"
 #include <QPointer>
 #include <QGraphicsObject>
 #include "VariantAnimation.h"

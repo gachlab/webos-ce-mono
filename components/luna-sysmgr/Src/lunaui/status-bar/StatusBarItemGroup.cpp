@@ -235,7 +235,12 @@ void StatusBarItemGroup::slotFadeAnimationFinished()
 	}
 }
 
-void StatusBarItemGroup::setMenuObject(QGraphicsObject* item)
+// The menu is either a C++ QGraphicsObject (SystemMenu) or the root item of a
+// QtQuick 2 scene, which under Qt 5 is a QQuickItem and shares no base class
+// with the former. Only "visible" and "opacity" are ever touched here and both
+// classes declare them as Qt properties, so the property system bridges the two
+// without this class needing to know which it holds.
+void StatusBarItemGroup::setMenuObject(QObject* item)
 {
 	m_menuObj = item;
 }
@@ -261,10 +266,10 @@ void StatusBarItemGroup::activate()
 			SLOT(slotOverlayAnimValueChanged(const QVariant&)));
 
 	if(m_menuObj)
-		m_menuObj->setVisible(true);
+		m_menuObj->setProperty("visible", true);
 
 	if(m_menuObj)
-		m_menuObj->setOpacity(0.0);
+		m_menuObj->setProperty("opacity", 0.0);
 
 	m_overlayAnimPtr->start(QAbstractAnimation::DeleteWhenStopped);
 
@@ -303,13 +308,13 @@ void StatusBarItemGroup::slotOverlayAnimValueChanged(const QVariant& value)
 {
 	qreal opacity = value.toReal();
 	if(m_menuObj)
-		m_menuObj->setOpacity(opacity);
+		m_menuObj->setProperty("opacity", opacity);
 }
 
 void StatusBarItemGroup::slotOverlayAnimationFinished()
 {
 	if(m_menuObj)
-		m_menuObj->setVisible(false);
+		m_menuObj->setProperty("visible", false);
 }
 
 #if defined TARGET_DESKTOP && (QT_VERSION >= QT_VERSION_CHECK(5, 0, 0))

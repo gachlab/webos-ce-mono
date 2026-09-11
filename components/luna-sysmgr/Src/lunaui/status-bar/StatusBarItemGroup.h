@@ -23,6 +23,7 @@
 #define STATUSBARITEMGROUP_H
 
 #include "StatusBar.h"
+#include "QmlItem.h"
 #include "StatusBarItem.h"
 #include <QPixmap>
 #include <QPointer>
@@ -52,7 +53,8 @@ public:
 	void show();
 	void hide();
 
-	void setMenuObject(QGraphicsObject* item);
+	// Either a C++ QGraphicsObject or a QML root item; see setMenuObject().
+	void setMenuObject(QObject* item);
 	void activate();
 	void deactivate();
 	bool isActivated() { return m_active; }
@@ -106,7 +108,7 @@ private:
 	QPixmap* m_arrowPix;
 	QPixmap* m_separatorPix;
 
-	QGraphicsObject* m_menuObj;
+	QObject* m_menuObj;
 
 	QPointer<QPropertyAnimation> m_opacityAnimPtr;
 	QPointer<QPropertyAnimation> m_arrowFadeAnimPtr;
