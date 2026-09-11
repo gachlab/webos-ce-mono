@@ -43,9 +43,11 @@ through `rootItem()`.
   unless handed the context that is already current. The shell draws through a
   `QGLWidget`, so one usually is.
 
-**Still open in this area.** `SystemMenu.qml:71,73` logs
-`ReferenceError: inProgress is not defined`, and the 34 files in
-`components/luna-sysmgr-ce/` still carry the QML 1 import.
+`SystemMenu.qml`'s `ReferenceError: inProgress is not defined` was a typo for
+`airplaneModeInProgress`, fixed along with `MenuContainer.qml`'s, and
+`tests/qml-functions-qt5` catches both. The 34 files in
+`components/luna-sysmgr-ce/` still carry the QML 1 import; that tree is kept for
+reference and not built.
 
 ### ~~Calendar and email open empty~~ (the JavaScript services run, on demand)
 
@@ -208,5 +210,5 @@ symptomatic.
 
 `BrowserServer`, `BrowserAdapter` and `WebKitSupplemental` are the browser path
 and depend on real NPAPI, not just an include path. `luna-sysmgr-ce` (the
-TouchPad's 3.0.5) still needs its Qt5 port; the build currently runs Open
-webOS's `luna-sysmgr`.
+TouchPad's 3.0.5) is not built on purpose: Open webOS's `luna-sysmgr` is the
+reference implementation, and the CE one stays in the tree for reference only.

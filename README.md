@@ -58,12 +58,11 @@ expects point at the local rootfs.
 
 ## The two LunaSysMgrs
 
-Both live here on purpose:
-
-- `components/luna-sysmgr/` — **Open webOS**'s (`openwebos/luna-sysmgr`), which
-  is what builds green today. The reference to compare against.
+- `components/luna-sysmgr/` — **Open webOS**'s (`openwebos/luna-sysmgr`). This
+  is the reference implementation and the one all work happens on.
 - `components/luna-sysmgr-ce/` — the **TouchPad's CE 3.0.5**
-  (`woce/LunaSysMgr` at the "Push from tarball" commit), which is the target.
+  (`woce/LunaSysMgr` at the "Push from tarball" commit). Kept for reference
+  only; it is not built and will not be ported.
 
 ## State
 
@@ -86,13 +85,12 @@ Ubuntu 12.04 build, and so are not this port's doing.
 
 Still to do, in order:
 
-- **The node addons** (`sysbus`, `pmlog`, `dynaload`): old v8 API, need porting
-  to N-API. They are what unblocks the JS services, and with them calendar and
-  email.
-- **`luna-sysmgr-ce`** ported to Qt5, using as reference the 61 files where HP
-  themselves added `QT_VERSION_CHECK` guards in Open webOS.
-- **The browser** (`BrowserServer`/`BrowserAdapter`): these depend on real
-  NPAPI, not just an include path. The most expensive piece, and last.
+- ~~**The node addons** (`sysbus`, `pmlog`, `dynaload`)~~: done, unmodified,
+  through `components/node-v8-shim` on node 26. HP's JavaScript services start
+  on demand, which is what lets apps have background services.
+- **The browser** (`BrowserServer`/`BrowserAdapter`/`WebKitSupplemental`):
+  written against Palm's patched QtWebKit and its NPAPI extensions.
+- **Synergy** (accounts and their transports, mojomail): last.
 
 ## Licence
 
