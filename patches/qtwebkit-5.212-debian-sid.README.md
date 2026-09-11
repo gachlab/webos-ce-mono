@@ -37,5 +37,19 @@ de `XSLTProcessor::parseErrorFunc` tiene que seguirla o el puntero no
 convierte. Se resuelve con un typedef atado a `LIBXML_VERSION >= 21200`, para
 que el parche siga sirviendo en distros con libxml2 vieja.
 
+**6. `typeinfo for JSC::SourceProvider`** (`Source/JavaScriptCore/PlatformQt.cmake`)
+El arbol compila casi todo con `-fno-rtti`, pero `Source/WebKit/PlatformQt.cmake`
+le pone `-frtti` a 26 ficheros a proposito: los de la API publica de Qt. Uno de
+ellos, `qwebelement.cpp`, instancia `ScriptSourceCode`, que arrastra
+`CachedScriptSourceProvider : public JSC::SourceProvider`. Con RTTI activo GCC
+emite el typeinfo del derivado, y ese typeinfo referencia el de la base --- que
+no existe, porque JavaScriptCore va entero sin RTTI. Falla al enlazar
+`libQt5WebKit.so`.
+
+El arreglo no toca las banderas que WebKit eligio: compila con `-frtti` un solo
+fichero, `parser/SourceProvider.cpp`, que es donde vive `~SourceProvider()`, la
+key function de la clase y por tanto el unico sitio donde se emiten su vtable y
+su typeinfo.
+
 Los puntos 3, 4 y 5 son de la misma familia: **no son errores de QtWebKit**,
 son APIs que se movieron debajo. El 1 y el 2 si son deuda del arbol.

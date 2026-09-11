@@ -1,3 +1,31 @@
+diff --git a/Source/JavaScriptCore/PlatformQt.cmake b/Source/JavaScriptCore/PlatformQt.cmake
+index 34a372756..97a6d4b68 100644
+--- a/Source/JavaScriptCore/PlatformQt.cmake
++++ b/Source/JavaScriptCore/PlatformQt.cmake
+@@ -30,3 +30,23 @@ if (WIN32)
+         inspector/JSGlobalObjectInspectorController.cpp
+     )
+ endif ()
++
++# PlatformQt.cmake de WebKit compila con -frtti los .cpp de la API publica de Qt
++# (qwebelement.cpp entre ellos). qwebelement.cpp instancia ScriptSourceCode, que
++# arrastra CachedScriptSourceProvider : public JSC::SourceProvider. Con RTTI
++# activo GCC emite el typeinfo del derivado, y ese typeinfo referencia el de la
++# base --- que no existe, porque JavaScriptCore entero va con -fno-rtti. El
++# resultado es "undefined reference to typeinfo for JSC::SourceProvider" al
++# enlazar libQt5WebKit.
++#
++# SourceProvider.cpp define ~SourceProvider(), la key function de la clase: es
++# el unico sitio donde se emiten su vtable y su typeinfo. Compilandolo con RTTI
++# aparece el simbolo que falta, sin tocar las banderas que WebKit puso a
++# proposito en los ficheros de la API de Qt.
++if (COMPILER_IS_GCC_OR_CLANG)
++    set_source_files_properties(
++        parser/SourceProvider.cpp
++    PROPERTIES
++        COMPILE_FLAGS -frtti
++    )
++endif ()
 diff --git a/Source/JavaScriptCore/offlineasm/parser.rb b/Source/JavaScriptCore/offlineasm/parser.rb
 index b44511245..ca684ef3a 100644
 --- a/Source/JavaScriptCore/offlineasm/parser.rb
