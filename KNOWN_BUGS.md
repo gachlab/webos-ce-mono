@@ -77,6 +77,18 @@ Traps found on the way, each confirmed before being fixed:
   `LocalScheme` and `SecureScheme` and addressed without a host
   (`webos-bridge:///...`).** Without either the request never reaches the handler.
 
+- **A first-ever start needs `init` AFTER `services`, and the tools now enforce
+  it.** configurator registers every db8 kind by calling com.palm.db, so db8 has
+  to be answering first. Run before the services stage, it rejected all 35 kinds
+  with "com.palm.db is not running" and left the database empty -- and nothing
+  said so out loud: the shell drew, the apps started, and they were simply empty.
+  Memos opened with nothing and refused to add; calendar retried getCalendars
+  every ten seconds with "kind not registered"; email logged the same for its own
+  kinds. The old build trees hid it, their database already holding the kinds
+  from earlier sessions. `tools/run-lunasysmgr.sh init` now starts mojodb-luna if
+  it is not running and waits for com.palm.db before configuring: 41 kinds and 66
+  permissions, 0 failed, and the apps fill up.
+
 Not done yet:
 
 - **Checked by hand on Qt 6:** the shell and the apps run, and the line QtWebKit
