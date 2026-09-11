@@ -94,7 +94,7 @@ Still to do, in order:
   `WEBOS_QT=6 tools/run-lunasysmgr.sh run` runs them. What Qt 6 removed comes
   back through `components/qt6-compat`; WebAppMgr's QtWebKit comes back through
   `components/qtwebkit-compat`, on QtWebEngine. The test suite passes on both Qt
-  versions. The apps still have to be checked by hand on Qt 6. QtWebEngine also
+  versions, and the shell and the apps run on it. QtWebEngine also
   replaces the browser path (`BrowserServer`/`BrowserAdapter`/
   `WebKitSupplemental`), which existed to render pages in another process.
 - **Synergy** (accounts and their transports, mojomail): last.

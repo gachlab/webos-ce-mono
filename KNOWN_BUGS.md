@@ -82,8 +82,8 @@ Traps found on the way, each confirmed before being fixed:
 
 Not done yet:
 
-- **The apps have not been checked by hand on Qt 6.** They start and run their
-  JavaScript; whether each draws and takes input correctly is still to see.
+- **Checked by hand on Qt 6:** the shell and the apps run, and the line QtWebKit
+  5.212 drew across Enyo text fields is gone. Not yet gone through app by app.
 - **`/usr/palm/frameworks/tellurium` is not in the rootfs,** so every enyo app logs
   a failed load of `tellurium_config.json`. Not Qt 6's doing: the file exists in
   `components/enyo-1.0` and assemble-rootfs.sh never installs that directory.
@@ -258,11 +258,15 @@ Type with synthetic input did not work well enough to confirm taps land where
 they should. Worth trying by hand: open Just Type, tap in the field, and see
 whether the caret goes where you tapped.
 
-### A line crosses the Just Type search field
+### ~~A line crosses the Just Type search field~~ (gone on Qt 6)
 
 Two thin horizontal lines are drawn inside the search input, one through the
 text. It is an Enyo `RichText`; the CSS renders differently on QtWebKit 5.212
 than on HP's WebKit. Cosmetic.
+
+On the Qt 6 build, where WebAppMgr renders with QtWebEngine, the lines are gone
+from the apps (checked by hand). The Qt 5 build, still on QtWebKit 5.212, keeps
+them.
 
 ---
 
