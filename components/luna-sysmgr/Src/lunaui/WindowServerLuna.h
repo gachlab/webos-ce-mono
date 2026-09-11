@@ -93,7 +93,14 @@ public:
 #if (QT_VERSION < QT_VERSION_CHECK(5, 0, 0))
     virtual QDeclarativeEngine* declarativeEngine() { return m_qmlEngine; }
 #else
-    virtual QQmlEngine* declarativeEngine() { return m_qmlEngine; }
+    // This was named declarativeEngine() here too, but the Qt5 virtual on
+    // WindowServer is called qmlEngine(). So it overrode nothing and
+    // qmlEngine() kept returning the base class's NULL, even though the engine
+    // is created just fine in the constructor. Consequences: the QML
+    // notification menu never loaded (a notification with no text) and
+    // DashboardWindowManager::init() skipped creating m_dashboardWinContainer,
+    // so removeWindow() later dereferenced null and took LunaSysMgr down.
+    virtual QQmlEngine* qmlEngine() { return m_qmlEngine; }
 #endif
 
 	virtual QRectF mapRectToRoot(const QGraphicsItem* item, const QRectF& rect) const;

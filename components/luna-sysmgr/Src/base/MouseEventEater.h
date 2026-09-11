@@ -37,7 +37,6 @@ class MouseEventEater : public QObject
 public:
     MouseEventEater(QObject *parent = 0) : QObject(parent), m_surface(0) {}
 
-protected:
     // Only eats mouse events aimed at the webOS surface. It used to eat them
     // for EVERY object, because the filter is installed on the QCoreApplication:
     // that left the gesture strip's home button (a plain QPushButton) unable to
@@ -46,6 +45,7 @@ protected:
     // Verified in tests/eater-synthesis-qt5.cpp.
     void watch(QWidget *surface) { m_surface = surface; }
 
+protected:
     virtual bool eventFilter(QObject *o, QEvent *e) {
         if (e->type() == QEvent::MouseButtonRelease ||
             e->type() == QEvent::MouseButtonPress ||

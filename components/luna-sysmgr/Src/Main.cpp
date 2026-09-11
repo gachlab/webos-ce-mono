@@ -740,6 +740,10 @@ int main( int argc, char** argv)
 
 #if defined TARGET_DESKTOP && (QT_VERSION >= QT_VERSION_CHECK(5, 0, 0))
     MouseEventEater *eater = new MouseEventEater();
+    // Only eat mouse events aimed at the webOS surface. The filter is installed
+    // on the QCoreApplication, so without this it would eat them for every
+    // object, leaving the gesture strip's home button unable to receive clicks.
+    eater->watch(windowServer->viewport());
     QCoreApplication::instance()->installEventFilter(eater);
 #endif
 
