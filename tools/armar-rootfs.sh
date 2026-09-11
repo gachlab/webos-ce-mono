@@ -46,14 +46,6 @@ if [ -x "$WAM/debug-x86/WebAppMgr" ]; then
     cp -f "$WAM"/desktop-support/com.palm.webappmgr.service.pub "$ROOTFS/usr/share/ls2/services/com.palm.webappmgr.service"
 fi
 
-# Los .service traen "Exec=/usr/lib/luna/..." absoluto, que en el dispositivo era
-# correcto. Aqui ls-hubd corre FUERA del bwrap (solo LunaSysMgr entra), asi que
-# resolveria esa ruta contra el sistema de verdad, donde no hay nada. Se
-# reapunta al rootfs. HP resolvia lo mismo con symlinks desde /usr/lib/luna,
-# pero eso exige root y toca el sistema.
-sed -i "s|^Exec=/usr/lib/luna/|Exec=$ROOTFS/usr/lib/luna/|" \
-    "$ROOTFS"/usr/share/ls2/services/*.service \
-    "$ROOTFS"/usr/share/ls2/system-services/*.service 2>/dev/null
 
 # --- la UI: estas dos son las que realmente dibujan ---
 mkdir -p "$ROOTFS/usr/lib/luna/system/luna-systemui"
@@ -126,10 +118,93 @@ mkdir -p "$ROOTFS/usr/palm/frameworks/underscore/version/1.0"
 cp -rf "$C"/underscore/* "$ROOTFS/usr/palm/frameworks/underscore/version/1.0/" 2>/dev/null
 cp -f "$C"/mojoloader/mojoloader.js "$ROOTFS/usr/palm/frameworks/" 2>/dev/null
 
-echo "  apps:                $(ls "$ROOTFS/usr/palm/applications" 2>/dev/null | wc -l)"
-echo "  servicios:           $(ls "$ROOTFS/usr/palm/services" 2>/dev/null | wc -l)"
-echo "  frameworks:          $(ls "$ROOTFS/usr/palm/frameworks" 2>/dev/null | wc -l)"
-echo "  kinds de db8:        $(ls "$ROOTFS/etc/palm/db/kinds" 2>/dev/null | wc -l)"
+# --- servicios: ficheros de bus y binarios ---
+# Cada componente trae en desktop-support/ los cuatro ficheros que ls-hubd
+# necesita, siempre con el mismo patron. En vez de enumerarlos uno a uno (que es
+# lo que hacia el script de HP, linea a linea), se recorren todos.
+#
+#   *.json.prv    -> roles/prv/<nombre>.json      quien puede llamar a quien
+#   *.json.pub    -> roles/pub/<nombre>.json
+#   *.service.prv -> system-services/<n>.service  como arrancarlo (bus privado)
+#   *.service.pub -> services/<n>.service
+#   *.service     -> a los dos (db8 solo trae uno)
+# Algunos componentes los guardan en desktop-support/ y otros en service/.
+for DS in "$C"/*/desktop-support "$C"/*/service; do
+    [ -d "$DS" ] || continue
+    for f in "$DS"/com.palm.*.json.prv;    do [ -e "$f" ] && cp -f "$f" "$ROOTFS/usr/share/ls2/roles/prv/$(basename "$f" .json.prv).json"; done
+    for f in "$DS"/com.palm.*.json.pub;    do [ -e "$f" ] && cp -f "$f" "$ROOTFS/usr/share/ls2/roles/pub/$(basename "$f" .json.pub).json"; done
+    for f in "$DS"/com.palm.*.service.prv; do [ -e "$f" ] && cp -f "$f" "$ROOTFS/usr/share/ls2/system-services/$(basename "$f" .service.prv).service"; done
+    for f in "$DS"/com.palm.*.service.pub; do [ -e "$f" ] && cp -f "$f" "$ROOTFS/usr/share/ls2/services/$(basename "$f" .service.pub).service"; done
+    for f in "$DS"/com.palm.*.service;     do [ -e "$f" ] && cp -f "$f" "$ROOTFS/usr/share/ls2/services/" && cp -f "$f" "$ROOTFS/usr/share/ls2/system-services/"; done
+done
+
+# Los binarios que esos .service declaran. HP los reunia todos en /usr/lib/luna
+# aunque los Exec= apunten a tres sitios distintos (/usr/lib/luna, /usr/local/luna
+# y /usr/bin), asi que se hace igual: se toma el nombre del binario, se busca en
+# staging y se copia alli.
+for sf in "$ROOTFS"/usr/share/ls2/services/*.service "$ROOTFS"/usr/share/ls2/system-services/*.service; do
+    [ -e "$sf" ] || continue
+    exe=$(sed -n 's|^Exec=[^ ]*/\([^ /]*\).*|\1|p' "$sf" | head -1)
+    [ -n "$exe" ] || continue
+    if [ ! -e "$ROOTFS/usr/lib/luna/$exe" ]; then
+        for d in "$S/usr/sbin" "$S/usr/bin" "$S/sbin" "$S/bin"; do
+            [ -x "$d/$exe" ] && cp -f "$d/$exe" "$ROOTFS/usr/lib/luna/" && break
+        done
+    fi
+done
+
+# Los .service traen "Exec=/usr/lib/luna/..." absoluto, que en el dispositivo era
+# correcto. Aqui ls-hubd corre FUERA del bwrap (solo LunaSysMgr entra), asi que
+# resolveria esa ruta contra el sistema de verdad, donde no hay nada. Se
+# reapunta al rootfs. HP resolvia lo mismo con symlinks desde /usr/lib/luna,
+# pero eso exige root y toca el sistema.
+sed -i -E "s|^Exec=[^ ]*/([^ /]+)|Exec=$ROOTFS/usr/lib/luna/\\1|" \
+    "$ROOTFS"/usr/share/ls2/services/*.service \
+    "$ROOTFS"/usr/share/ls2/system-services/*.service 2>/dev/null
+
+# Un .service cuyo binario no tenemos solo sirve para que ls-hubd falle al
+# intentar arrancarlo bajo demanda (hoy: BrowserServer, que es el camino NPAPI
+# del navegador y no se construye). Se retiran.
+for sf in "$ROOTFS"/usr/share/ls2/services/*.service "$ROOTFS"/usr/share/ls2/system-services/*.service; do
+    [ -e "$sf" ] || continue
+    exe=$(sed -n 's|^Exec=[^ ]*/\([^ /]*\).*|\1|p' "$sf" | head -1)
+    [ -n "$exe" ] && [ ! -e "$ROOTFS/usr/lib/luna/$exe" ] && rm -f "$sf"
+done
+
+# mojodb-luna arranca con "-c /etc/palm/mojodb.conf /var/db" y ese .conf vive
+# dentro del fuente de db8, no en desktop-support.
+cp -f "$C"/db8/src/db-luna/mojodb.conf "$ROOTFS/etc/palm/" 2>/dev/null
+mkdir -p "$ROOTFS"/var/db
+
+# Directorios de trabajo que cada servicio espera encontrar ya creados.
+# Salieron de arrancarlos y leer por que morian.
+# Los kinds y permisos de db8 que no vienen de core-apps ni de app-services.
+# Sin ellos com.palm.db no tiene esquema y toda consulta de las apps falla
+# --- que es por lo que email y calendario salian vacios.
+mkdir -p "$ROOTFS"/etc/palm/db/{kinds,permissions} "$ROOTFS"/etc/palm/tempdb/kinds
+for d in "$C"/activitymanager/files/db8 "$C"/mojomail/*/files/db8 "$C"/isis-browser/db; do
+    [ -d "$d/kinds" ]       && cp -rf "$d"/kinds/*       "$ROOTFS/etc/palm/db/kinds/"       2>/dev/null
+    [ -d "$d/permissions" ] && cp -rf "$d"/permissions/* "$ROOTFS/etc/palm/db/permissions/" 2>/dev/null
+done
+# Las cuentas traen los suyos aparte, y ademas una base temporal.
+A="$C/app-services/com.palm.service.accounts"
+cp -f  "$A"/desktop/com.palm.account.credentials "$ROOTFS/etc/palm/db/kinds/" 2>/dev/null
+cp -rf "$A"/tempdb/kinds/*                       "$ROOTFS/etc/palm/tempdb/kinds/" 2>/dev/null
+
+mkdir -p "$ROOTFS"/var/palm/data/universalsearchmgr/searchplugins
+mkdir -p "$ROOTFS"/var/palm/data "$ROOTFS"/var/file-cache
+mkdir -p "$S"/var/file-cache          # filecache lo pide bajo el prefijo del build
+
+# fonts.conf propio: anade las fuentes de webOS a las del sistema en vez de
+# sustituirlas. La ruta va absoluta porque fontconfig no expande variables.
+cat > "$ROOTFS/etc/fonts.conf" <<FC
+<?xml version="1.0"?>
+<!DOCTYPE fontconfig SYSTEM "fonts.dtd">
+<fontconfig>
+  <include ignore_missing="yes">/etc/fonts/fonts.conf</include>
+  <dir>$ROOTFS/usr/share/fonts</dir>
+</fontconfig>
+FC
 
 # --- reapuntar las rutas de luna.conf al rootfs ---
 # Son absolutas del dispositivo (/usr/palm/..., /var/luna/...). Con bwrap solo
@@ -149,6 +224,11 @@ sed -i -E "/^(ApplicationPath|SystemPath|SystemResourcesPath|SystemLocalePath|Ap
 sed -i -E "s#^(Directories=)/#\\1$ROOTFS/#" "$ROOTFS"/etc/ls2/*.conf
 
 echo "rootfs armado en $ROOTFS"
+echo "  apps:                $(ls "$ROOTFS/usr/palm/applications" 2>/dev/null | wc -l)"
+echo "  servicios:           $(ls "$ROOTFS/usr/palm/services" 2>/dev/null | wc -l)"
+echo "  frameworks:          $(ls "$ROOTFS/usr/palm/frameworks" 2>/dev/null | wc -l)"
+echo "  kinds de db8:        $(ls "$ROOTFS/etc/palm/db/kinds" 2>/dev/null | wc -l)"
+
 echo "  etc/palm:            $(ls "$ROOTFS/etc/palm" 2>/dev/null | wc -l) entradas"
 echo "  etc/ls2:             $(ls "$ROOTFS/etc/ls2" 2>/dev/null | wc -l) entradas"
 echo "  luna-systemui:       $(ls "$ROOTFS/usr/lib/luna/system/luna-systemui" 2>/dev/null | wc -l) entradas"
