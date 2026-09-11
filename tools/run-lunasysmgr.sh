@@ -54,6 +54,11 @@ service_stop() {
 # 5.212, which is not on the host. ls-hubd inherits this environment and passes
 # it on to WebAppMgr when it starts it.
 export LD_LIBRARY_PATH="$S/lib:$S/usr/lib:$S/qtwebkit/lib/x86_64-linux-gnu"
+
+# bootstrap-node.js calls process.setName and process.setArgs, which existed
+# only in HP's patched node. --require supplies them without run-js-service or
+# the launcher having to know, and is inherited by every node the hub starts.
+export NODE_OPTIONS="--require /usr/palm/nodejs/webos-node-compat.js${NODE_OPTIONS:+ $NODE_OPTIONS}"
 # The Prelude fonts live in the rootfs, but the code looks for them in
 # /usr/share/fonts, which inside the namespace is the host's. Without this webOS
 # draws with the wrong font: 0 Prelude families visible, 59 in total. With the

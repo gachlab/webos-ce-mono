@@ -16,7 +16,10 @@
 #include "v8.h"
 #include "node.h"
 
+#include <algorithm>
 #include <map>
+#include <cstdio>
+#include <cstdlib>
 #include <cstdio>
 // SHIM_TRACE=1 prints what the shim is doing. Every bug in it so far was
 // found this way rather than by reading, so it stays.
@@ -351,11 +354,38 @@ void TryCatch::Reset() { fError = nullptr; }
 
 // --- context and scripts ----------------------------------------------------
 
+// V8 gave each context its own global object. N-API has one, and there is no
+// way to make another.
+//
+// What dynaload actually needs from a context is narrower than isolation: the
+// scripts of one library must see each other's top-level vars -- db.js declares
+// `var DB` and typedowndb.js just uses DB -- and share one `exports`, and the
+// object holding all of that must come back to mojoloader, which reads
+// `.exports` off it.
+//
+// The interpreter's own global does all three. A top-level var in a script run
+// through napi_run_script becomes a property of it, `exports` set on it is
+// visible to every script, and it is a real object that outlives the scope.
+//
+// What is lost is the isolation: two libraries loaded one after another share a
+// global rather than getting one each. mojoloader reads a library's exports
+// immediately after loading it, before the next one starts, so the exports
+// themselves do not collide -- but their top-level vars do. An earlier version
+// tried to keep a separate object in step with the global around every script
+// and was harder to reason about than this, without being right either.
+//
+// If that isolation turns out to matter, node's vm module is the honest answer,
+// reached from here rather than emulated.
 Handle<Context> Context::GetCurrent()
 {
     napi_value global = nullptr;
     napi_get_global(CurrentEnv(), &global);
     return Handle<Context>(global);
+}
+
+Handle<Context> Context::New()
+{
+    return GetCurrent();
 }
 
 Local<Object> Context::Global()
@@ -364,6 +394,9 @@ Local<Object> Context::Global()
     napi_get_global(CurrentEnv(), &global);
     return Local<Object>(global);
 }
+
+Context::Scope::Scope(const Handle<Context>&) : fPrevious(nullptr) {}
+Context::Scope::~Scope() {}
 
 // V8 compiled a script and ran it later. N-API only offers napi_run_script,
 // which does both, so the source is held and run on demand.
@@ -414,6 +447,15 @@ Local<Value> Script::Run()
     if (napi_run_script(env, source, &out) != napi_ok) {
         napi_value pending = nullptr;
         napi_get_and_clear_last_exception(env, &pending);
+        // SHIM_TRACE=1 to see what a script threw; loaders above tend to
+        // swallow it and report only that the library failed.
+        if (getenv("SHIM_TRACE") && pending) {
+            napi_value msg = nullptr;
+            napi_get_named_property(env, pending, "message", &msg);
+            char buf[300] = {0}; size_t n = 0;
+            napi_get_value_string_utf8(env, msg, buf, sizeof(buf), &n);
+            fprintf(stderr, "[shim] script threw: %s\n", buf);
+        }
         return Local<Value>();
     }
     return Local<Value>(out);

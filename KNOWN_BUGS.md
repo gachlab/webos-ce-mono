@@ -49,14 +49,44 @@ through `rootItem()`.
 
 ### Calendar and email open empty
 
-**Cause.** They depend on JS services (`com.palm.service.accounts`,
-`com.palm.service.calendar`) that run on node, and the node addons
-(`sysbus`, `pmlog`, `dynaload`) use the old v8 API and have not been ported to
-N-API. No node process is running.
+They depend on JS services that run on node. Where that stands:
 
-**Not our port.** The VM fails with the exact same messages:
-`Accounts.getAccounts: 0 accounts and 0 templates` and
-`CalendarsManager.getCalendarsFailed(): getCalendars call failed`.
+**The addons work.** `pmloglib`, `palmbus` and `webos` (dynaload) build from HP's
+sources with nothing changed in them and load in node 26, through
+`components/node-v8-shim`. A real call goes out and comes back:
+
+    LISTENER DISPARADO
+    payload: { "utc": 1789143937, "timezone": "America/Los_Angeles", ... }
+
+**The launcher starts.** `run-js-service` accepts the service path, node runs
+`bootstrap-node.js`, and `mojoloader` is found and begins loading frameworks.
+That needed `/usr/palm/nodejs/node` as a bind mount (ls-hubd identifies callers
+through `/proc/<pid>/exe`, so a symlink resolves to the wrong path), a
+permissions block HP's `com.palm.nodejs.json` does not have, and a `--require`
+shim for `process.setName` and `process.setArgs`, which existed only in HP's
+patched node.
+
+**Where it stops.** Loading the `foundations` framework:
+
+    MojoLoader.builtinLibName is not a function
+    TypeError: Cannot read properties of undefined (reading 'AjaxCall')
+
+That is above the shim -- `mojoloader.js` and the frameworks disagreeing about
+an interface -- not a V8 or N-API question. `SHIM_TRACE=1` prints what each
+script threw, which the loaders otherwise swallow.
+
+**One known compromise in the shim.** V8 gave each loaded library its own
+context; N-API has one and cannot make another. `Context` therefore maps to the
+interpreter's global, which gives the scripts of a library the two things they
+actually depend on -- each other's top-level vars, and a shared `exports` -- but
+not isolation between libraries. Their exports do not collide, because
+mojoloader reads each library's before loading the next; their top-level vars
+do. If that turns out to matter, node's `vm` module is the honest answer rather
+than a wider emulation.
+
+**Not our port, for the part that was measured.** The reference VM fails with the
+same `Accounts.getAccounts: 0 accounts and 0 templates` and
+`CalendarsManager.getCalendarsFailed()`.
 
 ---
 

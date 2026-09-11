@@ -50,6 +50,12 @@ target_include_directories(palmbus PRIVATE ${SYSBUS} ${GLIB_INCLUDE_DIRS}
     @ROOT@/build-modern/staging/include)
 target_link_directories(palmbus PRIVATE @ROOT@/build-modern/staging/lib)
 target_link_libraries(palmbus PRIVATE ${GLIB_LIBRARIES} luna-service2)
+
+# dynaload: loads a script into what V8 called its own context.
+set(DYNA @ROOT@/components/nodejs-module-webos-dynaload/src)
+webos_node_addon(webos ${DYNA}/node_webos.cpp ${DYNA}/external_string.cpp)
+target_include_directories(webos PRIVATE ${DYNA})
+target_link_libraries(webos PRIVATE boost_filesystem)
 CMAKE
 sed -i "s|@ROOT@|$ROOT|g; s|@BUILD@|$BUILD|g" "$BUILD/CMakeLists.txt"
 
@@ -134,4 +140,24 @@ node check.js || exit 1
 
 echo
 echo "palmbus -- 2660 lines of HP's, unmodified:"
-node check-palmbus.js
+node check-palmbus.js || exit 1
+
+# HP's own test for dynaload, unchanged apart from where it looks for the addon.
+# It loads a second script and that script has to see __filename and __dirname,
+# which only works if the context emulation gives it the names the real one did.
+sed "s|require('webos')|require('$BUILD/build/webos.node')|" \
+    "$ROOT/components/nodejs-module-webos-dynaload/src/test/test_include.js" \
+    > "$BUILD/build/test_include.js"
+cp "$ROOT/components/nodejs-module-webos-dynaload/src/test/another_script.js" "$BUILD/build/"
+
+echo
+echo "dynaload -- HP's own include test:"
+out="$(node test_include.js 2>&1)"
+echo "$out" | sed 's/^/  /'
+if echo "$out" | grep -q "__filename = .*/another_script.js" \
+   && echo "$out" | grep -q "__dirname = /"; then
+    echo "OK"
+else
+    echo "FAIL: the included script did not get its own __filename and __dirname"
+    exit 1
+fi

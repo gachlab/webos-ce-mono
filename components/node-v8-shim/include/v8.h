@@ -159,6 +159,12 @@ public:
     Persistent() {}
     Persistent(napi_value v) : Handle<T>(v) {}                 // NOLINT
 
+    // V8 let a Handle be assigned to a Persistent -- Context::New returns one
+    // and dynaload keeps it in a Persistent<Context>. The reference comes along
+    // if the source had one.
+    template <typename U>
+    Persistent(const Handle<U>& other) : Handle<T>(other) {}   // NOLINT
+
     // V8 0.4 spelled this Persistent<T>::New(handle): it made the value outlive
     // the enclosing HandleScope. A napi_ref does the same, and lives in Handle
     // so it survives being passed as one.
@@ -206,17 +212,29 @@ private:
 
 class HandleScope {
 public:
+    // Escapable, because Close() has to hand one value to the enclosing scope
+    // and a plain scope invalidates everything made inside it. dynaload's
+    // IncludeScript ends with `return scope.Close(returnValue)`.
     HandleScope() : fScope(nullptr) {
-        napi_open_handle_scope(CurrentEnv(), &fScope);
+        napi_open_escapable_handle_scope(CurrentEnv(), &fScope);
     }
     ~HandleScope() {
         if (fScope)
-            napi_close_handle_scope(CurrentEnv(), fScope);
+            napi_close_escapable_handle_scope(CurrentEnv(), fScope);
     }
-    // V8 0.4's Close(handle) escaped one value into the enclosing scope. Nothing
-    // in webOS's addons uses it, so it is deliberately absent.
+
+    template <typename T>
+    Handle<T> Close(const Handle<T>& value) {
+        if (!fScope || value.IsEmpty())
+            return value;
+        napi_value out = nullptr;
+        if (napi_escape_handle(CurrentEnv(), fScope, value.raw(), &out) != napi_ok)
+            return value;
+        return Handle<T>(out);
+    }
+
 private:
-    napi_handle_scope fScope;
+    napi_escapable_handle_scope fScope;
     HandleScope(const HandleScope&);
     HandleScope& operator=(const HandleScope&);
 };
@@ -579,15 +597,32 @@ private:
 
 // --------------------------------------------------------------- context ----
 
+// V8 could make a fresh context with its own global object. N-API cannot: there
+// is one context and napi_run_script runs in it.
+//
+// dynaload uses a context per script purely to give that script its own
+// globals -- exports, require, MojoLoader, global, root -- so what is emulated
+// here is that effect, not the isolation. A "context" is an ordinary object
+// collecting the names assigned to its Global(), and a script run while it is in
+// scope is wrapped in a function taking those names as parameters, which is what
+// CommonJS does. HP's own comment says the security tokens serve no purpose in
+// webOS, so they are accepted and dropped.
 class Context {
 public:
     static Handle<Context> GetCurrent();
-    static Handle<Context> New() { return GetCurrent(); }
+    static Handle<Context> New();
+    static Handle<Context> New(void*, const Handle<ObjectTemplate>&) { return New(); }
     Local<Object> Global();
+
+    void SetSecurityToken(const Handle<Value>&) {}
+    Local<Value> GetSecurityToken() { return Local<Value>(); }
 
     class Scope {
     public:
-        explicit Scope(const Handle<Context>&) {}       // one context here
+        explicit Scope(const Handle<Context>& context);
+        ~Scope();
+    private:
+        napi_value fPrevious;
     };
 };
 

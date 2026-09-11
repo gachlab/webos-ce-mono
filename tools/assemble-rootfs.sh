@@ -296,6 +296,39 @@ echo "  luna-systemui:       $(ls "$ROOTFS/usr/lib/luna/system/luna-systemui" 2>
 echo "  luna-applauncher:    $(ls "$ROOTFS/usr/lib/luna/system/luna-applauncher" 2>/dev/null | wc -l) entries"
 echo "  bus roles:           $(ls "$ROOTFS/usr/share/ls2/roles/prv" "$ROOTFS/usr/share/ls2/roles/pub" 2>/dev/null | grep -c json)"
 
+# --- JavaScript services: launcher, frameworks, the services themselves ---
+#
+# run-js-service runs
+#   $NODE /usr/palm/services/jsservicelauncher/bootstrap-node.js <service path>
+# with NODE_PATH=/usr/palm/frameworks:/usr/palm/nodejs, and refuses any service
+# path that is not under /usr/palm/services. So the tree goes where it looks.
+mkdir -p "$ROOTFS/usr/palm/services/jsservicelauncher" "$ROOTFS/usr/palm/frameworks"
+
+MSL="$R/components/mojoservicelauncher"
+if [ -d "$MSL" ]; then
+    cp -f "$MSL"/bootstrap-node.js "$MSL"/fork_server.js "$MSL"/palm_bus_config.json \
+          "$ROOTFS/usr/palm/services/jsservicelauncher/" 2>/dev/null || true
+    [ -d "$MSL/jslauncher" ] && cp -rf "$MSL/jslauncher" "$ROOTFS/usr/palm/services/jsservicelauncher/"
+fi
+
+# Frameworks are looked up by name on NODE_PATH, so each one keeps its own
+# directory with its manifest and javascript/ beside it.
+for fw in "$R"/components/foundation-frameworks/*/ "$R"/components/mojoservice-frameworks/*/; do
+    [ -f "$fw/manifest.json" ] || continue
+    cp -rf "$fw" "$ROOTFS/usr/palm/frameworks/"
+done
+
+# The services. Only the ones that are pure JavaScript are useful yet.
+for svc in "$R"/components/mojolocation-stub "$R"/components/pmnetconfigmanager-stub \
+           "$R"/components/app-services/com.palm.service.*; do
+    [ -f "$svc/services.json" ] || continue
+    id="$(python3 -c "import json,sys; print(json.load(open(sys.argv[1]))['id'])" "$svc/services.json" 2>/dev/null || true)"
+    [ -n "$id" ] || continue
+    mkdir -p "$ROOTFS/usr/palm/services/$id"
+    cp -rf "$svc"/. "$ROOTFS/usr/palm/services/$id/" 2>/dev/null || true
+done
+echo "  js services:         $(ls "$ROOTFS/usr/palm/services" 2>/dev/null | wc -l) dirs, frameworks: $(ls "$ROOTFS/usr/palm/frameworks" 2>/dev/null | wc -l)"
+
 # --- node: the path HP's own configuration expects ---
 #
 # Written at the end on purpose. HP's own role files are copied in above and
@@ -346,6 +379,7 @@ if [ -n "$NODE_BIN" ]; then
 }
 JSON
     done
-    echo "  node:                $NODE_BIN -> /usr/palm/nodejs/node"
+    cp -f "$R/components/node-v8-shim/js/webos-node-compat.js" "$ROOTFS/usr/palm/nodejs/"
+    echo "  node:                $NODE_BIN bound at /usr/palm/nodejs/node"
 fi
 
