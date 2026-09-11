@@ -163,6 +163,6 @@ void SingleClickGestureRecognizer::reset (QGesture* state)
 	gesture->m_timerId = 0;
 	gesture->m_mouseDown = false;
 	gesture->m_triggerSingleClickOnRelease = false;
-	gesture->m_modifiers = 0;
+	gesture->m_modifiers = Qt::NoModifier;
 	QGestureRecognizer::reset(state);
 }

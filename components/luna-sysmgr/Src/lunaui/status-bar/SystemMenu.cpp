@@ -480,8 +480,8 @@ void SystemMenu::slotWifiAvailableNetworksListUpdate(int numNetworks, t_wifiAcce
 										  Q_ARG(QVariant, QString::fromUtf8(list[x].ssid)),
 										  Q_ARG(QVariant, list[x].profileId),
 										  Q_ARG(QVariant, CLAMP(list[x].signalBars, 0, 3)),
-										  Q_ARG(QVariant, list[x].securityType),
-										  Q_ARG(QVariant, list[x].connectionState),
+										  Q_ARG(QVariant, QString::fromUtf8(list[x].securityType)),
+										  Q_ARG(QVariant, QString::fromUtf8(list[x].connectionState)),
 										  Q_ARG(QVariant, list[x].connected));
 			}
 		}
@@ -702,9 +702,9 @@ void SystemMenu::slotBluetoothTrustedDevicesUpdate(int numTrustedDevices, t_blue
 				for (int x = 0; x < numTrustedDevices; x++) {
 					QMetaObject::invokeMethod(m_bluetoothMenu, "addBluetoothEntry",
 											  Q_ARG(QVariant, QString::fromUtf8(list[x].displayName)),
-											  Q_ARG(QVariant, list[x].btAddress),
+											  Q_ARG(QVariant, QString::fromUtf8(list[x].btAddress)),
 											  Q_ARG(QVariant, list[x].cod),
-											  Q_ARG(QVariant, list[x].connectionState),
+											  Q_ARG(QVariant, QString::fromUtf8(list[x].connectionState)),
 											  Q_ARG(QVariant, list[x].showConnected));
 					memcpy(&(m_trustedDevices[x]), &(list[x]), sizeof(t_bluetoothDevice));
 				}
@@ -744,9 +744,9 @@ void SystemMenu::slotBluetoothUpdateDeviceStatus(t_bluetoothDevice* deviceStatus
 		if(!skipUiUpdate) {
 			QMetaObject::invokeMethod(m_bluetoothMenu, "updateBluetoothEntry",
 									  Q_ARG(QVariant, QString::fromUtf8(deviceStatus->displayName)),
-									  Q_ARG(QVariant, deviceStatus->btAddress),
+									  Q_ARG(QVariant, QString::fromUtf8(deviceStatus->btAddress)),
 									  Q_ARG(QVariant, deviceStatus->cod),
-									  Q_ARG(QVariant, deviceStatus->connectionState),
+									  Q_ARG(QVariant, QString::fromUtf8(deviceStatus->connectionState)),
 									  Q_ARG(QVariant, deviceStatus->showConnected));
 		}
 
@@ -822,9 +822,9 @@ void SystemMenu::slotVpnProfileListUpdate(int numProfiles, t_vpnProfile* list)
 		if(numProfiles > 0) {
 			for(int x = 0; x < numProfiles; x++) {
 				QMetaObject::invokeMethod(m_vpnMenu, "addVpnEntry",
-										  Q_ARG(QVariant, list[x].displayName),
-										  Q_ARG(QVariant, list[x].connectionState),
-										  Q_ARG(QVariant, list[x].profInfo));
+										  Q_ARG(QVariant, QString::fromUtf8(list[x].displayName)),
+										  Q_ARG(QVariant, QString::fromUtf8(list[x].connectionState)),
+										  Q_ARG(QVariant, QString::fromUtf8(list[x].profInfo)));
 
 				if(!connected) {
 					if(!strcmp(list[x].connectionState, "connected") || !strcmp(list[x].connectionState, "connecting")) {

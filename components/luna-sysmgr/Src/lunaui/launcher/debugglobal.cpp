@@ -86,7 +86,7 @@ QDebug operator<<(QDebug dbg, const QTouchEvent::TouchPoint &s)
 #if (QT_VERSION < QT_VERSION_CHECK(5, 0, 0))
 			<< ", \"primary\":\"" << (s.isPrimary() ? "true" : "false") << "\""
 #endif
-			<< ", \"state\":" << touchStateToString(s.state())
+			<< ", \"state\":" << touchStateToString(static_cast<Qt::TouchPointState>(s.state()))
 			<< ", \"pos\":\"" << s.pos() << "\""
 			<< ", \"pressure\":\"" << s.pressure() << "\""
 			<< " }";

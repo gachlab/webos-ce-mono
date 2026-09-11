@@ -583,7 +583,7 @@ bool MaximizeToFocusTransition::eventTest(QEvent* event)
 
 	QStateMachine::SignalEvent* se = static_cast<QStateMachine::SignalEvent*>(event);
 	CardWindow* win = se->arguments().at(0).value<CardWindow*>();
-	CardWindowManager* wm = static_cast<CardWindowManager*>(senderObject());
+	CardWindowManager* wm = static_cast<CardWindowManager*>(const_cast<QObject*>(senderObject()));
 	if (win == wm->activeWindow()) {
 		// window is already focused
 		SystemUiController::instance()->setCardWindowMaximized(true);

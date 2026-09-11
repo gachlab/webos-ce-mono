@@ -34,34 +34,17 @@ protected:
     }
 };
 
-// The same translation WindowServer::deliverAsTouch performs.
-static QTouchDevice* touchDevice()
-{
-    static QTouchDevice* d = 0;
-    if (!d) {
-        d = new QTouchDevice;
-        d->setType(QTouchDevice::TouchScreen);
-        d->setCapabilities(QTouchDevice::Position);
-    }
-    return d;
-}
+#include "touch-events.h"
 
+// The same translation WindowServer::deliverAsTouch performs.
 static bool sendTouch(QGraphicsView* view, QEvent::Type type,
                         Qt::TouchPointState state, const QPointF& p)
 {
-    QTouchEvent::TouchPoint point(0);
-    point.setState(state);
-    point.setPos(p);
-    point.setScenePos(p);
-    point.setScreenPos(p);
-    point.setLastPos(p);  point.setLastScenePos(p);  point.setLastScreenPos(p);
-    point.setStartPos(p); point.setStartScenePos(p); point.setStartScreenPos(p);
-    point.setPressure(state == Qt::TouchPointReleased ? 0.0 : 1.0);
-
     QList<QTouchEvent::TouchPoint> points;
-    points.append(point);
+    points.append(TestTouch::point(0, state, p, TestTouch::WithHistory,
+                                   state == Qt::TouchPointReleased ? 0.0 : 1.0));
 
-    QTouchEvent touch(type, touchDevice(), Qt::NoModifier, state, points);
+    QTouchEvent touch = TestTouch::event(type, state, points);
     touch.setAccepted(false);
     QApplication::sendEvent(view->viewport(), &touch);
     return touch.isAccepted();

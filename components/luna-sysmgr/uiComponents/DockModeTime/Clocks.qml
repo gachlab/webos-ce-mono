@@ -1,4 +1,5 @@
 import QtQuick 2.0
+import QtQml.Models 2.1
 
 Rectangle {
     width: 1024
@@ -12,7 +13,8 @@ Rectangle {
         source: "../../images/dockmode/time/clock_bg.png"
     }
 
-    VisualItemModel{
+    // VisualItemModel is gone in Qt 6; ObjectModel is the same thing, in Qt 5.15 too.
+    ObjectModel{
         id: clockList
         AnalogClock{glass: 1; timerRunning: mainTimerRunning}
         DigitalClock{timerRunning: mainTimerRunning}

@@ -262,7 +262,7 @@ void ColorRoundRectButton::paint(QPainter *painter, const QStyleOptionGraphicsIt
 //	DimensionsDebugGlobal::dbgPaintBoundingRect(painter,m_geom,7);
 	QBrush sb = painter->brush();
 	painter->setBrush(m_currentColor);
-	painter->drawRoundRect(m_geom,m_xRndFactor,m_yRndFactor);
+	painter->drawRoundedRect(m_geom,m_xRndFactor,m_yRndFactor,Qt::RelativeSize);
 	painter->setBrush(sb);
 	QPen sp = painter->pen();
 	painter->setPen(m_selectedColor);

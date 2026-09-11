@@ -99,12 +99,12 @@ stage_autotools() {
     echo "== autotools =="
     for c in $(selected autotools); do
         d=$R/build-modern/$c
-        mkdir -p "$d"; cd "$d" || { echo "$c: sin directorio"; return 1; }
+        mkdir -p "$d"; cd "$d" || { echo "$c: no directory"; return 1; }
         # cjson ships autogen.sh; HP's tree has no generated ./configure.
         [ -x "$R/components/$c/configure" ] || (cd "$R/components/$c" && ./autogen.sh >/dev/null 2>&1)
         if ! "$R/components/$c/configure" --prefix="$R/build-modern/staging" > cfg.log 2>&1 \
            || ! make -j"$(nproc)" > build.log 2>&1 || ! make install > install.log 2>&1; then
-            printf "%-22s FALLA %s\n" "$c" "$(grep -m1 -iE 'error' build.log cfg.log 2>/dev/null | cut -c1-60)"
+            printf "%-22s FAILED %s\n" "$c" "$(grep -m1 -iE 'error' build.log cfg.log 2>/dev/null | cut -c1-60)"
             return 1
         fi
         printf "%-22s OK\n" "$c"

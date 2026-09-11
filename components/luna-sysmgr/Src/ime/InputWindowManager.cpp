@@ -29,7 +29,7 @@
 #include "AnimationSettings.h"
 #include "Preferences.h"
 #include <QApplication>
-#include <QDesktopWidget>
+#include <QScreen>
 
 InputWindowManager::InputWindowManager(int maxWidth, int maxHeight)
 	: WindowManagerBase(maxWidth, maxHeight)
@@ -63,8 +63,8 @@ void InputWindowManager::init()
 	m_imeView->setBoundingRect(QRectF(0, 0, r.width(), r.height()));
 	m_imeView->setPos(r.topLeft());
 
-    int dpi = (QApplication::desktop()->physicalDpiX() +
-               QApplication::desktop()->physicalDpiY()) / 2;
+    int dpi = (qRound(QGuiApplication::primaryScreen()->physicalDotsPerInchX()) +
+               qRound(QGuiApplication::primaryScreen()->physicalDotsPerInchY())) / 2;
 
     m_activeIME = m_imeMgr.createPreferredIME(
                 SystemUiController::instance()->currentUiWidth(),

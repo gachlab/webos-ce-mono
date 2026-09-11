@@ -30,6 +30,15 @@ list(APPEND CMAKE_PREFIX_PATH ${QTWEBKIT_CMAKE_DIRS})
 # It is what brings QGLWidget, which CardWebApp.cpp includes -- and one of the
 # 14 files that will need changing if this ever moves to Qt6, where QGLWidget is
 # gone in favour of QOpenGLWidget.
+# Qt 5 or 6. Qt 5 is the build that runs today; 6 is where the stack is moving,
+# built in its own tree by tools/build-cmake.sh (WEBOS_QT=6). Both provide the
+# versionless Qt:: targets used below.
+set(WEBOS_QT_MAJOR 5 CACHE STRING "Qt major version to build against: 5 or 6")
+if (NOT WEBOS_QT_MAJOR EQUAL 5)
+    message(FATAL_ERROR "WebAppMgr is written against QtWebKit, which has no Qt "
+        "${WEBOS_QT_MAJOR} build here. Its Qt 6 path goes through QtWebEngine and "
+        "is not written yet.")
+endif ()
 find_package(Qt5 REQUIRED COMPONENTS Core Gui Network Widgets Quick OpenGL)
 
 # Asked for as their own packages rather than as Qt5 components: component

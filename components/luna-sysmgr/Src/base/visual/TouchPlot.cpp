@@ -131,7 +131,7 @@ void TouchPlot::paint(QPainter* painter, const QStyleOptionGraphicsItem*, QWidge
 
 			prev = (*it).pos();
 
-			painter->setBrush(stateToBrush((*it).state()));
+			painter->setBrush(stateToBrush(static_cast<Qt::TouchPointState>((*it).state())));
 
 			painter->drawRect(prev.x() - m_plotRectSize/2, prev.y() - m_plotRectSize/2, m_plotRectSize, m_plotRectSize);
 
@@ -139,7 +139,7 @@ void TouchPlot::paint(QPainter* painter, const QStyleOptionGraphicsItem*, QWidge
 			{
 				painter->drawLine(prev, (*it).pos());
 				prev = (*it).pos();
-				painter->setBrush(stateToBrush((*it).state()));
+				painter->setBrush(stateToBrush(static_cast<Qt::TouchPointState>((*it).state())));
 				painter->drawRect(prev.x() - m_plotRectSize/2, prev.y() - m_plotRectSize/2, m_plotRectSize, m_plotRectSize);
 
 			}

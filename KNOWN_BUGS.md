@@ -8,6 +8,63 @@ own `build-webos-desktop.sh`. **If it fails there too, it is not our port.**
 
 ---
 
+## Qt 6 port (in progress)
+
+Builds against Debian's Qt 6.10 in `build-qt6/`, next to the Qt 5 build, which
+is left untouched: `WEBOS_QT=6 tools/build-cmake.sh luna-sysmgr-common luna-sysmgr
+keyboard-efigs luna-sysservice`. LunaSysMgr links against Qt 6 only (no Qt 5
+library in `ldd`). `tests/` passes on both: 14 of 14 on Qt 6 (the CE tree's QML
+test is Qt 5 only), 15 of 15 on Qt 5.
+
+How it was done: build against Qt 6, inventory every error with `make -k`, and
+fix each where it can be fixed without touching HP's code.
+
+- **Adapters** (`components/qt6-compat`, only compiled for Qt 6): the `QGL*`
+  classes over `QOpenGL*`, and a forced include that brings back `qrand`,
+  `qSort`, `qFind`, `qVariantFromValue` and `qRegisterMetaTypeStreamOperators`
+  and includes `<QObject>`, which Qt 5's headers pulled in for HP's.
+- **Module moves**, in CMake: `QStateMachine` (Debian: `qt6-scxml-dev`),
+  `QOpenGLWidget`, and `GuiPrivate` for `QMutableEventPoint`.
+- **Members Qt removed from its own classes** cannot be adapted from outside, so
+  about 85 call sites changed, each to a form that compiles on Qt 5.15 too:
+  `horizontalAdvance`, `sizeInBytes`, `QMultiMap::insert`, `QChar(int(key))`,
+  `drawRoundedRect(..., Qt::RelativeSize)`, and similar.
+
+Traps found on the way, each confirmed before being fixed:
+
+- **`QQuickWindow::graphicsApi()` reports OpenGL after `setGraphicsApi(Software)`.**
+  A probe printed 3 from the static call while the window's
+  `rendererInterface()` said 1 and rendered the right pixel. Deciding on the
+  static value made `QmlSceneItem` call `QQuickRenderControl::initialize()`,
+  which with the software adaptation creates an unusable RHI ("QRhi is only
+  compatible with default adaptation") and every later `sync()`/`render()`
+  refuses. Qt 6 documents that `initialize()` must not be called there.
+- **The software renderer repaints only dirty regions.** Clearing the target
+  image before each render left it empty on any frame with nothing dirty. Both
+  mistakes were put back one at a time; `tests/qml-scene-item` fails on each.
+- **A touch sent with `sendEvent()` never reaches QML under Qt 6.** QQuickWindow
+  only accepts points its device tracks as active, and a device only tracks
+  points that came in through the platform: "point is not in activePoints".
+  Real touches in the shell do come through the platform; the test now injects
+  through `QTest::touchEvent` on Qt 6.
+- **`Window`'s copy constructor was declared and never defined**, with
+  `HostWindow` a friend. Qt 6's moc instantiates the copy constructor of every
+  QObject subclass that looks copyable, so the link failed; it is `= delete` now.
+- **Qt 6's moc needs the complete type behind a pointer property**
+  (`Q_PROPERTY(LayoutItem * ...)` in icon.h). CMake passes `-b layoutitem.h` to
+  moc instead of editing the header.
+
+Not done yet:
+
+- **WebAppMgr** stops at configure on purpose: it is written against QtWebKit,
+  and its Qt 6 path is QtWebEngine.
+- **Nothing has run as a shell on Qt 6.** In particular `QGLWidget` over
+  `QOpenGLWidget` differs in one way that matters at runtime: Qt 5 created the
+  GL context in the constructor, Qt 6 only when the widget is first shown, so
+  `makeCurrent()` right after construction does nothing.
+
+---
+
 ## Blocked on a missing dependency
 
 ### ~~The QML parts of the UI do not draw~~ (fixed)

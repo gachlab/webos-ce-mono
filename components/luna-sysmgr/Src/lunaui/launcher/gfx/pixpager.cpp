@@ -261,7 +261,7 @@ QUuid PixPager::addPixmapToAtlasPage(QPixmap * p_pixmap,bool allowScale,bool all
 	//try and find it in the existing atlas page(s) for this size
 	PixPagerAtlasPage * pSelectedPage = 0;
 	qreal minOccupancy = 1.0;
-	QMap<quint32, PixPagerPage *>::iterator i = m_atlasPages_alias.find(sqSize);
+	QMultiMap<quint32, PixPagerPage *>::iterator i = m_atlasPages_alias.find(sqSize);
 	while (i != m_atlasPages_alias.end() && i.key() == sqSize) {
 		PixPagerAtlasPage * pAtlasPage = qobject_cast<PixPagerAtlasPage *>(i.value());
 		if (!pAtlasPage) continue;
@@ -321,7 +321,7 @@ quint32 PixPager::_findAndExpunge(quint32 minSize)
 	if (minSize > m_maxSizeInBytes)
 			return 0;		//not possible to expunge enough, since the size of the cache is smaller than the size requested
 
-	QMap<quint32,PixPagerPage *> sizeMap;
+	QMultiMap<quint32,PixPagerPage *> sizeMap;
 
 	//search for a page to expunge
 	PixPagerPage * pSinglePage = 0;
@@ -335,7 +335,7 @@ quint32 PixPager::_findAndExpunge(quint32 minSize)
 		maxExpungePossible +=(*it)->m_sizeInBytes;
 		if ((*it)->m_sizeInBytes < minSize)
 		{
-			sizeMap.insertMulti((*it)->m_sizeInBytes,it.value());
+			sizeMap.insert((*it)->m_sizeInBytes,it.value());
 			continue;
 		}
 		if ((*it)->m_sizeInBytes == minSize)
@@ -369,7 +369,7 @@ quint32 PixPager::_findAndExpunge(quint32 minSize)
 
 	quint32 totalExpunged=0;
 	quint32 ecount=0;
-	QMap<quint32, PixPagerPage *>::const_iterator wi = sizeMap.constEnd();
+	QMultiMap<quint32, PixPagerPage *>::const_iterator wi = sizeMap.constEnd();
 	while (wi != sizeMap.constBegin())
 	{
 		--wi;
@@ -405,7 +405,7 @@ quint32 PixPager::_determineSquareSize(QPixmap * p_pixmap,bool allowScale) const
 	//find the nearest smallest and nearest largest size designators of the existing atlas pages
 	quint32 less=UINT_MAX;
 	quint32 more=UINT_MAX;
-	for (QMap<quint32,PixPagerPage *>::const_iterator it = m_atlasPages_alias.constBegin();
+	for (QMultiMap<quint32,PixPagerPage *>::const_iterator it = m_atlasPages_alias.constBegin();
 			it != m_atlasPages_alias.constEnd();++it)
 	{
 		if (it.key() < s)
@@ -445,7 +445,7 @@ quint32 PixPager::_determineSquareSizeFromRectPixmap(QPixmap * p_pixmap,bool all
 	//find the nearest smallest and nearest largest size designators of the existing atlas pages
 	quint32 less=UINT_MAX;
 	quint32 more=UINT_MAX;
-	for (QMap<quint32,PixPagerPage *>::const_iterator it = m_atlasPages_alias.constBegin();
+	for (QMultiMap<quint32,PixPagerPage *>::const_iterator it = m_atlasPages_alias.constBegin();
 			it != m_atlasPages_alias.constEnd();++it)
 	{
 		if (it.key() < s)
@@ -572,7 +572,7 @@ PageOpsReturnCode::Enum PixPager::_createAndAddAtlasPageWithInitialEntry(QPixmap
 	///the entry into the page's directory for the rect of this icon
 	pPage->m_directory.insert(r_insertedPixmapUid,PixPagerAtlasPage::PixmapRects(position,p_pixmap->size()));
 	//and the page into the atlas aliases
-	m_atlasPages_alias.insertMulti(sqSize,pPage);			//must be insertMulti!
+	m_atlasPages_alias.insert(sqSize,pPage);			//must keep duplicates: QMultiMap::insert does
 	m_atlasPagesByIndividualUids_alias.insert(r_insertedPixmapUid,pPage);
 	//and into the master for the cache
 	m_pageCache.insert(pPmo->id(),pPage);

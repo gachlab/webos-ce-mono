@@ -1,0 +1,2 @@
+// QGLContext, removed in Qt 6. See qglcompat.h.
+#include "qglcompat.h"

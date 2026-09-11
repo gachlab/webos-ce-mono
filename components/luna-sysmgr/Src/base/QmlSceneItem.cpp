@@ -36,13 +36,24 @@
 #include <QQuickItem>
 #include <QQuickRenderControl>
 #include <QQuickWindow>
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+#include <QQuickRenderTarget>
+#include <QtGui/private/qeventpoint_p.h>
+#endif
 
 void QmlSceneItem::setUpSoftwareBackend()
 {
 	// Respect an explicit choice, so the backend can still be forced from the
 	// environment when debugging.
 	if (qEnvironmentVariableIsEmpty("QT_QUICK_BACKEND"))
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+		// Qt 6's QQuickRenderControl sets up an RHI unless the graphics API is
+		// Software, and the environment variable alone did not stop it: sync()
+		// then refused with "can only sync when beginFrame() has been called".
+		QQuickWindow::setGraphicsApi(QSGRendererInterface::Software);
+#else
 		qputenv("QT_QUICK_BACKEND", "software");
+#endif
 }
 
 QmlSceneItem::QmlSceneItem(QQmlComponent* component, QGraphicsItem* parent)
@@ -161,6 +172,40 @@ void QmlSceneItem::renderNow()
 	if (!m_root || m_size.isEmpty())
 		return;
 
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+	// Qt 6's render control has no grab(). The software adaptation renders
+	// straight into a paint device instead, so m_frame itself is the target.
+	const QSize frameSize = m_size.toSize();
+	//
+	// The software renderer only repaints the regions that changed, so the
+	// image is cleared once, when it is created, and never between frames: a
+	// render with nothing dirty paints nothing, and clearing first left the
+	// frame empty.
+	if (m_frame.size() != frameSize) {
+		m_frame = QImage(frameSize, QImage::Format_ARGB32_Premultiplied);
+		m_frame.fill(Qt::transparent);
+		m_window->setRenderTarget(QQuickRenderTarget::fromPaintDevice(&m_frame));
+	}
+
+	if (!m_initialized) {
+		// With the software adaptation Qt 6 documents that initialize() must not
+		// be called: it creates an RHI the software renderer cannot use ("QRhi
+		// is only compatible with default adaptation"), and sync() and render()
+		// then refuse to run outside a beginFrame()/endFrame() pair.
+		//
+		// Ask the window, not QQuickWindow::graphicsApi(): after
+		// setGraphicsApi(Software) the static one still reports OpenGL, while
+		// the window's renderer interface reports the adaptation in use.
+		QSGRendererInterface* renderer = m_window->rendererInterface();
+		if (!renderer || renderer->graphicsApi() != QSGRendererInterface::Software)
+			m_control->initialize();
+		m_initialized = true;
+	}
+
+	m_control->polishItems();
+	m_control->sync();
+	m_control->render();
+#else
 	if (!m_initialized) {
 		// Qt 5's initialize() refuses, with a warning, unless the context it is
 		// handed is the one already current. The shell draws through a QGLWidget
@@ -177,6 +222,7 @@ void QmlSceneItem::renderNow()
 	m_control->render();
 
 	m_frame = m_control->grab();
+#endif
 	update();
 }
 
@@ -213,6 +259,19 @@ bool QmlSceneItem::deliverTouch(QTouchEvent* event)
 	// Item coordinates are the offscreen window's coordinates: the QML root sits
 	// at the window origin and this host's origin is its top left. QQuickWindow
 	// hit tests on scenePos, so both are set to the item-local position.
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+	QList<QEventPoint> points = event->points();
+	for (QEventPoint& p : points) {
+		// The copies share their data with the event's own points, and
+		// QMutableEventPoint's setters write through: detach first.
+		QMutableEventPoint::detach(p);
+		const QPointF local = p.position();
+		QMutableEventPoint::setPosition(p, local);
+		QMutableEventPoint::setScenePosition(p, local);
+	}
+
+	QTouchEvent translated(event->type(), event->pointingDevice(), event->modifiers(), points);
+#else
 	QList<QTouchEvent::TouchPoint> points = event->touchPoints();
 	for (int i = 0; i < points.size(); ++i) {
 		QTouchEvent::TouchPoint& p = points[i];
@@ -223,6 +282,7 @@ bool QmlSceneItem::deliverTouch(QTouchEvent* event)
 
 	QTouchEvent translated(event->type(), event->device(), event->modifiers(),
 	                       event->touchPointStates(), points);
+#endif
 	translated.setAccepted(false);
 	QCoreApplication::sendEvent(m_window, &translated);
 

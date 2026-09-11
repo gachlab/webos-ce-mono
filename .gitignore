@@ -1,5 +1,6 @@
 build-modern/
-# autotools genera esto en el arbol de cjson
+build-qt6/
+# autotools generates these inside cjson's tree
 components/cjson/configure
 components/cjson/Makefile.in
 components/cjson/aclocal.m4
@@ -13,12 +14,12 @@ components/cjson/install-sh
 components/cjson/ltmain.sh
 components/cjson/missing
 components/cjson/m4/
-# qmake construye en el propio arbol (asi lo hacia HP): artefactos fuera de git
+# qmake builds inside the source tree (as HP did): keep its artifacts out of git
 components/*/debug-x86/
 components/*/Makefile.Ubuntu
 components/*/.qmake.stash
 
-# logs que dejan construir-qmake.sh y probar-servicios.sh junto al fuente
+# logs the qmake build and service scripts leave next to the sources
 components/*/qmake.log
 components/*/build.log
 components/*/install.log

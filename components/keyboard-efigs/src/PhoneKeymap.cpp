@@ -825,7 +825,7 @@ bool PhoneKeymap::generateKeyboardLayout(const char * fullPath)
                 {
                     r.translate(-rect().left(), -rect().top());
                     r.adjust(6, 6, -6, -6);
-                    QString text(key);
+                    QString text = QChar(int(key));
                     switch (key)
                     {
                     case Qt::Key_Ampersand:     text = "&amp;";     break;
@@ -1005,7 +1005,7 @@ QString PhoneKeymap::getKeyDisplayString(UKey key, bool logging)
         default: return QString();
         }
     }
-    return isCapOrAutoCapActive() ? QChar(key).toUpper() : QChar(key).toLower();
+    return isCapOrAutoCapActive() ? QChar(int(key)).toUpper() : QChar(int(key)).toLower();
 }
 
 }; // namespace Phone_Keyboard

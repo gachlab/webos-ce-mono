@@ -28,7 +28,6 @@
 #include <QHBoxLayout>
 #include <QVBoxLayout>
 #include <QGestureEvent>
-#include <QDesktopWidget>
 #include <QWidget>
 #include <QPushButton>
 #include <QTimer>

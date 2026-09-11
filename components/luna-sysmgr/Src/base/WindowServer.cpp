@@ -205,7 +205,7 @@ private:
 	FPSState m_performance;
 	FPSState m_nextPerformance;
 
-	QTime m_elapsed;
+	QElapsedTimer m_elapsed;
 
 	FpsHistory m_fpsHistory;
 };
@@ -735,6 +735,15 @@ bool WindowServer::eventFilter(QObject *obj, QEvent *event)
 // not consult the FSM) and the launcher icons did not.
 //
 // Translating by hand is deterministic and does not depend on who accepts what.
+#if (QT_VERSION >= QT_VERSION_CHECK(6, 0, 0))
+static const QPointingDevice* touchDevice()
+{
+	static const QPointingDevice* device = new QPointingDevice(
+		QStringLiteral("mouse-to-touch"), 0, QInputDevice::DeviceType::TouchScreen,
+		QPointingDevice::PointerType::Finger, QInputDevice::Capability::Position, 1, 0);
+	return device;
+}
+#else
 static QTouchDevice* touchDevice()
 {
 	static QTouchDevice* device = 0;
@@ -745,6 +754,7 @@ static QTouchDevice* touchDevice()
 	}
 	return device;
 }
+#endif
 
 bool WindowServer::deliverAsTouch(QMouseEvent* me)
 {
@@ -775,7 +785,11 @@ bool WindowServer::deliverAsTouch(QMouseEvent* me)
 	QList<QTouchEvent::TouchPoint> points;
 	points.append(m_mouseToTouch.translate(me, state));
 
+#if (QT_VERSION >= QT_VERSION_CHECK(6, 0, 0))
+	QTouchEvent touch(type, touchDevice(), me->modifiers(), points);
+#else
 	QTouchEvent touch(type, touchDevice(), me->modifiers(), state, points);
+#endif
 	touch.setAccepted(false);
 	// NOTE: via QApplication::sendEvent, NOT by calling viewportEvent() directly.
 	// The direct call bypasses Qt's normal delivery, which is where the internal
@@ -891,7 +905,7 @@ bool WindowServer::viewportEvent(QEvent* event)
 		}
 
 #if false && defined(HAVE_OPENGL)
-		if (m_timeSinceLastPaint.isNull()) {
+		if (!m_timeSinceLastPaint.isValid()) {
 			connect(&m_unaliasPaintEvent, SIGNAL(timeout()), SLOT(repaint()));
 			m_unaliasPaintEvent.setSingleShot(true);
 		} else if (m_timeSinceLastPaint.elapsed() < kMinPaintInterval * 2) {

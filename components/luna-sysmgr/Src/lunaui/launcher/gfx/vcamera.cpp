@@ -154,7 +154,7 @@ void VirtualCamera::setup(const QGraphicsItem * farBoundItem,const QList<QPointe
 	}
 
 	//re-init the excludes
-	m_excludes = QSet<QPointer<ThingPaintable> >::fromList(exclusionList);
+	m_excludes = QSet<QPointer<ThingPaintable> >(exclusionList.begin(), exclusionList.end());
 	//clear the subjects
 	m_subjects.clear();
 

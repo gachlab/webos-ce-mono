@@ -139,8 +139,11 @@ protected:
 
     friend class HostWindow;
 
-    Window(const Window&);
-    Window& operator=(const Window&);
+    // Not copyable. Declared and never defined was enough for Qt 5, but the
+    // friend above made HostWindow's implicit copy constructor look usable,
+    // and Qt 6's moc instantiates it for every QObject subclass that does.
+    Window(const Window&) = delete;
+    Window& operator=(const Window&) = delete;
 };
 
 #endif /* WINDOW_H */

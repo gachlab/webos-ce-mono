@@ -144,7 +144,7 @@ template <class T> class GlyphCachePopulator : public GlyphRenderer<T> {
 public:
     GlyphCachePopulator(GlyphCache<T> & glyphCache, DirectRenderer<T> & directRenderer) : GlyphRenderer<T>(glyphCache, directRenderer), m_painter(&glyphCache.pixmap())
     {
-        m_painter.setRenderHints(QPainter::SmoothPixmapTransform | QPainter::HighQualityAntialiasing | QPainter::TextAntialiasing, true);
+        m_painter.setRenderHints(QPainter::SmoothPixmapTransform | QPainter::TextAntialiasing, true); // HighQualityAntialiasing: ignored since Qt 5, gone in Qt 6
         m_painter.setCompositionMode(QPainter::CompositionMode_SourceOver);
     }
     void render(const QRect & location, const T & textSpec, QFont & font, int flags = Qt::AlignCenter)

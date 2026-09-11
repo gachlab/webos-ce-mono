@@ -205,7 +205,7 @@ void StatusBarClock::tick()
 		m_lastUpdateTime.month = timeinfo->tm_mon;
 		m_lastUpdateTime.day   = timeinfo->tm_mday;
 
-		setTimeText(QDate::currentDate().toString(Qt::DefaultLocaleShortDate));
+		setTimeText(QLocale().toString(QDate::currentDate(), QLocale::ShortFormat));
 	}
 
 	update();

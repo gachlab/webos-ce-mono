@@ -75,28 +75,13 @@ private:
     QRectF m_bounds;
 };
 
-static QTouchDevice *touchDevice()
-{
-    static QTouchDevice *d = nullptr;
-    if (!d) {
-        d = new QTouchDevice;
-        d->setType(QTouchDevice::TouchScreen);
-        d->setCapabilities(QTouchDevice::Position);
-    }
-    return d;
-}
+#include "touch-events.h"
 
 static QTouchEvent makeTouch(const QPointF &viewPos)
 {
-    QTouchEvent::TouchPoint tp(0);
-    tp.setState(Qt::TouchPointPressed);
-    tp.setPos(viewPos);
-    tp.setScenePos(viewPos);
-    tp.setScreenPos(viewPos);
     QList<QTouchEvent::TouchPoint> points;
-    points << tp;
-    return QTouchEvent(QEvent::TouchBegin, touchDevice(), Qt::NoModifier,
-                       Qt::TouchPointPressed, points);
+    points << TestTouch::point(0, Qt::TouchPointPressed, viewPos);
+    return TestTouch::event(QEvent::TouchBegin, Qt::TouchPointPressed, points);
 }
 
 int main(int argc, char **argv)

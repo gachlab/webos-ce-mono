@@ -73,7 +73,7 @@ public:
 		QFontMetrics metrics(font);
 		title = metrics.elidedText(title, Qt::ElideRight, textBounds.width());
 
-		int width = metrics.width(title);
+		int width = metrics.horizontalAdvance(title);
 		QPainter painter;
 
 

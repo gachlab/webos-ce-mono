@@ -42,6 +42,7 @@
 #include <QObject>
 #include <QQueue>
 #include <QTime>
+#include <QElapsedTimer>
 #include <QTimer>
 #include <QPixmap>
 #ifdef DEBUG_RECORD_PAINT
@@ -334,8 +335,8 @@ protected:
 	//key: QMetaObject class name .. see getWindowManagerByClassName()
 	// multi-map in case we decide to extend the system to support multiple window managers of the same type
     // in the system at the same time
-	typedef QMap<QString,QPointer<WindowManagerBase> >::const_iterator WindowManagerMapConstIter;
-	typedef QMap<QString,QPointer<WindowManagerBase> >::iterator WindowManagerMapIter;
+	typedef QMultiMap<QString,QPointer<WindowManagerBase> >::const_iterator WindowManagerMapConstIter;
+	typedef QMultiMap<QString,QPointer<WindowManagerBase> >::iterator WindowManagerMapIter;
 	QMultiMap<QString,QPointer<WindowManagerBase> > m_windowManagerMap;
 
 Q_SIGNALS:
@@ -375,7 +376,7 @@ private:
     QGraphicsItem* m_cachedFocusedItem;
 
 	QTimer m_unaliasPaintEvent;
-	QTime m_timeSinceLastPaint;
+	QElapsedTimer m_timeSinceLastPaint;
 	QPixmap m_bootupScreen;
 
     OrientationEvent::Orientation m_deferredNewOrientation;

@@ -26,7 +26,7 @@
 #include <QSet>
 #include <QString>
 
-class QStringList;
+#include <QStringList>
 class QString;
 namespace DimensionsSystemInterface
 {

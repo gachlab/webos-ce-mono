@@ -44,7 +44,7 @@ StaticMatchList::StaticMatchList(StaticMatchListType::Enum type)
 StaticMatchList::StaticMatchList(StaticMatchListType::Enum type, const QStringList& ids)
 : m_type(type)
 {
-	m_ids = ids.toSet();
+	m_ids = QSet<QString>(ids.begin(), ids.end());
 }
 
 //virtual

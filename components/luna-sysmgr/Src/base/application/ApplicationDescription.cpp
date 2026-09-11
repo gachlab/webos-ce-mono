@@ -1018,7 +1018,7 @@ void ApplicationDescription::getAppDescriptionString(std::string &descString) co
 
 void desaturate(QImage &img)
 {
-	int length = img.byteCount();
+	int length = img.sizeInBytes();
 	uchar* data = img.bits();
 
 	int avg;

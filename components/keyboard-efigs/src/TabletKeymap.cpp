@@ -958,14 +958,14 @@ QString TabletKeymap::getXKeys(int locX, int k_x, int k_y)
     QString keys;
     UKey key = map(k_x, k_y);
     if (UKeyIsUnicodeQtKey(key) && key != Qt::Key_Space)
-        keys += QChar(key).toLower();
+        keys += QChar(int(key)).toLower();
     if (locX < xCenterOfKey(locX, k_x, k_y, 1))
     {
         if (k_x > 0)
         {
             UKey okey = map(k_x - 1, k_y);
             if (okey != key && UKeyIsUnicodeQtKey(okey) && okey != Qt::Key_Space)
-                keys += QChar(okey).toLower();
+                keys += QChar(int(okey)).toLower();
         }
     }
     else
@@ -974,7 +974,7 @@ QString TabletKeymap::getXKeys(int locX, int k_x, int k_y)
         {
             UKey okey = map(k_x + 1, k_y);
             if (okey != key && UKeyIsUnicodeQtKey(okey) && okey != Qt::Key_Space)
-                keys += QChar(okey).toLower();
+                keys += QChar(int(okey)).toLower();
         }
     }
 
@@ -1063,7 +1063,7 @@ bool TabletKeymap::generateKeyboardLayout(const char * fullPath)
                         r.setBottom(center.y() + cMaxWidth / 2);
                     }
 #endif
-                    QString text(key);
+                    QString text = QChar(int(key));
                     switch (key)
                     {
                     case Qt::Key_Ampersand:     text = "&amp;";     break;
@@ -1260,7 +1260,7 @@ QString TabletKeymap::getKeyDisplayString(UKey key, bool logging)
         default: return QString();
         }
     }
-    return isCapOrAutoCapActive() ? QChar(key).toUpper() : QChar(key).toLower();
+    return isCapOrAutoCapActive() ? QChar(int(key)).toUpper() : QChar(int(key)).toLower();
 }
 
 }; // namespace Tablet_Keyboard

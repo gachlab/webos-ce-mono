@@ -271,7 +271,7 @@ private:
 	//keyed by the size of the small pixmaps within ...so 64 -> 64x64 pixmaps
 	//alias hashes, so they don't own the pixpagerpages
 	// there may be multiple entries with the same size (using insertMulti)
-	QMap<quint32,PixPagerPage *> m_atlasPages_alias;
+	QMultiMap<quint32,PixPagerPage *> m_atlasPages_alias;
 	QHash<QUuid,PixPagerPage *> m_atlasPagesByIndividualUids_alias;		//key: the little pixmap inside the atlas's uid,
 																		//value: the pixpagerpage that contains the atlas for it
 

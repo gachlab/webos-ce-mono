@@ -99,7 +99,7 @@ void CandidateBar::paint(QPainter & painter, const QColor & color)
             else
                 painter.setPen(QColor(255, 255, 255));
             painter.drawText(r, Qt::AlignLeft | Qt::AlignVCenter, str);
-            offset += fontMetrics.width(str) + m_spacing;
+            offset += fontMetrics.horizontalAdvance(str) + m_spacing;
             if (offset > m_frame.width())
                 break;
         }
@@ -147,7 +147,7 @@ void CandidateBar::releaseTouch(int move)
             bool reached = false;
             Q_FOREACH(QString str, m_candidates)
             {
-                int dim = QFontMetrics(m_font).width(str);
+                int dim = QFontMetrics(m_font).horizontalAdvance(str);
                 if (pos + dim + m_spacing >= align)
                 {
                     if (alignLeft)
@@ -246,7 +246,7 @@ void CandidateBar::tapEvent(const QPoint & tapPt)
         for (QStringList::iterator iter = m_candidates.begin(); iter != m_candidates.end(); ++iter, ++index)
         {
             QString str = *iter;
-            offset += QFontMetrics(m_font).width(str) + m_spacing;
+            offset += QFontMetrics(m_font).horizontalAdvance(str) + m_spacing;
             if (x < offset)
             {
                 commit(str + ' ');

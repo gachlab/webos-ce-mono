@@ -56,7 +56,7 @@ const int cLetterDeleteRepeatDelay = 120;
 const int cWordDeleteRepeatDelay = 275;
 const uint64_t cWordDeleteDelay = cFirstRepeatDelay + 1500;
 
-const QPainter::RenderHints cRenderHints = QPainter::SmoothPixmapTransform | QPainter::HighQualityAntialiasing | QPainter::TextAntialiasing;
+const QPainter::RenderHints cRenderHints = QPainter::SmoothPixmapTransform | QPainter::TextAntialiasing; // HighQualityAntialiasing: ignored since Qt 5, gone in Qt 6
 
 // constants used to draw the popup for extended keys
 const int cPopupFontSize = 22;
@@ -613,7 +613,7 @@ void PhoneKeyboard::updateTouch(int id, QPointF position)
         if (extendedKey != m_extendedKeyShown || (touch.m_visible && touch.m_keyCoordinate != keyCoordinate))
             triggerRepaint();
     }
-    else if (!m_extendedKeys && newTouch && m_touches.size() == 1 && QChar(newKey).isLetter() && m_candidateBar.tracePoint(touchPosition.toPoint(), newKey, id, true))
+    else if (!m_extendedKeys && newTouch && m_touches.size() == 1 && QChar(int(newKey)).isLetter() && m_candidateBar.tracePoint(touchPosition.toPoint(), newKey, id, true))
     {
     }
     else if (!m_extendedKeys && !newTouch && m_candidateBar.tracePoint(touchPosition.toPoint(), newKey, id, false))
@@ -711,7 +711,7 @@ void PhoneKeyboard::handleKey(UKey key, QPointF where)
         qtkey = Qt::Key(key); // "normal" case: UKey is also a valid Qt::Key
         if (m_candidateBar.enabled())
         {
-            if (QChar(key).isLetter())
+            if (QChar(int(key)).isLetter())
                 sendKey = !m_candidateBar.keyboardTap(where, key);
             else
                 commit = true;
@@ -875,9 +875,9 @@ void PhoneKeyboard::handleKey(UKey key, QPointF where)
                 else if (qtkey > 0 && qtkey < 128)
                     sendKeyDownUp(qtkey, m_keymap.isCapActive() ? Qt::ShiftModifier : Qt::NoModifier); // send as basic keystroke
                 else if (m_keymap.isCapActive())
-                    sendKeyDownUp((Qt::Key) QChar(qtkey).toUpper().unicode(), Qt::ShiftModifier);
+                    sendKeyDownUp((Qt::Key) QChar(int(qtkey)).toUpper().unicode(), Qt::ShiftModifier);
                 else
-                    sendKeyDownUp((Qt::Key) QChar(qtkey).toLower().unicode(), Qt::NoModifier);
+                    sendKeyDownUp((Qt::Key) QChar(int(qtkey)).toLower().unicode(), Qt::NoModifier);
             }
         }
         else
@@ -939,7 +939,7 @@ void PhoneKeyboard::touchEvent(const QTouchEvent& te)
             for (QList<QTouchEvent::TouchPoint>::ConstIterator iter = touchPoints.constBegin(); iter != touchPoints.constEnd(); ++iter)
             {
                 const QTouchEvent::TouchPoint & touchPoint = *iter;
-                Qt::TouchPointState state = touchPoint.state();
+                Qt::TouchPointState state = static_cast<Qt::TouchPointState>(touchPoint.state());
                 if (state == Qt::TouchPointReleased)
                 {
                     releaseTouch(touchPoint.id());
@@ -1120,7 +1120,7 @@ void PhoneKeyboard::showKeymapRegions()
             QPoint keycoord = m_keymap.pointToKeyboard(QPoint(x, y_offset + y));
             if (keycoord != cOutside)
             {
-                painter.setPen(colorMap[QChar(m_keymap.map(keycoord)).unicode()]); // create or reuse random color for this character
+                painter.setPen(colorMap[QChar(int(m_keymap.map(keycoord))).unicode()]); // create or reuse random color for this character
                 painter.drawPoint(x, y);
             }
         }
@@ -1473,8 +1473,8 @@ void PhoneKeyboard::drawKeyCap(QPainter * painter, GlyphRenderer<GlyphSpec> & re
             {
                 if (key == plain)
                 {
-                    text = capitalize ? QChar(plain) : QChar(plain).toLower();
-                    altText = QChar(alt).toLower();
+                    text = capitalize ? QChar(int(plain)) : QChar(int(plain)).toLower();
+                    altText = QChar(int(alt)).toLower();
                 }
                 else
                 {
@@ -1482,15 +1482,15 @@ void PhoneKeyboard::drawKeyCap(QPainter * painter, GlyphRenderer<GlyphSpec> & re
                     mainCharColor_back = cDisabledColor_back;
                     altCharColor = activeColor;
                     altCharColor_back = activeColor_back;
-                    text = QChar(plain).toLower();
-                    altText = capitalize ? QChar(alt) : QChar(alt).toLower();
+                    text = QChar(int(plain)).toLower();
+                    altText = capitalize ? QChar(int(alt)) : QChar(int(alt)).toLower();
                 }
             }
             else
-                text = capitalize ? QChar(key) : QChar(key).toLower();
+                text = capitalize ? QChar(int(key)) : QChar(int(key)).toLower();
         }
         else
-            text = capitalize ? QChar(key) : QChar(key).toLower();
+            text = capitalize ? QChar(int(key)) : QChar(int(key)).toLower();
     }
     else if (((UKeyIsEmoticonKey(key) && m_keymap.showEmoticonsAsGraphics()) || (text = m_keymap.getKeyDisplayString(key)).size() == 0))
     {
@@ -1523,7 +1523,7 @@ void PhoneKeyboard::drawKeyCap(QPainter * painter, GlyphRenderer<GlyphSpec> & re
             fontSize = qMin<int>(fontSize, 22);
             sFont.setPixelSize(fontSize);
             int gap;
-            while ((gap = QFontMetrics(sFont).width(text) + 16 - location.width()) > 0) {
+            while ((gap = QFontMetrics(sFont).horizontalAdvance(text) + 16 - location.width()) > 0) {
                 forceAlignHCenter = true;
                 int reduction = gap / text.length();
                 if (reduction < 1)
@@ -1583,7 +1583,7 @@ void PhoneKeyboard::drawKeyCap(QPainter * painter, GlyphRenderer<GlyphSpec> & re
                     {
                         renderer.flush();
                         painter->setPen(QPen(QBrush(cActiveColor), 4, Qt::SolidLine, Qt::RoundCap));
-                        int width = QFontMetrics(sFont).width(realText) / 2 + 4;
+                        int width = QFontMetrics(sFont).horizontalAdvance(realText) / 2 + 4;
                         int cx = (location.left() + location.right()) / 2;
                         int cy = (location.top() + location.bottom()) / 2;
                         painter->drawLine(cx - width, cy, cx + width, cy);
@@ -1740,8 +1740,8 @@ bool PhoneKeyboard::idle()
                 //g_debug("pre-render %dx%d %s...", x, y, QString(QChar(extendedChars[extendedIndex])).toUtf8().data());
                 if (UKeyIsUnicodeQtKey(extendedChars[extendedIndex]))
                 {
-                    populator.render(QRect(QPoint(), m_popup_key.size()), GlyphSpec(QString(QChar(extendedChars[extendedIndex]).toLower()), cPopupFontSize, false, cPopoutTextColor, cPopoutTextColor_back), sFont);
-                    populator.render(QRect(QPoint(), m_popup_key.size()), GlyphSpec(QString(QChar(extendedChars[extendedIndex]).toUpper()), cPopupFontSize, false, cPopoutTextColor, cPopoutTextColor_back), sFont);
+                    populator.render(QRect(QPoint(), m_popup_key.size()), GlyphSpec(QString(QChar(int(extendedChars[extendedIndex])).toLower()), cPopupFontSize, false, cPopoutTextColor, cPopoutTextColor_back), sFont);
+                    populator.render(QRect(QPoint(), m_popup_key.size()), GlyphSpec(QString(QChar(int(extendedChars[extendedIndex])).toUpper()), cPopupFontSize, false, cPopoutTextColor, cPopoutTextColor_back), sFont);
                 }
                 if (!extendedChars[++extendedIndex])
                     extendedChars = NULL;

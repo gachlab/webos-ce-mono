@@ -51,7 +51,7 @@ ActiveCallBanner::ActiveCallBanner(int width, int height, const std::string& ico
 	m_font = QFont(QString::fromStdString(Settings::LunaSettings()->fontActiveBanner));
 	m_font.setPixelSize(kFontHeight);
 	QFontMetrics fm(m_font);
-	kSpaceWidth = fm.width(' ');
+	kSpaceWidth = fm.horizontalAdvance(' ');
 
 	m_timer.setInterval(450);
 	m_timer.setSingleShot(false);
@@ -85,12 +85,12 @@ void ActiveCallBanner::updateProperties(uint32_t startTime, const std::string& i
 
 	requiredWidth += m_icon.width() + kSpaceWidth;
 	// use MAX_TIME here to avoid potentially eliding the text differently every second because different digits have different widths.
-	timeLength = metrics.width(MAX_TIME);
+	timeLength = metrics.horizontalAdvance(MAX_TIME);
 	requiredWidth += timeLength;
 
 	m_elidedMessage = metrics.elidedText(m_message, Qt::ElideRight, m_originalWidth - timeLength - m_icon.width() - 2 * kSpaceWidth);
 	if (!m_elidedMessage.isEmpty()) {
-		requiredWidth += metrics.width(m_elidedMessage) + kSpaceWidth;
+		requiredWidth += metrics.horizontalAdvance(m_elidedMessage) + kSpaceWidth;
 	}
 
 	prepareGeometryChange();
@@ -165,14 +165,14 @@ void ActiveCallBanner::paint(QPainter* painter, const QStyleOptionGraphicsItem* 
 		QFontMetrics metrics(m_font);
 		if (!m_time.isEmpty()) {
 			// use MAX_TIME here to avoid potentially eliding the text differently every second because different digits have different widths.
-			timeLength = metrics.width(MAX_TIME);
+			timeLength = metrics.horizontalAdvance(MAX_TIME);
 		}
 
 		m_elidedMessage = metrics.elidedText(m_message, Qt::ElideRight, m_originalWidth - timeLength - m_icon.width() - 2 * kSpaceWidth);
 
 		painter->drawText(rc, m_elidedMessage, QTextOption(Qt::AlignLeft|Qt::AlignVCenter));
 
-		rc.setX(rc.x() + metrics.width(m_elidedMessage) + kSpaceWidth);
+		rc.setX(rc.x() + metrics.horizontalAdvance(m_elidedMessage) + kSpaceWidth);
 	}
 
 	if (!m_time.isEmpty()) {
