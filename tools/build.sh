@@ -36,7 +36,14 @@ declare -A SKIP=(
 )
 
 list_of() {  # list_of <build-system> -> names in MANIFEST order
-    awk -F'\t' -v s="$1" 'NR>1 && $5==s {print $2}' "$R/MANIFEST.tsv"
+    # The four components the MANIFEST marks as qmake now have a CMakeLists.txt
+    # of their own, so they are built with everything else. Their position in the
+    # MANIFEST already puts them after what they depend on.
+    if [ "$1" = cmake ]; then
+        awk -F'\t' 'NR>1 && ($5=="cmake" || $5=="qmake") {print $2}' "$R/MANIFEST.tsv"
+    else
+        awk -F'\t' -v s="$1" 'NR>1 && $5==s {print $2}' "$R/MANIFEST.tsv"
+    fi
 }
 
 selected() {
@@ -108,7 +115,10 @@ stage_cmake() {
 }
 
 stage_qmake() {
-    echo "== qmake =="
+    # Kept so "build.sh qmake" still works: HP's .pro files are still in the tree
+    # and remain the reference the CMake translation was verified against.
+    # The normal path no longer needs it -- the cmake stage covers those four.
+    echo "== qmake (HP's original build, no longer part of 'all') =="
     "$R/tools/build-qmake.sh"
 }
 
@@ -130,7 +140,7 @@ case "$STAGE" in
             # the chain. They were outside and the script announced success even
             # when a stage had failed.
             if stage_third_party && stage_headers && stage_autotools \
-               && stage_cmake && stage_qmake && stage_rootfs; then
+               && stage_cmake && stage_rootfs; then
                 echo
                 echo "Done. To start the shell:  tools/run-lunasysmgr.sh"
             else

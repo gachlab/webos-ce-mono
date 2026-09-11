@@ -10,8 +10,11 @@ for c in "$@"; do
     d=$R/build-modern/$c
     rm -rf "$d"; mkdir -p "$d"; cd "$d" || continue
     # Debug so the flags match what qmake's desktop.pri used (CONFIG += debug).
+    # keyboard-efigs installs its plugins into the rootfs, not staging: they are
+    # loaded at runtime by IMEManager from /usr/lib/luna, not linked against.
     if ! cmake $R/components/$c -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
          -DCMAKE_BUILD_TYPE=${BUILD_TYPE:-Debug} \
+         -DWEBOS_ROOTFS=$R/build-modern/rootfs \
          -DCMAKE_MODULE_PATH="$R/components/cmake-modules-webos" \
          -DWEBOS_INSTALL_ROOT=$S -DCMAKE_INSTALL_PREFIX=$S > cfg.log 2>&1; then
         motivo=$(grep -m1 -E "Could NOT find|No package|CMake Error" cfg.log | cut -c1-72)

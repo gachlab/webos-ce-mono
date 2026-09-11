@@ -32,15 +32,25 @@ cp -f "$LS"/desktop-support/com.palm.luna.service.prv "$ROOTFS/usr/share/ls2/sys
 cp -f "$LS"/desktop-support/com.palm.luna.service.pub "$ROOTFS/usr/share/ls2/services/com.palm.luna.service"
 cp -rf "$LS"/sounds/* "$ROOTFS/usr/palm/sounds/" 2>/dev/null
 mkdir -p "$ROOTFS/usr/lib/luna"
-cp -f "$LS"/debug-x86/LunaSysMgr "$ROOTFS/usr/lib/luna/LunaSysMgr"
+# Built by CMake into staging/bin now. The debug-x86 path is qmake's and is
+# kept as a fallback so "build.sh qmake" still produces a runnable tree.
+if [ -x "$S/bin/LunaSysMgr" ]; then
+    cp -f "$S/bin/LunaSysMgr" "$ROOTFS/usr/lib/luna/LunaSysMgr"
+else
+    cp -f "$LS"/debug-x86/LunaSysMgr "$ROOTFS/usr/lib/luna/LunaSysMgr"
+fi
 
 # --- WebAppMgr: the process that runs the web apps ---
 # Not launched by hand. It is an LS2 service: LunaSysMgr talks to it over the
 # bus (WebAppMgrProxy) and ls-hubd starts it from the Exec= in these .service
 # files.
 WAM="$R/components/webappmanager"
-if [ -x "$WAM/debug-x86/WebAppMgr" ]; then
-    cp -f "$WAM"/debug-x86/WebAppMgr "$ROOTFS/usr/lib/luna/WebAppMgr"
+if [ -x "$S/bin/WebAppMgr" ] || [ -x "$WAM/debug-x86/WebAppMgr" ]; then
+    if [ -x "$S/bin/WebAppMgr" ]; then
+        cp -f "$S/bin/WebAppMgr" "$ROOTFS/usr/lib/luna/WebAppMgr"
+    else
+        cp -f "$WAM"/debug-x86/WebAppMgr "$ROOTFS/usr/lib/luna/WebAppMgr"
+    fi
     cp -f "$WAM"/desktop-support/com.palm.webappmgr.json.prv    "$ROOTFS/usr/share/ls2/roles/prv/com.palm.webappmgr.json"
     cp -f "$WAM"/desktop-support/com.palm.webappmgr.json.pub    "$ROOTFS/usr/share/ls2/roles/pub/com.palm.webappmgr.json"
     cp -f "$WAM"/desktop-support/com.palm.webappmgr.service.prv "$ROOTFS/usr/share/ls2/system-services/com.palm.webappmgr.service"
