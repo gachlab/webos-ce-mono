@@ -34,6 +34,8 @@ const char kScheme[] = "webos-bridge";
 const char kInjectedScriptName[] = "webos-document-creation";
 const char kBorderImageScriptName[] = "webos-border-image";
 const char kPrefixedEventScriptName[] = "webos-prefixed-events";
+const char kAppViewShimScriptName[] = "webos-app-view-shims";
+const char kFrameCancelScriptName[] = "webos-frame-cancel";
 
 // Before QApplication exists: a URL scheme can only be registered then, and
 // QtWebEngine wants shared GL contexts decided before the first one is made.
@@ -56,6 +58,89 @@ void beforeApplication()
         qputenv("QTWEBENGINE_CHROMIUM_FLAGS", "--disable-gpu");
 }
 Q_CONSTRUCTOR_FUNCTION(beforeApplication)
+
+// ---------------------------------------------------------------------------
+// The WebView methods the mail app calls on a view that is not one.
+//
+// MessageDisplay renders a message body into "DivHtmlView" -- plain DOM, the
+// WebView-backed body next to it is commented out in HP's own source ("this
+// sauce is weak. So weak."). But its rendered() still calls setRedirects() on
+// that body, guarded only by "is PalmSystem here". On a device both were true
+// at once; here PalmSystem exists and the browser plugin does not, so the call
+// threw and took _unhideMainApp() with it on its first line. The mail card then
+// never selected its mail view and painted it under the first-launch screen.
+//
+// setRedirects and cancelDialog belong to the browser plugin -- rules for URLs
+// it should hand back instead of navigating, and the dialogs it raises. A div
+// neither navigates nor raises them. setHTML is a body handed over rather than
+// read from disk, so it goes through the same sanitise-and-show path loadPage()
+// uses. Nothing here patches over a mistake: these are the plugin's side of an
+// interface the app still speaks.
+const char kAppViewShims[] = R"JS(
+(function () {
+    if (window.__webosAppViewShims)
+        return;
+    window.__webosAppViewShims = true;
+
+    function patch(ctor) {
+        var proto = ctor && ctor.prototype;
+        if (!proto || proto.__webosViewShimmed)
+            return false;
+        proto.__webosViewShimmed = true;
+
+        if (!proto.setRedirects)
+            proto.setRedirects = function () {};
+
+        if (!proto.cancelDialog)
+            proto.cancelDialog = function () {};
+
+        if (!proto.setHTML) {
+            proto.setHTML = function (url, html) {
+                if (url)
+                    this.url = url;
+                this.contentType = "text/html";
+                var clean = this.loadedAndSanitize ? this.loadedAndSanitize(html || "", this.contentType)
+                                                   : (html || "");
+                if (this.$ && this.$.wrapper)
+                    this.$.wrapper.setContent(clean);
+                if (this.fitWidth)
+                    this.fitWidth();
+                this.viewReady = true;
+                if (this.doViewReady)
+                    this.doViewReady();
+            };
+        }
+        return true;
+    }
+
+    // enyo.kind publishes a kind under its name (Oop.js: enyo.setObject), and
+    // the app defines this one after this script runs -- but in the same burst
+    // of script evaluation, well before any timer of ours could fire. Polling
+    // lost that race: the body was rendered, and setRedirects called, between
+    // two ticks. So catch the assignment itself.
+    var held;
+    try {
+        Object.defineProperty(window, "DivHtmlView", {
+            configurable: true,
+            enumerable: true,
+            get: function () { return held; },
+            set: function (ctor) {
+                held = ctor;
+                patch(ctor);
+            }
+        });
+    } catch (e) {
+        // If the property cannot be redefined, fall back to looking for it.
+        var tries = 0;
+        var timer = setInterval(function () {
+            if (typeof DivHtmlView !== "undefined" && patch(DivHtmlView))
+                clearInterval(timer);
+            else if (++tries > 600)
+                clearInterval(timer);
+        }, 50);
+    }
+})();
+)JS";
 
 // ---------------------------------------------------------------------------
 // The prefixed transition and animation events enyo still listens for.
@@ -99,6 +184,44 @@ const char kPrefixedEvents[] = R"JS(
         if (modern)
             remove.call(this, modern, listener, options);
         return remove.call(this, type, listener, options);
+    };
+})();
+)JS";
+
+// ---------------------------------------------------------------------------
+// The prefixed frame canceller, so enyo stops cancelling other people's timers.
+//
+// enyo sets the pair up in dom/util.js:
+//
+//     var builtin = window.webkitRequestAnimationFrame;
+//     enyo.requestAnimationFrame = builtin ? enyo.bind(window, builtin) : ...
+//     var builtin = window.webkitCancelRequestAnimationFrame || window.clearTimeout;
+//     enyo.cancelRequestAnimationFrame = enyo.bind(window, builtin);
+//
+// Chromium still has webkitRequestAnimationFrame but dropped
+// webkitCancelRequestAnimationFrame, so that || settles on clearTimeout: enyo
+// takes handles from the frame scheduler and hands them to the timer one. The
+// two number their handles independently, so a cancel clears whichever timeout
+// holds that number. Measured in the shell:
+// enyo.cancelRequestAnimationFrame(55) killed a plain setTimeout whose id was
+// 55, and the scroller cancels a frame 12245 times in 14 seconds.
+//
+// That is what stopped the mail card's fade. enyo.transitions.Fade drives the
+// animation from a setTimeout chain kept in one handle; the scroller cancels a
+// frame numbered the same, the chain never ticks again, and because only the
+// Fade's done() clears Pane._transitioning, the pane stays "transitioning"
+// forever -- the outgoing view is left half faded over the incoming one and
+// every later view change is queued and never served.
+//
+// Giving the prefixed name back lets HP's || find it, with no change to enyo.
+const char kFrameCancel[] = R"JS(
+(function () {
+    if (typeof window.webkitCancelRequestAnimationFrame === "function")
+        return;
+    if (typeof window.cancelAnimationFrame !== "function")
+        return;
+    window.webkitCancelRequestAnimationFrame = function (handle) {
+        return window.cancelAnimationFrame(handle);
     };
 })();
 )JS";
@@ -707,6 +830,22 @@ QWebPage::QWebPage(QObject* parent)
     prefixedEvents.setWorldId(QWebEngineScript::MainWorld);
     prefixedEvents.setSourceCode(QString::fromLatin1(kPrefixedEvents));
     m_engine->scripts().insert(prefixedEvents);
+
+    // The WebView methods the mail app calls on a plain view; see above.
+    QWebEngineScript appViewShims;
+    appViewShims.setName(kAppViewShimScriptName);
+    appViewShims.setInjectionPoint(QWebEngineScript::DocumentCreation);
+    appViewShims.setWorldId(QWebEngineScript::MainWorld);
+    appViewShims.setSourceCode(QString::fromLatin1(kAppViewShims));
+    m_engine->scripts().insert(appViewShims);
+
+    // The frame canceller Chromium dropped; see above.
+    QWebEngineScript frameCancel;
+    frameCancel.setName(kFrameCancelScriptName);
+    frameCancel.setInjectionPoint(QWebEngineScript::DocumentCreation);
+    frameCancel.setWorldId(QWebEngineScript::MainWorld);
+    frameCancel.setSourceCode(QString::fromLatin1(kFrameCancel));
+    m_engine->scripts().insert(frameCancel);
 }
 
 QWebPage::~QWebPage()

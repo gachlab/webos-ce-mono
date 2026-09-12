@@ -114,6 +114,14 @@ add_test(NAME qtwebkit-compat COMMAND qtwebkit-compat)
 set_tests_properties(qtwebkit-compat PROPERTIES
     ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
 
+# The WebView methods the mail app calls on a plain view. Without them its
+# rendered() threw on setRedirects and the card never switched views.
+add_executable(app-view-shims app-view-shims.cpp)
+target_link_libraries(app-view-shims PRIVATE qtwebkit-compat-lib)
+add_test(NAME app-view-shims COMMAND app-view-shims)
+set_tests_properties(app-view-shims PROPERTIES
+    ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
 # The prefixed transition events enyo listens for. Without them a Pane's
 # transition never ends and the outgoing view is never hidden: two views paint
 # at once, which looked like transparency in the mail card.
@@ -121,6 +129,16 @@ add_executable(prefixed-transition-event prefixed-transition-event.cpp)
 target_link_libraries(prefixed-transition-event PRIVATE qtwebkit-compat-lib)
 add_test(NAME prefixed-transition-event COMMAND prefixed-transition-event)
 set_tests_properties(prefixed-transition-event PROPERTIES
+    ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
+# The prefixed frame canceller enyo pairs with webkitRequestAnimationFrame.
+# Without it HP's "webkitCancelRequestAnimationFrame || window.clearTimeout"
+# picks clearTimeout, and every cancelled frame clears the timeout that happens
+# to carry the same number -- which is what froze the mail card's fade.
+add_executable(frame-cancel frame-cancel.cpp)
+target_link_libraries(frame-cancel PRIVATE qtwebkit-compat-lib)
+add_test(NAME frame-cancel COMMAND frame-cancel)
+set_tests_properties(frame-cancel PROPERTIES
     ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
 
 # The border box -webkit-border-image used to imply. Without it the calculator

@@ -241,6 +241,63 @@ Not done yet:
 
 ---
 
+### ~~The mail card opens half transparent and stops responding~~ (fixed)
+
+Two views painted on top of each other, the top one frozen part-way through its
+fade, and from then on the card ignored every navigation.
+
+The cause is one line of HP's, in `enyo-1.0/framework/source/dom/util.js`:
+
+```js
+var builtin = window.webkitRequestAnimationFrame;
+enyo.requestAnimationFrame = builtin ? enyo.bind(window, builtin) : ...
+var builtin = window.webkitCancelRequestAnimationFrame || window.clearTimeout;
+enyo.cancelRequestAnimationFrame = enyo.bind(window, builtin);
+```
+
+Chromium still has `webkitRequestAnimationFrame` but dropped
+`webkitCancelRequestAnimationFrame`, so that `||` settles on `clearTimeout`.
+enyo then takes handles from the frame scheduler and hands them to the timer
+one. They number their handles independently, so a cancelled frame clears
+whichever timeout holds the same number.
+
+What that costs: `enyo.transitions.Fade` drives its animation from a
+`setTimeout` chain kept in a single handle, and the scroller cancels a frame
+thousands of times as it starts and stops. When the numbers collide the chain
+stops, and since only the Fade's `done()` clears `Pane._transitioning`, the pane
+stays transitioning forever -- `flow()` only hides a view that is neither
+current nor transitioning, so the outgoing view keeps painting, and
+`transitionView()` queues every later change instead of running it.
+
+Measured in the running shell, on the mail card:
+
+- `enyo.cancelRequestAnimationFrame(55)` killed a plain `setTimeout` whose id
+  was 55. `window.webkitCancelRequestAnimationFrame` is `undefined`;
+  `window.webkitRequestAnimationFrame` is still a function.
+- 12245 frame cancels in 14 seconds, all of them `clearTimeout`.
+- The pane froze at `_transitioning: true`, `handle: 53`, with `firstLaunch` at
+  `opacity: 0.310755` over `slidingPane` -- the same handle every run.
+- Re-running the same transition by hand afterwards completed in 153 ticks, so
+  the Fade itself is healthy; only the startup, where the scroller churns, kills
+  it.
+
+Ruled out along the way, each by measurement, not argument: an exception
+escaping the timer callback (zero `Runtime.exceptionThrown` in 45 s across every
+page), a blocking bridge call inside the callback (211 synchronous bridge calls,
+1-6 ms each, none stalling), and two overlapping fades sharing `this.handle`.
+
+The fix is in `components/qtwebkit-compat`: hand the prefixed canceller back, so
+HP's `||` finds it and cancels frames instead of timers. enyo is untouched.
+`tests/frame-cancel` covers it, and mutation-verified: with the shim removed,
+"cancelling a frame leaves a plain timer alone" fails.
+
+Confirmed in the shell afterwards, on the same card that used to freeze:
+`webkitCancelRequestAnimationFrame` is a function again, a plain timer survives
+`enyo.cancelRequestAnimationFrame`, and the pane ends at
+`_transitioning: false`, `queueLength: 0`, with `slidingPane` at
+`display: none` and `firstLaunch` at `opacity: 1` -- one view, fully opaque,
+and navigation works again.
+
 ## Blocked on a missing dependency
 
 ### ~~The QML parts of the UI do not draw~~ (fixed)
