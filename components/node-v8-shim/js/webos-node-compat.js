@@ -75,6 +75,20 @@ if (typeof Buffer !== 'undefined' && !Buffer.__webosCompatPatched) {
 // frameworks and services to find them.
 const fs = require('fs');
 
+// path.existsSync moved to fs in node 0.8 and was dropped from path later. One
+// call site: com.palm.service.accounts' create-local-account.js, which touches
+// /var/luna/preferences/first-use-profile-created once it has made the profile
+// account. The account was created and the handler then threw
+// "TypeError: pathLib.existsSync is not a function" on the next line, so the
+// flag never appeared. Nothing was corrupted by that -- the handler asks
+// listAccounts for an existing palmprofile account before creating one -- but
+// the exception is noise and the flag is what configurator's upstart job
+// started on.
+const path = require('path');
+if (typeof path.existsSync !== 'function') {
+    path.existsSync = fs.existsSync;
+}
+
 if (typeof global.palmGetResource !== 'function') {
     // Reads a file and returns its contents. mojoloader uses it to load
     // JavaScript, and mojoservice's AppController to read services.json.

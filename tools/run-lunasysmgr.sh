@@ -186,6 +186,18 @@ case "${1:-run}" in
         timeout 60 "$LS" -n 1 palm://com.palm.configurator/run "$t" 2>&1 | head -2
     done
     pkill -x configurator 2>/dev/null
+
+    # The profile account HP made when first use was skipped. Its upstart job,
+    # com.palm.service.accounts/files/etc/event.d/createLocalAccount, called
+    # this method once LunaSysMgr had started. There is no upstart here, so
+    # nobody ever called it -- and without that account nothing provides the
+    # CALENDAR capability, which is what left the calendar empty: the app
+    # creates even its own local calendar only for an account whose templateId
+    # is com.palm.palmprofile (app/shared/CalendarsManager.js, gotCalendars).
+    # The handler asks listAccounts for an existing one before creating any, so
+    # running this on every init is harmless.
+    echo "accounts <- createLocalAccount"
+    timeout 30 "$LS" -n 1 palm://com.palm.service.accounts/createLocalAccount '{}' 2>&1 | head -2
     ;;
   services)
     enter_namespace "$@"

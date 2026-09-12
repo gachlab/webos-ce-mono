@@ -117,6 +117,38 @@ Traps found on the way, each confirmed before being fixed:
   it is not running and waits for com.palm.db before configuring: 41 kinds and 66
   permissions, 0 failed, and the apps fill up.
 
+- **Nobody was creating the profile account, so the calendar had nowhere to put
+  a calendar.** HP's accounts service ships a `createLocalAccount` method
+  (`handlers/create-local-account.js`, registered public in `services.json`) that
+  makes a `com.palm.palmprofile` account named "Open webOS" carrying the
+  CONTACTS, CALENDAR, TASKS, MEMOS, MESSAGING, PHONE and LOCAL.FILESTORAGE
+  capability providers. On a device an upstart job called it
+  (`files/etc/event.d/createLocalAccount`, `start on started LunaSysMgr`); there
+  is no upstart here, so it was never called and `listAccounts` answered
+  `{"results":[]}`. That is the whole reason the calendar looked broken: it
+  creates even its own *local* calendar only for an account whose templateId is
+  `com.palm.palmprofile` (`CalendarsManager.js`, `gotCalendars`), so with no
+  account `added` stayed false and `com.palm.calendar:1` stayed empty. Calling
+  the method by hand created the account (`_id ++OQFGSME00cBuzk`) and the app
+  then made its calendar ("HP webOS Account", `syncSource: "Local"`) on its own.
+  `tools/run-lunasysmgr.sh init` calls it now; the handler asks `listAccounts`
+  for an existing profile account first, so repeating it answers
+  `{"returnValue":true,"accountCreated":false}` and changes nothing.
+  Note this is not why the accounts *app* looks empty: it hides that account
+  deliberately, asking for the list with
+  `excl=["com.palm.palmprofile","com.palm.sim"]`.
+- **`path.existsSync` is gone from node**, and `create-local-account.js` touches
+  `/var/luna/preferences/first-use-profile-created` through it. The account was
+  created and the handler then threw `TypeError: pathLib.existsSync is not a
+  function` on the next line, so the flag was never written. Nothing was
+  corrupted -- the handler's own `listAccounts` check is what keeps it from
+  creating a second account -- but the exception is noise and configurator's
+  upstart job used to `start on first-use-profile-created`. It is restored in
+  `components/node-v8-shim/js/webos-node-compat.js`, which every JS service
+  already loads through `NODE_OPTIONS=--require`, rather than by editing HP's
+  handler. A sweep for the rest of that family (`require('sys')`, `util.print`,
+  `new Buffer(`, `path.exists`) turns up nothing else outside the tests.
+
 - **What a clean start leaves in the logs, so none of it gets investigated
   twice.** With the kinds loaded first, email walks its whole startup: carrier
   defaults, account list, `com.palm.app.email.prefs:1` created and loaded, the
