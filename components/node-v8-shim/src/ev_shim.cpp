@@ -188,9 +188,25 @@ void ev_io_stop(struct ev_loop*, ev_io* w)
     auto it = Polls().find(w->fd);
     if (it == Polls().end() || it->second->owner != w)
         return;
-    // Only detached, not stopped: prepare re-arms the same descriptors on the
-    // very next iteration, and stopping and restarting a poll every time costs
-    // two syscalls per descriptor for nothing.
+    // Stopped, not merely detached, and the two syscalls that used to save are
+    // not worth what leaving it started costs.
+    //
+    // uv_poll is level-triggered. A descriptor left polled with no owner fires
+    // on every iteration of the loop, PollBridge returns immediately because
+    // slot->owner is null, nobody consumes the descriptor, so it is still
+    // readable next time round and the loop never blocks. That is a whole core.
+    // Measured on com.palm.service.accounts: 97.9% of a CPU with the machine
+    // 57% idle, state R, 716s of user time against 35s of system, and 61
+    // voluntary context switches against 38714 involuntary ones -- a process
+    // that never once waited. gdb caught the main thread in ev_io_start under
+    // PrepareBridge, which is this map being walked on every turn.
+    //
+    // Clearing started/events matters as much as the stop: ev_io_start only
+    // calls uv_poll_start when !slot->started || slot->events != events, so
+    // without this the watcher would never be re-armed.
+    uv_poll_stop(&it->second->poll);
+    it->second->started = false;
+    it->second->events = 0;
     it->second->owner = nullptr;
 }
 
