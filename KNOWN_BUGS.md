@@ -518,6 +518,57 @@ Note there are two paths, and only one fails: `loader.js` resolves
 inside the installed framework and answers 200. `startup.js` builds
 `Tellurium.nubPath + ...` by hand, and that is the one that 404s.
 
+### Files HP's depends.js lists and HP never released
+
+Three scripts are named in an app's `depends.js` and exist nowhere in the drop:
+
+| listed in | file |
+| --- | --- |
+| `com.palm.app.contacts/depends.js:37` | `app/Ringtones.js` |
+| `com.palm.app.contacts/depends.js:50` | `app/dialogs/NameDetails.js` |
+| `com.palm.app.accounts/depends.js:23` | `source/FirstLaunch.js` |
+
+`find components -name` finds none of them, so this is a hole in what HP
+published, not something the rootfs assembly drops -- it copies each app
+directory whole.
+
+Nothing aborts. enyo's loader writes each dependency as a script tag with an
+`onerror` that only logs (`dependency-loader.js:7`), so loading continues and
+the apps open. What is missing is whatever those kinds provided -- a ringtone
+picker, a name-details dialog, the accounts first-use screen -- and a reference
+to one of them would throw at the point of use, not at startup.
+
+Each shows up once per launch as `Error loading script <path>`.
+
+### What a sweep of every app turns up
+
+Run with the shell up, closing each card first and launching the seven apps in
+turn under `tools/devtools-watch.py`. Worth repeating after engine changes; the
+frame-canceller bug proved that reading the source finds nothing, because the
+code that fails reads as correct.
+
+Everything below is either HP's or cosmetic. No app failed on an engine
+difference, so there is no second `webkitCancelRequestAnimationFrame` hiding:
+
+- Contacts, Accounts: the missing scripts above.
+- Memos: `Uncaught TypeError: Cannot read properties of null (reading
+  'displayText')`. `MemoView` declares `memo: null` as its default
+  (`MemoView.js:32`) and `MemoRowView` builds list rows from it, so
+  `memoChanged()` runs once before a row has its model. HP's own logic; the app
+  works.
+- Calendar: a 404 for `app/images/icon.png`. The icon is at `images/icon.png`
+  and every reference in the app asks for exactly that; the miss comes from
+  `app/calendar.html` resolving it relative to its own directory. A favicon,
+  with no visible effect.
+- Clock: a 404 for a header icon under `applications/images/`, same shape.
+
+Two things to know about reading that output. `Log.enable` replays what a page
+logged before the watcher attached, so entries marked `[old]` may be from an
+earlier run -- the watcher marks anything arriving within half a second of an
+attach. And attributing a line to an app by launch time is approximate: apps
+take different times to come up, and in this run two lines landed under the
+wrong heading.
+
 ### db8 builds without leveldb
 
 HP pinned leveldb 1.9; Debian does not package it. db8 configures, builds and

@@ -46,9 +46,23 @@ def main():
         ws.send(json.dumps(msg))
 
     start = time.time()
+    # A target can be attached twice -- once because it was discovered, once
+    # because auto-attach caught it being created -- and then every message
+    # arrives in duplicate. Keep one session per target and ignore the rest.
+    session_of_target = {}
+    ignored = set()
+    # Log.enable replays whatever the page has already logged, so the first
+    # entries after an attach are usually history, not news. Entries that close
+    # to the attach are marked [old]: a heuristic, but without it a page's whole
+    # past reads as if it were happening now.
+    attached_at = {}
+    REPLAY_WINDOW = 0.5
 
     def stamp():
         return "%7.3f" % (time.time() - start)
+
+    def age(session):
+        return "[old] " if time.time() - attached_at.get(session, 0) < REPLAY_WINDOW else ""
 
     with connect(browser_ws(), max_size=None, open_timeout=10) as ws:
         send(ws, "Target.setDiscoverTargets", {"discover": True})
@@ -64,13 +78,16 @@ def main():
             method = msg.get("method")
             params = msg.get("params", {})
             session = msg.get("sessionId")
-            who = names.get(session, session or "-")
+            if session in ignored:
+                continue
+            who = age(session) + names.get(session, session or "-")
 
             if method == "Target.targetCreated":
                 # setAutoAttach only covers targets opened from now on; the pages
                 # already up have to be attached by hand or they stay silent.
                 info = params.get("targetInfo", {})
-                if info.get("type") == "page" and not info.get("attached"):
+                if (info.get("type") == "page" and not info.get("attached")
+                        and info["targetId"] not in session_of_target):
                     send(ws, "Target.attachToTarget",
                          {"targetId": info["targetId"], "flatten": True})
 
@@ -90,7 +107,15 @@ def main():
                                 break
                     except Exception:
                         pass
-                names[s] = short(url) if url else info.get("targetId", "?")[:8]
+                tid = info.get("targetId")
+                if tid in session_of_target:
+                    # Same page, second attach: leave it silent rather than
+                    # report everything twice.
+                    ignored.add(s)
+                    continue
+                session_of_target[tid] = s
+                attached_at[s] = time.time()
+                names[s] = short(url) if url else (tid or "?")[:8]
                 print("%s ATTACH %s" % (stamp(), names[s]), flush=True)
                 send(ws, "Runtime.enable", session=s)
                 send(ws, "Log.enable", session=s)
