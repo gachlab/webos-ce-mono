@@ -61,14 +61,31 @@ service_stop() {
 }
 # ls-hubd inherits this environment and passes it on to whatever it starts,
 # WebAppMgr and the JavaScript services included.
-# Only when there is a staging tree to point at. A package has none, and it does
-# not need one: every binary in the rootfs carries an $ORIGIN rpath and resolves
-# unaided -- measured, 13 of 13, including from a copy of the tree at an
-# unrelated path. Exporting a directory that does not exist costs ld.so nothing
-# and misleads anyone who later reads a running service's environment looking
-# for where its libraries came from.
-if [ -d "$S/lib" ]; then
-    export LD_LIBRARY_PATH="$S/lib:$S/usr/lib"
+# Our libraries sit in different places depending on how the tree was built:
+# build/staging/{lib,usr/lib} for a developer, <prefix>/usr/lib for an installed
+# package. Every one that exists is named, staging first so a development run
+# keeps the precedence it always had.
+#
+# This is NOT made redundant by the $ORIGIN rpaths our binaries carry, and an
+# earlier version of this line assumed it was. The three node addons are loaded
+# by node -- not our binary, carrying no rpath of ours -- and they have no rpath
+# of their own, so palmbus.node finds libluna-service2 through this variable or
+# not at all. Measured on the installed package: 1 missing library without it, 0
+# with it. Guarding the export on a staging directory therefore stopped every
+# JavaScript service in the package dead, with
+#   Error: libluna-service2.so.3: cannot open shared object file
+# and with it the profile account, which is what leaves calendar empty.
+#
+# The principled fix is an rpath on the addons themselves, which the node stage
+# of tools/build.sh does not pass today; until it does, this is what carries
+# them.
+WEBOS_LIBPATH=""
+for d in "$S/lib" "$S/usr/lib" "$ROOTFS/usr/lib"; do
+    [ -d "$d" ] || continue
+    WEBOS_LIBPATH="${WEBOS_LIBPATH:+$WEBOS_LIBPATH:}$d"
+done
+if [ -n "$WEBOS_LIBPATH" ]; then
+    export LD_LIBRARY_PATH="${WEBOS_LIBPATH}${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
 fi
 
 # bootstrap-node.js calls process.setName and process.setArgs, which existed
@@ -303,7 +320,7 @@ case "${1:-run}" in
     # already. HP did the same in run-luna-sysmgr.sh -- LunaSysMgr, wait, then
     # WebAppMgr. The ls2 .service files are only for on-demand starts on the
     # device.
-    "$ROOTFS/usr/lib/luna/LunaSysMgr" "${@:2}" &
+    ${WEBOS_SYSMGR_WRAPPER:+"$WEBOS_SYSMGR_WRAPPER"} "$ROOTFS/usr/lib/luna/LunaSysMgr" "${@:2}" &
     lsm=$!
     # Wait for LunaSysMgr to open its IPC socket rather than sleeping blindly:
     # with the services up it takes longer to start, and a WebAppMgr that arrives

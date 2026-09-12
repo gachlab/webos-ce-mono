@@ -615,7 +615,7 @@ method answering "is not running" on `-P` is by design. db8 answering -3963
 
 ## Open, cause not yet found
 
-### LunaSysMgr segfaults when the display goes inactive
+### LunaSysMgr segfaults, and NOT because the display goes inactive
 
 The shell dies on its own about two minutes after the last interaction and
 takes WebAppMgr and the static services out behind it. Caught in the run log:
@@ -624,10 +624,35 @@ takes WebAppMgr and the static services out behind it. Caught in the run log:
                             {"returnValue":true,"event":"displayInactive"}
     run-lunasysmgr.sh: line 300: 362893 Segmentation fault  .../LunaSysMgr
 
-`DisplayManager::activity()` logs `diff=120000` on the line before, so this is
-the 120-second inactivity timer firing and not anything the user did. WebAppMgr
-then exits by design (`Remote server disconnected. Exiting...`) and the static
-services follow it out.
+`DisplayManager::activity()` logs `diff=120000` on the line before. **That is a
+coincidence, and an earlier version of this entry was titled as though it were
+the cause.** The event fires every 120 seconds regardless, so anything that dies
+after two minutes of idling appears to follow it.
+
+Four runs settle it, and they fill all four cells:
+
+| run | displayInactive | segfault |
+| --- | --- | --- |
+| dev, first    | 0 | 0 |
+| dev, second   | 1 | 1 |
+| package, first  | **0** | **1** |
+| package, second | **1** | **0** |
+
+There is a crash with no displayInactive and a displayInactive with no crash, so
+the two are independent. Worth keeping as a shape: the entry was written from a
+single run where the two lines happened to be adjacent, which is exactly how a
+periodic event manufactures a false cause.
+
+The same table separates the deaths. The first left no `Segmentation fault` line
+at all -- that message comes from the script's own shell, so a crash would have
+been recorded -- which fits an external signal, not a fault. The other two are
+real SIGSEGVs in unrelated contexts: one while idle, one in the alert path, with
+`DWMStateAlertOpen`, `Playing default alert sound` and
+`DashboardWindowManager::raiseAlertWindow` on the three lines before it.
+
+In every case WebAppMgr then exits by design (`Remote server disconnected.
+Exiting...`) and the static services follow it out, so "everything died" is one
+fault plus a designed cascade, not several failures.
 
 Ruled out by evidence rather than by argument, because each was believed at
 some point during the session that found it:
@@ -647,9 +672,33 @@ printed by the script's own shell, so a crash there would have been recorded.
 The two deaths are therefore not known to share a cause, and only this one is a
 confirmed SIGSEGV. Do not merge them into one story without new evidence.
 
-There is no backtrace yet: no core pattern is configured and `coredumpctl`
-lists nothing. The way in is the one that already worked for WebAppMgr -- run
-LunaSysMgr under a debugger and wait the two minutes out.
+There is still no backtrace, and the reason is worth recording: **it stopped
+happening.** `tools/run-lunasysmgr.sh` now takes `WEBOS_SYSMGR_WRAPPER`, the
+twin of the `WEBOS_WAM_WRAPPER` that caught WebAppMgr's crash, so LunaSysMgr can
+be run under gdb inside the bwrap namespace. Under it the shell has survived
+3m39s, one full inactivity window and eight app launches across the card path --
+notes, calculator, calendar and clock, twice each, six of them reaching APP
+READY. Nothing faulted.
+
+What differs from the run that did crash is the one thing worth chasing next:
+that run had every JavaScript service dead (a broken library path meant
+`palmbus.node` could not load), and its last three lines before the fault were
+`DWMStateAlertOpen`, `Playing default alert sound` and `raiseAlertWindow`. So
+the working hypothesis is that the fault is in the alert path, reached because
+services were failing -- which would make it a consequence of that breakage
+rather than an independent bug. **One non-reproduction is not a proof of
+either**, and the instrumented shell is left running as a passive trap: if it
+dies, the wrapper prints the backtrace by itself.
+
+Two traps to avoid when picking this up. gdb runs every `-ex` in order
+regardless of why `run` returned, so a wrapper that prints "FAULTING THREAD"
+unconditionally reports a captured crash for a clean exit -- the giveaway is
+`No stack.` under the heading. The wrapper now tests `$_isvoid($_siginfo)` and
+says which it was. And a long-running tool invocation that is killed takes
+`ls-hubd` with it if the bus was started from it: one "crash" investigated here
+was LunaSysMgr exiting with code 1 three seconds after the hub had gone,
+which the log shows plainly as `Failed to connect. Is the hub running?`. Start
+the whole stack under one `setsid`.
 
 ### ~~LunaUniversalSearchMgr dies inside the namespace~~ (never did)
 
