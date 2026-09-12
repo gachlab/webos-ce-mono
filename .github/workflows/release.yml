@@ -9,6 +9,12 @@
 # every push -- and on a self-hosted runner that also means no workflow from an
 # outside contributor's branch can run on the machine. workflow_dispatch is here
 # for re-cutting a release without moving a tag.
+#
+# Every action below is pinned to a major that declares `using: node24`. Node 20
+# pins still run -- GitHub forces them onto the Node 24 runtime and warns -- but
+# that compatibility is temporary. checkout and upload-artifact reached node24
+# in v5, action-gh-release in v3. upload-artifact v6 and up also require an
+# Actions Runner of at least 2.327.1; this one reports 2.337.0.
 name: release
 
 on:
@@ -28,7 +34,7 @@ jobs:
 
     steps:
       - name: Check out the full history
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           # tools/mkdeb.sh derives the package version from git --
           # 3.0.5-0+<commit count>.<short sha> -- and a shallow clone gives the
@@ -64,7 +70,7 @@ jobs:
             >> "$GITHUB_STEP_SUMMARY" || true
 
       - name: Keep the package even if the release step fails
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ steps.deb.outputs.name }}
           path: dist/*.deb
@@ -72,7 +78,7 @@ jobs:
 
       - name: Attach it to the release
         if: startsWith(github.ref, 'refs/tags/')
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           files: dist/*.deb
           generate_release_notes: true
