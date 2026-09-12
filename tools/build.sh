@@ -100,7 +100,22 @@ stage_autotools() {
         d=$B/$c
         mkdir -p "$d"; cd "$d" || { echo "$c: no directory"; return 1; }
         # cjson ships autogen.sh; HP's tree has no generated ./configure.
-        [ -x "$R/components/$c/configure" ] || (cd "$R/components/$c" && ./autogen.sh >/dev/null 2>&1)
+        #
+        # Run it through sh rather than executing it: autogen.sh has no exec bit
+        # in HP's drop, so ./autogen.sh is "Permission denied" on a fresh clone.
+        # That went unnoticed for as long as the build only ever ran on a machine
+        # where a previous run had already left ./configure behind -- the guard
+        # above then skipped autogen entirely. CI on a clean tree found it on its
+        # first run.
+        #
+        # And its output is kept: silencing it with >/dev/null is what turned a
+        # one-line permission error into "cjson FAILED" with nothing to read.
+        if [ ! -x "$R/components/$c/configure" ]; then
+            (cd "$R/components/$c" && sh ./autogen.sh) > "$d/autogen.log" 2>&1 || {
+                printf "%-22s FAILED autogen: %s\n" "$c" "$(tail -1 "$d/autogen.log" | cut -c1-60)"
+                return 1
+            }
+        fi
         if ! "$R/components/$c/configure" --prefix="$S" > cfg.log 2>&1 \
            || ! make -j"$(nproc)" > build.log 2>&1 || ! make install > install.log 2>&1; then
             printf "%-22s FAILED %s\n" "$c" "$(grep -m1 -iE 'error' build.log cfg.log 2>/dev/null | cut -c1-60)"

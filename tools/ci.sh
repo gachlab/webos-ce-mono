@@ -79,15 +79,32 @@ run_target() {                  # run_target <release>
     echo "== build and test on debian:$rel, with no network =="
     # git archive gives the committed tree and nothing else: no .git, no build/,
     # no editor droppings. Piped in, so nothing is written on the host.
+    # On failure the logs matter more than the summary, and --rm would take them
+    # with it. So the per-component logs under build/ are dumped before the
+    # container exits: the first real failure this script found printed
+    # "cjson FAILED" and nothing else, because the evidence died with the
+    # container.
+    #
+    # Never pipe this into tail: the pipeline's status is tail's, and a failing
+    # build then reports success. That mistake turned a red run green twice
+    # while this was being written.
     if ! git -C "$R" archive --format=tar HEAD \
         | "$RUNNER" run --rm -i --network none \
             -w /src "$tag" \
             sh -c 'mkdir -p /src && tar -x -C /src && \
-                   echo "--- build.sh ---" && tools/build.sh && \
-                   echo "--- tests ---" && \
-                   cmake -S tests -B build/tests > /tmp/t.log 2>&1 && \
-                   cmake --build build/tests -j"$(nproc)" >> /tmp/t.log 2>&1 && \
-                   ctest --test-dir build/tests --output-on-failure'
+                   { echo "--- build.sh ---" && tools/build.sh \
+                     && echo "--- tests ---" \
+                     && cmake -S tests -B build/tests > /tmp/t.log 2>&1 \
+                     && cmake --build build/tests -j"$(nproc)" >> /tmp/t.log 2>&1 \
+                     && ctest --test-dir build/tests --output-on-failure; } \
+                   || { status=$?; \
+                        echo "===== logs from the failed build ====="; \
+                        for l in build/*/cfg.log build/*/build.log build/*/autogen.log \
+                                 build/*/install.log /tmp/t.log; do \
+                            [ -s "$l" ] || continue; \
+                            echo "--- $l (last 15) ---"; tail -15 "$l"; \
+                        done; \
+                        exit "$status"; }'
     then
         echo "  FAILED on $rel"
         return 1

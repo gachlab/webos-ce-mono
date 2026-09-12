@@ -671,6 +671,50 @@ only ever a QtWebKit 5.212 rendering difference.
 
 ## Known and accepted
 
+### The browser's padlock was never clickable, and the SSL dialog is a real gap
+
+Two separate things, and only one of them is missing.
+
+**The padlock is not a regression.** `AddressInput.js:33` declares it as
+`{name: "secureLock", kind: enyo.CustomButton, showing: false, className:
+"secure-lock"}` -- with no `onclick`, while every sibling in that same list has
+one (`refreshButton` has `onclick: "doRefresh"`, `stopButton` has
+`onclick: "doStop"`). It is shown when the URL is https (line 85) and that is
+all it ever did. HP's own comment three lines above `showLeftButton` says it:
+`// need an IxD for secure lock icon (wireframe b5)`. The interaction design was
+never done, so clicking it did nothing on a TouchPad either. Nothing to restore.
+
+**The certificate-error dialog is missing, and it is a capability.**
+`Browser.js:248 showSSLConfirmDialog(inSender, inHost, inErrorCode, inCertFile)`
+is a complete dialog -- "Trust Always", "Trust Once", "Don't Trust", "View
+Certificate" -- and nothing in this tree raises it. On a bad certificate the
+page simply fails. What HP fed it is in
+`components/BrowserServer/Src/SSLValidationInfo.h`: the certificate's file path,
+a user message, the common name, the host name, the signing CA, a failure reason
+code, and an accept decision travelling back.
+
+Qt has the hook: `QWebEnginePage::certificateError` delivers a
+`QWebEngineCertificateError` carrying `url()`, `type()`, `description()`,
+`certificateChain()` and `isOverridable()`, with `defer()`,
+`acceptCertificate()` and `rejectCertificate()` to answer once the user has. So
+the shape of the work is: catch it in `BrowserViewAdapter`, `defer()`, write the
+chain somewhere the app can name, raise `onSSLConfirmDialog`, and answer with
+the response the app sends back.
+
+Two things it will run into. HP's `inErrorCode` is a curl/OpenSSL validation
+code and the app switches on exact ranges (0, 2-4, 5-9, 10-17, 18-23, 24-29,
+30/31/50) to choose its wording; `QWebEngineCertificateError::Type` is a
+Chromium enum and will need mapping, with a default for what does not map. And
+"View Certificate" cannot work at all: `CertificateDetail.js:198` calls
+`palm://com.palm.certificatemanager/getcertificatedetails`, and that service
+exists nowhere in this tree -- only two references to its name do, in the
+browser and in enyo's wifi module. The dialog is worth having without that
+button.
+
+And for a page that loads *correctly* there is no certificate to show even if
+the padlock had a handler: Qt exposes a chain only through the error path.
+`QWebEnginePage` has no accessor for the peer certificate of a good connection.
+
 ### Performance: where the time goes, and why the GPU is off
 
 Measured 2026-09-12, because "can we put this on Vulkan and Wayland" deserves
