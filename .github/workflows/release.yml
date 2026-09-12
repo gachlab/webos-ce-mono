@@ -1,0 +1,87 @@
+# Builds the .deb and attaches it to a GitHub Release.
+#
+# Runs on the self-hosted runner, not on GitHub's, and deliberately: a full
+# build of this tree is 29 components plus a 2.5GB container image, which is
+# minutes of CPU that would come out of the account's quota on every tag. The
+# runner already has the image cached after the first run.
+#
+# Tags only. A release is something you decide to make, so this does not fire on
+# every push -- and on a self-hosted runner that also means no workflow from an
+# outside contributor's branch can run on the machine. workflow_dispatch is here
+# for re-cutting a release without moving a tag.
+name: release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write          # the release upload needs it; nothing else does
+
+jobs:
+  deb:
+    # Every self-hosted runner carries these three labels automatically, so this
+    # matches without depending on whatever custom labels it was registered with.
+    runs-on: [self-hosted, linux, x64]
+
+    steps:
+      - name: Check out the full history
+        uses: actions/checkout@v4
+        with:
+          # tools/mkdeb.sh derives the package version from git --
+          # 3.0.5-0+<commit count>.<short sha> -- and a shallow clone gives the
+          # wrong count. This is why fetch-depth matters here and would not in a
+          # workflow that only compiles.
+          fetch-depth: 0
+
+      - name: Check the container runtime is there
+        run: |
+          command -v docker >/dev/null || command -v podman >/dev/null || {
+            echo "neither docker nor podman on the runner; mkdeb.sh cannot build" >&2
+            exit 1
+          }
+          docker info >/dev/null 2>&1 || podman info >/dev/null 2>&1 || {
+            echo "a container runtime is installed but not usable by this user" >&2
+            exit 1
+          }
+
+      - name: Build the package
+        # The first run also builds the ubuntu:26.04 image with the whole
+        # toolchain, which is slow; afterwards it is cached on the runner.
+        run: tools/mkdeb.sh
+
+      - name: Say what was built
+        id: deb
+        run: |
+          set -e
+          path="$(ls -t dist/*.deb | head -1)"
+          echo "path=$path" >> "$GITHUB_OUTPUT"
+          echo "name=$(basename "$path")" >> "$GITHUB_OUTPUT"
+          echo "### $(basename "$path")" >> "$GITHUB_STEP_SUMMARY"
+          dpkg-deb --info "$path" | sed -n 's/^ \(Version\|Installed-Size\):/\1:/p' \
+            >> "$GITHUB_STEP_SUMMARY" || true
+
+      - name: Keep the package even if the release step fails
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.deb.outputs.name }}
+          path: dist/*.deb
+          if-no-files-found: error
+
+      - name: Attach it to the release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*.deb
+          generate_release_notes: true
+          body: |
+            Built from ${{ github.sha }} by the release workflow.
+
+            Install with `sudo apt-get install ./${{ steps.deb.outputs.name }}`;
+            apt resolves the dependencies, which are computed from the binaries
+            themselves by dpkg-shlibdeps rather than written by hand.
+
+            Installs self-contained under `/opt/webos-ce`. Start it with
+            `/opt/webos-ce/bin/webos-ce`.
