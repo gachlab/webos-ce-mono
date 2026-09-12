@@ -213,6 +213,22 @@ Description: HP webOS Community Edition for modern Linux
  Installs self-contained under $PREFIX. Start it with $PREFIX/bin/webos-ce.
 CTRL
 
+# A postinst, because the modes in the archive are not enough on an upgrade.
+# dpkg does not change the permissions of a directory that already exists, so a
+# machine that had an earlier package kept var/luna/preferences at 0755 root
+# while the new archive carried 1777 -- measured: var/luna and var/db came out
+# right only because the previous package had already made them so. The one
+# directory that was wrong is the one webOS writes its first-card marker into,
+# which is what made the shell segfault, so this cannot be left to chance.
+cat > "$PKG/DEBIAN/postinst" <<'POST'
+#!/bin/sh
+set -e
+if [ "$1" = configure ]; then
+    find /opt/webos-ce/var -type d -exec chmod 1777 {} + 2>/dev/null || true
+fi
+POST
+chmod 0755 "$PKG/DEBIAN/postinst"
+
 echo "== build the package =="
 dpkg-deb --build --root-owner-group "$PKG" "/out/webos-ce_${VERSION}_amd64.deb"
 INNER

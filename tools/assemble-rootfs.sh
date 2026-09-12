@@ -343,6 +343,13 @@ cp -rf "$A"/tempdb/kinds/*                       "$ROOTFS/etc/palm/tempdb/kinds/
 
 mkdir -p "$ROOTFS"/var/palm/data/universalsearchmgr/searchplugins
 mkdir -p "$ROOTFS"/var/palm/data "$ROOTFS"/var/file-cache
+# configurator records what it has already applied under WEBOS_INSTALL_LOCALSTATEDIR
+# /cache/configurator (Configurator.h.in), a path compiled into the binary. The
+# directory was never created here, which cost 64 "Failed to mark ... as
+# configured: No such file" errors on every init -- every configuration was
+# applied and none of them recorded, so the next run redid all of it. Harmless
+# until the log is the only thing you have to read.
+mkdir -p "$ROOTFS"/var/cache/configurator
 mkdir -p "$S"/var/file-cache          # filecache looks for it under the build prefix
 
 # Our own fonts.conf: adds webOS's fonts to the system's rather than replacing
