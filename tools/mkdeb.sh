@@ -39,6 +39,29 @@ fi
 # Version: upstream is HP's 3.0.5 drop, and everything after it is ours. The
 # commit count keeps packages ordered by dpkg's own comparison, and the short
 # sha says exactly what is in it.
+# Refuse to package a working tree that does not match HEAD, and say which files
+# differ. The build feeds the container `git archive HEAD` -- HEAD being the tip
+# of whatever branch you are on -- so uncommitted edits are silently left out,
+# and the version below embeds the sha, which would then name a commit that does
+# not contain what is in the package.
+#
+# This is not hypothetical. A package built here while tools/build.sh had
+# uncommitted fixes came out without them: the container got the committed copy,
+# the build reported success, and it took inspecting the artifact -- filecache
+# still carrying /src/build/staging, palmbus.node with no rpath -- to notice.
+# Seven minutes to build and nothing said a word. An immediate, loud failure is
+# cheaper than a quiet wrong one.
+#
+# MKDEB_ALLOW_DIRTY=1 overrides it, for when packaging HEAD while holding
+# unrelated edits is what you actually mean.
+if [ -z "${MKDEB_ALLOW_DIRTY:-}" ] \
+   && ! (git -C "$R" diff --quiet && git -C "$R" diff --cached --quiet); then
+    echo "mkdeb: the working tree differs from HEAD, which is what would be packaged:" >&2
+    git -C "$R" status --short >&2
+    echo "mkdeb: commit them, or set MKDEB_ALLOW_DIRTY=1 to package HEAD anyway." >&2
+    exit 1
+fi
+
 UPSTREAM=3.0.5
 COUNT="$(git -C "$R" rev-list --count HEAD)"
 SHA="$(git -C "$R" rev-parse --short HEAD)"
