@@ -51,7 +51,7 @@ qt6-base-dev qt6-base-private-dev
 qt6-declarative-dev qt6-declarative-private-dev
 qt6-webengine-dev qt6-scxml-dev
 libglib2.0-dev libglibmm-2.4-dev libsigc++-2.0-dev
-libsqlite3-dev libssl-dev libxml2-dev
+libsqlite3-dev libssl-dev libxml2-dev libyajl-dev
 libboost-filesystem-dev libboost-regex-dev libboost-program-options-dev
 libc-ares-dev liburiparser-dev
 nodejs
@@ -106,12 +106,23 @@ run_target() {                  # run_target <release>
                      && cmake --build build/tests -j"$(nproc)" >> /tmp/t.log 2>&1 \
                      && ctest --test-dir build/tests --output-on-failure; } \
                    || { status=$?; \
-                        echo "===== logs from the failed build ====="; \
-                        for l in build/*/cfg.log build/*/build.log build/*/autogen.log \
-                                 build/*/install.log /tmp/t.log; do \
+                        echo "===== the failure ====="; \
+                        # Only the logs that actually contain an error, newest
+                        # first. Dumping every log in alphabetical order buried
+                        # the real cause under successful installs of whatever
+                        # sorts late -- pmloglib, pmstatemachineengine -- which
+                        # is as useless as dumping none.
+                        found=0; \
+                        for l in $(ls -t build/*/*.log /tmp/t.log 2>/dev/null); do \
                             [ -s "$l" ] || continue; \
-                            echo "--- $l (last 15) ---"; tail -15 "$l"; \
+                            grep -qiE "error|undefined reference|No such file|Permission denied|cannot find" "$l" || continue; \
+                            echo "--- $l ---"; \
+                            grep -niE "error|undefined reference|No such file|Permission denied|cannot find" "$l" | head -12; \
+                            found=1; \
                         done; \
+                        [ "$found" = 1 ] || { echo "no log contains an error; newest logs:"; \
+                            for l in $(ls -t build/*/*.log /tmp/t.log 2>/dev/null | head -3); do \
+                                echo "--- $l (last 20) ---"; tail -20 "$l"; done; }; \
                         exit "$status"; }'
     then
         echo "  FAILED on $rel"
