@@ -18,8 +18,17 @@
 set -u
 R="$(cd "$(dirname "$0")/.." && pwd)"
 SELF="$R/tools/$(basename "$0")"   # absolute: there is a --chdir below
-S="$R/build/staging"
-ROOTFS="$R/build/rootfs"
+S="${WEBOS_STAGING:-$R/build/staging}"
+ROOTFS="${WEBOS_ROOTFS:-$R/build/rootfs}"
+
+# Where the bus binaries are run from. A package has no build/staging, so these
+# have to be overridable -- and they have to agree with the WEBOS_BINDIR that
+# tools/assemble-rootfs.sh baked into com.palm.lunasend.json: ls-hubd checks a
+# caller's /proc/<pid>/exe against the exeName in that role file, so running a
+# luna-send from a path the role does not name costs it every permission it has,
+# silently. Same defaults as that script's.
+WEBOS_BINDIR="${WEBOS_BINDIR:-$S/usr/bin}"
+WEBOS_SBINDIR="${WEBOS_SBINDIR:-$S/usr/sbin}"
 
 # Linux truncates a process's comm to 15 characters, so `pgrep -x` and
 # `pkill -x` silently match nothing for a longer name -- LunaUniversalSearchMgr
@@ -52,7 +61,15 @@ service_stop() {
 }
 # ls-hubd inherits this environment and passes it on to whatever it starts,
 # WebAppMgr and the JavaScript services included.
-export LD_LIBRARY_PATH="$S/lib:$S/usr/lib"
+# Only when there is a staging tree to point at. A package has none, and it does
+# not need one: every binary in the rootfs carries an $ORIGIN rpath and resolves
+# unaided -- measured, 13 of 13, including from a copy of the tree at an
+# unrelated path. Exporting a directory that does not exist costs ld.so nothing
+# and misleads anyone who later reads a running service's environment looking
+# for where its libraries came from.
+if [ -d "$S/lib" ]; then
+    export LD_LIBRARY_PATH="$S/lib:$S/usr/lib"
+fi
 
 # bootstrap-node.js calls process.setName and process.setArgs, which existed
 # only in HP's patched node. --require supplies them without run-js-service or
@@ -159,8 +176,8 @@ enter_namespace() {
 case "${1:-run}" in
   bus)
     pkill -x ls-hubd 2>/dev/null; sleep 1
-    "$S/usr/sbin/ls-hubd" --conf "$ROOTFS/etc/ls2/ls-private.conf" >/tmp/webos/ls-priv.log 2>&1 &
-    "$S/usr/sbin/ls-hubd" --public --conf "$ROOTFS/etc/ls2/ls-public.conf" >/tmp/webos/ls-pub.log 2>&1 &
+    "$WEBOS_SBINDIR/ls-hubd" --conf "$ROOTFS/etc/ls2/ls-private.conf" >/tmp/webos/ls-priv.log 2>&1 &
+    "$WEBOS_SBINDIR/ls-hubd" --public --conf "$ROOTFS/etc/ls2/ls-public.conf" >/tmp/webos/ls-pub.log 2>&1 &
     sleep 2
     echo "ls-hubd: $(pgrep -xc ls-hubd) instances"
     ;;
@@ -182,7 +199,7 @@ case "${1:-run}" in
         "$L/mojodb-luna" -c /etc/palm/mojodb.conf /var/db > /tmp/webos/mojodb.log 2>&1 &
     fi
     for _ in $(seq 30); do
-        timeout 3 "$S/usr/bin/luna-send" -n 1 palm://com.palm.db/find '{"query":{"from":"com.palm.db.kind:1"}}' </dev/null 2>&1 \
+        timeout 3 "$WEBOS_BINDIR/luna-send" -n 1 palm://com.palm.db/find '{"query":{"from":"com.palm.db.kind:1"}}' </dev/null 2>&1 \
             | grep -q 'is not running' || break
         sleep 1
     done
@@ -193,7 +210,7 @@ case "${1:-run}" in
     pkill -x configurator 2>/dev/null; sleep 1
     "$ROOTFS/usr/lib/luna/configurator" service > /tmp/webos/configurator.log 2>&1 &
     sleep 3
-    LS="$S/usr/bin/luna-send"
+    LS="$WEBOS_BINDIR/luna-send"
     for t in '{"types":["dbkinds","filecache"]}' '{"types":["dbpermissions"]}' '{"types":["activities"]}'; do
         echo "configurator <- $t"
         timeout 60 "$LS" -n 1 palm://com.palm.configurator/run "$t" 2>&1 | head -2

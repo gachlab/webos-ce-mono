@@ -8,6 +8,31 @@ C="$R/components"
 ROOTFS="${1:-$R/build/rootfs}"
 S="$R/build/staging"
 
+# Where the tree is WRITTEN and where it will RUN are the same thing for a
+# developer and different things for a package: dpkg builds into a staging
+# directory and installs to a prefix. Every absolute path this script bakes into
+# a generated file has to name the second, not the first.
+#
+# Three are needed, because three different things get written into the ls2
+# files, luna.conf and fonts.conf:
+#
+#   WEBOS_PREFIX    the runtime root       (rootfs paths inside .service, .conf)
+#   WEBOS_LAUNCHER  this repo's run script (the Exec= of all 34 .service files)
+#   WEBOS_BINDIR    the directory luna-send runs from -- a directory, because
+#                   HP's template appends "/luna-send" to it
+#
+# They default to today's values, so a build from the repo is unchanged: that
+# was verified by regenerating the 40 path-carrying files and comparing them
+# byte for byte.
+#
+# WEBOS_BINDIR and the launcher's own must always agree. ls-hubd identifies a
+# caller by reading /proc/<pid>/exe and matches it against the exeName in the
+# role file written here; point the role at one copy of luna-send and run a
+# different one and the hub silently refuses it every permission it has.
+WEBOS_PREFIX="${WEBOS_PREFIX:-$ROOTFS}"
+WEBOS_LAUNCHER="${WEBOS_LAUNCHER:-$R/tools/run-lunasysmgr.sh}"
+WEBOS_BINDIR="${WEBOS_BINDIR:-$S/usr/bin}"
+
 mkdir -p "$ROOTFS"/{etc/palm/pubsub_handlers,etc/ls2,usr/lib/luna/system,usr/palm/sounds}
 mkdir -p "$ROOTFS"/usr/share/ls2/{roles/prv,roles/pub,services,system-services}
 mkdir -p "$ROOTFS"/usr/lib/luna/customization "$ROOTFS"/var/{db,luna,palm} "$ROOTFS"/usr/share/fonts
@@ -62,6 +87,20 @@ echo "  libraries:           $(find "$ROOTFS/usr/lib" -maxdepth 1 -name '*.so*' 
 
 mkdir -p "$ROOTFS/usr/lib/luna"
 cp -f "$S/bin/LunaSysMgr" "$ROOTFS/usr/lib/luna/LunaSysMgr"
+
+# The bus's own binaries. They were the one part of the system still being run
+# out of build/staging, which is fine for a developer and impossible for a
+# package -- and staging cannot resolve its own libraries anyway: measured, 3 of
+# 21 executables there load without LD_LIBRARY_PATH, because staging splits
+# binaries in usr/sbin from libraries in usr/lib and the rpath is $ORIGIN/..
+# Copied in beside everything else they resolve like the other thirteen, with no
+# rpath change at all: $ORIGIN/.. from usr/lib/luna is usr/lib, where the
+# libraries now live.
+for b in ls-hubd luna-send ls-monitor; do
+    for d in "$S/usr/sbin" "$S/usr/bin"; do
+        [ -x "$d/$b" ] && cp -f "$d/$b" "$ROOTFS/usr/lib/luna/" && break
+    done
+done
 
 # --- WebAppMgr: the process that runs the web apps ---
 # Not launched by hand. It is an LS2 service: LunaSysMgr talks to it over the
@@ -222,7 +261,7 @@ done
 # goes in), so it would resolve that against the real system, where there is
 # nothing. It is repointed at the rootfs. HP solved the same thing with symlinks
 # from /usr/lib/luna, but that needs root and touches the system.
-sed -i -E "s|^Exec=[^ ]*/([^ /]+)|Exec=$ROOTFS/usr/lib/luna/\\1|" \
+sed -i -E "s|^Exec=[^ ]*/([^ /]+)|Exec=$WEBOS_PREFIX/usr/lib/luna/\\1|" \
     "$ROOTFS"/usr/share/ls2/services/*.service \
     "$ROOTFS"/usr/share/ls2/system-services/*.service 2>/dev/null
 
@@ -311,7 +350,7 @@ cat > "$ROOTFS/etc/fonts.conf" <<FC
 <!DOCTYPE fontconfig SYSTEM "fonts.dtd">
 <fontconfig>
   <include ignore_missing="yes">/etc/fonts/fonts.conf</include>
-  <dir>$ROOTFS/usr/share/fonts</dir>
+  <dir>$WEBOS_PREFIX/usr/share/fonts</dir>
 </fontconfig>
 FC
 
@@ -324,7 +363,7 @@ FC
 # draws the shell but finds NO apps at all.
 mkdir -p "$ROOTFS"/usr/lib/luna/applications "$ROOTFS"/usr/palm/sysmgr/{images,localization} \
          "$ROOTFS"/var/luna/{launchpoints,preferences}
-sed -i -E "/^(ApplicationPath|SystemPath|SystemResourcesPath|SystemLocalePath|AppLauncherPath|LaunchPointsPath|PreferencesPath)=/ s#(=|:)/#\\1$ROOTFS/#g" \
+sed -i -E "/^(ApplicationPath|SystemPath|SystemResourcesPath|SystemLocalePath|AppLauncherPath|LaunchPointsPath|PreferencesPath)=/ s#(=|:)/#\\1$WEBOS_PREFIX/#g" \
     "$ROOTFS/etc/palm/luna.conf"
 
 echo "rootfs assembled at $ROOTFS"
@@ -397,7 +436,7 @@ mkdir -p "$ROOTFS/var/db"
 for side in pub prv; do
     tpl="$C/luna-service2/files/sysbus/com.palm.lunasend.json.$side.in"
     [ -f "$tpl" ] || continue
-    sed "s|@WEBOS_INSTALL_BINDIR@|$S/usr/bin|" "$tpl" \
+    sed "s|@WEBOS_INSTALL_BINDIR@|$WEBOS_BINDIR|" "$tpl" \
         > "$ROOTFS/usr/share/ls2/roles/$side/com.palm.lunasend.json"
 done
 
@@ -421,7 +460,7 @@ done
 # pointed at run-lunasysmgr.sh instead, which enters the same namespace the
 # shell uses and runs run-js-service from inside it. The services then start on
 # demand and quit when idle, which is how they behave on a device.
-sed -i -E "s|^Exec=[^ ]*run-js-service(.*)$|Exec=$R/tools/run-lunasysmgr.sh js-service\1|" \
+sed -i -E "s|^Exec=[^ ]*run-js-service(.*)$|Exec=$WEBOS_LAUNCHER js-service\1|" \
     "$ROOTFS"/usr/share/ls2/services/*.service \
     "$ROOTFS"/usr/share/ls2/system-services/*.service 2>/dev/null
 
@@ -429,7 +468,7 @@ sed -i -E "s|^Exec=[^ ]*run-js-service(.*)$|Exec=$R/tools/run-lunasysmgr.sh js-s
 # launched straight from the rootfs path it runs outside the namespace and sees
 # none of /etc/palm, /usr/palm or /var/db. See the ns-exec case in
 # run-lunasysmgr.sh for what that cost.
-sed -i -E "s|^Exec=$ROOTFS/usr/lib/luna/|Exec=$R/tools/run-lunasysmgr.sh ns-exec /usr/lib/luna/|" \
+sed -i -E "s|^Exec=$WEBOS_PREFIX/usr/lib/luna/|Exec=$WEBOS_LAUNCHER ns-exec /usr/lib/luna/|" \
     "$ROOTFS"/usr/share/ls2/services/*.service \
     "$ROOTFS"/usr/share/ls2/system-services/*.service 2>/dev/null
 
@@ -528,7 +567,7 @@ fi
 # the same incomplete view.
 for conf in "$R"/desktop-support/ls2/*.conf; do
     dest="$ROOTFS/etc/ls2/$(basename "$conf")"
-    sed -E "s#^(Directories=)/#\\1$ROOTFS/#" "$conf" > "$dest.new"
+    sed -E "s#^(Directories=)/#\\1$WEBOS_PREFIX/#" "$conf" > "$dest.new"
     if cmp -s "$dest.new" "$dest"; then
         rm -f "$dest.new"
     else
