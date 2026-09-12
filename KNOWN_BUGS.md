@@ -328,6 +328,46 @@ Traps found on the way, each confirmed before being fixed:
   declares its own `border-style` is left alone. `tests/border-image-box`
   covers it, and fails (exit 1) when the injection is removed.
 
+  **And for a long time it reached only half the rules.** The injection walked
+  `document.styleSheets[i].cssRules` flat. A `CSSMediaRule` has no `.style`, so
+  the loop's `if (!style) continue` skipped it -- and its children are not in
+  that list, so every rule inside a media block went unpatched. The enyo
+  stylesheet the package ships has **114** border-image rules inside media
+  blocks: the whole radio, tab and button theme sits inside
+  `@media (-webkit-max-device-pixel-ratio: ...)`.
+
+  The clock's toolbar is what showed it -- two bare icons touching each other
+  with no button box at all. `.enyo-radiobutton` carries
+  `border-width: 0px 16px` while the border image sits on
+  `.enyo-radiobutton.enyo-first` inside the media block, so the element never
+  got a border-style and its 16px sides computed to zero. Patching either rule
+  is enough: border-style applies to the *element*, not to the rule that set it.
+
+  Measured in the running shell with the same probe before and after:
+
+  | page | border-image elements | still `style:none` |
+  | --- | --- | --- |
+  | clock (main.html) | 11 | **2 -> 0** |
+  | luna-applauncher | 22 | 0 |
+  | calculator | 52 | 0 |
+
+  and the two buttons went from `w=20 bw=0px st=none` to
+  `w=52 bw=16px st=solid`. The calculator and the launcher were never affected
+  because their rules are top-level, which is exactly why this hid behind a test
+  whose three cases were all top-level too.
+
+  Two things worth not repeating. The first attempt recursed with
+  `if (rules[r].cssRules) { ...; continue; }` and stopped the script doing
+  anything at all: an empty `CSSRuleList` is still an object, so the guard fired
+  on ordinary rules that had a perfectly good `.style`. The test caught it at
+  once -- the plain case fell from 130 to 100 and no resize was dispatched,
+  which is the signature of the script not running rather than running wrong.
+  Recurse *in addition to* patching, never instead of it. And measuring this
+  needs both `-webkit-border-image` and `border-image-source` read off the
+  computed style: filtering on the standard property alone reported 0
+  border-image elements in the calculator, contradicting the measurement earlier
+  in this entry -- the instrument was wrong, not the fact.
+
   Restoring the border is only half of it, and the half on its own looks worse
   than the bug. Every box shrinks by the border it just got back, while an app
   that already measured itself keeps the number it computed without one: the
@@ -615,7 +655,7 @@ method answering "is not running" on `-P` is by design. db8 answering -3963
 
 ## Open, cause not yet found
 
-### LunaSysMgr segfaults, and NOT because the display goes inactive
+### ~~LunaSysMgr segfaults~~ (fixed: `fclose(NULL)` on the first card)
 
 The shell dies on its own about two minutes after the last interaction and
 takes WebAppMgr and the static services out behind it. Caught in the run log:
@@ -672,23 +712,53 @@ printed by the script's own shell, so a crash there would have been recorded.
 The two deaths are therefore not known to share a cause, and only this one is a
 confirmed SIGSEGV. Do not merge them into one story without new evidence.
 
-There is still no backtrace, and the reason is worth recording: **it stopped
-happening.** `tools/run-lunasysmgr.sh` now takes `WEBOS_SYSMGR_WRAPPER`, the
+**The cause.** `tools/run-lunasysmgr.sh` now takes `WEBOS_SYSMGR_WRAPPER`, the
 twin of the `WEBOS_WAM_WRAPPER` that caught WebAppMgr's crash, so LunaSysMgr can
-be run under gdb inside the bwrap namespace. Under it the shell has survived
-3m39s, one full inactivity window and eight app launches across the card path --
-notes, calculator, calendar and clock, twice each, six of them reaching APP
-READY. Nothing faulted.
+run under gdb inside the bwrap namespace where the fault actually happens. Left
+as a passive trap, it caught it:
 
-What differs from the run that did crash is the one thing worth chasing next:
-that run had every JavaScript service dead (a broken library path meant
-`palmbus.node` could not load), and its last three lines before the fault were
-`DWMStateAlertOpen`, `Playing default alert sound` and `raiseAlertWindow`. So
-the working hypothesis is that the fault is in the alert path, reached because
-services were failing -- which would make it a consequence of that breakage
-rather than an independent bug. **One non-reproduction is not a proof of
-either**, and the instrumented shell is left running as a passive trap: if it
-dies, the wrapper prints the backtrace by itself.
+    #0  fclose () from libc
+    #1  CardWindowManager::markFirstCardDone ()   f = 0x0
+    #2  CardWindowManager::firstCardAlert ()
+    #3  MinimizeState::onEntry ()
+
+`f = 0x0`. HP's code calls `fclose(f)` without checking the `fopen` above it:
+
+```cpp
+g_mkdir_with_parents(Settings::LunaSettings()->lunaPrefsPath.c_str(), 0755);
+FILE* f = fopen(Settings::LunaSettings()->firstCardLaunch.c_str(), "w");
+fclose(f);
+```
+
+and the two paths are not the same thing. `lunaPrefsPath` is configurable --
+`KEY_STRING("General", "PreferencesPath", ...)`, Settings.cpp:379 -- so the
+rootfs assembly repoints it. `firstCardLaunch` is the hardcoded literal
+`/var/luna/preferences/used-first-card` (Settings.cpp:167) with no key of its
+own, so the `g_mkdir_with_parents` on the line above creates a directory that
+is not the one about to be written. Where that path is not writable, `fopen`
+returns NULL and `fclose(NULL)` segfaults, which takes WebAppMgr's connection
+with it and the services behind that.
+
+**Why it looked intermittent.** The developer tree owns
+`build/rootfs/var/luna/preferences` and already had `used-first-card` in it, so
+the open succeeded and nothing faulted -- for months. The package installs that
+directory root-owned at 0755: `tools/mkdeb.sh` made `var/db`, `var/luna` and
+`var/palm` world-writable but not their children, and the child is what gets
+written. So the same binary crashed when installed and not when run from the
+build tree, which is what made it look like a packaging mystery rather than a
+missing NULL check.
+
+**Fixed in two places, because either alone is not enough.** The `fclose` is
+guarded and logs a warning naming the path, so an unwritable location costs a
+log line instead of the session -- worth having for any read-only install.
+`mkdeb.sh` chmods every directory under `var/`, not the three at the top, so the
+file can actually be written and first-use is not offered again on every start.
+
+One measurement that is worth not repeating: before the trap caught it, the
+shell had run 3m39s under gdb through a full inactivity window and eight app
+launches without faulting, which had suggested the bug was gone. It was not --
+the crash needs the first card to be *minimised*, which none of those launches
+did. A non-reproduction had narrowed nothing.
 
 Two traps to avoid when picking this up. gdb runs every `-ex` in order
 regardless of why `run` returned, so a wrapper that prints "FAULTING THREAD"
