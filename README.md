@@ -44,12 +44,25 @@ Each stage can be run on its own: `headers`, `autotools`, `cmake`, `node`,
 `rootfs`. Everything lands in `build/`, and nothing outside the repository is
 downloaded or compiled.
 
-That last sentence is checked rather than asserted. Deleting `build/` and
-running the whole thing inside `bwrap --unshare-net` — no network at all, so
-anything reaching for a download fails instead of quietly succeeding — takes
-**11 minutes on 12 cores** and ends with all five stages green, 26 components
-built, and a shell that starts. `git status` is untouched afterwards: the build
-writes nothing into the sources.
+That last sentence is checked rather than asserted, and by something stronger
+than a careful run on the machine it was written on:
+
+```sh
+tools/ci.sh sid        # or trixie, or both
+```
+
+builds the committed tree — `git archive HEAD`, so not the working copy — inside
+a container for that Debian release, with dependencies installed first and then
+**the build itself run with no network at all**, so a component reaching for a
+download fails instead of quietly succeeding. It ends green: five stages, 26
+components, the node addons, an assembled rootfs, and 29 of 29 tests.
+
+It was not green to begin with, and that is the point of having it. A clean tree
+on a clean system turned up eight things this repository was quietly taking from
+one developer's disk — `autogen.sh` without its exec bit, then yajl, ICU,
+Berkeley DB, curl, zlib and node's headers, plus a Boost package Debian had
+retired. The promise on this page was false until each of them was found, and no
+number of builds on the machine that wrote it would ever have said so.
 
 `tools/run-lunasysmgr.sh` **installs nothing on your system**. Only
 `/etc/palm` is hardcoded in the code (`Settings.cpp`); everything else is
