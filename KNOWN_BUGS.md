@@ -169,6 +169,39 @@ Traps found on the way, each confirmed before being fixed:
   called it when a page registered touch listeners; QtWebEngine gives no such
   signal, so the shell's sender and the `View_TouchEvent` message have been
   alive the whole time waiting for a request nobody ever made.
+- **A right-click reaches the page now, and the button was never missing from
+  the protocol.** HP's `Event` has carried one all along -- `Event::Left`,
+  `Middle` and `Right` are in `SysMgrEvent.h` -- and it was discarded three
+  times between the mouse and the page:
+
+  * `MouseEventEater` called `e->ignore()` on everything aimed at the webOS
+    surface, which is precisely what makes Qt's
+    `AA_SynthesizeTouchForUnhandledMouseEvents` (Main.cpp:698) turn it into a
+    finger. A finger has no button, so a right-click arrived as an ordinary tap
+    -- worse than nothing, because the page acted on it.
+  * `WindowServer::deliverAsTouch` made a finger of any button.
+  * `CardWindow` built its pen events without ever setting `ev.button`.
+  * `WindowedWebApp` hardcoded `Qt::LeftButton` turning them back into
+    `QMouseEvent`s. Nothing read `evt->button` before this.
+
+  `QWebPage::deliverToEmbedded` already forwarded `mouse->button()` unchanged,
+  so the last link needed nothing. The right button is now passed through the
+  eater (testing `buttons()` as well as `button()`, since Qt reports `NoButton`
+  on a move and a right-drag would otherwise split across two paths), refused by
+  `deliverAsTouch`, filled in by the card on both press and release, and mapped
+  back in WebAppMgr.
+
+  **Verified by using it.** The probe written for it would have reported a false
+  negative twice over, which is worth knowing before writing another:
+  `xdotool search --name '^LunaSysMgr$'` matches the 10x10 "Qt Selection Owner"
+  window rather than the shell, so the click lands in a corner of the screen;
+  and the shell has to be under `QT_QPA_PLATFORM=xcb` for xdotool to see it at
+  all. Chromium's context menu is native, so what a probe can actually observe
+  is a `contextmenu` listener firing, not a menu appearing.
+
+  **The same shape is still open for the middle button**: `Event::Middle`
+  appears zero times in webappmanager, so it is carried and dropped exactly as
+  the right one was. Three lines in the same three places.
 - **The keyboard button allows the on-screen keyboard, it does not summon it.**
   `KEYS::Key_Keyboard` reaches `SystemUiController` (line 616), which calls
   `IMEController::setIMEActive`. That sets `m_imeAllowed` and then re-evaluates
