@@ -98,7 +98,24 @@ run_target() {                  # run_target <release>
     # build then reports success. That mistake turned a red run green twice
     # while this was being written.
     if ! git -C "$R" archive --format=tar HEAD \
+        # --no-sandbox, and not as a shortcut: it is the only way inside an
+        # unprivileged container. Chromium refuses to start as root without it
+        # ("Running as root without --no-sandbox is not supported"), and running
+        # as a non-root user does not help -- measured: the sandbox needs a user
+        # namespace and Docker denies unshare even to uid 1000, the sid image has
+        # no user between 1000 and 65533, and /src is not writable by one, so the
+        # archive could not even be extracted.
+        #
+        # What it costs is small here. The sandbox isolates the renderer from
+        # hostile content; these tests load setHtml with strings we wrote
+        # ourselves, in a throwaway container with no network at all.
+        #
+        # --disable-gpu has to be repeated: qtwebkit-compat's beforeApplication
+        # sets it only when QTWEBENGINE_CHROMIUM_FLAGS is empty, so naming the
+        # variable here would otherwise drop it -- and without it WebAppMgr dies
+        # with SIGSEGV at startup.
         | "$RUNNER" run --rm -i --network none \
+            -e QTWEBENGINE_CHROMIUM_FLAGS="--no-sandbox --disable-gpu" \
             -w /src "$tag" \
             sh -c 'mkdir -p /src && tar -x -C /src && \
                    { echo "--- build.sh ---" && tools/build.sh \
