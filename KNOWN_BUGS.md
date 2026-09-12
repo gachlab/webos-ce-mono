@@ -615,6 +615,42 @@ method answering "is not running" on `-P` is by design. db8 answering -3963
 
 ## Open, cause not yet found
 
+### LunaSysMgr segfaults when the display goes inactive
+
+The shell dies on its own about two minutes after the last interaction and
+takes WebAppMgr and the static services out behind it. Caught in the run log:
+
+    13:46:50.040 d (362893) DisplayManager::notifySubscribers(int, sptr<Event>):
+                            {"returnValue":true,"event":"displayInactive"}
+    run-lunasysmgr.sh: line 300: 362893 Segmentation fault  .../LunaSysMgr
+
+`DisplayManager::activity()` logs `diff=120000` on the line before, so this is
+the 120-second inactivity timer firing and not anything the user did. WebAppMgr
+then exits by design (`Remote server disconnected. Exiting...`) and the static
+services follow it out.
+
+Ruled out by evidence rather than by argument, because each was believed at
+some point during the session that found it:
+
+* **Not the OOM killer.** No `oom-kill`, `killed process` or `segfault` line in
+  the kernel ring buffer, with 20 GiB available.
+* **Not a reassembly overwriting a running binary.** The binaries under
+  `usr/lib/luna` carry an mtime seven minutes *after* the crash; nothing was
+  running by then, which is precisely why that copy succeeded -- overwriting a
+  running executable fails with ETXTBSY.
+* **Not how the process was started.** It had been detached into its own
+  session with `setsid` and survived several tool invocations before dying.
+
+**Not established, and worth not repeating:** an earlier death in the same
+session left *no* `Segmentation fault` line in its log at all. That message is
+printed by the script's own shell, so a crash there would have been recorded.
+The two deaths are therefore not known to share a cause, and only this one is a
+confirmed SIGSEGV. Do not merge them into one story without new evidence.
+
+There is no backtrace yet: no core pattern is configured and `coredumpctl`
+lists nothing. The way in is the one that already worked for WebAppMgr -- run
+LunaSysMgr under a debugger and wait the two minutes out.
+
 ### ~~LunaUniversalSearchMgr dies inside the namespace~~ (never did)
 
 It was reported dead in every status line while up to thirteen copies of it were
