@@ -137,6 +137,9 @@ bool SysMgrWebBridge::relaunch(const char* args, const char* launchingAppId, con
         m_bufferedRelaunchArgs = args;
         m_bufferedRelaunchLaunchingAppId = launchingAppId;
         m_bufferedRelaunchLaunchingProcId = launchingProcId;
+        // Worth a line: nothing used to take a parked relaunch out again.
+        // slotLoadProgress() now delivers it when the page reaches 100.
+        qDebug() << __PRETTY_FUNCTION__ << appId() << "buffered at progress" << progress();
         return true;
     }
 
@@ -147,6 +150,15 @@ bool SysMgrWebBridge::relaunch(const char* args, const char* launchingAppId, con
 
     if (m_jsObj)
         m_jsObj->setLaunchParams(m_args);
+
+    // A window opened from here was asked for, so it must not be swallowed by
+    // slotSetupPage()'s boot rule. That rule exists to drop the window a
+    // headless app opens while it is being started at boot; it clears the flag
+    // on the first card it throws away, and in this tree the apps launched at
+    // boot -- calendar, clock, email -- open none, so the flag survived and ate
+    // the user's first launch instead: the first tap on the icon did nothing
+    // and only the second one opened a card.
+    m_launchedAtBoot = false;
 
     m_inRelaunch = true;
     QVariant ret = m_page->mainFrame()->evaluateJavaScript(QString("Mojo.relaunch()"));
@@ -401,9 +413,40 @@ const char* SysMgrWebBridge::getIdentifier()
 }
 
 // slots
-void SysMgrWebBridge::slotLoadProgress(int progress) 
+void SysMgrWebBridge::slotLoadProgress(int progress)
 {
     m_progress = progress;
+
+    // Deliver a relaunch that arrived while the page was still loading.
+    //
+    // relaunch() parks one when progress() < 100, and in this tree nothing ever
+    // took it out again: the three members were written and read nowhere, so a
+    // launch that arrived mid-load was lost. HP's earlier WebPage::loadProgress()
+    // delivered it from here; this does the same, with two differences. It keys
+    // on a relaunch having been buffered rather than on the launching app id,
+    // which is empty when the launch comes from the dock, and it passes the
+    // launching app id and process id in the order relaunch() declares them.
+    //
+    // This restores dead code rather than fixing an observed failure: through
+    // every measurement of the two-tap bug the parked path was never taken --
+    // that one was slotSetupPage()'s boot rule, below.
+    if (progress == 100 && !m_bufferedRelaunchArgs.isNull()) {
+        const QString args = m_bufferedRelaunchArgs;
+        const QString launchingAppId = m_bufferedRelaunchLaunchingAppId;
+        const QString launchingProcId = m_bufferedRelaunchLaunchingProcId;
+
+        // Cleared before the call, so a relaunch that buffers again cannot see
+        // the same arguments twice. A default-constructed QString is null; one
+        // assigned an empty string is not, which is what tells "nothing was
+        // buffered" from "buffered without arguments".
+        m_bufferedRelaunchArgs = QString();
+        m_bufferedRelaunchLaunchingAppId = QString();
+        m_bufferedRelaunchLaunchingProcId = QString();
+
+        relaunch(args.toUtf8().constData(),
+                 launchingAppId.toUtf8().constData(),
+                 launchingProcId.toUtf8().constData());
+    }
 }
 
 void SysMgrWebBridge::slotLoadStarted() 
@@ -427,6 +470,15 @@ void SysMgrWebBridge::slotViewportChangeRequested()
 
 void SysMgrWebBridge::slotSetupPage(const QUrl& url)
 {
+    // Adopt a page once. This runs on urlChanged, and QtWebEngine emits that
+    // several times for one window -- the blank page it starts on, then the
+    // document -- where QtWebKit emitted it once. Without this guard every
+    // firing called launchWithPageInternal() again and the same window became
+    // three cards: one tap on the calendar's icon opened three of them. HP's
+    // earlier tree opens its equivalent with the same check.
+    if (m_client)
+        return;
+
     // QT5_TODO:
 #if (QT_VERSION < QT_VERSION_CHECK(5, 0, 0))
     QString attributes = m_page->attributes();

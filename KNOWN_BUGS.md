@@ -173,6 +173,42 @@ Traps found on the way, each confirmed before being fixed:
   assign it directly (`SysMgrWebBridge.cpp:383` and `:443`). Nothing observed
   has fired it.
 
+- **Two taps to open an app, and the calendar opening three cards at once.**
+  Both came from `SysMgrWebBridge::slotSetupPage()`, which is what turns a window
+  a page opened into a card, and both were measured through the bus rather than
+  by tapping: `luna-send -n 1 palm://com.palm.applicationManager/launch
+  '{"id":"com.palm.app.calendar"}'`, counting the windows the shell attached.
+
+  The first tap was eaten on purpose. That function ends in a card branch that
+  throws away the first card window of an app flagged as launched at boot:
+
+      } else { // card
+          if (parent->m_launchedAtBoot) {
+              parent->m_launchedAtBoot = false;
+              this->deleteLater();
+
+  The rule is meant to drop the window a headless app opens *while* it is being
+  started at boot. The three apps started that way here -- calendar, clock,
+  email -- open none: they check `params.launchedAtBoot` and return. So the flag
+  survived boot and ate the user's first real launch instead. `relaunch()` now
+  clears it as it delivers: a relaunch is a launch request, so what it opens was
+  asked for. Measured: first launch 0 windows before, 1 after.
+
+  The three cards were one window adopted three times. `slotSetupPage()` runs on
+  `urlChanged`, and QtWebEngine emits that several times for one page -- the
+  blank document it starts on, then the real one -- where QtWebKit emitted it
+  once, so `launchWithPageInternal()` ran again on each firing. The probe showed
+  it plainly: one `createWindow` from the calendar, three adoptions. HP's earlier
+  tree opens the same function with `if (m_client) return;`, which this one had
+  lost; with it back, one launch is one card. Measured across calendar, email,
+  notes and calculator: +1 window each, no crash.
+
+  Also restored while in there, and honestly not the cause of either: a relaunch
+  that arrives while the page is still loading is parked in `relaunch()`, and
+  nothing ever took it out again -- the three members were written and read
+  nowhere. `slotLoadProgress()` delivers it at 100 now, as HP's earlier tree did.
+  That path was never taken in any of these measurements.
+
 Not done yet:
 
 - **Checked by hand on Qt 6:** the shell and the apps run, and the line QtWebKit
