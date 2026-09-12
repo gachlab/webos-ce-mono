@@ -716,12 +716,21 @@ Vulkan and Wayland, specifically:
   pins QtQuick to the Software backend on purpose: `QQuickRenderControl` sets up
   an RHI unless the graphics API is Software, and `sync()` then refused with
   "can only sync when beginFrame() has been called".
-* **Wayland is viable and buys little.** There is no X11-specific code anywhere
-  in luna-sysmgr, webappmanager or luna-sysmgr-common; `QT_QPA_PLATFORM=xcb` is
-  forced only because LunaSysMgr asks for HP's "palm" plugin and something has
-  to be named. The Qt Wayland plugin is installed and `tests/window-resize` runs
-  under it unchanged. What it would remove is XWayland's copy, against a shell
-  that already idles at 0%.
+* **Wayland works, and buys little.** There is no X11-specific code anywhere in
+  luna-sysmgr, webappmanager or luna-sysmgr-common; a platform only has to be
+  named at all because LunaSysMgr asks for HP's "palm" plugin. It is the default
+  now: the shell comes up as a native Wayland client, keeps hardware GL
+  (`/dev/dri/renderD128` still open), and was driven for a minute -- browser
+  launched, card maximized, touches and text-field focus all fine. What it
+  removes is XWayland's copy, against a shell that already idles at 0%, so this
+  is hygiene rather than speed.
+
+  It costs something real, though, and it is worth knowing before debugging
+  under it: the window is no longer an X client, so **xdotool and ImageMagick's
+  `import` stop working**, and GNOME refuses `org.gnome.Shell.Screenshot` over
+  D-Bus ("Screenshot is not allowed"). Every way this tree has of looking at the
+  running UI from outside goes away at once. `QT_QPA_PLATFORM=xcb` brings them
+  all back for a session.
 
 Not established, and worth saying so: there is no trustworthy under-load number
 here. Two attempts at measuring a scroll produced "0%" -- once from integer
