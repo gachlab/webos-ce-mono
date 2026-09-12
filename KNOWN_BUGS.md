@@ -202,6 +202,33 @@ Traps found on the way, each confirmed before being fixed:
   **The same shape is still open for the middle button**: `Event::Middle`
   appears zero times in webappmanager, so it is carried and dropped exactly as
   the right one was. Three lines in the same three places.
+- **A double tap is a double click now, and it was not a matter of mapping a
+  field through.** Double-clicking a video to fullscreen it could not work: the
+  page got two separate presses and no `dblclick`.
+
+  `CardWindow::mouseDoubleClickEvent` does set `clickCount = 2`, which made this
+  look like one branch in WebAppMgr. It is not: that handler is dead for the
+  left button, for the same reason `IMEView::mousePressEvent` is -- the eater
+  swallows the mouse and Qt's touch synthesis is what reaches a card -- and the
+  live path, `handleTouchBegin`, wrote `clickCount = 1` unconditionally. There
+  was no 2 to map, so mapping it would have changed nothing. Five `clickCount`
+  sites in CardWindow.cpp split cleanly: 423, 455 and 515 are the mouse
+  handlers (dead), 555 and 591 the touch ones (live, and only ever 1 or 0).
+
+  The shell detects the second tap now and WebAppMgr emits
+  `QEvent::MouseButtonDblClick` for it. `deliverToEmbedded` already forwarded
+  that type, so the last link needed nothing -- the receiving end had been built
+  and waiting.
+
+  The interval is HP's `tapDoubleClickDuration`, 300ms and settable from
+  luna.conf as `[TouchEvents] DoubleClickDuration`. The radius is **not** HP's
+  `tapRadius` (12px): that measures how far a finger may travel *during* one tap
+  and still be a tap, while this is how far apart two separate taps may land.
+  Different question, so a separate and more generous constant.
+
+  Also worth knowing: the only code that ever read `clickCount` in WebAppMgr is
+  inside the commented-out QtWebKit block, which is why grepping for it finds
+  references that do nothing.
 - **The keyboard button allows the on-screen keyboard, it does not summon it.**
   `KEYS::Key_Keyboard` reaches `SystemUiController` (line 616), which calls
   `IMEController::setIMEActive`. That sets `m_imeAllowed` and then re-evaluates
