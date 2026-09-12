@@ -650,6 +650,49 @@ method answering "is not running" on `-P` is by design. db8 answering -3963
   added and synced end to end. That needs the mail transports (mojomail-imap,
   -pop, -smtp) running against a real server, a separate question from whether
   their services run.
+- **A JavaScript service can spin a whole core, and copies of it accumulate.**
+  Found while asking why a 4K video dropped frames: seven service processes were
+  alive at once -- five of `com.palm.service.accounts` and two of
+  `com.palm.connectionmanager` -- between them 236 minutes of accumulated CPU
+  time, with the machine at 13.7% idle. Killing the surplus took it to 57.0%
+  idle. (That is a clean before/after on CPU. It is **not** a claim about the
+  video: the page recreated its `<video>` between the two samples, so the frame
+  counters were not comparable. The drop rate measured cleanly afterwards, over
+  a known 24s window, was 60% -- 4K on the CPU does not keep up whatever else is
+  running.)
+
+  The spin is not the accumulation, and only one of the two services spins. The
+  surviving accounts process stayed at 97.9% with the machine 57% idle -- state
+  `R`, 716s user against 35s system, so a busy JavaScript loop and not I/O --
+  while the surviving connectionmanager sat at 0.0% and state `S` with the same
+  addon mapped into it. Whatever triggers it is specific: 13 open sockets
+  against 9.
+
+  The cause is ours, in `components/node-v8-shim`. gdb on the spinning process
+  catches the main thread at
+
+      ev_io_start -> prepare_cb -> PrepareBridge -> uv__run_prepare -> uv_run
+
+  and the pair of functions explains it. `ev_io_stop` deliberately does not stop
+  the `uv_poll`, only detaching the owner, with a comment that starting and
+  stopping "costs two syscalls per descriptor for nothing". `PollBridge` then
+  returns immediately when `slot->owner` is null. uv_poll is level-triggered, so
+  a descriptor that is readable while unowned fires on every iteration, nobody
+  consumes it, and the loop never blocks -- 61 voluntary context switches
+  against 38714 involuntary ones says exactly that. The shortcut arrived with
+  `a9b4b436`, the commit that first added the file; it is not HP's.
+
+  The fix is `uv_poll_stop` in `ev_io_stop` and re-arming in `ev_io_start`,
+  which is what the guard on `slot->started` there already does.
+
+  **Two things are not established.** The descriptor left readable-and-unowned
+  was never observed directly -- the map lives inside the shim and is not
+  visible from outside, so the mechanism is read off the two functions and
+  corroborated by the switch counts, not caught in the act. And nothing here
+  explains why *copies* accumulate: the hub is supposed to start a JS service
+  once on demand. That is a second bug sharing a symptom, and it is not the same
+  one the `pkill -x` truncation caused, because every JS service has the same
+  argv[0] and that fix cannot reach them.
 
 ---
 
