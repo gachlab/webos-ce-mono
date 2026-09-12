@@ -52,7 +52,7 @@ qt6-declarative-dev qt6-declarative-private-dev
 qt6-webengine-dev qt6-scxml-dev
 libglib2.0-dev libglibmm-2.4-dev libsigc++-2.0-dev
 libsqlite3-dev libssl-dev libxml2-dev
-libboost-filesystem-dev libboost-regex-dev libboost-system-dev
+libboost-filesystem-dev libboost-regex-dev libboost-program-options-dev
 libc-ares-dev liburiparser-dev
 nodejs
 PKGS
@@ -66,7 +66,15 @@ build_image() {                 # build_image <release>
         | "$RUNNER" build -t "$tag" -f - . > "/tmp/webos-ci-image-$rel.log" 2>&1
     if [ $? -ne 0 ]; then
         echo "  FAILED to build the image; see /tmp/webos-ci-image-$rel.log"
-        echo "  last lines:"; tail -5 "/tmp/webos-ci-image-$rel.log" | sed 's/^/    /'
+        # apt's own error is near the top of its output, not at the end: the tail
+        # is docker repeating the RUN line back. Printing the tail hid
+        # "E: Package 'libboost-system-dev' has no installation candidate"
+        # behind three screens of the command being echoed.
+        echo "  what apt actually said:"
+        grep -hE "^(E|W): |Unable to locate|no installation candidate|Depends:|Conflicts:" \
+            "/tmp/webos-ci-image-$rel.log" | sed 's/^/    /' | head -10
+        echo "  (last lines, for anything apt did not report)"
+        tail -3 "/tmp/webos-ci-image-$rel.log" | sed 's/^/    /'
         return 1
     fi
     echo "  ok"
