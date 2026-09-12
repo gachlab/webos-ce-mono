@@ -455,6 +455,18 @@ protected:
 	QPropertyAnimation* m_ModalPositionAnimation;
 
 private:
+	// The previous tap, for turning a second one into a double click in
+	// handleTouchBegin. Nothing else in the class tracked a previous touch.
+	//
+	// Initialised here rather than in a constructor, and deliberately: there
+	// are two constructors, so a member set in one of them starts as whatever
+	// was in the allocation when a card is built the other way -- and the first
+	// tap on such a card would compare against that garbage and could come out
+	// a double click. One place covers both.
+	// Zero means "no previous tap"; QPoint already default-constructs to (0,0).
+	uint32_t m_lastTapTime = 0;
+	QPoint m_lastTapPos;
+
 	CardWindow* m_modalChild;
 	CardWindow* m_modalParent;
 

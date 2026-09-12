@@ -552,7 +552,43 @@ void CardWindow::handleTouchBegin(QTouchEvent *te)
     mapCoordinates(x, y);
     ev.x = x;
     ev.y = y;
+    // A second tap inside HP's own window becomes a double click.
+    //
+    // This is where it has to be done, and it was not being done anywhere.
+    // mouseDoubleClickEvent below sets clickCount = 2, but that handler is dead
+    // for the left button: MouseEventEater swallows the mouse and Qt's touch
+    // synthesis is what actually reaches a card, so every tap arrived as
+    // clickCount = 1 and a page never saw a dblclick. Fullscreening a video by
+    // double-clicking it could not work.
+    //
+    // The interval is HP's: tapDoubleClickDuration, 300ms by default and
+    // settable from luna.conf as [TouchEvents] DoubleClickDuration.
+    //
+    // The radius is ours, and not HP's tapRadius (12px, with tapRadiusSquared
+    // already squared for exactly this kind of comparison) because the two
+    // measure different things: tapRadius is how far a finger may travel
+    // DURING one tap and still be a tap, while this is how far apart two
+    // separate taps may land. Twelve pixels between taps is punishing for a
+    // finger, so this is deliberately more generous.
+    //
+    // The timestamp is cleared on a hit so that three taps are a double click
+    // and then a single one, rather than two overlapping double clicks.
     ev.clickCount = 1;
+    {
+        static const int kDoubleTapSlopPx = 40;
+        const uint32_t now = Time::curSysTimeMs();
+        const int dx = ev.x - m_lastTapPos.x();
+        const int dy = ev.y - m_lastTapPos.y();
+        if (m_lastTapTime != 0
+            && (now - m_lastTapTime) <= (uint32_t) Settings::LunaSettings()->tapDoubleClickDuration
+            && (dx * dx + dy * dy) <= (kDoubleTapSlopPx * kDoubleTapSlopPx)) {
+            ev.clickCount = 2;
+            m_lastTapTime = 0;
+        } else {
+            m_lastTapTime = now;
+            m_lastTapPos = QPoint(ev.x, ev.y);
+        }
+    }
     ev.modifiers = Event::modifiersFromQt(te->modifiers());
     ev.time = Time::curSysTimeMs();
 

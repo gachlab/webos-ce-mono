@@ -411,7 +411,16 @@ void WindowedWebApp::inputEvent(sptr<Event> e)
             // sending one. Nothing read evt->button before this.
             const Qt::MouseButton qtButton =
                 (evt->button == Event::Right) ? Qt::RightButton : Qt::LeftButton;
-            QMouseEvent* qtEvent = new QMouseEvent(QEvent::MouseButtonPress, QPoint(evt->x, evt->y), qtButton, qtButton, 0);
+            // clickCount 2 becomes a real double click. The shell fills it in
+            // (CardWindow::handleTouchBegin); before that nothing ever set it
+            // on the live path and the only code that read it was inside the
+            // commented-out QtWebKit block below. Qt's own sequence is press,
+            // release, dblclick, release -- the second press is replaced, not
+            // added to -- and QWebPage::deliverToEmbedded already forwards
+            // MouseButtonDblClick, so nothing further down needed changing.
+            const QEvent::Type pressType = (evt->clickCount >= 2)
+                ? QEvent::MouseButtonDblClick : QEvent::MouseButtonPress;
+            QMouseEvent* qtEvent = new QMouseEvent(pressType, QPoint(evt->x, evt->y), qtButton, qtButton, 0);
             bridge->page()->event(qtEvent);
         } else if (evt->type == Event::PenUp) {
             const Qt::MouseButton qtButton =
