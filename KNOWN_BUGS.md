@@ -476,6 +476,48 @@ only ever a QtWebKit 5.212 rendering difference.
 
 ## Known and accepted
 
+### Every page logs a tellurium error at startup
+
+Once per page, in all five:
+
+```
+enyo.xhr.request() exception: NetworkError: Failed to execute 'send' on
+'XMLHttpRequest': Failed to load
+'file:///usr/palm/frameworks/tellurium/tellurium_config.json'.
+```
+
+It is noise, and the missing file is HP's own off-switch. Tellurium is the test
+automation nub, a separate package for the device that we do not install.
+`framework/source/palm/tellurium/startup.js` looks for its config and gives up
+when it is not there:
+
+```js
+var xhr = window.enyo.xhr.request({url: Tellurium.nubPath + "tellurium_config.json", sync: true});
+var resp = xhr && xhr.responseText;
+if (!resp || !resp.length) {
+    return;
+}
+```
+
+That still decides correctly. What changed since 2010 is only how the failure
+arrives: Chromium throws from `send()` on a file:// URL that does not exist,
+where the engine webOS shipped returned an empty response. `enyo.xhr.request`
+catches it (`dom/xhr.js`), logs that line and returns `undefined`, so `resp` is
+undefined and the switch works exactly as HP intended. Nothing downstream is
+affected -- left alone deliberately rather than papered over by making failed
+synchronous file:// requests return empty, which would also hide real ones.
+
+Do not "fix" it by installing the nub directory. The config HP ships carries
+`{"enableUserEvents": true}`, so `Tellurium.setup()` would then wrap
+`enyo.Pane.prototype.doSelectView` to call `com.palm.telluriumservice` on every
+view change -- a service that does not exist here, and a wrapper around the very
+path that the frame-canceller bug ran through.
+
+Note there are two paths, and only one fails: `loader.js` resolves
+`$palm-tellurium/tellurium_config.json` through enyo's path table, which points
+inside the installed framework and answers 200. `startup.js` builds
+`Tellurium.nubPath + ...` by hand, and that is the one that 404s.
+
 ### db8 builds without leveldb
 
 HP pinned leveldb 1.9; Debian does not package it. db8 configures, builds and
