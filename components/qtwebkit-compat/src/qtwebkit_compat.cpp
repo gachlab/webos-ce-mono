@@ -395,6 +395,309 @@ const char kBridgeCore[] = R"JS(
 )JS";
 
 // ---------------------------------------------------------------------------
+// The browser's content area, which used to be an NPAPI plugin.
+//
+// enyo's BasicWebView renders <object type="application/x-palm-browser"> and
+// then talks to it as a plugin: adapterReady() asks whether this.node.openURL
+// is there, _connect() calls this.node.connectBrowserServer(), and initView()
+// calls interrogateClicks, setShowClickedLink and pageFocused on the node. Once
+// connected, EVERY setting and command in that control funnels through one
+// method, callBrowserAdapter -- even urlChanged, which sends "openURL".
+//
+// So the control does not need rewriting. It needs its plugin to exist. This
+// gives the node the handful of methods it probes for, answers
+// connectBrowserServer by reporting the connection straight back, and routes
+// callBrowserAdapter to a real page that BrowserViewAdapter created and the
+// host page paints inside itself (QWebPage::embedPage). HP's control then runs
+// unchanged, believing it has its plugin.
+//
+// It matters that nothing here reaches for BrowserViewFactory until the control
+// is actually rendered: this script runs at DocumentCreation, and the factory
+// is published when the bridge collects its objects.
+
+const char kBrowserViewScriptName[] = "webos-browser-view";
+
+const char kBrowserView[] = R"JS(
+(function () {
+    if (window.__webosBrowserView)
+        return;
+    window.__webosBrowserView = true;
+
+    // Where the hole is, in the page's own coordinates: HP's control only ever
+    // reports a size, and the host has to know where to paint.
+    function boundsOf(node) {
+        var r = node.getBoundingClientRect();
+        return {
+            x: Math.round(r.left + (window.pageXOffset || 0)),
+            y: Math.round(r.top + (window.pageYOffset || 0)),
+            w: Math.round(r.width),
+            h: Math.round(r.height)
+        };
+    }
+
+    // Every hole on this page, so one popup can re-measure all of them.
+    var holes = [];
+
+    function setRect(control, b) {
+        var last = control.__webosRect;
+        if (last && last.x === b.x && last.y === b.y && last.w === b.w && last.h === b.h)
+            return;
+        control.__webosRect = b;
+        control.__webosView.setGeometry(b.x, b.y, b.w, b.h);
+    }
+
+    // An empty rect is how the page says "not now". The host keeps the page and
+    // its viewport and simply stops blitting, so the app's own pixels show.
+    function suspend(control) {
+        if (control.__webosView)
+            setRect(control, {x: 0, y: 0, w: 0, h: 0});
+    }
+
+    // Anything the app draws over the hole.
+    //
+    // The blit goes on top of everything the page painted, so whatever the app
+    // opens across the content area ends up underneath it. Measured on the
+    // running browser: its action bar menu is an absolutely positioned
+    // "enyo-popup enyo-popup-menu launch-popup" at [727, 30, 153, 164], z-index
+    // 123, over a hole starting at y 54 -- so its lower 140 pixels were painted
+    // over and it looked like it had opened behind the page.
+    //
+    // Full-page containers are not overlays: the hole's own ancestors are
+    // absolute and as large as the view.
+    function covered(node, b) {
+        var all = document.querySelectorAll("*");
+        for (var i = 0; i < all.length; i++) {
+            var e = all[i];
+            if (e === node || e.contains(node) || node.contains(e))
+                continue;
+            var style = window.getComputedStyle(e);
+            if (style.position !== "absolute" && style.position !== "fixed")
+                continue;
+            if (style.display === "none" || style.visibility === "hidden" || style.opacity === "0")
+                continue;
+            var r = e.getBoundingClientRect();
+            if (r.width < 8 || r.height < 8)
+                continue;
+            if (r.width >= b.w && r.height >= b.h)
+                continue;
+            if (r.right <= b.x || r.left >= b.x + b.w ||
+                r.bottom <= b.y || r.top >= b.y + b.h)
+                continue;
+            return true;
+        }
+        return false;
+    }
+
+    function sendGeometry(control, attempt) {
+        var node = control.hasNode && control.hasNode();
+        if (!node || !control.__webosView)
+            return;
+        var b = boundsOf(node);
+        if (b.w <= 0 || b.h <= 0) {
+            // Nothing to paint into. Either the pane that owns this view has
+            // not revealed it -- the browser opens on its start page, and enyo
+            // keeps the others at display:none -- or it just has, and the
+            // layout is not settled in the same turn. Stop blitting meanwhile,
+            // which is also what keeps a backgrounded tab from painting over
+            // the one in front, and measure again for a moment.
+            suspend(control);
+            attempt = attempt || 0;
+            if (attempt < 12)
+                setTimeout(function () { sendGeometry(control, attempt + 1); }, 50);
+            return;
+        }
+        if (covered(node, b)) {
+            suspend(control);
+            return;
+        }
+        setRect(control, b);
+    }
+
+    function remeasureAll() {
+        for (var i = 0; i < holes.length; i++)
+            sendGeometry(holes[i]);
+    }
+
+    // The verbs isis-browser actually sends. Everything else the control emits
+    // on its way up -- pageFocused, setEnableJavaScript, addUrlRedirect,
+    // handleFlick and the rest -- is taken and dropped: either the engine
+    // already does it, or nothing depends on it yet.
+    function command(control, name, args) {
+        var view = control.__webosView;
+        if (!view)
+            return;
+        args = args || [];
+        switch (name) {
+        case "openURL":        view.setUrl(String(args[0] || "")); break;
+        case "goBack":         view.goBack(); break;
+        case "goForward":      view.goForward(); break;
+        case "reloadPage":     view.reload(); break;
+        case "stopLoad":       view.stop(); break;
+        case "findInPage":     view.findInPage(String(args[0] || "")); break;
+        case "setVisibleSize": sendGeometry(control); break;
+        default: break;
+        }
+    }
+
+    function attach(control) {
+        var node = control.hasNode && control.hasNode();
+        if (!node || node.__webosBrowserNode)
+            return;
+        node.__webosBrowserNode = true;
+
+        // BasicWebView gives its node tabIndex 0 because the plugin had to be
+        // able to take keyboard focus. There is no plugin now, and a focusable
+        // box across the whole content area takes the focus away from the
+        // address bar: measured with the browser open, document.activeElement
+        // was this div. Whatever the embedded page needs will reach it through
+        // input routing, not through this element.
+        node.removeAttribute("tabindex");
+        node.tabIndex = -1;
+
+        if (!window.BrowserViewFactory)
+            return;
+        var view = window.BrowserViewFactory.create();
+        if (!view)
+            return;
+        control.__webosView = view;
+        holes.push(control);
+
+        // What the control probes for before it will talk to a plugin.
+        node.openURL = function () {};
+        node.setPageIdentifier = function () {};
+        node.interrogateClicks = function () {};
+        node.setShowClickedLink = function () {};
+        node.pageFocused = function () {};
+        node.clearHistory = function () {};
+        node.getHistoryState = function () {};
+        node.connectBrowserServer = function () {
+            // The server it is waiting for is the engine we already have. Reply
+            // on a turn of its own, as an IPC answer would have arrived.
+            setTimeout(function () {
+                if (control.serverConnected)
+                    control.serverConnected();
+                sendGeometry(control);
+            }, 0);
+        };
+
+        // The chrome only moves its progress bar, its title and its back and
+        // forward buttons if the view tells it to.
+        view.loadStarted.connect(function () {
+            if (control.doLoadStarted) control.doLoadStarted();
+        });
+        view.loadProgress.connect(function (progress) {
+            if (control.doLoadProgress) control.doLoadProgress(progress);
+        });
+        view.loadFinished.connect(function () {
+            if (control.doLoadComplete) control.doLoadComplete();
+        });
+        view.titleChanged.connect(function (title) {
+            if (control.doPageTitleChanged)
+                control.doPageTitleChanged(title, view.url(),
+                                           view.canGoBack(), view.canGoForward());
+        });
+    }
+
+    function patch(BasicWebView) {
+        var proto = BasicWebView && BasicWebView.prototype;
+        if (!proto || proto.__webosBrowserViewPatched)
+            return false;
+        proto.__webosBrowserViewPatched = true;
+
+        // No plugin to instantiate, so no <object>: a plain box, and the host
+        // page paints the real view over it.
+        proto.nodeTag = "div";
+
+        // Every popup in this framework goes through one method to show and to
+        // hide, so that is where a hole learns it has been covered or freed.
+        var enyo = window.enyo;
+        if (enyo && enyo.Popup && enyo.Popup.prototype &&
+                !enyo.Popup.prototype.__webosHoleAware) {
+            enyo.Popup.prototype.__webosHoleAware = true;
+            var showingBefore = enyo.Popup.prototype.showingChanged;
+            enyo.Popup.prototype.showingChanged = function () {
+                var r = showingBefore ? showingBefore.apply(this, arguments) : undefined;
+                // After the popup's own display has been applied, not before.
+                setTimeout(remeasureAll, 0);
+                return r;
+            };
+        }
+
+        var renderedBefore = proto.rendered;
+        proto.rendered = function () {
+            attach(this);
+            return renderedBefore ? renderedBefore.apply(this, arguments) : undefined;
+        };
+
+        proto.callBrowserAdapter = function (name, args) {
+            command(this, name, args);
+        };
+
+        var resizeBefore = proto.resize;
+        proto.resize = function () {
+            var r = resizeBefore ? resizeBefore.apply(this, arguments) : undefined;
+            sendGeometry(this);
+            return r;
+        };
+        return true;
+    }
+
+    // enyo.BasicWebView is defined when the framework loads, which is after
+    // this script runs. Catch the assignment rather than poll for it: polling
+    // lost that race once already, for the mail app's view.
+    function watchEnyo(enyo) {
+        if (!enyo)
+            return;
+        if (enyo.BasicWebView) {
+            patch(enyo.BasicWebView);
+            return;
+        }
+        var held;
+        try {
+            Object.defineProperty(enyo, "BasicWebView", {
+                configurable: true,
+                enumerable: true,
+                get: function () { return held; },
+                set: function (ctor) { held = ctor; patch(ctor); }
+            });
+        } catch (e) {
+            var tries = 0;
+            var timer = setInterval(function () {
+                if (enyo.BasicWebView && patch(enyo.BasicWebView))
+                    clearInterval(timer);
+                else if (++tries > 600)
+                    clearInterval(timer);
+            }, 50);
+        }
+    }
+
+    if (window.enyo) {
+        watchEnyo(window.enyo);
+        return;
+    }
+    var heldEnyo;
+    try {
+        Object.defineProperty(window, "enyo", {
+            configurable: true,
+            enumerable: true,
+            get: function () { return heldEnyo; },
+            set: function (value) { heldEnyo = value; watchEnyo(value); }
+        });
+    } catch (e) {
+        var enyoTries = 0;
+        var enyoTimer = setInterval(function () {
+            if (window.enyo) {
+                watchEnyo(window.enyo);
+                clearInterval(enyoTimer);
+            } else if (++enyoTries > 600) {
+                clearInterval(enyoTimer);
+            }
+        }, 50);
+    }
+})();
+)JS";
+
+// ---------------------------------------------------------------------------
 // The C++ side: which QObject each id is, and what JavaScript may reach.
 
 struct Published
@@ -876,6 +1179,15 @@ QWebPage::QWebPage(QObject* parent)
     frameCancel.setRunsOnSubFrames(true);
     frameCancel.setSourceCode(QString::fromLatin1(kFrameCancel));
     m_engine->scripts().insert(frameCancel);
+
+    // The browser's content area; see above.
+    QWebEngineScript browserView;
+    browserView.setName(kBrowserViewScriptName);
+    browserView.setInjectionPoint(QWebEngineScript::DocumentCreation);
+    browserView.setWorldId(QWebEngineScript::MainWorld);
+    browserView.setRunsOnSubFrames(true);
+    browserView.setSourceCode(QString::fromLatin1(kBrowserView));
+    m_engine->scripts().insert(browserView);
 }
 
 QWebPage::~QWebPage()
@@ -899,7 +1211,11 @@ void QWebPage::embedPage(QWebPage* page, const QRect& rect)
     for (int i = 0; i < m_embedded.size(); ++i) {
         if (m_embedded[i].page == page) {
             m_embedded[i].rect = rect;
-            page->setViewportSize(rect.size());
+            // An empty rect suspends the blit; it does not mean the page has
+            // become nothing. Resizing its viewport to 0x0 would throw away the
+            // layout it has to come back to.
+            if (!rect.isEmpty())
+                page->setViewportSize(rect.size());
             return;
         }
     }
@@ -907,7 +1223,8 @@ void QWebPage::embedPage(QWebPage* page, const QRect& rect)
     EmbeddedPage entry;
     entry.page = page;
     entry.rect = rect;
-    page->setViewportSize(rect.size());
+    if (!rect.isEmpty())
+        page->setViewportSize(rect.size());
 
     // A frame of the embedded page is a frame of this one. The shell only ever
     // repaints what WindowedWebApp hands it, and that is the host page, so

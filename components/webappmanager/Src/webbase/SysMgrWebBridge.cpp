@@ -1,4 +1,5 @@
 #include "SysMgrWebBridge.h"
+#include "BrowserViewAdapter.h"
 #include "PalmServiceBridgeAdapter.h"
 
 #include "Logging.h"
@@ -318,6 +319,13 @@ void SysMgrWebBridge::addPalmSystemObject(void)
     frame->addToJavaScriptWindowObject("PalmServiceBridgeFactory",
                                       new PalmServiceBridgeFactory(appId(), this));
     frame->evaluateJavaScript(QString::fromLatin1(kPalmServiceBridgeShim));
+
+    // What the browser app's <object type="application/x-palm-browser"> used to
+    // reach. Published for every app because enyo's BasicWebView is in every
+    // app's framework; only the browser ever instantiates one. See
+    // BrowserViewAdapter.h.
+    frame->addToJavaScriptWindowObject("BrowserViewFactory",
+                                      new BrowserViewFactory(m_page, this));
 }
 
 void SysMgrWebBridge::setName(const char* name)

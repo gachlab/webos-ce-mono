@@ -52,6 +52,7 @@ add_executable(WebAppMgr
     Src/lunaui/notifications/BannerMessageEventFactory.cpp
     Src/lunaui/notifications/DashboardWebApp.cpp
     Src/minimalui/WebAppFactoryMinimal.cpp
+    Src/webbase/BrowserViewAdapter.cpp
     Src/webbase/MemoryWatcher.cpp
     Src/webbase/PalmServiceBridgeAdapter.cpp
     Src/webbase/PalmSystem.cpp
