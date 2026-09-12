@@ -671,6 +671,72 @@ only ever a QtWebKit 5.212 rendering difference.
 
 ## Known and accepted
 
+### The bridge is synchronous, on purpose, and why that is safe here
+
+HP's apps talk to the system through an object QtWebKit published into the page
+with `addToJavaScriptWindowObject()`. Reading a property or calling a method was
+an ordinary, immediate JavaScript expression. QtWebEngine has no equivalent: the
+page lives in another process, and everything it can be told is asynchronous. So
+the old contract is kept by blocking.
+
+**The mechanism**, in two halves of `components/qtwebkit-compat/src/qtwebkit_compat.cpp`:
+
+The injected side (`kBridgeCore`, line 325) builds a proxy per published object
+from its metadata and turns every access into one blocking request:
+
+```js
+xhr.open("GET", "webos-bridge:///" + id + "/" + op + "/" + name
+         + "?a=" + encodeURIComponent(JSON.stringify(args || [])), false);
+xhr.send();
+```
+
+That trailing `false` is the whole trick. `Object.defineProperty` maps each
+property to `request(id, "get", name)` and `request(id, "set", name, [value])`,
+and each method to `request(id, "call", name, args)`.
+
+The native side is a `QWebEngineUrlSchemeHandler` (`BridgeHandler`, line 913) on
+a scheme registered before the QApplication exists, which answers by
+introspection: `indexOfProperty` then `read`/`write` for properties,
+`invoke` for methods, and a JSON body back through `job->reply()`. Signals
+travel the other way, injected per frame by `runInEveryFrame`.
+
+Not synchronous script evaluation from C++, and not preloaded static values:
+those were both considered and neither can serve an arbitrary `QObject` whose
+properties change. And **not QWebChannel** -- it is used nowhere in this tree,
+which matters for anyone planning to add an async path: there is no second
+transport already in place to piggyback on.
+
+**Why blocking is not the hazard it looks like.** A sync XHR freezes the calling
+page's JavaScript until C++ answers. On a browser that would stall the UI; here
+it cannot, because the UI is not in that process. LunaSysMgr is a separate
+process that composites the cards itself: it takes each app's pixels through
+shared memory (`CardWindow::acquireScreenPixmap`, `RemoteWindowData`) and moves
+the cards with `QPropertyAnimation` in C++ (`CardWindowManager`). An app that
+blocks its own JavaScript freezes its own content and nothing else -- not the
+compositor, not the gestures, not the other cards. HP's IPC split between shell
+and apps is what buys that, and it is worth knowing before anyone "fixes" the
+blocking.
+
+**What is genuinely at risk** is Chromium's tolerance for synchronous XHR, which
+has been narrowing for years. Nothing breaks today, but a Qt update could end
+it, and then the fix is a second transport rather than a patch: QWebChannel or a
+hand-rolled async channel, with the injected proxy choosing between them.
+
+A dual path is the obvious shape for that, and it is worth being clear about who
+it would serve. Not HP's apps: measured across `enyo-1.0/framework`,
+`core-apps` and the browser, `new Promise`, `async function` and `await` appear
+in zero files, and there is not one arrow function in their JavaScript (the
+`=>` matches in that tree are Ruby hashes in Rakefiles). Enyo 1.0 is ES5 from
+2011 and would keep taking the blocking path forever. An async path is
+insurance against a future Qt, and a door for new apps -- not a speed-up for
+anything that exists.
+
+On cost, to avoid overclaiming: the per-call round trip has **not** been
+measured. What has been measured is that the system idles at 0% of one core
+across 16 processes and that a full card repaint costs 2.96 ms, so nothing
+observed so far points at the bridge as a bottleneck. That is an absence of
+evidence for a problem, not evidence that each call is free.
+
 ### The browser's padlock was never clickable, and the SSL dialog is a real gap
 
 Two separate things, and only one of them is missing.
