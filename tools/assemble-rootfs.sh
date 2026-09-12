@@ -31,6 +31,35 @@ cp -f "$LS"/desktop-support/com.palm.luna.json.pub    "$ROOTFS/usr/share/ls2/rol
 cp -f "$LS"/desktop-support/com.palm.luna.service.prv "$ROOTFS/usr/share/ls2/system-services/com.palm.luna.service"
 cp -f "$LS"/desktop-support/com.palm.luna.service.pub "$ROOTFS/usr/share/ls2/services/com.palm.luna.service"
 cp -rf "$LS"/sounds/* "$ROOTFS/usr/palm/sounds/" 2>/dev/null
+# --- the webOS libraries themselves ---
+# Without these the rootfs is not a rootfs: it held the binaries and none of
+# their libraries, so nothing ran without LD_LIBRARY_PATH pointing back into
+# build/staging. Measured before this existed: 12 of 12 executables failed to
+# resolve, between one and five libraries each.
+#
+# Everything lands in one directory on purpose. staging splits them between
+# lib/ and usr/lib/ -- 18 real files behind 39 symlinks, with luna-service2
+# reachable through both -- and one flat directory means a library finds its
+# own dependencies beside it. -a keeps the symlinks as links rather than
+# copying each target three times.
+mkdir -p "$ROOTFS/usr/lib"
+for d in "$S/lib" "$S/usr/lib"; do
+    [ -d "$d" ] || continue
+    cp -a "$d"/*.so* "$ROOTFS/usr/lib/" 2>/dev/null || true
+done
+# Flattening breaks any symlink whose target was written relative to the other
+# directory. There is one: liblunaservice.so -> ../usr/lib/libluna-service2.so,
+# the pre-rename name of the bus library. Nothing links against it, but a broken
+# link inside a release is rubbish for whoever opens the tarball, so the targets
+# are rewritten to the neighbour they now sit beside.
+for l in "$ROOTFS/usr/lib"/*.so*; do
+    [ -L "$l" ] || continue
+    [ -e "$l" ] && continue
+    cp -a --remove-destination "$S/usr/lib/$(basename "$(readlink "$l")")" "$l" 2>/dev/null \
+        || ln -sf "$(basename "$(readlink "$l")")" "$l"
+done
+echo "  libraries:           $(find "$ROOTFS/usr/lib" -maxdepth 1 -name '*.so*' | wc -l) entries, $(for l in "$ROOTFS/usr/lib"/*.so*; do [ -L "$l" ] && [ ! -e "$l" ] && echo x; done | wc -l) dangling"
+
 mkdir -p "$ROOTFS/usr/lib/luna"
 cp -f "$S/bin/LunaSysMgr" "$ROOTFS/usr/lib/luna/LunaSysMgr"
 
@@ -175,11 +204,17 @@ for sf in "$ROOTFS"/usr/share/ls2/services/*.service "$ROOTFS"/usr/share/ls2/sys
     [ -e "$sf" ] || continue
     exe=$(sed -n 's|^Exec=[^ ]*/\([^ /]*\).*|\1|p' "$sf" | head -1)
     [ -n "$exe" ] || continue
-    if [ ! -e "$ROOTFS/usr/lib/luna/$exe" ]; then
-        for d in "$S/usr/sbin" "$S/usr/bin" "$S/sbin" "$S/bin"; do
-            [ -x "$d/$exe" ] && cp -f "$d/$exe" "$ROOTFS/usr/lib/luna/" && break
-        done
-    fi
+    # Unconditionally, and that matters. This used to be guarded by
+    # "if [ ! -e $ROOTFS/usr/lib/luna/$exe ]", which meant a rootfs that already
+    # had the binary kept whatever was there from a previous build. The rootfs is
+    # never wiped between runs, so ten of the twelve services silently stayed at
+    # the version they were first copied at: after rpaths were added to every
+    # binary, those ten still reported no rpath at all, and the relocation test
+    # read 2 of 12. The mechanism had been right for an hour; the rootfs was
+    # stale. Copying every time costs a few milliseconds.
+    for d in "$S/usr/sbin" "$S/usr/bin" "$S/sbin" "$S/bin"; do
+        [ -x "$d/$exe" ] && cp -f "$d/$exe" "$ROOTFS/usr/lib/luna/" && break
+    done
 done
 
 # The .service files carry an absolute "Exec=/usr/lib/luna/...", which was

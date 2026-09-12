@@ -127,10 +127,10 @@ target_link_libraries(WebAppMgr PRIVATE
     cjson LunaSysMgrIpc lunaservice pbnjson_cpp pbnjson_c LunaSysMgrCommon
 )
 
-# Found at runtime through LD_LIBRARY_PATH, but an rpath keeps it working when
-# the binary is run directly, which is how HP's .pro had it.
-set_target_properties(WebAppMgr PROPERTIES
-    INSTALL_RPATH "${WEBOS_STAGING}/lib;${WEBOS_STAGING}/usr/lib"
-)
+# The rpath is set for every component at once by tools/build.sh, as
+# $ORIGIN/.. -- relative to the binary, so the rootfs can be unpacked anywhere.
+# This used to be an absolute ${WEBOS_STAGING} path, which put one developer's
+# home directory inside the shipped executable; a per-target property here would
+# override the global one.
 
 install(TARGETS WebAppMgr RUNTIME DESTINATION bin)

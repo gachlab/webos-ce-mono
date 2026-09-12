@@ -98,7 +98,12 @@ stage_autotools() {
     echo "== autotools =="
     for c in $(selected autotools); do
         d=$B/$c
-        mkdir -p "$d"; cd "$d" || { echo "$c: no directory"; return 1; }
+        # Wiped first, as the CMake stage does. Re-running configure with new
+        # LDFLAGS does NOT relink: the .lo files are unchanged, so make has
+        # nothing to do and the old library stays. That cost an hour of reading
+        # a stale rpath off disk and concluding the escaping was wrong when it
+        # was right. A stage that reconfigures has to rebuild.
+        rm -rf "$d"; mkdir -p "$d"; cd "$d" || { echo "$c: no directory"; return 1; }
         # cjson ships autogen.sh; HP's tree has no generated ./configure.
         #
         # Run it through sh rather than executing it: autogen.sh has no exec bit
@@ -116,7 +121,21 @@ stage_autotools() {
                 return 1
             }
         fi
-        if ! "$R/components/$c/configure" --prefix="$S" > cfg.log 2>&1 \
+        # The rpath CMake components get from CMAKE_INSTALL_RPATH has to be
+        # handed to autotools by hand, or cjson ends up the only library in the
+        # tree without one.
+        #
+        # \$$ORIGIN, and it takes all three characters: the string has to survive
+        # two expansions before it reaches the linker.
+        #   configure writes LDFLAGS into the Makefile verbatim
+        #   make turns  \$$ORIGIN  into  \$ORIGIN
+        #   libtool evals the link line, and the \ is what stops the shell from
+        #   expanding $ORIGIN as an (empty) variable
+        # Getting this wrong is silent: a plain $ORIGIN leaves "RIGIN:RIGIN/.."
+        # and $$ORIGIN leaves ":/..", both of which link fine and only fail once
+        # the tree is moved. Verified with readelf, not assumed.
+        if ! LDFLAGS='-Wl,-rpath,\$$ORIGIN:\$$ORIGIN/.. -Wl,--disable-new-dtags' \
+             "$R/components/$c/configure" --prefix="$S" > cfg.log 2>&1 \
            || ! make -j"$(nproc)" > build.log 2>&1 || ! make install > install.log 2>&1; then
             printf "%-22s FAILED %s\n" "$c" "$(grep -m1 -iE 'error' build.log cfg.log 2>/dev/null | cut -c1-60)"
             return 1
@@ -145,7 +164,10 @@ stage_cmake() {
              -DCMAKE_BUILD_TYPE="$BUILD_TYPE" \
              -DWEBOS_ROOTFS="$B/rootfs" \
              -DCMAKE_MODULE_PATH="$R/components/cmake-modules-webos" \
-             -DWEBOS_INSTALL_ROOT="$S" -DCMAKE_INSTALL_PREFIX="$S" > "$d/cfg.log" 2>&1; then
+             -DWEBOS_INSTALL_ROOT="$S" -DCMAKE_INSTALL_PREFIX="$S" \
+             -DCMAKE_INSTALL_RPATH='$ORIGIN:$ORIGIN/..' \
+             -DCMAKE_EXE_LINKER_FLAGS='-Wl,--disable-new-dtags' \
+             -DCMAKE_SHARED_LINKER_FLAGS='-Wl,--disable-new-dtags' > "$d/cfg.log" 2>&1; then
             printf "%-24s CONFIG FAILED %s\n" "$c" "$(grep -m1 -E 'Could NOT find|No package|CMake Error' "$d/cfg.log" | cut -c1-72)"
             failed=1; continue
         fi

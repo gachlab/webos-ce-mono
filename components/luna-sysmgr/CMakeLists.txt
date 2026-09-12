@@ -347,8 +347,10 @@ target_link_libraries(LunaSysMgr PRIVATE
     LunaSysMgrCommon nyx
 )
 
-set_target_properties(LunaSysMgr PROPERTIES
-    INSTALL_RPATH "${WEBOS_STAGING}/lib;${WEBOS_STAGING}/usr/lib"
-)
+# No INSTALL_RPATH here any more. It used to name ${WEBOS_STAGING} absolutely,
+# which baked one developer's home directory into the shipped binary and made
+# the tree impossible to relocate. tools/build.sh now passes
+# CMAKE_INSTALL_RPATH=$ORIGIN/.. for every component at once, so the rootfs
+# works from wherever it is unpacked. A per-target property would override that.
 
 install(TARGETS LunaSysMgr RUNTIME DESTINATION bin)
