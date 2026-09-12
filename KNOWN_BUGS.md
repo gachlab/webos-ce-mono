@@ -143,12 +143,18 @@ Traps found on the way, each confirmed before being fixed:
   reached. On webOS the keyboard appears when a field takes focus, and the key
   only decides whether it is permitted to. A button that summons one regardless
   would need to drive `showIMEInternal()` or give something input focus first.
-  Separately, and still unconfirmed: `IMEManager::getVKBFactories` logs
-  "Searching for VKB plugins in /usr/lib/luna" unconditionally, and that line
-  never appears in a session's log -- so it may be that no virtual keyboard
-  plugin is ever loaded, in which case even a focused field would show nothing.
-  `libkeyboard-efigs-phone.so` and `libkeyboard-efigs-tablet.so` are installed
-  in that directory.
+  That is only half of it, and the other half was the real cause: **there was no
+  keyboard at all.** `VirtualKeyboardEnabled` defaults to false
+  (`Settings.cpp:189`) and was false in both shipped configs, and
+  `WindowServerLuna` builds an `InputWindowManager` only when it is set
+  (line 142). That object owns the `IMEManager` by value, and `IMEManager`
+  searches `/usr/lib/luna` for keyboard plugins only when asked to create one
+  (`InputWindowManager.cpp:69` is the single caller) -- so nothing ever asked,
+  the search never ran, and its unconditional qDebug never appeared in any log.
+  `libkeyboard-efigs-phone.so` and `libkeyboard-efigs-tablet.so` were installed
+  in that directory the whole time and never loaded. It is enabled in
+  `luna-desktop.conf` now. Worth remembering as a shape: a missing log line
+  meant "this code never ran", not "this code ran and found nothing".
 - **Two settings files, and the second one wins, and it is not called what it is
   called.** `Settings::load` reads `/etc/palm/luna.conf` and then
   `/etc/palm/luna-platform.conf` (Settings.cpp:248-249), so every key the second
