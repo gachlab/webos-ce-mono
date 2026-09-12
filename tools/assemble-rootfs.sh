@@ -6,7 +6,9 @@ set -u
 R="$(cd "$(dirname "$0")/.." && pwd)"
 C="$R/components"
 ROOTFS="${1:-$R/build/rootfs}"
-S="$R/build/staging"
+# Overridable for the same reason tools/build.sh's is: a package build puts the
+# staging tree at $DESTDIR$WEBOS_PREFIX, not under build/.
+S="${WEBOS_STAGING:-$R/build/staging}"
 
 # Where the tree is WRITTEN and where it will RUN are the same thing for a
 # developer and different things for a package: dpkg builds into a staging

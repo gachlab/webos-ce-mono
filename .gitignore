@@ -2,6 +2,8 @@ build/
 # The Qt 5 and the first Qt 6 trees, from before there was a single build/.
 build-modern/
 build-qt6/
+# release artifacts: tools/mkdeb.sh writes the .deb here
+dist/
 # autotools generates these inside cjson's tree
 components/cjson/configure
 components/cjson/Makefile.in

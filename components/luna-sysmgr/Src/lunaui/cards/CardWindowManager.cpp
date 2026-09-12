@@ -1167,7 +1167,21 @@ void CardWindowManager::markFirstCardDone()
     //if (Settings::LunaSettings()->uiType == Settings::UI_MINIMAL) {
     g_mkdir_with_parents(Settings::LunaSettings()->lunaPrefsPath.c_str(), 0755);
     FILE* f = fopen(Settings::LunaSettings()->firstCardLaunch.c_str(), "w");
-    fclose(f);
+    // HP called fclose(f) unconditionally. firstCardLaunch is the hardcoded
+    // literal "/var/luna/preferences/used-first-card" (Settings.cpp:167) with
+    // no configuration key of its own -- unlike lunaPrefsPath on the line above,
+    // which luna.conf can move -- so it cannot be pointed at a writable place.
+    // When that directory is not writable, which is exactly what a root-owned
+    // package install produces, fopen returns NULL and fclose(NULL) segfaults.
+    // Caught under gdb with f = 0x0 in frame 1, reached through firstCardAlert
+    // when the first card is minimised, and it took WebAppMgr and every service
+    // down behind it.
+    if (f)
+        fclose(f);
+    else
+        g_warning("%s: could not write %s -- first-use will be offered again",
+                  __PRETTY_FUNCTION__,
+                  Settings::LunaSettings()->firstCardLaunch.c_str());
     //}
 }
 

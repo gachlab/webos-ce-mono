@@ -16,7 +16,30 @@ set -u
 R="$(cd "$(dirname "$0")/.." && pwd)"
 STAGE="${1:-all}"
 B="$R/build"
-S="$B/staging"
+
+# Where the tree will RUN is not where the build WRITES it, and four components
+# compile the difference into their binaries. filecache, configurator,
+# librolegen and libsandbox each generate a header from a .in template that
+# substitutes a WEBOS_INSTALL_* path, and ls-hubd and ls-monitor get theirs
+# through add_definitions -- so whatever WEBOS_INSTALL_ROOT says at configure
+# time is burned into the executable.
+#
+# With both set to the staging directory, as they were, a package built in a
+# container shipped binaries looking for /src/build/staging: filecache died with
+# "Failed to create cache directory '/src/build/staging/var/file-cache'" and
+# configurator could not record a single configuration it had just applied.
+#
+#   WEBOS_PREFIX  the runtime prefix, burned into the binaries
+#   DESTDIR       where `make install` actually writes
+#   S             the staging tree the rest of the build consumes, which is the
+#                 two concatenated
+#
+# The defaults are exactly what this script did before -- prefix is the staging
+# directory and DESTDIR is empty, so S is unchanged and a developer's build is
+# bit-for-bit what it was.
+WEBOS_PREFIX="${WEBOS_PREFIX:-$B/staging}"
+DESTDIR="${DESTDIR:-}"
+S="$DESTDIR$WEBOS_PREFIX"
 BUILD_TYPE="${BUILD_TYPE:-Debug}"
 
 # Components the MANIFEST lists as cmake/qmake that we do NOT build, and why.
@@ -135,8 +158,8 @@ stage_autotools() {
         # and $$ORIGIN leaves ":/..", both of which link fine and only fail once
         # the tree is moved. Verified with readelf, not assumed.
         if ! LDFLAGS='-Wl,-rpath,\$$ORIGIN:\$$ORIGIN/.. -Wl,--disable-new-dtags' \
-             "$R/components/$c/configure" --prefix="$S" > cfg.log 2>&1 \
-           || ! make -j"$(nproc)" > build.log 2>&1 || ! make install > install.log 2>&1; then
+             "$R/components/$c/configure" --prefix="$WEBOS_PREFIX" > cfg.log 2>&1 \
+           || ! make -j"$(nproc)" > build.log 2>&1 || ! make install DESTDIR="$DESTDIR" > install.log 2>&1; then
             printf "%-22s FAILED %s\n" "$c" "$(grep -m1 -iE 'error' build.log cfg.log 2>/dev/null | cut -c1-60)"
             return 1
         fi
@@ -164,7 +187,7 @@ stage_cmake() {
              -DCMAKE_BUILD_TYPE="$BUILD_TYPE" \
              -DWEBOS_ROOTFS="$B/rootfs" \
              -DCMAKE_MODULE_PATH="$R/components/cmake-modules-webos" \
-             -DWEBOS_INSTALL_ROOT="$S" -DCMAKE_INSTALL_PREFIX="$S" \
+             -DWEBOS_INSTALL_ROOT="$WEBOS_PREFIX" -DCMAKE_INSTALL_PREFIX="$WEBOS_PREFIX" \
              -DCMAKE_INSTALL_RPATH='$ORIGIN:$ORIGIN/..' \
              -DCMAKE_EXE_LINKER_FLAGS='-Wl,--disable-new-dtags' \
              -DCMAKE_SHARED_LINKER_FLAGS='-Wl,--disable-new-dtags' > "$d/cfg.log" 2>&1; then
@@ -175,7 +198,7 @@ stage_cmake() {
             printf "%-24s BUILD FAILED  %s\n" "$c" "$(grep -m1 -E 'error:|undefined reference' "$d/build.log" | sed 's|.*/||' | cut -c1-72)"
             failed=1; continue
         fi
-        if ! make -C "$d" install > "$d/install.log" 2>&1; then
+        if ! make -C "$d" install DESTDIR="$DESTDIR" > "$d/install.log" 2>&1; then
             printf "%-24s INSTALL FAILED %s\n" "$c" "$(grep -m1 -E 'cannot|Error' "$d/install.log" | cut -c1-60)"
             failed=1; continue
         fi
@@ -196,10 +219,20 @@ stage_node_addons() {
         return 0
     fi
     mkdir -p /tmp/webos
+    # The rpath matters here and this stage never got one. The addons install to
+    # <prefix>/usr/palm/nodejs and our libraries to <prefix>/usr/lib, so
+    # $ORIGIN/../../lib reaches them from either tree. Without it they carry no
+    # rpath at all -- and unlike our own executables, nothing else covers them:
+    # they are loaded by node, which is not our binary and has no rpath of ours.
+    # In the package that cost every JavaScript service, with
+    # "Error: libluna-service2.so.3: cannot open shared object file", and with
+    # them the profile account.
     cmake -S "$R/components/node-v8-shim/addons" -B "$B/node-addons" \
-          -DCMAKE_INSTALL_PREFIX="$S" > /tmp/webos/node-addons.log 2>&1 \
+          -DCMAKE_INSTALL_PREFIX="$WEBOS_PREFIX" \
+          -DCMAKE_INSTALL_RPATH='$ORIGIN/../../lib' \
+          -DCMAKE_SHARED_LINKER_FLAGS='-Wl,--disable-new-dtags' > /tmp/webos/node-addons.log 2>&1 \
       && cmake --build "$B/node-addons" -j"$(nproc)" >> /tmp/webos/node-addons.log 2>&1 \
-      && cmake --install "$B/node-addons" >> /tmp/webos/node-addons.log 2>&1 \
+      && DESTDIR="$DESTDIR" cmake --install "$B/node-addons" >> /tmp/webos/node-addons.log 2>&1 \
       && echo "  pmloglib, palmbus, webos     OK" \
       || { echo "  FAILED (see /tmp/webos/node-addons.log)"; return 1; }
 }
@@ -208,7 +241,9 @@ stage_rootfs() {
     echo "== rootfs =="
     # The MANIFEST's "copiar" components are not built: they are JS, themes and
     # data. assemble-rootfs.sh places them next to the installed binaries.
-    "$R/tools/assemble-rootfs.sh"
+    # WEBOS_STAGING, or this looks for the staging tree under build/ while a
+    # DESTDIR build has just put it somewhere else entirely.
+    WEBOS_STAGING="$S" "$R/tools/assemble-rootfs.sh"
 }
 
 case "$STAGE" in
