@@ -209,6 +209,25 @@ Traps found on the way, each confirmed before being fixed:
   nowhere. `slotLoadProgress()` delivers it at 100 now, as HP's earlier tree did.
   That path was never taken in any of these measurements.
 
+- **The prefixed transition events enyo still waits for.** Chromium fires
+  `transitionend` and nothing else; measured here, a listener registered as
+  `webkitTransitionEnd` is called zero times and one on the modern name once.
+  enyo registers only the prefixed name -- nineteen places in the framework, six
+  of them `addEventListener` -- and `enyo.Pane` treats a transition as still in
+  flight until that handler runs. `Pane.flow()` applies `display: none` only to a
+  view that is neither the current one nor transitioning, so a pane that switches
+  views never hides the one it left. `components/qtwebkit-compat` now registers a
+  prefixed listener under the modern name as well, covering transition and
+  animation events; `tests/prefixed-transition-event` checks it and fails when
+  the injection is removed.
+
+  It did not clear the overlap in the mail card, which is what sent me looking:
+  email still paints its first-launch screen under the three-pane view. The
+  likelier cause there is its own `_unhideMainApp()`, which selects the mail view
+  and then throws on `$$.body.setRedirects` -- a method of the browser's WebView
+  control, which this tree has no implementation for -- so the half that hides
+  the first-launch view never runs. That one waits on the browser.
+
 Not done yet:
 
 - **Checked by hand on Qt 6:** the shell and the apps run, and the line QtWebKit

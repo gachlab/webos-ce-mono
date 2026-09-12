@@ -33,6 +33,7 @@ namespace {
 const char kScheme[] = "webos-bridge";
 const char kInjectedScriptName[] = "webos-document-creation";
 const char kBorderImageScriptName[] = "webos-border-image";
+const char kPrefixedEventScriptName[] = "webos-prefixed-events";
 
 // Before QApplication exists: a URL scheme can only be registered then, and
 // QtWebEngine wants shared GL contexts decided before the first one is made.
@@ -55,6 +56,52 @@ void beforeApplication()
         qputenv("QTWEBENGINE_CHROMIUM_FLAGS", "--disable-gpu");
 }
 Q_CONSTRUCTOR_FUNCTION(beforeApplication)
+
+// ---------------------------------------------------------------------------
+// The prefixed transition and animation events enyo still listens for.
+//
+// Chromium no longer fires webkitTransitionEnd; it fires transitionend and
+// nothing else. Measured here: a listener on the prefixed name is called 0
+// times, on the plain name once. enyo registers only the prefixed name -- 19
+// places, 6 of them addEventListener -- and its Pane keeps a transition "in
+// flight" until that handler runs. Pane.flow() only applies display:none to a
+// view that is not the current one AND not transitioning, so the outgoing view
+// was never hidden: the mail card painted its first-launch screen and its
+// three-pane view on top of each other, which read on screen as transparency.
+//
+// The listener is registered for the modern name as well, so code written for
+// 2010 WebKit is called when the event actually happens.
+const char kPrefixedEvents[] = R"JS(
+(function () {
+    if (window.__webosPrefixedEvents)
+        return;
+    window.__webosPrefixedEvents = true;
+
+    var modernName = {
+        webkittransitionend: "transitionend",
+        webkitanimationend: "animationend",
+        webkitanimationstart: "animationstart",
+        webkitanimationiteration: "animationiteration"
+    };
+
+    var add = EventTarget.prototype.addEventListener;
+    var remove = EventTarget.prototype.removeEventListener;
+
+    EventTarget.prototype.addEventListener = function (type, listener, options) {
+        var modern = modernName[String(type).toLowerCase()];
+        if (modern)
+            add.call(this, modern, listener, options);
+        return add.call(this, type, listener, options);
+    };
+
+    EventTarget.prototype.removeEventListener = function (type, listener, options) {
+        var modern = modernName[String(type).toLowerCase()];
+        if (modern)
+            remove.call(this, modern, listener, options);
+        return remove.call(this, type, listener, options);
+    };
+})();
+)JS";
 
 // ---------------------------------------------------------------------------
 // The border box -webkit-border-image used to imply.
@@ -652,6 +699,14 @@ QWebPage::QWebPage(QObject* parent)
     borderImage.setWorldId(QWebEngineScript::MainWorld);
     borderImage.setSourceCode(QString::fromLatin1(kBorderImageCompat));
     m_engine->scripts().insert(borderImage);
+
+    // The prefixed events Chromium dropped; see above.
+    QWebEngineScript prefixedEvents;
+    prefixedEvents.setName(kPrefixedEventScriptName);
+    prefixedEvents.setInjectionPoint(QWebEngineScript::DocumentCreation);
+    prefixedEvents.setWorldId(QWebEngineScript::MainWorld);
+    prefixedEvents.setSourceCode(QString::fromLatin1(kPrefixedEvents));
+    m_engine->scripts().insert(prefixedEvents);
 }
 
 QWebPage::~QWebPage()

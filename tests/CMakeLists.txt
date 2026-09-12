@@ -114,6 +114,15 @@ add_test(NAME qtwebkit-compat COMMAND qtwebkit-compat)
 set_tests_properties(qtwebkit-compat PROPERTIES
     ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
 
+# The prefixed transition events enyo listens for. Without them a Pane's
+# transition never ends and the outgoing view is never hidden: two views paint
+# at once, which looked like transparency in the mail card.
+add_executable(prefixed-transition-event prefixed-transition-event.cpp)
+target_link_libraries(prefixed-transition-event PRIVATE qtwebkit-compat-lib)
+add_test(NAME prefixed-transition-event COMMAND prefixed-transition-event)
+set_tests_properties(prefixed-transition-event PROPERTIES
+    ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
 # The border box -webkit-border-image used to imply. Without it the calculator
 # measured its keys at 121x94 instead of 91x64 and sized its font from that.
 add_executable(border-image-box border-image-box.cpp)
