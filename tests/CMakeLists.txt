@@ -150,6 +150,23 @@ add_test(NAME subframe-signal COMMAND subframe-signal)
 set_tests_properties(subframe-signal PROPERTIES
     ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
 
+# A second web view painted inside the card, where the browser app's dead
+# <object type="application/x-palm-browser"> sits. Chromium has no plugin
+# socket, so the replacement blits an embedded page's own pixels through the
+# render() every app already goes through.
+add_executable(embedded-view embedded-view.cpp)
+target_link_libraries(embedded-view PRIVATE qtwebkit-compat-lib)
+add_test(NAME embedded-view COMMAND embedded-view)
+set_tests_properties(embedded-view PROPERTIES
+    ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
+# What one repaint of a card costs, for deciding how to back the browser's
+# <object> with a real view. Deliberately NOT add_test: it measures and always
+# succeeds, and a test that cannot fail is noise in the suite. Run it by hand:
+#   QT_QPA_PLATFORM=offscreen ./build/tests/grab-cost 1024 768
+add_executable(grab-cost grab-cost.cpp)
+target_link_libraries(grab-cost PRIVATE qtwebkit-compat-lib)
+
 # What a window opened by window.open() can see in its first script. This one
 # passes unmodified, and is kept for what it rules out: the child-window path
 # was never the fault -- the frames the mail card makes for itself were.

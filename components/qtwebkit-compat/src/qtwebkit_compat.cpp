@@ -889,6 +889,53 @@ QWebEnginePage* QWebPage::enginePage() const
     return m_engine;
 }
 
+void QWebPage::embedPage(QWebPage* page, const QRect& rect)
+{
+    if (!page || page == this)
+        return;
+
+    // Already embedded: this is a move or a resize, which is what it will be
+    // most of the time -- the hole travels with the page that owns it.
+    for (int i = 0; i < m_embedded.size(); ++i) {
+        if (m_embedded[i].page == page) {
+            m_embedded[i].rect = rect;
+            page->setViewportSize(rect.size());
+            return;
+        }
+    }
+
+    EmbeddedPage entry;
+    entry.page = page;
+    entry.rect = rect;
+    page->setViewportSize(rect.size());
+
+    // A frame of the embedded page is a frame of this one. The shell only ever
+    // repaints what WindowedWebApp hands it, and that is the host page, so
+    // without this the embedded page would paint into a buffer nobody asked
+    // for again.
+    entry.repaintLink = connect(page, &QWebPage::repaintRequested,
+                                this, [this, page](const QRect&) {
+        for (const EmbeddedPage& embedded : m_embedded) {
+            if (embedded.page == page) {
+                Q_EMIT repaintRequested(embedded.rect);
+                return;
+            }
+        }
+    });
+
+    m_embedded.append(entry);
+}
+
+void QWebPage::removeEmbeddedPage(QWebPage* page)
+{
+    for (int i = m_embedded.size() - 1; i >= 0; --i) {
+        if (m_embedded[i].page != page && !m_embedded[i].page.isNull())
+            continue;
+        disconnect(m_embedded[i].repaintLink);
+        m_embedded.removeAt(i);
+    }
+}
+
 void QWebPage::followRenderSurface()
 {
     // QtWebEngine draws a page through a QQuickWidget that it creates, and may
@@ -1013,6 +1060,25 @@ void QWebFrame::render(QPainter* painter, RenderLayer, const QRegion& clip)
     if (!clip.isEmpty())
         painter->setClipRegion(clip, Qt::IntersectClip);
     painter->drawPixmap(0, 0, frame);
+
+    // Then the pages embedded in this one, each over its own hole. This is what
+    // BrowserAdapter did with the buffer BrowserServer had filled, without the
+    // plugin, the second process, the shared buffers or the semaphore: both
+    // engines are ours and in this process. tests/embedded-view checks that
+    // what the embedded page painted lands inside the host's pixels, in the
+    // right place and nowhere else.
+    for (const QWebPage::EmbeddedPage& embedded : m_page->m_embedded) {
+        if (embedded.page.isNull() || embedded.rect.isEmpty())
+            continue;
+        const QPixmap content = embedded.page->m_view->grab();
+        if (content.isNull())
+            continue;
+        painter->save();
+        painter->setClipRect(embedded.rect, Qt::IntersectClip);
+        painter->drawPixmap(embedded.rect.topLeft(), content);
+        painter->restore();
+    }
+
     painter->restore();
 }
 

@@ -197,6 +197,21 @@ public:
     QWebEnginePage* enginePage() const;
     QWebEngineView* engineView() const { return m_view; }
 
+    // NOT QtWebKit API: an extension of this layer.
+    //
+    // A page painted inside another, at a rect the host chooses. It is what the
+    // browser app needs where its <object type="application/x-palm-browser">
+    // used to be: on a device that object was an NPAPI plugin blitting what
+    // BrowserServer had painted in another process, and Chromium has no plugin
+    // socket to put anything in. Here both engines are ours and in one process,
+    // so the host's render() blits the embedded page's own pixels into the same
+    // painter WebAppMgr aims at the shared buffer the shell reads.
+    //
+    // The embedded page is not owned. Its viewport is resized to the rect, and
+    // each of its frames asks the host to repaint that rect.
+    void embedPage(QWebPage* page, const QRect& rect);
+    void removeEmbeddedPage(QWebPage* page);
+
 Q_SIGNALS:
     void loadStarted();
     void loadProgress(int progress);
@@ -227,6 +242,16 @@ private:
     QSize m_viewportSize;
     QPalette m_palette;
     QPointer<QObject> m_renderSurface;
+
+    // Held by pointer, never owned: a page embedded in this one, and where it
+    // goes. A null page is one that was deleted from under us; render() steps
+    // over those rather than making its owner remember to unregister.
+    struct EmbeddedPage {
+        QPointer<QWebPage> page;
+        QRect rect;
+        QMetaObject::Connection repaintLink;
+    };
+    QList<EmbeddedPage> m_embedded;
 };
 
 class QWebFrame : public QObject

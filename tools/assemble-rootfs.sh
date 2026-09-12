@@ -103,6 +103,16 @@ for APP in "$C"/core-apps/*/; do
     cp -rf "$APP"/configuration/db/permissions/* "$ROOTFS/etc/palm/db/permissions/" 2>/dev/null
 done
 
+# The browser. HP kept it in a repository of its own -- isis-browser in the
+# MANIFEST, marked "copiar" -- instead of under core-apps, so the loop above
+# never saw it and it was never installed. Its db8 kinds (bookmarks, history,
+# preferences) are picked up further down and were being registered all along.
+# The directory has to carry the app id, which the repository's name does not.
+if [ -f "$C/isis-browser/appinfo.json" ]; then
+    rm -rf "$ROOTFS/usr/palm/applications/com.palm.app.browser"
+    cp -rf "$C/isis-browser" "$ROOTFS/usr/palm/applications/com.palm.app.browser"
+fi
+
 # Servicios de aplicacion (JS, corren sobre node)
 for SVC in "$C"/app-services/*/; do
     [ -f "$SVC/services.json" ] || [ -f "$SVC/package.json" ] || continue
