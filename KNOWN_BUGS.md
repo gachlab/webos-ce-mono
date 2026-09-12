@@ -135,6 +135,20 @@ Traps found on the way, each confirmed before being fixed:
   last metre against Qt would give Chromium real touch, and with it the native
   kinetic scrolling the wheel cannot provide. It is the principled fix and it is
   not small.
+- **The keyboard button allows the on-screen keyboard, it does not summon it.**
+  `KEYS::Key_Keyboard` reaches `SystemUiController` (line 616), which calls
+  `IMEController::setIMEActive`. That sets `m_imeAllowed` and then re-evaluates
+  input focus; `notifyInputFocusChange` returns at `if (!client || client !=
+  m_client)` when nothing holds input focus, so `showIMEInternal()` is never
+  reached. On webOS the keyboard appears when a field takes focus, and the key
+  only decides whether it is permitted to. A button that summons one regardless
+  would need to drive `showIMEInternal()` or give something input focus first.
+  Separately, and still unconfirmed: `IMEManager::getVKBFactories` logs
+  "Searching for VKB plugins in /usr/lib/luna" unconditionally, and that line
+  never appears in a session's log -- so it may be that no virtual keyboard
+  plugin is ever loaded, in which case even a focused field would show nothing.
+  `libkeyboard-efigs-phone.so` and `libkeyboard-efigs-tablet.so` are installed
+  in that directory.
 - **Two settings files, and the second one wins, and it is not called what it is
   called.** `Settings::load` reads `/etc/palm/luna.conf` and then
   `/etc/palm/luna-platform.conf` (Settings.cpp:248-249), so every key the second
