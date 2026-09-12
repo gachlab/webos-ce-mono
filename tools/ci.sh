@@ -51,7 +51,7 @@ qt6-base-dev qt6-base-private-dev
 qt6-declarative-dev qt6-declarative-private-dev
 qt6-webengine-dev qt6-scxml-dev
 libglib2.0-dev libglibmm-2.4-dev libsigc++-2.0-dev
-libsqlite3-dev libssl-dev libxml2-dev libyajl-dev
+libsqlite3-dev libssl-dev libxml2-dev libyajl-dev libicu-dev
 libboost-filesystem-dev libboost-regex-dev libboost-program-options-dev
 libc-ares-dev liburiparser-dev
 nodejs
@@ -115,9 +115,15 @@ run_target() {                  # run_target <release>
                         found=0; \
                         for l in $(ls -t build/*/*.log /tmp/t.log 2>/dev/null); do \
                             [ -s "$l" ] || continue; \
-                            grep -qiE "error|undefined reference|No such file|Permission denied|cannot find" "$l" || continue; \
+                            # pkg-config says "None of the required X were found"
+                            # and "No package X found" without ever using the
+                            # word error, so a filter on "error" alone drops the
+                            # one thing worth knowing: which module is missing.
+                            # Seven components failed that way and the logs named
+                            # none of them.
+                            grep -qiE "error|undefined reference|No such file|Permission denied|cannot find|None of the required|No package .* found|Failed to find" "$l" || continue; \
                             echo "--- $l ---"; \
-                            grep -niE "error|undefined reference|No such file|Permission denied|cannot find" "$l" | head -12; \
+                            grep -niE "error|undefined reference|No such file|Permission denied|cannot find|None of the required|No package .* found|Failed to find" "$l" | head -12; \
                             found=1; \
                         done; \
                         [ "$found" = 1 ] || { echo "no log contains an error; newest logs:"; \
