@@ -671,6 +671,69 @@ only ever a QtWebKit 5.212 rendering difference.
 
 ## Known and accepted
 
+### Performance: where the time goes, and why the GPU is off
+
+Measured 2026-09-12, because "can we put this on Vulkan and Wayland" deserves
+numbers rather than an opinion.
+
+What it costs today:
+
+* **Idle: nothing.** 16 webOS processes, found by walking `/proc` and matching
+  their `exe` against the rootfs, burn 0% of one core over 5 seconds.
+* **One full card repaint: 2.96 ms median** at 1280x920 (best 2.58, worst 5.89 --
+  `tests/grab-cost`, built but deliberately not a test). That is a ceiling of
+  ~338 fps for the offscreen render and read-back the whole card model rests on,
+  so the read-back is not the bottleneck it looks like.
+
+What is already accelerated, contrary to the obvious guess:
+
+* The shell's `QGraphicsView` viewport **is** a real `QOpenGLWidget`.
+  `HAVE_OPENGL` is defined (CMakeLists), `ForceSoftwareRendering` is set in
+  neither installed config so the code default of false stands, and
+  `qt6-compat`'s `QGLWidget` is a `QOpenGLWidget` subclass rather than a stub.
+* Proof from the live process, not inference: LunaSysMgr holds
+  `/dev/dri/renderD128` open, with `libGLX_mesa`, `libEGL` and `libdrm_intel`
+  mapped. Hardware GL on the Intel iGPU.
+
+Why QtWebEngine runs on the CPU, and why that stays:
+
+`qtwebkit_compat.cpp:59` puts `--disable-gpu` into `QTWEBENGINE_CHROMIUM_FLAGS`
+unless the environment already carries flags, because WebAppMgr only ever draws
+pages offscreen and reads them back, where Chromium's GPU process loses its
+context. The engine's processes hold no render node, which matches.
+
+Lifting it was tried: with `QTWEBENGINE_CHROMIUM_FLAGS` set to anything else,
+**WebAppMgr dies with SIGSEGV during startup**, and LunaSysMgr then exits behind
+it by design -- `WebAppMgrProxy was Disconnected!! Exiting Sysmgr...`. So the
+flag is load-bearing, not an oversight. Whether other flag combinations survive
+(forcing software GL inside the GPU process alone, say) was not tried.
+
+Vulkan and Wayland, specifically:
+
+* **Vulkan cannot reach the shell's UI.** Qt has no Vulkan backend for
+  `QWidget`/`QGraphicsView`, which is what the whole shell is drawn with. Qt
+  Quick's RHI does list `vulkan`, but `QmlSceneItem::setUpSoftwareBackend`
+  pins QtQuick to the Software backend on purpose: `QQuickRenderControl` sets up
+  an RHI unless the graphics API is Software, and `sync()` then refused with
+  "can only sync when beginFrame() has been called".
+* **Wayland is viable and buys little.** There is no X11-specific code anywhere
+  in luna-sysmgr, webappmanager or luna-sysmgr-common; `QT_QPA_PLATFORM=xcb` is
+  forced only because LunaSysMgr asks for HP's "palm" plugin and something has
+  to be named. The Qt Wayland plugin is installed and `tests/window-resize` runs
+  under it unchanged. What it would remove is XWayland's copy, against a shell
+  that already idles at 0%.
+
+Not established, and worth saying so: there is no trustworthy under-load number
+here. Two attempts at measuring a scroll produced "0%" -- once from integer
+truncation in the measuring script, once from a drag that was never verified to
+have moved the page at all. Any future claim about scrolling cost needs an
+image-diff proof that the page moved, and raw tick counts rather than a rounded
+percentage.
+
+One trap that cost evidence: `run-lunasysmgr.sh` truncates `/tmp/webos/WebAppMgr.log`
+on every launch, so a crash's log is gone the moment the shell is restarted.
+Copy it aside before restarting, or the next run destroys what you were reading.
+
 ### Every page logs a tellurium error at startup
 
 Once per page, in all five:
