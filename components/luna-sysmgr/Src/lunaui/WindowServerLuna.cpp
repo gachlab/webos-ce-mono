@@ -1209,10 +1209,18 @@ bool WindowServerLuna::sysmgrEventFilters(QEvent* event)
         OverlayWindowManager *owm =
             static_cast<OverlayWindowManager *>(m_overlayMgr);
 
+        if (G_UNLIKELY(g_getenv("WEBOS_TRACE_TOUCH")))
+            g_message("FILTER overlay touch: type %d, points %d, uSearchState %d",
+                      (int) type, (int) te->touchPoints().size(),
+                      (int) owm->universalSearchState());
+
         if (!te->touchPoints().isEmpty() && owm->universalSearchState() ==
             OverlayWindowManager::StateUSearchVisible) {
             if (type == QEvent::TouchBegin) {
-                return owm->handleTouchBegin(te);
+                const bool consumed = owm->handleTouchBegin(te);
+                if (G_UNLIKELY(g_getenv("WEBOS_TRACE_TOUCH")))
+                    g_message("FILTER overlay handleTouchBegin -> %d", (int) consumed);
+                return consumed;
             } else if (type == QEvent::TouchEnd || type == QEvent::TouchCancel) {
                 return owm->handleTouchEnd(te);
             } else if (type == QEvent::TouchUpdate) {

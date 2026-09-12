@@ -98,6 +98,23 @@ void IMEView::mousePressEvent(QGraphicsSceneMouseEvent* event)
 
 bool IMEView::sceneEvent(QEvent* event)
 {
+	// Set WEBOS_TRACE_IME=1 to see whether the scene offers this item a touch at
+	// all. WindowServer's WEBOS_TRACE_TOUCH says what reaches the viewport; the
+	// two together separate "the touch never got here" from "it got here and
+	// acceptPoint refused it", which are indistinguishable from the outside --
+	// in both cases the keyboard draws and does nothing.
+	if (G_UNLIKELY(g_getenv("WEBOS_TRACE_IME"))) {
+		switch (event->type()) {
+		case QEvent::TouchBegin:              g_message("IMEVIEW TouchBegin"); break;
+		case QEvent::TouchUpdate:             g_message("IMEVIEW TouchUpdate"); break;
+		case QEvent::TouchEnd:                g_message("IMEVIEW TouchEnd"); break;
+		case QEvent::Gesture:                 g_message("IMEVIEW Gesture"); break;
+		case QEvent::GestureOverride:         g_message("IMEVIEW GestureOverride"); break;
+		case QEvent::GraphicsSceneMousePress: g_message("IMEVIEW MousePress"); break;
+		default: break;
+		}
+	}
+
 	switch (event->type()) {
 	case QEvent::GestureOverride: {
 		// consume all gestures if we are handling touches
@@ -195,6 +212,15 @@ void IMEView::touchBegin(QTouchEvent* te)
 		}
 	}
 
+	if (G_UNLIKELY(g_getenv("WEBOS_TRACE_IME")))
+		g_message("IMEVIEW touchBegin: %d point(s), first item (%.0f,%.0f) scene (%.0f,%.0f) -> accepting %d",
+		          int(points.size()),
+		          points.isEmpty() ? -1.0 : points.first().position().x(),
+		          points.isEmpty() ? -1.0 : points.first().position().y(),
+		          points.isEmpty() ? -1.0 : points.first().scenePosition().x(),
+		          points.isEmpty() ? -1.0 : points.first().scenePosition().y(),
+		          m_acceptingInput);
+
 	te->setAccepted(m_acceptingInput);
 	if (m_acceptingInput && m_imeDataInterface)
 		m_imeDataInterface->touchEvent(*te);
@@ -267,6 +293,18 @@ void IMEView::screenEdgeFlickEvent(ScreenEdgeFlickGesture* g)
 
 bool IMEView::acceptPoint(const QPointF& pt)
 {
+	// Everything this decision rests on, printed together: the point as the item
+	// sees it, against the bottom strip the keyboard claims. A wrong coordinate
+	// space and a zero keyboard height both end here as a plain "false".
+	if (G_UNLIKELY(g_getenv("WEBOS_TRACE_IME")))
+		g_message("IMEVIEW acceptPoint (%.0f,%.0f): opened %d, iface %p, hitRegion %d, bounds h %.0f, keyboard h %d",
+		          pt.x(), pt.y(),
+		          (int) IMEController::instance()->isIMEOpened(),
+		          (void*) m_imeDataInterface,
+		          m_imeDataInterface ? (int) m_imeDataInterface->m_hitRegion.get().contains(pt.toPoint()) : -1,
+		          m_bounds.height(),
+		          m_imeDataInterface ? (int) m_imeDataInterface->m_keyboardHeight.get() : -1);
+
 	if (!IMEController::instance()->isIMEOpened())
 		return false;
 	if (!m_imeDataInterface)

@@ -152,9 +152,46 @@ Traps found on the way, each confirmed before being fixed:
   (`InputWindowManager.cpp:69` is the single caller) -- so nothing ever asked,
   the search never ran, and its unconditional qDebug never appeared in any log.
   `libkeyboard-efigs-phone.so` and `libkeyboard-efigs-tablet.so` were installed
-  in that directory the whole time and never loaded. It is enabled in
-  `luna-desktop.conf` now. Worth remembering as a shape: a missing log line
-  meant "this code never ran", not "this code ran and found nothing".
+  in that directory the whole time and never loaded. Worth remembering as a
+  shape: a missing log line meant "this code never ran", not "this code ran and
+  found nothing".
+- **The on-screen keyboard draws but cannot be typed on, so it is off again.**
+  Setting `VirtualKeyboardEnabled=true` loads the efigs plugins and paints a
+  real tablet keyboard -- and every tap on it dismisses it, which is worse than
+  having none. MEASURED with `WEBOS_TRACE_IME=1 WEBOS_TRACE_TOUCH=1` (both
+  traces are in the tree): over one session, 10 `VIEWPORT TouchBegin` and
+  exactly 0 `IMEVIEW TouchBegin`. The keyboard is not refusing the touches, it
+  is never offered one. They are consumed upstream:
+
+      FILTER overlay touch: type 194, points 1, uSearchState 2
+      FILTER overlay handleTouchBegin -> 1
+      VIEWPORT touch consumed by the filter chain: type 194
+
+  `WindowServerLuna::sysmgrEventFilters` (1203-1223) is desktop-port code: while
+  Just Type is visible it hands every touch to `OverlayWindowManager` and
+  returns what that returns, without ever looking at where the touch landed. A
+  `true` there makes `WindowServer::viewportEvent` return before reaching
+  `QGraphicsView::viewportEvent` (line 947), so `QGraphicsScene` never runs its
+  own delivery and no item sees a `TouchBegin`. The launcher reads the tap as a
+  click outside its search field, drops input focus, and
+  `IMEController::hideIMEInternal` hides the keyboard -- which is exactly why it
+  vanishes when touched.
+
+  Ruled out along the way, each by evidence and not by reading: the touch does
+  reach the process (`VIEWPORT TouchBegin` fires); `acceptPoint`'s geometry is
+  correct (`bounds h 920, keyboard h 340` against taps at y=666, so its cut at
+  580 would accept them); the IME is genuinely open (`signalShowIME` is emitted
+  only inside `if (!m_imeOpened)`, so the log line proves the flag); mouse
+  handling is irrelevant, because `MouseEventEater` means no mouse event ever
+  reaches the scene, making `IMEView::mousePressEvent` dead code here; and
+  z-order is not it (`m_inputWindowMgr` is parented last and nothing calls
+  `setZValue` on it).
+
+  The fix is small and has a precedent to copy: `doReticle` is already the
+  "does this point belong to the IME?" question, and `WindowServer.cpp:1408`
+  asks it before showing the reticle. That block needs the same guard, latched
+  for the whole touch sequence so the overlay never receives an End without its
+  Begin.
 - **Two settings files, and the second one wins, and it is not called what it is
   called.** `Settings::load` reads `/etc/palm/luna.conf` and then
   `/etc/palm/luna-platform.conf` (Settings.cpp:248-249), so every key the second

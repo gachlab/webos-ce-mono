@@ -869,6 +869,12 @@ bool WindowServer::viewportEvent(QEvent* event)
 			    (*it).screenPos().x(), (*it).screenPos().y());
 #endif
 		if (sysmgrEventFilters(event)) {
+			// The filter chain consuming a touch means the scene never runs its
+			// own delivery, so no item ever sees a TouchBegin. That is
+			// indistinguishable from an item refusing one unless we say so here.
+			if (G_UNLIKELY(g_getenv("WEBOS_TRACE_TOUCH")))
+				g_message("VIEWPORT touch consumed by the filter chain: type %d",
+				          (int) event->type());
 			return true;
 		}
 		break;
