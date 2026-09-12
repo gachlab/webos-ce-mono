@@ -133,6 +133,13 @@ public:
 Q_SIGNALS:
     void signalBluetoothKeyboardActive(bool active);
 
+    // The display is no longer whatever init() was told once at startup: on a
+    // desktop the user can drag the window to any size. Hosts that can change
+    // size emit this after updating m_info, so whoever answers reads the new
+    // values back from getInfo(). It goes out as a signal because the shell
+    // (WindowServer, in luna-sysmgr) is not reachable from here.
+    void signalDisplaySizeChanged(int width, int height);
+
 protected:
 
 	HostBase();

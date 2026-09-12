@@ -548,7 +548,14 @@ void HostQtDesktop::show()
 	m_widget->setAttribute(Qt::WA_AcceptTouchEvents);
     m_widget->setWindowTitle("Open webOS");
 
-	m_widget->setFixedSize(m_info.displayWidth, m_info.displayHeight + GESTURE_AREA_HEIGHT);
+	// Sized, not pinned. This setFixedSize was one of three separate things that
+	// made the window unresizable -- the others are QLayout::SetFixedSize in
+	// setCentralWidget below and the view's own setFixedSize in WindowServer --
+	// and removing any one of them alone changes nothing. The minimum keeps the
+	// UI from being squeezed into a size the window managers cannot lay out.
+	m_widget->resize(m_info.displayWidth, m_info.displayHeight + GESTURE_AREA_HEIGHT);
+	m_widget->setMinimumSize(320, 240 + GESTURE_AREA_HEIGHT);
+	m_widget->installEventFilter(this);
 	m_widget->show();
 }
 
@@ -565,10 +572,15 @@ const char* HostQtDesktop::hardwareName() const
 void HostQtDesktop::setCentralWidget(QWidget* view)
 {
 	GestureStrip* strip = new GestureStrip(view);
-	strip->setFixedSize(m_widget->width(), GESTURE_AREA_HEIGHT);
+	// The height is the strip's own; the width follows the window. Fixing both
+	// pinned it to whatever the window happened to measure at startup.
+	strip->setFixedHeight(GESTURE_AREA_HEIGHT);
 
 	QVBoxLayout* layout = new QVBoxLayout(m_widget);
-    layout->setSizeConstraint(QLayout::SetFixedSize);
+	// No QLayout::SetFixedSize here: it makes the layout's sizeHint both the
+	// minimum and the maximum of the window, which is what actually held the
+	// window at one size. It outranks the two setFixedSize calls -- while it
+	// stood, removing those changed nothing at all.
 	layout->setSpacing(0);
 	layout->setContentsMargins(0, 0, 0, 0);
 	layout->addWidget(view);
@@ -579,6 +591,38 @@ void HostQtDesktop::setCentralWidget(QWidget* view)
 
 	m_mouseFilter = new HostQtDesktopMouseFilter;
 	viewport(view)->installEventFilter(m_mouseFilter);
+}
+
+bool HostQtDesktop::eventFilter(QObject* object, QEvent* event)
+{
+	if (object == m_widget && event->type() == QEvent::Resize) {
+		// The window carries the gesture strip below the UI, so the display is
+		// the window minus the strip -- the same arithmetic init() does, and it
+		// has to stay the same or the two disagree about where the UI ends.
+		const int displayWidth = m_widget->width();
+		const int displayHeight = m_widget->height() - GESTURE_AREA_HEIGHT;
+
+		// Set WEBOS_TRACE_RESIZE=1 to see every size the window is given and who
+		// ends up acting on it. Card animations report a continuum of sizes of
+		// their own, which is easy to mistake for the window being resized over
+		// and over -- these lines are about the window alone.
+		if (G_UNLIKELY(g_getenv("WEBOS_TRACE_RESIZE")))
+			g_message("HOST resize event: window %dx%d -> display %dx%d (was %dx%d)",
+					  m_widget->width(), m_widget->height(),
+					  displayWidth, displayHeight,
+					  m_info.displayWidth, m_info.displayHeight);
+
+		if (displayWidth > 0 && displayHeight > 0 &&
+			(displayWidth != m_info.displayWidth || displayHeight != m_info.displayHeight)) {
+			// m_info first: everything that answers the signal reads the new
+			// size back out of getInfo() rather than from the arguments.
+			m_info.displayWidth = displayWidth;
+			m_info.displayHeight = displayHeight;
+			Q_EMIT signalDisplaySizeChanged(displayWidth, displayHeight);
+		}
+	}
+
+	return HostBase::eventFilter(object, event);
 }
 
 bool HostQtDesktop::hasAltKey(Qt::KeyboardModifiers modifiers)

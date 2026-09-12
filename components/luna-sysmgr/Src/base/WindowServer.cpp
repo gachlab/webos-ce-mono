@@ -394,6 +394,11 @@ WindowServer::WindowServer()
 	m_screenWidth = info.displayWidth;
 	m_screenHeight = info.displayHeight;
 
+	// On a device this never fires. On the desktop the window is resizable, and
+	// the host republishes its new size here after updating HostInfo.
+	connect(host, &HostBase::signalDisplaySizeChanged,
+			this, &WindowServer::slotDisplaySizeChanged);
+
 	if(info.displayWidth > info.displayHeight) {
 		m_deviceIsPortraitType = false;
 	} else {
@@ -445,7 +450,10 @@ WindowServer::WindowServer()
 	scene->setStickyFocus(true);
 
 	setBackgroundBrush(Qt::black);
-	setFixedSize(m_screenWidth, m_screenHeight);
+	// Not setFixedSize: the view is laid out by the host's window and has to be
+	// free to follow it. This was the third of the three pins that held the
+	// window at one size; see HostQtDesktop::show for the other two.
+	resize(m_screenWidth, m_screenHeight);
 	setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
 	setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
 	setViewportUpdateMode(QGraphicsView::FullViewportUpdate);
@@ -496,6 +504,14 @@ WindowServer::WindowServer()
 	m_resizePendingTimer.setInterval(kResizePendingTickIntervalInMS);
 	m_resizePendingTimer.setSingleShot(false);
 	connect(&m_resizePendingTimer, SIGNAL(timeout()), SLOT(slotResizePendingTimerTicked()));
+
+	// Single shot: each re-try that still finds the UI busy arms it again, and
+	// it stops arming itself as soon as the shell and the host agree on the
+	// size, which is the first thing slotDisplaySizeChanged checks.
+	m_displayResizePendingTimer.setInterval(kResizePendingTickIntervalInMS);
+	m_displayResizePendingTimer.setSingleShot(true);
+	connect(&m_displayResizePendingTimer, &QTimer::timeout,
+			this, &WindowServer::slotDisplayResizePendingTimerTicked);
 
 	m_deferredNewOrientationTimer.setInterval(kDeferredNewOrientationIntervalMs);
 	m_deferredNewOrientationTimer.setSingleShot(true);
@@ -1076,6 +1092,59 @@ void WindowServer::slotDeferredNewOrientation()
 		WebAppMgrProxy::instance()->setOrientation(m_deferredNewOrientation);
 		setOrientation(m_deferredNewOrientation);
 	}
+}
+
+void WindowServer::slotDisplaySizeChanged(int width, int height)
+{
+	if (G_UNLIKELY(g_getenv("WEBOS_TRACE_RESIZE")))
+		g_message("SHELL told display is %dx%d (it had %dx%d)",
+				  width, height, m_screenWidth, m_screenHeight);
+
+	if (width == m_screenWidth && height == m_screenHeight)
+		return;
+
+	// Mid-animation the window managers are placing things by hand, and resizing
+	// under them leaves the UI in a state nothing recomputes. The rotation path
+	// asks exactly this before it resizes.
+	if (!okToResizeUi()) {
+		// Dropping it would leave the host and the shell disagreeing about the
+		// size for good: the host has already updated HostInfo -- that is what
+		// this signal reports -- and nobody would ever ask again. So re-try
+		// rather than return.
+		if (G_UNLIKELY(g_getenv("WEBOS_TRACE_RESIZE")))
+			g_message("SHELL is busy, will re-try %dx%d", width, height);
+		m_displayResizePendingTimer.start();
+		return;
+	}
+
+	m_screenWidth = width;
+	m_screenHeight = height;
+
+	// The view itself is sized by the host's layout; what it does not own is the
+	// scene's own extent.
+	if (scene())
+		scene()->setSceneRect(0, 0, width, height);
+
+	// The piece resizeWindowManagers does not do: it gives the root item a new
+	// bounding rect but never moves it, and that rect is centred on the origin,
+	// so without this the whole UI sits half off-screen. WindowServerLuna::init
+	// centres it the same way at startup.
+	m_uiRootItem.setPos(width / 2, height / 2);
+
+	// Everything else the shell already knows how to do, through the same entry
+	// point rotation uses: it recomputes positive and negative space, calls
+	// resizeWindowManagers, and tells the apps via
+	// WebAppMgrProxy::uiDimensionsChanged.
+	SystemUiController::instance()->resizeAndRotateUi(width, height, 0);
+}
+
+void WindowServer::slotDisplayResizePendingTimerTicked()
+{
+	// Read the size back from the host rather than replaying the one remembered
+	// when the re-try was armed: the window may have been dragged again since,
+	// and the host is what owns the real size.
+	const HostInfo& info = HostBase::instance()->getInfo();
+	slotDisplaySizeChanged(info.displayWidth, info.displayHeight);
 }
 
 void WindowServer::resizeWindowManagers(int width, int height)

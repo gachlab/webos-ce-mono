@@ -53,6 +53,12 @@ public:
 
 	bool hasAltKey(Qt::KeyboardModifiers modifiers);
 
+protected:
+	// The window is resizable, so its size is no longer whatever init() was told
+	// at startup: it is whatever the user dragged it to. This watches m_widget
+	// for that and republishes it through HostBase::signalDisplaySizeChanged.
+	virtual bool eventFilter(QObject* object, QEvent* event);
+
 private:
 	QWidget* m_widget;
 	HostQtDesktopKeyFilter* m_keyFilter;

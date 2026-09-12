@@ -350,6 +350,11 @@ Q_SIGNALS:
 private Q_SLOTS:
 
     void slotResizePendingTimerTicked();
+    // The host window changed size. Desktop only: on a device the display is
+    // whatever the framebuffer is and never changes.
+    void slotDisplaySizeChanged(int width, int height);
+    // Re-tries a resize that arrived while the UI was busy animating.
+    void slotDisplayResizePendingTimerTicked();
     void slotRotationLockChanged(OrientationEvent::Orientation rotationLock);
 	void slotProgressAnimationCompleted();
 	void slotRotationAnimFinished();
@@ -373,6 +378,10 @@ private:
 	QPixmap *m_rotationImageBeforePtr, *m_rotationImageAfterPtr;
 	VariantAnimation<WindowServer>* m_rotationAnim;
 	QTimer m_resizePendingTimer;
+	// Deliberately not m_resizePendingTimer above: that one belongs to rotation
+	// -- its tick calls setUiOrientation, and the rotation path starts and stops
+	// it -- so hanging a second meaning on it would fight that code.
+	QTimer m_displayResizePendingTimer;
     QGraphicsItem* m_cachedFocusedItem;
 
 	QTimer m_unaliasPaintEvent;

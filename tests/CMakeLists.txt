@@ -51,6 +51,15 @@ target_link_libraries(touch-coordinate-spaces PRIVATE Qt::Core Qt::Gui Qt::Widge
 add_test(NAME touch-coordinate-spaces
          COMMAND touch-coordinate-spaces -platform offscreen)
 
+# --- whether the shell's window can be resized at all ------------------------
+# Three things pinned it, and QLayout::SetFixedSize outranks the other two: with
+# it in place, removing both setFixedSize calls changes nothing, so the fix
+# looks done while the window still will not move. This holds that down, and
+# checks a resize arrives carrying the size the display is computed from.
+add_executable(window-resize window-resize.cpp)
+target_link_libraries(window-resize PRIVATE Qt::Core Qt::Gui Qt::Widgets)
+add_test(NAME window-resize COMMAND window-resize -platform offscreen)
+
 # --- mouse to touch: a drag has to look like a drag -------------------------
 add_executable(mouse-to-touch
     mouse-to-touch.cpp
