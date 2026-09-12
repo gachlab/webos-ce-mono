@@ -38,6 +38,15 @@ everything here is Apache. These carry their own terms, in their own directory:
     components/luna-init/LICENSE    Apache 2.0
     components/underscore/LICENSE   Apache 2.0
 
+Documentation from elsewhere
+----------------------------
+
+    docs/community-knowledge/       MIT     (c) 2026 webOS Archive
+
+43 reference documents copied from webOSArchive/webos-mcp on 2026-09-10, with
+their LICENSE alongside them. Not HP code, not part of the stack, and not built:
+they are here as study material. See docs/community-knowledge/README.md.
+
 Some vendored third-party sources inside those components are BSD-licensed; see
 the headers of the files themselves.
 
@@ -51,10 +60,13 @@ released them. See Wallpaper_Image_LICENSE.txt inside the latter.
 Changes in this repository
 --------------------------
 
-Everything needed to build HP's 2012 sources on a current Linux: roughly 180
-lines of source changes, plus the scripts under tools/, the tests under tests/
-and the patches under patches/. They are contributed under the same Apache
-License, Version 2.0.
+Everything needed to build HP's 2012 sources on a current Linux. Measured
+against the hp-original tag: 230 files, 8,111 lines added and 433 removed. Of
+that, 6,740 lines are in files HP never shipped -- the compatibility adapters
+under components/qt6-compat, components/qtwebkit-compat and
+components/node-v8-shim -- and 1,804 lines are changes inside HP's own files.
+The scripts under tools/ and the tests under tests/ are ours as well. All of it
+is contributed under the same Apache License, Version 2.0.
 
 The tag `hp-original` marks HP's imported code before any of those changes, so
 `git diff hp-original` shows exactly what was modified and nothing else.

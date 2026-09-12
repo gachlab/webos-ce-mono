@@ -20,7 +20,9 @@ sqlite3 yajl pcre z                ordinary libraries
 ```
 
 Ubuntu 12.04 was **where it used to build**, not something the system drags in.
-It now builds and runs on Debian sid with gcc 16 and Qt 5.15.
+It now builds and runs on Debian sid with gcc 16 and **Qt 6.10** — there is no
+Qt 5 path left in the tree. The X11 libraries listed above are what HP's binary
+linked; today the shell is a native Wayland client by default.
 
 ## Size
 
@@ -69,19 +71,29 @@ What it uses heavily is still alive in Qt6: `QGraphicsView`/`QGraphicsScene`
 
 **Modernisation surface: 27 files**, not 605.
 
-*Since confirmed:* the C++ side needed ~180 lines of changes and now builds and
-runs on Qt 5.15. The QML1 blocker is real and still open — the 34 `.qml` files
-all say `import Qt 4.7`. See `KNOWN_BUGS.md`.
+*Since settled:* the tree builds and runs on **Qt 6.10**, and there is no Qt 5
+path left. The QML1 blocker was real and is closed: the `.qml` files were moved
+to QtQuick 2 and the pieces Qt 6 removed come back through
+`components/qt6-compat`. Measured against the `hp-original` tag, the whole of
+HP's code took 230 files and +8,111 −433 lines to get there — and 6,740 of
+those lines are in files HP never shipped, so the edits inside his own sources
+are 1,804. See `KNOWN_BUGS.md`.
 
 ## The web engine is isolated
 
 `LunaSysMgr` **does not include a single WebKit header**. No `QtWebKit`, no
-`QWebView`, no `QWebPage`. It talks to the engine over **IPC, in 65 files**; the
-browser runs in a separate process (`BrowserServer`).
+`QWebView`, no `QWebPage`. It talks to the engine over **IPC, in 65 files**, and
+in HP's design the browser ran in a separate process of its own
+(`BrowserServer`, reached over NPAPI).
 
 Consequence: the engine can be replaced without touching the window manager. And
 since apps are web pages (`"type": "web"`, `main: index.html`), **modernising the
 engine enables modern-JS apps without touching LunaSysMgr**.
+
+That is no longer a prediction. `BrowserServer` and `BrowserAdapter` are not
+ported at all; QtWebEngine took their place, reached through
+`components/qtwebkit-compat` — and `LunaSysMgr` still includes no WebKit header,
+exactly as the separation promised.
 
 Enyo 1.0 is 2011-era ES5 (verified: 0 arrow functions, 0 `let`, 0 `class`), but
 it does not tie anything down: any framework works as long as it produces
@@ -113,20 +125,21 @@ HP rewrote those closed pieces as open (`nyx-lib` instead of the proprietary
 
 0 `nullptr`, 2 smart pointers across 605 files, raw pointers everywhere.
 
-*Since confirmed:* the volume feared here did not materialise. Building with
-gcc 16 took roughly 180 lines of changes across the whole tree, and nearly all
-of them were APIs that moved underneath (`extern __inline` meaning the opposite
-under C99, OpenSSL structs going opaque, `<cstdint>` no longer arriving
-transitively) rather than anything wrong in HP's code.
+*Since confirmed:* the volume feared here did not materialise. The C++03 style
+was almost never the problem. What had to change were APIs that moved
+underneath (`extern __inline` meaning the opposite under C99, OpenSSL structs
+going opaque, `<cstdint>` no longer arriving transitively) rather than anything
+wrong in HP's code — 1,804 lines inside his sources, most of the rest of the
+work being new adapters written beside them.
 
 ## Plan, by increasing difficulty
 
 | | Effort | Unblocks | State |
 |---|---|---|---|
 | Build system -> CMake | Low | Building offline, in parallel | **done** |
-| Qt4 -> Qt5 | Medium: 27 files | Running on modern distros | **done for C++**, QML open |
-| Web engine | Medium, **isolated by IPC** | Modern-JS apps | **done** (QtWebKit 5.212) |
-| C++03 -> modern | High by volume | Current compilers | **done**, ~180 lines |
+| Qt4 -> Qt6 | Medium: 27 files | Running on modern distros | **done**, C++ and QML both |
+| Web engine | Medium, **isolated by IPC** | Modern-JS apps | **done** — QtWebEngine, through `qtwebkit-compat`. The QtWebKit 5.212 route was tried first and abandoned |
+| C++03 -> modern | High by volume | Current compilers | **done**, 1,804 lines inside HP's files |
 
 ## What is NOT touched
 

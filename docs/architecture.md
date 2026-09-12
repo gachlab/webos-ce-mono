@@ -13,7 +13,7 @@ material: it is the map you can place every component of the monorepo against.
 | **OS Services / OS Middleware** | `pmloglib`, `nyx-lib`, `libsandbox`, `jemalloc`, `filecache`, `db8`, `configurator`, `luna-prefs`, `luna-init`, `librolegen`, `pmstatemachineengine` | build |
 | **App Services** | `luna-universalsearchmgr`, `mojomail`, `activitymanager` | build; the JS ones need node |
 | **UI System Manager** | `luna-sysmgr-ipc`, `luna-sysmgr-ipc-messages` and **`LunaSysMgr`** | builds and runs |
-| **Browser / DocViewers** (over NPAPI) | `BrowserServer`, `BrowserAdapter`, WebKit | untouched |
+| **Browser / DocViewers** (over NPAPI) | `BrowserServer`, `BrowserAdapter`, WebKit | replaced, not ported: see below |
 | **Media / Wireless** | — | HP never released them |
 | Everything below *Kernel/User Space Boundary* | — | out of scope: no kernel, no drivers |
 
@@ -33,6 +33,15 @@ DocViewers OUTSIDE the UI System Manager. That is why `LunaSysMgr` does not
 include a single WebKit header and talks to the engine over IPC:
 `BrowserAdapter` is, literally, an NPAPI plugin. The practical consequence is
 that the web engine can be replaced without touching the window manager.
+
+That is not a hypothetical here: it is what was done. Chromium has no plugin
+socket, so `BrowserServer` and `BrowserAdapter` (~29k lines between them) are
+not ported at all. In their place, `QWebPage::embedPage` paints one page inside
+another — the browser app's dead `<object type="application/x-palm-browser">`
+becomes a hole that a second web view is blitted into — and `BrowserViewAdapter`
+answers the app's `goBack`, `reload`, `setUrl` and the rest straight to
+QtWebEngine. The window manager never learned about any of it, exactly as the
+diagram promises.
 
 **And where the gaps are:** the *Media* and *Wireless* boxes are exactly where
 `media-api`, `hid` and `hal` live — the libraries HP never released. The diagram
