@@ -109,11 +109,32 @@ public:
 		m_homeButton->setAttribute(Qt::WA_AcceptTouchEvents);
 		m_homeButton->setFocusPolicy(Qt::NoFocus);
 
+		// The two keys a desktop has no hardware for. Same shape and behaviour
+		// as the home button: no focus, so they cannot take the keyboard away
+		// from the UI, and a label because unlike the home button there is no
+		// convention that says what they are.
+		m_lockButton = new QPushButton(QStringLiteral("Lock"), this);
+		m_lockButton->setFixedSize(2 * GESTURE_AREA_HEIGHT, (2 * GESTURE_AREA_HEIGHT) / 3);
+		m_lockButton->setAttribute(Qt::WA_AcceptTouchEvents);
+		m_lockButton->setFocusPolicy(Qt::NoFocus);
+		m_lockButton->setToolTip(QStringLiteral("Lock the screen"));
+
+		m_keyboardButton = new QPushButton(QStringLiteral("Keyboard"), this);
+		m_keyboardButton->setFixedSize(2 * GESTURE_AREA_HEIGHT, (2 * GESTURE_AREA_HEIGHT) / 3);
+		m_keyboardButton->setAttribute(Qt::WA_AcceptTouchEvents);
+		m_keyboardButton->setFocusPolicy(Qt::NoFocus);
+		m_keyboardButton->setToolTip(QStringLiteral("Show or hide the on-screen keyboard"));
+
 		QHBoxLayout* layout = new QHBoxLayout;
+		layout->addWidget(m_lockButton);
 		layout->addStretch();
 		layout->addWidget(m_homeButton);
 		layout->addStretch();
+		layout->addWidget(m_keyboardButton);
 		setLayout(layout);
+
+		connect(m_lockButton, SIGNAL(clicked()), SLOT(slotLockButtonClicked()));
+		connect(m_keyboardButton, SIGNAL(clicked()), SLOT(slotKeyboardButtonClicked()));
 
 		m_seenGesture = false;
 
@@ -258,6 +279,21 @@ private Q_SLOTS:
         postGesture(KEYS::Key_CoreNavi_Home);
 	}
 
+	void slotLockButtonClicked() {
+		// WindowServerLuna's key handler turns a lone power press into
+		// DisplayManager::lock(). It cannot be called from here: this file is
+		// in LunaSysMgrCommon, which DisplayManager's library links against and
+		// not the other way round.
+		postGesture(KEYS::Key_HardPower);
+	}
+
+	void slotKeyboardButtonClicked() {
+		// SystemUiController toggles the IME on this key, and the efigs
+		// keyboard plugins are installed where IMEManager looks for them
+		// (/usr/lib/luna).
+		postGesture(KEYS::Key_Keyboard);
+	}
+
 	void slotQuickLaunchGesture() {
 		m_quickLaunch = true;
 		m_seenGesture = true;
@@ -270,6 +306,11 @@ private:
 
 	QWidget *m_mainView;
 	QPushButton* m_homeButton;
+	// A device had these as hardware: the power key locked the screen, and the
+	// keyboard key summoned the on-screen one. A desktop has neither, so the
+	// gesture strip carries them next to the home button.
+	QPushButton* m_lockButton;
+	QPushButton* m_keyboardButton;
 	QPoint m_mouseDownPos;
 	bool m_seenGesture;
 	QPoint m_currentMousePos;

@@ -1247,6 +1247,25 @@ bool WindowServerLuna::processSystemShortcut(QEvent* event)
 			m_powerVolumeKeyComboState.powerKeyPress = (keyEvent->type() == QEvent::KeyPress);
 			if (!m_powerVolumeKeyComboState.powerKeyPress) {
 				cancelFullEraseCountdown();
+
+				// A power press on its own locks the screen, as it does on a
+				// device. Nothing did that here: the only live calls to lock()
+				// are LockWindow's, and every one of them is behind a passcode
+				// or an incoming call, so on a desktop the screen never locked
+				// at all. HP's own Ctrl+L shortcut for non-device builds sits
+				// commented out further down (1285-1310).
+				//
+				// The combos above are untouched. They need a volume key held
+				// and they return on the PRESS, so they never reach here; the
+				// comboDown() guard keeps the release that follows one of them
+				// from locking as a side effect. Verified that a lone press
+				// cannot start the full erase: triggerFullEraseCountdown() acts
+				// only if fullEraseComboDown().
+				if (m_displayMgr && !m_displayMgr->isLocked()
+						&& !m_powerVolumeKeyComboState.comboDown()) {
+					m_displayMgr->lock();
+					return true;
+				}
 			}
 			else if (m_powerVolumeKeyComboState.msmEntryComboDown()) {
 				SystemService::instance()->enterMSM();
