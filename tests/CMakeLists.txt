@@ -131,6 +131,34 @@ add_test(NAME prefixed-transition-event COMMAND prefixed-transition-event)
 set_tests_properties(prefixed-transition-event PROPERTIES
     ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
 
+# What an iframe can see. A QWebEngineScript is main-frame-only unless it says
+# otherwise, so nothing of the bridge reached the mail card's three frames and
+# the account wizard threw "PalmServiceBridge is not defined".
+add_executable(subframe-bridge subframe-bridge.cpp)
+target_link_libraries(subframe-bridge PRIVATE qtwebkit-compat-lib)
+add_test(NAME subframe-bridge COMMAND subframe-bridge)
+set_tests_properties(subframe-bridge PROPERTIES
+    ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
+# Whether a signal reaches the frame that connected it. The reply goes out
+# through QWebEnginePage::runJavaScript, which runs in the main frame alone, so
+# the account wizard's iframe never got its listAccountTemplates callback and
+# AccountWizard threw on a protValidators that was never assigned.
+add_executable(subframe-signal subframe-signal.cpp)
+target_link_libraries(subframe-signal PRIVATE qtwebkit-compat-lib)
+add_test(NAME subframe-signal COMMAND subframe-signal)
+set_tests_properties(subframe-signal PROPERTIES
+    ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
+# What a window opened by window.open() can see in its first script. This one
+# passes unmodified, and is kept for what it rules out: the child-window path
+# was never the fault -- the frames the mail card makes for itself were.
+add_executable(child-window-bridge child-window-bridge.cpp)
+target_link_libraries(child-window-bridge PRIVATE qtwebkit-compat-lib)
+add_test(NAME child-window-bridge COMMAND child-window-bridge)
+set_tests_properties(child-window-bridge PROPERTIES
+    ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
 # The prefixed frame canceller enyo pairs with webkitRequestAnimationFrame.
 # Without it HP's "webkitCancelRequestAnimationFrame || window.clearTimeout"
 # picks clearTimeout, and every cancelled frame clears the timeout that happens

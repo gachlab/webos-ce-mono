@@ -24,8 +24,9 @@ alongside until the apps ran on Qt 6, and was then dropped.
   offscreen and are grabbed; input goes to the view's focus proxy; objects added
   with `addToJavaScriptWindowObject` become JavaScript proxies whose properties
   and methods answer synchronously through a synchronous XHR to a
-  `webos-bridge:///` scheme answered in-process, and whose signals arrive through
-  `runJavaScript`. `tests/webengine-capabilities` checks each QtWebEngine
+  `webos-bridge:///` scheme answered in-process, and whose signals arrive
+  through `runJavaScript` in every frame of the page.
+  `tests/webengine-capabilities` checks each QtWebEngine
   capability this relies on, and `tests/qtwebkit-compat` drives the layer the way
   SysMgrWebBridge does.
 - **Adapters** (`components/qt6-compat`, only compiled for Qt 6): the `QGL*`
@@ -76,6 +77,33 @@ Traps found on the way, each confirmed before being fixed:
 - **A custom scheme is reachable from `file://` pages only when flagged
   `LocalScheme` and `SecureScheme` and addressed without a host
   (`webos-bridge:///...`).** Without either the request never reaches the handler.
+- **A `QWebEngineScript` runs in the main frame only, unless it is told
+  `setRunsOnSubFrames(true)`.** QtWebKit had no such switch: it cleared and
+  repopulated every frame's global object, so HP's code assumes a frame is a
+  frame. Measured on the mail card: the main frame answered `function` for
+  `PalmServiceBridge` while all three of its iframes answered `undefined` for
+  that, for `PalmSystem`, and for `__webosBridge` itself, the bridge's own core.
+  The email app loads `../accounts/` (`mail/depends.js:43`), so the account
+  wizard runs in one of those frames, and adding an account threw
+  `PalmServiceBridge is not defined` at `AccountWizard._getTemplateList`. All six
+  injected scripts set it now; `tests/subframe-bridge` fails without it.
+- **`QWebEnginePage::runJavaScript` reaches the main frame alone**, which left
+  the bridge's return path broken in exactly the same shape. The core keeps its
+  proxies, and the handlers connected to them, in a map private to each frame,
+  so a reply to an object a child frame proxied landed in the main frame's map,
+  which had never heard of that id, and `__webosBridge.emit` returned without
+  calling anything. With a recorder wrapped around the main frame's `emit`, one
+  service call fired from the wizard's iframe logged `[{id: 98, name:
+  "response"}, {id: 87, name: "response"}]` in the *main* frame while the
+  iframe's own callback never ran and its probe stayed `pending`; the same call
+  made from the main frame came back with the template list, so the service and
+  the outbound half were both fine. `AccountWizard.protValidators` is only ever
+  assigned from that callback, so pressing the button to add an account threw
+  `Cannot read properties of undefined (reading 'GOOGLE')` at
+  `AccountWizard.js:1047`. `SignalRelay::deliver()` walks the frame tree with
+  `QWebEngineFrame` now; ids come from one counter for the whole page, so the
+  owner is reached and every other frame's `emit` finds nothing and stops.
+  `tests/subframe-signal` fails without it.
 
 - **A first-ever start needs `init` AFTER `services`, and the tools now enforce
   it.** configurator registers every db8 kind by calling com.palm.db, so db8 has

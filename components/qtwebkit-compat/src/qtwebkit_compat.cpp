@@ -18,6 +18,7 @@
 #include <QQuickWindow>
 #include <QTimer>
 #include <QUrlQuery>
+#include <QWebEngineFrame>
 #include <QWebEnginePage>
 #include <QWebEngineProfile>
 #include <QWebEngineScript>
@@ -458,6 +459,24 @@ QJsonValue toJson(const QVariant& value, QWebEnginePage* page)
     return QJsonValue::fromVariant(value);
 }
 
+// Runs one script in every frame of a page, depth first.
+//
+// QWebEnginePage::runJavaScript reaches the main frame and no other, while the
+// bridge core keeps its proxies, and the handlers connected to them, in a map
+// private to each frame. A reply to an object that a child frame proxied was
+// landing in the main frame's map, which had never heard of that id, so
+// __webosBridge.emit returned without calling anything. Ids come from a single
+// counter for the whole page, so running this everywhere reaches exactly the
+// frame that owns the object: in every other one emit finds nothing and stops.
+void runInEveryFrame(QWebEngineFrame frame, const QString& script)
+{
+    if (!frame.isValid())
+        return;
+    frame.runJavaScript(script);
+    for (QWebEngineFrame child : frame.children())
+        runInEveryFrame(child, script);
+}
+
 // Receives one signal of one object and hands its arguments to JavaScript. It
 // is QSignalSpy's technique: connect to a method index just past QObject's own
 // and catch the call in qt_metacall.
@@ -496,7 +515,7 @@ private:
             .arg(m_id)
             .arg(QString::fromUtf8(QJsonDocument(QJsonArray{QString::fromLatin1(m_signal.name())}).toJson(QJsonDocument::Compact)).mid(1).chopped(1))
             .arg(QString::fromUtf8(QJsonDocument(args).toJson(QJsonDocument::Compact)));
-        m_page->runJavaScript(script);
+        runInEveryFrame(m_page->mainFrame(), script);
     }
 
     QMetaMethod m_signal;
@@ -805,12 +824,19 @@ QWebPage::QWebPage(QObject* parent)
     connect(m_engine, &QWebEnginePage::contentsSizeChanged, m_frame,
             [this](const QSizeF& size) { Q_EMIT m_frame->contentsSizeChanged(size.toSize()); });
 
+    // Every script below runs in the child frames too. A QWebEngineScript is
+    // main-frame-only unless it says otherwise, while QtWebKit cleared and
+    // repopulated every frame's global object -- so HP's code assumes a frame
+    // is a frame. The mail card loads ../accounts/ into an iframe, where the
+    // account wizard asked for PalmServiceBridge and found nothing.
+
     // The bridge's JavaScript half, for documents loaded before any client
     // added an object.
     QWebEngineScript core;
     core.setName(kInjectedScriptName);
     core.setInjectionPoint(QWebEngineScript::DocumentCreation);
     core.setWorldId(QWebEngineScript::MainWorld);
+    core.setRunsOnSubFrames(true);
     core.setSourceCode(QString::fromLatin1(kBridgeCore));
     m_engine->scripts().insert(core);
 
@@ -820,6 +846,7 @@ QWebPage::QWebPage(QObject* parent)
     borderImage.setName(kBorderImageScriptName);
     borderImage.setInjectionPoint(QWebEngineScript::DocumentCreation);
     borderImage.setWorldId(QWebEngineScript::MainWorld);
+    borderImage.setRunsOnSubFrames(true);
     borderImage.setSourceCode(QString::fromLatin1(kBorderImageCompat));
     m_engine->scripts().insert(borderImage);
 
@@ -828,6 +855,7 @@ QWebPage::QWebPage(QObject* parent)
     prefixedEvents.setName(kPrefixedEventScriptName);
     prefixedEvents.setInjectionPoint(QWebEngineScript::DocumentCreation);
     prefixedEvents.setWorldId(QWebEngineScript::MainWorld);
+    prefixedEvents.setRunsOnSubFrames(true);
     prefixedEvents.setSourceCode(QString::fromLatin1(kPrefixedEvents));
     m_engine->scripts().insert(prefixedEvents);
 
@@ -836,6 +864,7 @@ QWebPage::QWebPage(QObject* parent)
     appViewShims.setName(kAppViewShimScriptName);
     appViewShims.setInjectionPoint(QWebEngineScript::DocumentCreation);
     appViewShims.setWorldId(QWebEngineScript::MainWorld);
+    appViewShims.setRunsOnSubFrames(true);
     appViewShims.setSourceCode(QString::fromLatin1(kAppViewShims));
     m_engine->scripts().insert(appViewShims);
 
@@ -844,6 +873,7 @@ QWebPage::QWebPage(QObject* parent)
     frameCancel.setName(kFrameCancelScriptName);
     frameCancel.setInjectionPoint(QWebEngineScript::DocumentCreation);
     frameCancel.setWorldId(QWebEngineScript::MainWorld);
+    frameCancel.setRunsOnSubFrames(true);
     frameCancel.setSourceCode(QString::fromLatin1(kFrameCancel));
     m_engine->scripts().insert(frameCancel);
 }
@@ -1000,6 +1030,9 @@ void QWebFrame::prepareNewDocument()
     script.setName(kInjectedScriptName);
     script.setInjectionPoint(QWebEngineScript::DocumentCreation);
     script.setWorldId(QWebEngineScript::MainWorld);
+    // The objects a client published belong to every frame, as they did under
+    // QtWebKit; see the collection built in QWebPage's constructor.
+    script.setRunsOnSubFrames(true);
     script.setSourceCode(QString::fromLatin1(kBridgeCore) + m_collected);
     scripts.insert(script);
 }
