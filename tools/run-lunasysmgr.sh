@@ -338,6 +338,21 @@ case "${1:-run}" in
     for s in mojodb-luna LunaSysService filecache activitymanager LunaUniversalSearchMgr; do
         service_stop "$ROOTFS/usr/lib/luna/$s"
     done
+    # The JavaScript services too, and they cannot be found the way the C++ ones
+    # are: service_pids compares argv[0] against a binary path, and every JS
+    # service has the same argv[0] -- /usr/palm/nodejs/node -- which matches no
+    # service path, so this loop never reaped one. They survived every restart
+    # instead. One session ended with five copies of com.palm.service.accounts
+    # and two of com.palm.connectionmanager alive at once, 236 minutes of
+    # accumulated CPU between them, with the machine at 13.7% idle.
+    #
+    # What does identify them is the working directory run-js-service leaves
+    # them in: the service's own directory under /usr/palm/services.
+    for d in /proc/[0-9]*; do
+        case "$(readlink "$d/cwd" 2>/dev/null)" in
+            */usr/palm/services/*) kill "${d#/proc/}" 2>/dev/null ;;
+        esac
+    done
     pkill -x ls-hubd; echo "stopped"
     ;;
 esac
