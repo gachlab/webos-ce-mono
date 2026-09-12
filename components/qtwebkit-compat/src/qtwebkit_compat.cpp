@@ -256,6 +256,30 @@ const char kBorderImageCompat[] = R"JS(
         if (!rules)
             return 0;
         for (var r = 0; r < rules.length; r++) {
+            // @media and @supports are grouping rules: they carry no style of
+            // their own and their children are NOT in this list. Skipping them
+            // on the strength of a missing .style, which is what this loop did,
+            // left every rule inside them unpatched -- and enyo puts its whole
+            // radio and tab button theme inside
+            // @media (-webkit-max-device-pixel-ratio: ...).
+            //
+            // The clock's toolbar showed the cost: its two buttons collapsed
+            // onto their bare icons, touching, with no button box at all.
+            // .enyo-radiobutton carries "border-width: 0px 16px" and the
+            // -webkit-border-image sits on .enyo-radiobutton.enyo-first inside
+            // the media block, so the element never got a border-style and its
+            // 16px sides computed to 0. Patching either rule is enough --
+            // border-style applies to the ELEMENT, not to the rule that set it.
+            // Recurse into a grouping rule IN ADDITION to patching this one,
+            // never instead of it. A first attempt did "if (cssRules) { ...;
+            // continue; }" and skipped every ordinary rule too: an empty
+            // CSSRuleList is still an object, so the guard fired on rules that
+            // had a perfectly good .style and the entire sheet went unpatched.
+            // Measured -- the plain "element with a border image" case dropped
+            // from 130 to 100 and no resize was dispatched at all, which is the
+            // signature of the script doing nothing rather than doing it wrong.
+            if (rules[r].cssRules)
+                changed += patchSheet(rules[r]);
             var style = rules[r].style;
             if (!style)
                 continue;

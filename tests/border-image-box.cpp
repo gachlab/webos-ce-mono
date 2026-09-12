@@ -67,10 +67,20 @@ int main(int argc, char** argv)
         "  .plain    { border-width: 15px; }"
         "  .explicit { border-width: 15px; border-style: dashed;"
         "              -webkit-border-image: url(%1) 1 1 1 1 stretch stretch; }"
+        // Inside a grouping rule, which is where enyo keeps the whole radio and
+        // tab button theme -- @media (-webkit-max-device-pixel-ratio: ...).
+        // A walk over sheet.cssRules never reaches these: a CSSMediaRule has no
+        // .style, so a loop that skips on that alone skips the lot. The clock's
+        // toolbar buttons collapsed onto their bare icons because of it.
+        "  @media screen {"
+        "    .inmedia { border-width: 15px;"
+        "               -webkit-border-image: url(%1) 1 1 1 1 stretch stretch; }"
+        "  }"
         "</style></head><body style='margin:0'>"
         "<div id='framed' class='framed'></div>"
         "<div id='plain' class='plain'></div>"
         "<div id='explicit' class='explicit'></div>"
+        "<div id='inmedia' class='inmedia'></div>"
         "</body></html>").arg(image));
 
     if (!waitFor([&]() { return loaded; }, 15000)) {
@@ -100,6 +110,10 @@ int main(int argc, char** argv)
     check("element without one", width("plain"), 100);
     // An author who did declare a style keeps it.
     check("element with its own border-style", width("explicit"), 130);
+    // The same, inside @media. Without recursing into grouping rules this is
+    // 100 -- indistinguishable from having no border image at all, which is
+    // exactly how the clock's toolbar rendered while this test still passed.
+    check("element inside @media", width("inmedia"), 130);
 
     // Restoring the border shrinks every one of these boxes, and an app that
     // already measured itself has to be told. Without this the calculator kept
