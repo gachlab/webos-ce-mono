@@ -1343,18 +1343,40 @@ bool QWebPage::deliverToEmbedded(QEvent* event)
                         ? embedded.page->m_view->focusProxy()
                         : embedded.page->m_view;
 
+        bool handled = false;
         if (event->type() == QEvent::Wheel) {
             QWheelEvent* wheel = static_cast<QWheelEvent*>(event);
             QWheelEvent translated(local, local, wheel->pixelDelta(), wheel->angleDelta(),
                                    wheel->buttons(), wheel->modifiers(),
                                    wheel->phase(), wheel->inverted());
-            return QCoreApplication::sendEvent(target, &translated);
+            handled = QCoreApplication::sendEvent(target, &translated);
+        } else {
+            QMouseEvent* mouse = static_cast<QMouseEvent*>(event);
+            QMouseEvent translated(mouse->type(), local, local,
+                                   mouse->button(), mouse->buttons(), mouse->modifiers());
+            handled = QCoreApplication::sendEvent(target, &translated);
         }
 
-        QMouseEvent* mouse = static_cast<QMouseEvent*>(event);
-        QMouseEvent translated(mouse->type(), local, local,
-                               mouse->button(), mouse->buttons(), mouse->modifiers());
-        return QCoreApplication::sendEvent(target, &translated);
+        // A press is also what decides where typing goes from now on. Without
+        // this the embedded widget takes Qt's focus on the first click and the
+        // app's address bar can never be typed into again; with the keyboard
+        // pinned to the host instead, a field inside the page could never be
+        // typed into. Whichever was pressed last owns it, as in any browser.
+        if (event->type() == QEvent::MouseButtonPress) {
+            m_keyboardOwner = embedded.page;
+            target->setFocus(Qt::MouseFocusReason);
+        }
+
+        return handled;
+    }
+
+    // Pressed somewhere that is not an embedded page: the host takes the
+    // keyboard back, which is what makes the address bar usable again after a
+    // click in the content.
+    if (event->type() == QEvent::MouseButtonPress) {
+        m_keyboardOwner.clear();
+        if (QWidget* host = m_view->focusProxy() ? m_view->focusProxy() : m_view)
+            host->setFocus(Qt::MouseFocusReason);
     }
 
     return false;
@@ -1364,6 +1386,23 @@ bool QWebPage::event(QEvent* event)
 {
     if (deliverToEmbedded(event))
         return true;
+
+    // Typing goes to whatever was pressed last. WebAppMgr sends every key to
+    // the host page, so an embedded page would never see one otherwise.
+    switch (event->type()) {
+    case QEvent::KeyPress:
+    case QEvent::KeyRelease:
+    case QEvent::InputMethod:
+        if (!m_keyboardOwner.isNull()) {
+            QWidget* target = m_keyboardOwner->m_view->focusProxy()
+                            ? m_keyboardOwner->m_view->focusProxy()
+                            : m_keyboardOwner->m_view;
+            return QCoreApplication::sendEvent(target, event);
+        }
+        break;
+    default:
+        break;
+    }
 
     switch (event->type()) {
     case QEvent::MouseButtonPress:

@@ -104,6 +104,50 @@ Traps found on the way, each confirmed before being fixed:
   `QWebEngineFrame` now; ids come from one counter for the whole page, so the
   owner is reached and every other frame's `emit` finds nothing and stops.
   `tests/subframe-signal` fails without it.
+- **Nothing scrolls a page by wheel, anywhere, because webOS had no wheel.**
+  `Event::Type` (`luna-sysmgr-ipc-messages/.../SysMgrEvent.h`, reached through
+  `luna-sysmgr-common/include/Event.h`) is `Key*`, `Pen*`, `Gesture*` and the
+  sensors -- there is no scroll or wheel member, and `QEvent::Wheel`,
+  `QWheelEvent` and `wheelEvent` appear nowhere in luna-sysmgr or in
+  webappmanager. A trackpad's two-finger swipe is therefore dropped before any
+  of our code sees it, and the browser's embedded page cannot be scrolled by
+  one. Adding it means a new event type carried the whole way: shell, IPC, app.
+- **Faking that scroll from the drag does not work, and the numbers are worth
+  keeping so nobody pays for them twice.** A drag already reaches an embedded
+  page as mouse events, so it was turned into wheel events there instead.
+  Delivering to that offscreen widget, QtWebEngine acts on `angleDelta` and
+  ignores `pixelDelta`, and the phased form it does not listen for at all:
+  `pixelDelta` + `angleDelta` with `NoScrollPhase` moved 80 px of drag by 4 px;
+  `pixelDelta` alone with `ScrollUpdate`, 0; a full `ScrollBegin`, updates,
+  `ScrollEnd` sequence, 0. Scaling the angle by the 20:1 those first numbers
+  implied then overshot to 720 px, so the relationship is not even linear. It
+  was all reverted: an unexplained constant that does not extrapolate is not
+  worth shipping, and a drag that scrolls also costs text selection, which
+  works today.
+- **The touch path is plumbed the whole way and amputated at the last metre.**
+  The shell synthesises touch from the mouse and sends it
+  (`CardWindow::touchEvent` -> `View_TouchEvent`), and WebAppMgr registers the
+  handler (`WindowedWebApp.cpp:197`) -- but the body of `onTouchEvent` is
+  commented out, lines 691 to 762, because it calls
+  `m_page->webkitView()->touchEvent(...)` and `webkitView()` is declared only in
+  `luna-sysmgr-ce`, HP's QtWebKit `Palm::WebView`, which this tree does not
+  build. So touches arrive over IPC and land in an empty function. Writing that
+  last metre against Qt would give Chromium real touch, and with it the native
+  kinetic scrolling the wheel cannot provide. It is the principled fix and it is
+  not small.
+- **Two settings files, and the second one wins, and it is not called what it is
+  called.** `Settings::load` reads `/etc/palm/luna.conf` and then
+  `/etc/palm/luna-platform.conf` (Settings.cpp:248-249), so every key the second
+  defines overrides the first. There is no `luna-platform.conf` in the source
+  tree: `assemble-rootfs.sh:21` copies `luna-sysmgr/conf/luna-desktop.conf` to
+  that name. So the screen size lives in `luna-desktop.conf`, and editing
+  `DisplayWidth` in `luna.conf` changes nothing at all. What makes it worth a
+  note is how convincing the failure looks: the file is right, the `[General]`
+  section is right -- `KEY_INTEGER("General","DisplayWidth",...)`,
+  Settings.cpp:406 -- and reading the running shell's own copy through
+  `/proc/<pid>/root/etc/palm/luna.conf` shows the new value, because `/etc/palm`
+  really is bind-mounted from the rootfs. Everything checks out except the
+  result.
 
 - **A first-ever start needs `init` AFTER `services`, and the tools now enforce
   it.** configurator registers every db8 kind by calling com.palm.db, so db8 has

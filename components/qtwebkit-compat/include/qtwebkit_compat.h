@@ -257,6 +257,11 @@ private:
         QMetaObject::Connection repaintLink;
     };
     QList<EmbeddedPage> m_embedded;
+
+    // Which surface the keyboard belongs to: the last one pressed. Null is the
+    // host's own page, which is where the app's address bar lives. Keys follow
+    // a focus, not a position, so they cannot be routed the way touches are.
+    QPointer<QWebPage> m_keyboardOwner;
 };
 
 class QWebFrame : public QObject

@@ -6,6 +6,7 @@
 #include <QWebFrame>
 #include <QWebPage>
 
+#include <QWebEngineFullScreenRequest>
 #include <QWebEngineHistory>
 #include <QWebEnginePage>
 
@@ -13,7 +14,25 @@ BrowserViewAdapter::BrowserViewAdapter(QWebPage* host, QObject* parent)
     : QObject(parent)
     , m_host(host)
     , m_view(new QWebPage(this))
+    , m_fullScreen(false)
 {
+    // Nobody was answering this, so a video's fullscreen button did nothing.
+    connect(m_view->enginePage(), &QWebEnginePage::fullScreenRequested, this,
+            [this](QWebEngineFullScreenRequest request) {
+        request.accept();
+        if (!m_host)
+            return;
+        if (request.toggleOn()) {
+            m_rectBeforeFullScreen = m_rect;
+            m_fullScreen = true;
+            m_host->embedPage(m_view, QRect(QPoint(0, 0), m_host->viewportSize()));
+        } else {
+            m_fullScreen = false;
+            if (!m_rectBeforeFullScreen.isEmpty())
+                m_host->embedPage(m_view, m_rectBeforeFullScreen);
+        }
+    });
+
     // Straight through to the engine. Our QWebPage::triggerAction only carries
     // the editing actions QtWebKit's callers used, so navigation goes to
     // QWebEnginePage, which has all four.
@@ -37,6 +56,11 @@ void BrowserViewAdapter::setGeometry(int x, int y, int width, int height)
 {
     m_rect = QRect(x, y, width, height);
     if (!m_host || !m_view)
+        return;
+    // While a video is fullscreen the app keeps reporting the geometry of its
+    // ordinary content area, which would put the hole straight back and end the
+    // fullscreen a frame after it started. Remember it, do not apply it.
+    if (m_fullScreen)
         return;
     // An empty rect is not a mistake: it is the page saying "not now", because
     // the hole is hidden or the app has opened something over it. It goes

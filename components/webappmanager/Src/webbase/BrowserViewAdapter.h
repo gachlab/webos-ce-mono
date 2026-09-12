@@ -80,6 +80,14 @@ private:
     QPointer<QWebPage> m_host;
     QWebPage* m_view;
     QRect m_rect;
+
+    // Fullscreen video. The page asks through QWebEnginePage's
+    // fullScreenRequested, which nobody was answering, so the button did
+    // nothing. Answering it means growing the hole to the whole card and
+    // putting it back afterwards -- and ignoring the geometry the app keeps
+    // reporting meanwhile, which is the size of its ordinary content area.
+    QRect m_rectBeforeFullScreen;
+    bool m_fullScreen;
 };
 
 // addToJavaScriptWindowObject publishes an INSTANCE, not a constructor, and the
