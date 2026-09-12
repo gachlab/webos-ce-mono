@@ -160,6 +160,15 @@ add_test(NAME embedded-view COMMAND embedded-view)
 set_tests_properties(embedded-view PROPERTIES
     ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
 
+# Whether a click inside the hole reaches the page painted there. Without it
+# the browser renders and nothing in it can be clicked or scrolled: every touch
+# lands on the page that holds the hole.
+add_executable(embedded-input embedded-input.cpp)
+target_link_libraries(embedded-input PRIVATE qtwebkit-compat-lib)
+add_test(NAME embedded-input COMMAND embedded-input)
+set_tests_properties(embedded-input PROPERTIES
+    ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
 # What one repaint of a card costs, for deciding how to back the browser's
 # <object> with a real view. Deliberately NOT add_test: it measures and always
 # succeeds, and a test that cannot fail is noise in the suite. Run it by hand:

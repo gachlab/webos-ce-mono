@@ -30,3 +30,6 @@ components/*/cfg.log
 # Python bytecode, from the tools under tools/
 __pycache__/
 *.pyc
+
+# editor settings, not the project's
+.vscode/

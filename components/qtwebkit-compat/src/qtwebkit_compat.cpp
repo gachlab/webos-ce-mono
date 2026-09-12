@@ -10,6 +10,7 @@
 #include <QJsonObject>
 #include <QMetaMethod>
 #include <QMetaProperty>
+#include <QMouseEvent>
 #include <QPainter>
 #include <QPixmap>
 #include <QQuickWidget>
@@ -1303,8 +1304,67 @@ void QWebPage::setPalette(const QPalette& palette)
         m_engine->setBackgroundColor(Qt::transparent);
 }
 
+// An event that carries a position belongs to whatever is painted where it
+// landed. WebAppMgr turns the shell's touches into QMouseEvents in the card's
+// coordinates and gives them to the host page (WindowedWebApp.cpp:405), which
+// knows only its own widget -- so with a page embedded in it, the browser drew
+// its content and nothing in it could be clicked or scrolled: every touch was
+// delivered to the page holding the hole, where there is only an empty div.
+//
+// Keyboard events are deliberately not routed here. They follow focus rather
+// than a position, and sending them to an embedded page would take typing away
+// from the address bar, which is the app's own field. That needs a focus model
+// of its own.
+bool QWebPage::deliverToEmbedded(QEvent* event)
+{
+    switch (event->type()) {
+    case QEvent::MouseButtonPress:
+    case QEvent::MouseButtonRelease:
+    case QEvent::MouseButtonDblClick:
+    case QEvent::MouseMove:
+    case QEvent::Wheel:
+        break;
+    default:
+        return false;
+    }
+
+    const QPointF where = static_cast<QSinglePointEvent*>(event)->position();
+
+    // Last registered is topmost, so it is asked first.
+    for (int i = m_embedded.size() - 1; i >= 0; --i) {
+        const EmbeddedPage& embedded = m_embedded[i];
+        if (embedded.page.isNull() || embedded.rect.isEmpty())
+            continue;
+        if (!embedded.rect.contains(where.toPoint()))
+            continue;
+
+        const QPointF local = where - QPointF(embedded.rect.topLeft());
+        QWidget* target = embedded.page->m_view->focusProxy()
+                        ? embedded.page->m_view->focusProxy()
+                        : embedded.page->m_view;
+
+        if (event->type() == QEvent::Wheel) {
+            QWheelEvent* wheel = static_cast<QWheelEvent*>(event);
+            QWheelEvent translated(local, local, wheel->pixelDelta(), wheel->angleDelta(),
+                                   wheel->buttons(), wheel->modifiers(),
+                                   wheel->phase(), wheel->inverted());
+            return QCoreApplication::sendEvent(target, &translated);
+        }
+
+        QMouseEvent* mouse = static_cast<QMouseEvent*>(event);
+        QMouseEvent translated(mouse->type(), local, local,
+                               mouse->button(), mouse->buttons(), mouse->modifiers());
+        return QCoreApplication::sendEvent(target, &translated);
+    }
+
+    return false;
+}
+
 bool QWebPage::event(QEvent* event)
 {
+    if (deliverToEmbedded(event))
+        return true;
+
     switch (event->type()) {
     case QEvent::MouseButtonPress:
     case QEvent::MouseButtonRelease:

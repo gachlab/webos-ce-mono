@@ -235,6 +235,11 @@ private:
 
     void followRenderSurface();
 
+    // Hands an event that carries a position to the page painted at that
+    // position, in that page's own coordinates. Returns false when there is
+    // none there, and the host keeps it.
+    bool deliverToEmbedded(QEvent* event);
+
     Engine* m_engine;
     QWebEngineView* m_view;
     QWebFrame* m_frame;
