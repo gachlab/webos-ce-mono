@@ -135,6 +135,40 @@ Traps found on the way, each confirmed before being fixed:
   last metre against Qt would give Chromium real touch, and with it the native
   kinetic scrolling the wheel cannot provide. It is the principled fix and it is
   not small.
+- **Native touch was tried and reverted, and the order of the work matters.**
+  The engine side works: a synthetic QTouchEvent handed to QWebPage::event
+  reaches the page -- touchstart and touchend fire at the exact coordinates sent
+  -- and Chromium's gesture recognizer scrolls from it. MEASURED twice,
+  identically: 145px of scroll out of a 160px drag, with the touch points
+  carrying real press and last positions. Points whose three positions are all
+  the current one scroll nothing, the same trap MouseToTouch documents.
+
+  Three things were measured that make it more than a missing call:
+
+  * The engine does not advertise touch. `navigator.maxTouchPoints` stays 0 and
+    `'ontouchstart' in window` is false, so enyo apps, which feature-detect,
+    keep taking their mouse path however many touches arrive. Passing Chromium
+    `--touch-events=enabled` did not fix that and made things worse -- one run
+    reported zero touches delivered, two later runs stopped producing output
+    after the first two lines. Not pursued: the no-flag path works.
+  * Chromium synthesizes a click from each touch sequence. The shell also sends
+    the same tap as pen events, so with both alive every tap counts twice. That
+    is what HP's filter in `CardWebApp::onInputEvent` is for.
+  * **Switching that filter on kills the browser's drag-to-scroll**, which is
+    what ended the attempt. That scroll is built on pen events reaching
+    `deliverToEmbedded`'s `m_dragging` path in the compat layer, and the filter
+    drops exactly those. Worse, `deliverToEmbedded` handles Mouse\* and Wheel
+    and nothing else, so a touch never reaches an embedded page at all: in the
+    browser it lands on the host page -- the chrome -- and not on the content.
+
+  So the order is: teach `deliverToEmbedded` to route touch by position the way
+  it already routes the mouse, and only then is suppressing the pen events safe.
+  Doing it the other way round leaves the browser with no working scroll.
+
+  One more thing found on the way: `needTouchEvents` had zero callers. QtWebKit
+  called it when a page registered touch listeners; QtWebEngine gives no such
+  signal, so the shell's sender and the `View_TouchEvent` message have been
+  alive the whole time waiting for a request nobody ever made.
 - **The keyboard button allows the on-screen keyboard, it does not summon it.**
   `KEYS::Key_Keyboard` reaches `SystemUiController` (line 616), which calls
   `IMEController::setIMEActive`. That sets `m_imeAllowed` and then re-evaluates
