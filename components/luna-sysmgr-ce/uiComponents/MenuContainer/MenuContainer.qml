@@ -1,4 +1,4 @@
-import QtQuick 2.0
+import Qt 4.7
 
 Item {
     id: menuconatiner
@@ -23,7 +23,7 @@ Item {
     }
 
     function setContent(menuContent) {
-        mainMenu.children = [menuContent]
+        mainMenu.children = [content]
     }
 
     signal menuScrollStarted();

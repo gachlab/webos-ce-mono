@@ -1,4 +1,4 @@
-import QtQuick 2.0
+import Qt 4.7
 
 
 Item {
@@ -70,7 +70,7 @@ Item {
         airplane.airplaneOn = ((state == 2) || (state == 3));
         airplaneModeInProgress = ((state == 1) || (state == 2));
 
-        if(airplaneModeInProgress) {
+        if(inProgress) {
             wifi.close();
             vpn.close();
             bluetooth.close();

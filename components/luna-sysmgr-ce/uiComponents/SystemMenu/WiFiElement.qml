@@ -1,4 +1,4 @@
-import QtQuick 2.0
+import Qt 4.7
 import SystemMenu 1.0
 
 Drawer {
