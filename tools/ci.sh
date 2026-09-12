@@ -55,7 +55,7 @@ libsqlite3-dev libssl-dev libxml2-dev libyajl-dev libicu-dev
 libdb5.3-dev libcurl4-openssl-dev zlib1g-dev
 libboost-filesystem-dev libboost-regex-dev libboost-program-options-dev
 libc-ares-dev liburiparser-dev
-nodejs
+nodejs libnode-dev
 PKGS
 
 build_image() {                 # build_image <release>
@@ -114,7 +114,11 @@ run_target() {                  # run_target <release>
                         # sorts late -- pmloglib, pmstatemachineengine -- which
                         # is as useless as dumping none.
                         found=0; \
-                        for l in $(ls -t build/*/*.log /tmp/t.log 2>/dev/null); do \
+                        # /tmp/webos/*.log too: the node addon stage writes its
+                        # log there and names it in the failure message, and a
+                        # loop over build/*/*.log alone skipped the one file that
+                        # mattered.
+                        for l in $(ls -t build/*/*.log /tmp/webos/*.log /tmp/t.log 2>/dev/null); do \
                             [ -s "$l" ] || continue; \
                             # pkg-config says "None of the required X were found"
                             # and "No package X found" without ever using the
