@@ -65,6 +65,15 @@ export NODE_OPTIONS="--require /usr/palm/nodejs/webos-node-compat.js${NODE_OPTIO
 # 21 Prelude and 97 in total, losing none of Debian's.
 export FONTCONFIG_FILE="$ROOTFS/etc/fonts.conf"
 export DISPLAY="${DISPLAY:-:0}"
+# A debugger against the Chromium the apps actually run in. With
+#   WEBOS_WAM_INSPECTOR=9222 tools/run-lunasysmgr.sh
+# QtWebEngine opens the DevTools server on that port, and every card, dashboard
+# and headless page shows up as a target: http://127.0.0.1:9222 in a browser,
+# or /json from a script. Off unless asked for -- it is a debug channel.
+if [ -n "${WEBOS_WAM_INSPECTOR:-}" ]; then
+    export QTWEBENGINE_REMOTE_DEBUGGING="$WEBOS_WAM_INSPECTOR"
+fi
+
 export QT_QPA_PLATFORM=xcb   # LunaSysMgr asks for the "palm" plugin, which came with HP's own Qt
 
 mkdir -p /tmp/webos/ls2 /tmp/webos/captures
