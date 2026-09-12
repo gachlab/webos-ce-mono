@@ -25,6 +25,9 @@
 #include <QObject>
 #include <QWidget>
 #include <QEvent>
+// For QMouseEvent::button below: the filter has to know which button it is
+// looking at, and <QEvent> alone only forward-declares the base class.
+#include <QMouseEvent>
 
 QT_BEGIN_NAMESPACE
 class QEvent;
@@ -53,6 +56,32 @@ protected:
             e->type() == QEvent::MouseMove) {
             if (m_surface && o != m_surface)
                 return QObject::eventFilter(o, e);
+
+            // The right button is let through untouched. Everything below is
+            // how webOS gets its touches: ignore() marks the event unhandled
+            // and Qt's AA_SynthesizeTouchForUnhandledMouseEvents (Main.cpp:698)
+            // turns it into a finger at the QPA layer. A finger has no button,
+            // so a right-click used to arrive as an ordinary tap -- worse than
+            // nothing, because the page acted on it.
+            //
+            // Passing it on instead leaves it a mouse event the whole way:
+            // WindowServer::deliverAsTouch refuses to make a finger of it,
+            // viewportEvent hands it to QGraphicsView, the card fills in
+            // Event::Right, and QWebPage::deliverToEmbedded forwards the button
+            // to the page, which is what gives an embedded page its context
+            // menu. The left button keeps the path it has always had.
+            {
+                QMouseEvent *me = static_cast<QMouseEvent *>(e);
+                // buttons() as well as button(): Qt reports button() as
+                // NoButton on a move and keeps what is held down in buttons().
+                // Checking only the first would send a right-drag's press down
+                // the mouse path and every move after it down the touch one,
+                // and the card would see half a gesture from each.
+                if (me->button() == Qt::RightButton ||
+                    me->buttons().testFlag(Qt::RightButton))
+                    return QObject::eventFilter(o, e);
+            }
+
             e->ignore();
             return true;
         }

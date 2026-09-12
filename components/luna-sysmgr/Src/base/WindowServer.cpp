@@ -761,6 +761,16 @@ static const QPointingDevice* touchDevice()
 
 bool WindowServer::deliverAsTouch(QMouseEvent* me)
 {
+	// A finger has no button, so only the left one is allowed to become one.
+	// Without this guard a right-click arrives as an ordinary tap, which is
+	// worse than doing nothing: the page acts on it. Refusing here leaves the
+	// event a mouse event, and QGraphicsView::viewportEvent at the end of
+	// viewportEvent then delivers it to the card, which is what can carry a
+	// button through to the page -- QWebPage::deliverToEmbedded already
+	// forwards mouse->button() unchanged.
+	if (me->button() != Qt::LeftButton && me->button() != Qt::NoButton)
+		return false;
+
 	QEvent::Type type;
 	Qt::TouchPointState state;
 	switch (me->type()) {

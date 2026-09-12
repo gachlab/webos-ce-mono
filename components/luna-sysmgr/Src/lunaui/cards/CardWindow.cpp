@@ -421,6 +421,11 @@ void CardWindow::mousePressEvent(QGraphicsSceneMouseEvent* event)
 	ev.x = x;
 	ev.y = y;
 	ev.clickCount = 1;
+	// The button, which nothing used to set. HP's Event has carried Left,
+	// Middle and Right all along (SysMgrEvent.h) and every site in the shell
+	// wrote Event::Left literally, so a right-click could not be told from a
+	// left one even after it survived the touch synthesis.
+	ev.button = (event->button() == Qt::RightButton) ? Event::Right : Event::Left;
 	ev.modifiers = Event::modifiersFromQt(event->modifiers());
 	ev.time = Time::curSysTimeMs();
 
@@ -508,6 +513,10 @@ void CardWindow::mouseReleaseEvent(QGraphicsSceneMouseEvent* event)
 	ev.x = x;
 	ev.y = y;
 	ev.clickCount = 0;
+	// Set on the release as well as the press: this handler produces PenUp or
+	// PenCancel depending on whether the event was accepted, and a page that is
+	// given a right press and then a left release gets a mismatched pair.
+	ev.button = (event->button() == Qt::RightButton) ? Event::Right : Event::Left;
 	ev.modifiers = Event::modifiersFromQt(event->modifiers());
 	ev.time = Time::curSysTimeMs();
 

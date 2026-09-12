@@ -405,10 +405,18 @@ void WindowedWebApp::inputEvent(sptr<Event> e)
 
     if(Event::isPenEvent(evt)) {
         if (evt->type == Event::PenDown) {
-            QMouseEvent* qtEvent = new QMouseEvent(QEvent::MouseButtonPress, QPoint(evt->x, evt->y), Qt::LeftButton, Qt::LeftButton, 0);
+            // HP's Event has carried a button all along (Event::Left, Middle,
+            // Right) and this hardcoded Qt::LeftButton threw it away, so a
+            // right-click could never reach a page even once the shell started
+            // sending one. Nothing read evt->button before this.
+            const Qt::MouseButton qtButton =
+                (evt->button == Event::Right) ? Qt::RightButton : Qt::LeftButton;
+            QMouseEvent* qtEvent = new QMouseEvent(QEvent::MouseButtonPress, QPoint(evt->x, evt->y), qtButton, qtButton, 0);
             bridge->page()->event(qtEvent);
         } else if (evt->type == Event::PenUp) {
-            QMouseEvent* qtEvent = new QMouseEvent(QEvent::MouseButtonRelease, QPoint(evt->x, evt->y), Qt::LeftButton, Qt::LeftButton, 0);
+            const Qt::MouseButton qtButton =
+                (evt->button == Event::Right) ? Qt::RightButton : Qt::LeftButton;
+            QMouseEvent* qtEvent = new QMouseEvent(QEvent::MouseButtonRelease, QPoint(evt->x, evt->y), qtButton, qtButton, 0);
             bridge->page()->event(qtEvent);
             QWebHitTestResult hitTest = bridge->page()->mainFrame()->hitTestContent(QPoint(evt->x, evt->y));
             if (hitTest.isContentEditable()) {
