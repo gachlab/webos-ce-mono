@@ -162,6 +162,18 @@ run_target() {                  # run_target <release>
     echo "  PASSED on $rel"
 }
 
+# What a caller wants out of a run, in one place. Grepping the log by hand for
+# this has produced two empty reports already: the per-component lines are
+# "<name>  OK" and "<name>  CONFIG FAILED", which match none of the obvious
+# patterns like "^== " or "tests passed".
+ci_summary() {                  # ci_summary <logfile>
+    local log="$1"
+    echo "--- components ---"
+    grep -E "^[a-z0-9/-]+ +(OK|CONFIG FAILED|BUILD FAILED|INSTALL FAILED|FAILED)" "$log" || echo "  (none reported)"
+    echo "--- stages, tests, verdict ---"
+    grep -E "^== |rootfs assembled|tests passed|tests failed|Total Test time|PASSED on|FAILED on|^ci: " "$log" || true
+}
+
 failed=0
 if [ $# -gt 0 ]; then
     for rel in "$@"; do run_target "$rel" || failed=1; done

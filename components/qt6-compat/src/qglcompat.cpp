@@ -68,7 +68,14 @@ GLuint QGLContext::bindTexture(const QImage& image, GLenum target, GLint format,
                                           ? QImage::Format_RGBA8888_Premultiplied
                                           : QImage::Format_RGBA8888);
     if (options & InvertedYBindOption)
-        upload = upload.flipped(Qt::Vertical);
+        // mirrored(), not flipped(Qt::Vertical): flipped() arrived after Qt 6.8,
+        // which is what Debian stable ships, and CI on trixie caught it here.
+        // They are the same call underneath -- flipped(Qt::Vertical) is
+        // mirrored_helper(false, true), which is what mirrored(false, true)
+        // reaches too -- so this compiles on 6.8 and 6.10 alike with no version
+        // guard. Qt marks mirrored() deprecated from 6.13; when that lands, this
+        // is where the #if goes.
+        upload = upload.mirrored(false, true);
 
     QOpenGLFunctions* gl = m_context->functions();
     GLuint id = 0;
