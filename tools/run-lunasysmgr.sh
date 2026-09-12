@@ -104,7 +104,16 @@ export DISPLAY="${DISPLAY:-:0}"
 # QtWebEngine opens the DevTools server on that port, and every card, dashboard
 # and headless page shows up as a target: http://127.0.0.1:9222 in a browser,
 # or /json from a script. Off unless asked for -- it is a debug channel.
-if [ -n "${WEBOS_WAM_INSPECTOR:-}" ]; then
+# On by default now, because not having it has cost more than it saves. Twice in
+# one session a measurement had to be abandoned for want of it: the border-image
+# boxes and the right-click path could both be read straight out of the page, and
+# neither could be, because the shell happened to be started without the port.
+# Restarting to gain a debugger throws away the state that made the bug visible.
+#
+# WEBOS_WAM_INSPECTOR=0 (or empty) turns it off, for a run where nothing should
+# be listening. It binds 127.0.0.1 only.
+WEBOS_WAM_INSPECTOR="${WEBOS_WAM_INSPECTOR-9222}"
+if [ -n "$WEBOS_WAM_INSPECTOR" ] && [ "$WEBOS_WAM_INSPECTOR" != 0 ]; then
     export QTWEBENGINE_REMOTE_DEBUGGING="$WEBOS_WAM_INSPECTOR"
 fi
 
