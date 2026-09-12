@@ -74,7 +74,13 @@ if [ -n "${WEBOS_WAM_INSPECTOR:-}" ]; then
     export QTWEBENGINE_REMOTE_DEBUGGING="$WEBOS_WAM_INSPECTOR"
 fi
 
-export QT_QPA_PLATFORM=xcb   # LunaSysMgr asks for the "palm" plugin, which came with HP's own Qt
+# LunaSysMgr asks for the "palm" plugin, which came with HP's own Qt, so some
+# platform has to be named here. Which one is not load-bearing: there is no
+# X11-specific code in the shell, WebAppMgr or luna-sysmgr-common. An explicit
+# choice from the environment wins, the same way DISPLAY does above, so
+#   QT_QPA_PLATFORM=wayland tools/run-lunasysmgr.sh run
+# is a try rather than an edit.
+export QT_QPA_PLATFORM="${QT_QPA_PLATFORM:-xcb}"
 
 mkdir -p /tmp/webos/ls2 /tmp/webos/captures
 
