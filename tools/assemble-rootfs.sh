@@ -461,6 +461,14 @@ JSON
     cp -f "$S/usr/palm/nodejs/"*.node "$ROOTFS/usr/palm/nodejs/" 2>/dev/null || true
     cp -f "$R/components/node-v8-shim/js/webos-node-compat.js" "$ROOTFS/usr/palm/nodejs/"
     echo "  node:                $NODE_BIN bound at /usr/palm/nodejs/node"
+else
+    # Say it out loud. Everything else assembles without node and the shell
+    # starts, so the only symptom is that the JavaScript services never come
+    # up -- accounts, contacts, calendar reminders -- which reads like a dozen
+    # unrelated bugs rather than one missing dependency.
+    echo "  node:                NOT FOUND on PATH -- JavaScript services will not start"
+    echo "                       (HP's own node is not built: it needs Python 2 and SCons."
+    echo "                        Any node with N-API works; verified on 26.7.0.)"
 fi
 
 # The bus's own .conf files, written last and only when they change.

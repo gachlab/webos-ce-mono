@@ -27,6 +27,14 @@ Needs a modern Debian (tested on sid) with Qt 6 -- `qt6-base-dev`,
 `qt6-webengine-dev`, `qt6-scxml-dev` -- plus the development headers for glib,
 sqlite3, openssl, libxml2 and boost.
 
+**node comes from the host**, and it is the one dependency that is not in here.
+HP's own `components/nodejs` is not built: it needs Python 2 and SCons. His three
+addons are, from their original sources, against `components/node-v8-shim` --
+which implements node 0.4's V8 API on N-API, so they keep loading on later node
+releases without recompiling. Verified on **node 26.7.0**; anything with N-API
+should do. Without a `node` on `PATH` everything else still builds, and the
+JavaScript services simply do not start.
+
 ```sh
 tools/build.sh              # everything, in MANIFEST order
 tools/run-lunasysmgr.sh     # start the shell
@@ -58,6 +66,10 @@ expects point at the local rootfs.
 - `tests/` — small standalone programs that reproduce a specific failure without
   bringing the whole system up.
 - `MANIFEST.tsv` — the 55 components with their repo, ref and build system.
+- `docs/component-inventory.md` — which of them are built, which are data, which
+  are deliberately not built and why, plus what is here that no longer has a
+  use. Written against a from-scratch build, with the command behind each
+  figure.
 - `tools/build-webos-desktop.sh.reference` — HP's original script, kept because
   **its call order is the dependency graph**, already topologically sorted. It
   is the source the new orchestration derives from.
