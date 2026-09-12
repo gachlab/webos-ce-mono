@@ -52,6 +52,7 @@ qt6-declarative-dev qt6-declarative-private-dev
 qt6-webengine-dev qt6-scxml-dev
 libglib2.0-dev libglibmm-2.4-dev libsigc++-2.0-dev
 libsqlite3-dev libssl-dev libxml2-dev libyajl-dev libicu-dev
+libdb5.3-dev
 libboost-filesystem-dev libboost-regex-dev libboost-program-options-dev
 libc-ares-dev liburiparser-dev
 nodejs
