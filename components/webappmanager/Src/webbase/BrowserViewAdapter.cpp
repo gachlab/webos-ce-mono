@@ -9,6 +9,7 @@
 #include <QWebEngineFullScreenRequest>
 #include <QWebEngineHistory>
 #include <QWebEnginePage>
+#include <QWebEngineSettings>
 
 BrowserViewAdapter::BrowserViewAdapter(QWebPage* host, QObject* parent)
     : QObject(parent)
@@ -16,6 +17,13 @@ BrowserViewAdapter::BrowserViewAdapter(QWebPage* host, QObject* parent)
     , m_view(new QWebPage(this))
     , m_fullScreen(false)
 {
+    // Without this the request is never made: QtWebEngine does not emit
+    // fullScreenRequested at all unless the page is allowed to ask, so the
+    // handler below was correct and could never have run. Nothing in this tree
+    // turns it on anywhere else.
+    m_view->enginePage()->settings()->setAttribute(
+        QWebEngineSettings::FullScreenSupportEnabled, true);
+
     // Nobody was answering this, so a video's fullscreen button did nothing.
     connect(m_view->enginePage(), &QWebEnginePage::fullScreenRequested, this,
             [this](QWebEngineFullScreenRequest request) {

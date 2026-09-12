@@ -262,6 +262,13 @@ private:
     // host's own page, which is where the app's address bar lives. Keys follow
     // a focus, not a position, so they cannot be routed the way touches are.
     QPointer<QWebPage> m_keyboardOwner;
+
+    // A drag in progress inside an embedded page. This shell is a touchscreen's
+    // and a drag is how one scrolls; Chromium reads a mouse drag as a text
+    // selection instead, which is why the browser could be selected but never
+    // scrolled.
+    QPointF m_dragAt;
+    bool m_dragging = false;
 };
 
 class QWebFrame : public QObject

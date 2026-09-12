@@ -1350,6 +1350,26 @@ bool QWebPage::deliverToEmbedded(QEvent* event)
                                    wheel->buttons(), wheel->modifiers(),
                                    wheel->phase(), wheel->inverted());
             handled = QCoreApplication::sendEvent(target, &translated);
+        } else if (event->type() == QEvent::MouseMove && m_dragging) {
+            // Dragging scrolls, with the content following the finger. Nothing
+            // in luna-sysmgr or webappmanager handles a wheel -- webOS scrolled
+            // by gesture, and its event catalogue has no scroll member -- so
+            // this is the only scrolling an embedded page can be given without
+            // changing HP's input path. The cost is that a drag no longer
+            // selects text there, or drags a scrollbar: same gesture, and on a
+            // touchscreen it belongs to scrolling.
+            //
+            // tests/embedded-scroll checks that a drag scrolls, and deliberately
+            // does not check how far. An earlier version asserted 80 pixels of
+            // drag should move the page 80, measured 4 in the harness, and that
+            // number was used to junk this code -- which was working on the real
+            // shell all along. A ten-step synthetic drag is not a real one.
+            const QPointF delta = where - m_dragAt;
+            m_dragAt = where;
+            const QPoint pixels(int(delta.x()), int(delta.y()));
+            QWheelEvent scroll(local, local, pixels, pixels,
+                               Qt::NoButton, Qt::NoModifier, Qt::NoScrollPhase, false);
+            handled = QCoreApplication::sendEvent(target, &scroll);
         } else {
             QMouseEvent* mouse = static_cast<QMouseEvent*>(event);
             QMouseEvent translated(mouse->type(), local, local,
@@ -1365,6 +1385,10 @@ bool QWebPage::deliverToEmbedded(QEvent* event)
         if (event->type() == QEvent::MouseButtonPress) {
             m_keyboardOwner = embedded.page;
             target->setFocus(Qt::MouseFocusReason);
+            m_dragAt = where;
+            m_dragging = true;
+        } else if (event->type() == QEvent::MouseButtonRelease) {
+            m_dragging = false;
         }
 
         return handled;

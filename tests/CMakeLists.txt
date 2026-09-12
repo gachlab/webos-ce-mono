@@ -160,6 +160,16 @@ add_test(NAME embedded-view COMMAND embedded-view)
 set_tests_properties(embedded-view PROPERTIES
     ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
 
+# Whether dragging inside the hole scrolls the page painted there -- that it
+# scrolls at all, not how far. Nothing handles a wheel anywhere in the stack,
+# and a mouse drag reads as a text selection, so the browser could be selected
+# but not scrolled.
+add_executable(embedded-scroll embedded-scroll.cpp)
+target_link_libraries(embedded-scroll PRIVATE qtwebkit-compat-lib)
+add_test(NAME embedded-scroll COMMAND embedded-scroll)
+set_tests_properties(embedded-scroll PROPERTIES
+    ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
 # Whether a click inside the hole reaches the page painted there. Without it
 # the browser renders and nothing in it can be clicked or scrolled: every touch
 # lands on the page that holds the hole.
