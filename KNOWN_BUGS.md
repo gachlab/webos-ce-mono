@@ -157,6 +157,25 @@ Traps found on the way, each confirmed before being fixed:
   nothing there.** It scrolls the browser's web content, which is Chromium's own
   scrolling, and that is the whole of what it does today.
 
+  **Confirmed at runtime, three times, and the asymmetry is the giveaway.** With
+  counters armed in the page, the calendar counted 234, then 616, then 180
+  `wheel` events across separate sessions -- arriving at sane coordinates, with
+  `elementFromPoint` returning the agenda's own `eventGroup` -- and every
+  `.enyo-scroller` stayed at `scrollTop: 0` with `transform: none` throughout. A
+  sweep of every element in the page for a computed `overflow-y` of `auto` or
+  `scroll` with content to spare returns **0 of them**, and the document itself
+  has 3px of slack. There is nothing there for a wheel to move.
+  Meanwhile the browser keeps scrolling perfectly through the same code, because
+  what scrolls there is an ordinary Chromium document.
+
+  Two traps for whoever picks this up. A card is a **new document every time it
+  is opened**, so instrumentation injected through the inspector is wiped by
+  reopening the app, and a counter reading 0 may mean "never armed" rather than
+  "never fired" -- check that the target id is still the one you armed. And
+  dragging with the mouse *does* scroll these lists, through the pen events
+  enyo's dragstart path consumes, which looks exactly like the wheel working if
+  you are not watching which gesture you used.
+
   The fix belongs in `qtwebkit-compat`, not in HP's JavaScript: it already
   injects scripts at document creation, and one more that re-dispatches a
   `wheel` as a legacy `mousewheel` carrying `wheelDeltaY` would make
