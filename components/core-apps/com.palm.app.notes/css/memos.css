@@ -31,7 +31,16 @@
   }
 
   .memo-list {
-    height: 943px; /*1024 - 55(title) - 26(status)*/
+    /* Was 943px, and the number was never the problem: the problem is that a
+       HEIGHT was being chosen by a media query on WIDTH. On the TouchPad the
+       two agreed, because there was one screen. Here any window at least
+       320px wide gets a height computed for a 1024px-tall one, and the rule
+       below does the same with 768. Measured on a 1280x892 shell: the list
+       came out 687px against a viewport of 892, stopping 150px short.
+       55px is the title bar. The 26px status bar that HP also subtracted is
+       outside the app's viewport on this port -- 892 - 55 - 687 is exactly
+       the 150px that were missing, which is what says so. */
+    height: calc(100vh - 55px);
     margin: 0 15px;
   }
 }
@@ -42,7 +51,10 @@
   }
 
   .memo-list {
-    height: 687px; /*768 - 55(title) - 26(status) */
+    /* Same as above; this is the rule that actually won at 1280 wide, since
+       both breakpoints match and the later one takes it. Only the margin
+       differs between them, and that part was right. */
+    height: calc(100vh - 55px);
     margin: 0 20px;
   }
 }
