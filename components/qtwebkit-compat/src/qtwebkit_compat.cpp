@@ -288,7 +288,36 @@ const char kBorderImageCompat[] = R"JS(
                      || style.getPropertyValue("border-image-source");
             if (!image || image === "none")
                 continue;
-            if (style.getPropertyValue("border-style"))
+            // "initial" is not a declaration, but it reads back as one.
+            //
+            // `border: 12px` is valid CSS: the shorthand takes any subset, sets
+            // border-width, and resets style and colour to their INITIAL
+            // values. So border-style reads back the literal string "initial",
+            // which is truthy, and this guard skipped the rule -- leaving the
+            // element a 12px border-width it could never paint, which is the
+            // same nothing as having no border at all.
+            //
+            // Contacts shows the cost. `.edit .field-button` came out 14x14
+            // instead of 38x38 (14 + 12 + 12): its 32px icon, positioned with
+            // margin:-9px to sit over the border box, ended up 9px outside its
+            // own parent and 13px above the row's centre, so the star and the
+            // info button rode high over the Name field.
+            //
+            // "none" is a real declaration and is deliberately NOT included.
+            // An author writing `border: none` means it. Treating it as unset
+            // was tried and is worse than the bug: border-width then falls back
+            // to `medium`, so every .enyo-input-input and .enyo-richtext in the
+            // tree grew a 3px border, and every text field in every app came up
+            // inside a black box. Measured, and visible in one screenshot.
+            //
+            // Nor is it enough to require that the same rule declare a
+            // border-width. Only 44 of 171 border-image rules do; the width
+            // usually arrives from another rule for the same element, and
+            // .enyo-button and .enyo-radiobutton -- the controls this whole
+            // shim was written for -- are among the 127 that would have been
+            // dropped.
+            var declared = style.getPropertyValue("border-style");
+            if (declared && declared !== "initial")
                 continue;
             style.setProperty("border-style", "solid");
             if (!style.getPropertyValue("border-color"))
