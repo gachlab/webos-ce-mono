@@ -44,6 +44,7 @@
 
 #include <webos_wheel.h>
 #include <webos_hover.h>
+#include <webos_keys.h>
 
 #include <QDebug>
 
@@ -702,6 +703,26 @@ void WindowedWebApp::inputEvent(sptr<Event> e)
 */
 }
 
+namespace {
+
+// Whether the key being delivered right now came from a gesture rather than
+// from typing. It cannot be read off the event: once the back gesture is
+// translated, its QKeyEvent is indistinguishable from a typed escape, and only
+// the code that did the translating still knows which it was.
+//
+// A plain flag rather than a member because the answer never outlives one
+// synchronous delivery: it is set, keyEvent() runs to completion, and it is
+// cleared. Nothing re-enters in between -- key delivery is one call on the
+// main thread -- so there is no state here to get out of step with an app.
+bool g_deliveringGestureKey = false;
+
+struct GestureKeyDelivery {
+    GestureKeyDelivery() { g_deliveringGestureKey = true; }
+    ~GestureKeyDelivery() { g_deliveringGestureKey = false; }
+};
+
+} // namespace
+
 void WindowedWebApp::onKeyEvent(const SysMgrKeyEvent& e)
 {
     QKeyEvent ev = e.qtEvent();
@@ -721,6 +742,28 @@ void WindowedWebApp::onKeyEvent(const SysMgrKeyEvent& e)
         keyEvent(&enterEvent);
         return;
     }
+
+    // Same shape as HP's trap above, and for the same kind of reason: a key
+    // code that means one thing in webOS's catalogue and another in Qt's. The
+    // back gesture arrives as SysMgrDeviceKeydefs' Key_Escape (0x1B), which Qt
+    // does not know, so Chromium gives the DOM keyCode 0 -- measured in the
+    // running browser -- and enyo's Gesture.js, which tests keyCode == 27 and
+    // nothing else, never synthesises the "back" event. Which Qt key each
+    // webOS code means is in components/input-compat; this only applies it.
+    const WebosKeys::QtKey qtKey = WebosKeys::toQtKey(ev.key());
+    if (qtKey.isTranslated()) {
+        QKeyEvent translated(ev.type(), qtKey.key, ev.modifiers(),
+                             QString::fromLatin1(qtKey.text));
+        // Marked as a gesture for the length of this call, so keyEvent can
+        // address it to the app rather than to whatever last had the keyboard.
+        // Subclasses still get their say first: CardWebApp turns a back into
+        // PageUp/PageDown when an app asked for that in landscape, and that is
+        // scrolling, so it stops being an escape and stops being routed as one.
+        GestureKeyDelivery delivering;
+        keyEvent(&translated);
+        return;
+    }
+
     keyEvent(&ev);
 }
 
@@ -805,6 +848,20 @@ void WindowedWebApp::keyEvent(QKeyEvent* e)
     SysMgrWebBridge* bridge = page();
     if (!bridge || !bridge->page())
         return;
+
+    // A gesture is addressed to the app, not to the cursor. event() would hand
+    // it to whichever page was last pressed, which is right for typing and
+    // wrong here: MEASURED in the running browser, the back gesture's escape
+    // landed in the embedded content -- which ignores it -- while enyo's
+    // listener sits in the app's own document.
+    //
+    // The key is checked as well as the flag: a subclass that remapped it into
+    // something else has turned it into content input, and this must not claim
+    // it. tests/gesture-key-routing pins both directions.
+    if (g_deliveringGestureKey && e->key() == Qt::Key_Escape) {
+        bridge->page()->sendKeyToHostPage(e);
+        return;
+    }
 
     bridge->page()->event(e);
 

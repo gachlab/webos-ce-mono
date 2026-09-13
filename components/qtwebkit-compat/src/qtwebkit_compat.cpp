@@ -1651,6 +1651,15 @@ bool QWebPage::deliverToEmbedded(QEvent* event)
     return false;
 }
 
+void QWebPage::sendKeyToHostPage(QKeyEvent* event)
+{
+    // Deliberately none of what event() does: no embedded delivery, and no
+    // keyboard owner. This page's own widget, always.
+    QWidget* target = m_view->focusProxy() ? m_view->focusProxy() : m_view;
+    if (target)
+        QCoreApplication::sendEvent(target, event);
+}
+
 bool QWebPage::event(QEvent* event)
 {
     if (deliverToEmbedded(event))
