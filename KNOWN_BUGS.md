@@ -209,6 +209,42 @@ is in the watcher rather than in what it was watching. Fix that first: check
 that `Target.setDiscoverTargets` actually yields `attachedToTarget`, and that a
 dropped websocket is not being swallowed by a bare `except: continue`.
 
+### ~~A pointer moving over a page never arrived~~ (fixed)
+
+webOS had fingers and no pointer, so nothing in HP's code carries a hover.
+`Event::PenMove` exists but only ever describes a finger already down: the shell
+builds it out of touch, and Qt synthesises touch only while a button is held, so
+a move with nothing pressed produced no touch, no pen event and nothing that
+crossed the IPC. Every piece of web content that reveals itself on hover stayed
+hidden -- the browser's player controls being the case you notice.
+
+MEASURED before, with counters armed on the page: **0** `mousemove` and **0**
+`pointermove` against 148 `mouseover`, those last ones coming from content
+sliding under a pointer that never moved. That asymmetry is what named the bug:
+the engine knew where the pointer was and was never told that it moved.
+
+Carried now the same way as the wheel, through the range `Event::Type` reserves
+as `User` and fields of the union a hover never fills
+(`components/input-compat/include/webos_hover.h`), picked up by
+`Src/base/HoverToMouseMove.cpp` and handed to the page as a buttonless
+`QMouseEvent(MouseMove)` by `Src/webbase/HoverDelivery.cpp`.
+
+**Measured after, and the split is the interesting half**: with the pointer over
+the browser's own toolbar at y=52 the *host* page counted 3 moves and the
+embedded page 0; with the pointer over the video the *embedded* page counted 433
+moves and 433 `pointermove`. That is `deliverToEmbedded` routing by position,
+demonstrated in both directions -- hover the chrome and the chrome hears it,
+hover the content and the content does.
+
+Two things it depends on, both held down by tests rather than by comment.
+`tests/filter-order` pins the ordering: the filter is installed *after*
+`MouseEventEater` because Qt activates event filters in reverse order of
+installation, so it is offered the move before the eater swallows it, and if
+that rule ever changed hovers would stop arriving with nothing in the build to
+say so. And it throttles to one hover per frame, dropping moves that did not
+move: a pointer produces hundreds a second, and each one is an IPC message plus
+a synthesised event inside WebAppMgr.
+
   The fix belongs in `qtwebkit-compat`, not in HP's JavaScript: it already
   injects scripts at document creation, and one more that re-dispatches a
   `wheel` as a legacy `mousewheel` carrying `wheelDeltaY` would make
