@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=webOS CE
+GenericName=webOS Community Edition
+Comment=HP webOS 3.0.5 Community Edition, built against a current Qt
+Exec=AppRun
+Icon=webos-ce
+Terminal=false
+Categories=System;Emulator;
+Keywords=webos;palm;luna;

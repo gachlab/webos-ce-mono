@@ -1,0 +1,108 @@
+#!/bin/bash
+# Entry point for the webOS CE AppImage.
+#
+# Two things have to be arranged before the shell can start, and neither is
+# optional.
+#
+# 1. The prefix has to be at /opt/webos-ce.
+#
+# An AppImage is mounted at a path chosen at runtime -- /tmp/.mount_XXXXXX, a
+# different one every launch. That is fine for software that resolves its own
+# files relative to the binary, and it is fatal here: 24 of the ELF files in
+# this tree carry the string /opt/webos-ce compiled into them. Four components
+# generate a header from a .in template holding a WEBOS_INSTALL_* path, and
+# ls-hubd and ls-monitor receive theirs through add_definitions. Measured, not
+# assumed: run filecache with that directory absent and it opens
+# "/opt/webos-ce/etc/palm/FileCache.conf", gets ENOENT and gives up -- against
+# 61 opens under the prefix when it is present.
+#
+# So the prefix does not move. Instead, it is made to appear where the binaries
+# already look, with a bind mount in a private mount namespace: no privileges
+# needed and the host's filesystem is untouched. From the exec below onwards
+# the tree is byte-identical to the installed .deb, which is the layout already
+# known to work.
+#
+# The tmpfs over /opt is what makes the mountpoint creatable at all. bwrap
+# cannot mkdir /opt/webos-ce on the host -- /opt belongs to root -- but it can
+# inside a tmpfs of its own. tools/run-lunasysmgr.sh does the same to /usr, for
+# the same reason, and its comment explains it at length.
+#
+# 2. var/ has to be writable.
+#
+# A squashfs is read-only and webOS writes as it runs: db8 keeps its data in
+# var/db, the dock and the first-card marker live under var/luna. The .deb
+# makes those directories 1777 at install time and that is the whole reason its
+# postinst exists. Here there is no install step, so the writable copy goes in
+# the user's data directory and is bound over the payload's own var. An
+# unwritable one is not a small problem: CardWindowManager::markFirstCardDone
+# does fopen(...,"w") followed by an unchecked fclose(), so a read-only var
+# segfaults the shell on the first card -- which is exactly the bug the .deb's
+# postinst was written to stop.
+#
+# Everything else the shell needs from the root of the filesystem -- /etc/palm,
+# /usr/palm, /var/luna, /var/palm, /var/db -- is NOT handled here. The launcher
+# already binds all six out of the rootfs when it re-enters itself, and bwrap
+# nests: measured three levels deep with the prefix still visible.
+set -u
+
+HERE="$(dirname "$(readlink -f "$0")")"
+PREFIX=/opt/webos-ce
+PAYLOAD="$HERE$PREFIX"
+DATA="${XDG_DATA_HOME:-$HOME/.local/share}/webos-ce"
+
+if [ ! -x "$PAYLOAD/bin/webos-ce" ]; then
+    echo "webos-ce: this AppImage is incomplete -- $PREFIX/bin/webos-ce is missing" >&2
+    exit 2
+fi
+
+if ! command -v bwrap >/dev/null 2>&1; then
+    # Worth an explicit message rather than bwrap's own "command not found":
+    # without it there is no way to put the prefix where the binaries look, and
+    # the failure would otherwise arrive much later, as services that cannot
+    # find their configuration.
+    echo "webos-ce: bubblewrap (bwrap) is required and was not found on PATH." >&2
+    echo "  Debian/Ubuntu:  sudo apt install bubblewrap" >&2
+    echo "  Fedora:         sudo dnf install bubblewrap" >&2
+    exit 2
+fi
+
+# Unprivileged user namespaces are what bwrap runs on. Some distributions ship
+# them restricted, and the resulting error is obscure enough to be worth
+# catching here with a sentence that says what to do about it.
+if ! bwrap --dev-bind / / true 2>/dev/null; then
+    echo "webos-ce: bwrap cannot create a user namespace on this system." >&2
+    echo "  Check: sysctl kernel.unprivileged_userns_clone (Debian/Ubuntu)" >&2
+    echo "         sysctl kernel.apparmor_restrict_unprivileged_userns" >&2
+    exit 2
+fi
+
+# Seed the writable var from the payload's skeleton the first time only. Later
+# runs keep whatever the previous session left -- the database, the dock, the
+# sentinel that records the tree was initialised -- which is the point of
+# putting it here rather than in a tmpfs.
+#
+# The copy comes out of a squashfs owned by root, so ownership cannot be
+# preserved and is not wanted; the modes are forced writable afterwards rather
+# than trusted.
+if [ ! -e "$DATA/var/.seeded" ]; then
+    echo "webos-ce: first run, preparing $DATA" >&2
+    mkdir -p "$DATA/var"
+    cp -a "$PAYLOAD/var/." "$DATA/var/" 2>/dev/null || true
+    chmod -R u+rwX "$DATA/var" 2>/dev/null || true
+    : > "$DATA/var/.seeded"
+fi
+
+# Keep whatever the host has under /opt reachable. The tmpfs would otherwise
+# hide it, and there is no reason for this AppImage to take /opt away from the
+# rest of the system because it needs one directory in it. Our own bind comes
+# after the loop, so it wins for /opt/webos-ce specifically -- an installed copy
+# of the package does not shadow the one being run.
+rebind=()
+for d in /opt/*; do [ -e "$d" ] && rebind+=(--bind "$d" "$d"); done
+
+exec bwrap \
+    --dev-bind / / \
+    --tmpfs /opt "${rebind[@]}" \
+    --bind "$PAYLOAD" "$PREFIX" \
+    --bind "$DATA/var" "$PREFIX/var" \
+    -- "$PREFIX/bin/webos-ce" "$@"
