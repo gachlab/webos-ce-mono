@@ -175,10 +175,10 @@ removed, `qtwebkit-compat` for the QtWebKit API WebAppMgr is written against
 (on QtWebEngine), and `node-v8-shim` for HP's three node addons on node 26.
 
 Working: the lock screen, the launcher, the dock, keyboard input, taps and
-drag-to-scroll, scrolling the browser's page content with a wheel or a trackpad,
-and a pointer that hovers — neither of which webOS itself had, so both are
-carried across HP's IPC by `components/input-compat` without changing it —
-apps opening as cards, db8 with its schemas loaded, HP's
+drag-to-scroll, scrolling with a wheel or a trackpad — in the browser and in
+HP's own enyo lists — and a pointer that hovers, neither of which webOS itself
+had, so both are carried across HP's IPC by `components/input-compat` without
+changing it, apps opening as cards, db8 with its schemas loaded, HP's
 services up alongside it (`mojodb-luna`, `LunaSysService`, `filecache`,
 `activitymanager`, `LunaUniversalSearchMgr`, `mojomail`), the base apps
 (calendar, accounts, email) with a local profile account, a resizable shell

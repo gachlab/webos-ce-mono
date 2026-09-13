@@ -147,26 +147,37 @@ Traps found on the way, each confirmed before being fixed:
   dispatches the standard `wheel` and not the legacy alias, so enyo's own wheel
   handler cannot run at all.
 
-  **That does cost something, and the answer is in enyo's own CSS.**
+  **That cost something, and the answer was in enyo's own CSS.**
   `.enyo-scroller` is `overflow: hidden` (`Scroller.css:1`), and the content is
   moved by `effectScrollAccelerated` writing
   `-webkit-transform: translate3d(...)` -- or `effectScrollNonAccelerated`
   writing `top`/`left` -- from the Verlet simulation in `ScrollStrategy`. So
-  there is no native overflow for Chromium to scroll and no JavaScript listener
-  that will ever hear the event: **the wheel reaches an enyo app's page and does
-  nothing there.** It scrolls the browser's web content, which is Chromium's own
-  scrolling, and that is the whole of what it does today.
+  there was no native overflow for Chromium to scroll and no JavaScript listener
+  left to hear the event: the wheel reached an enyo app's page and did nothing
+  there, while the browser scrolled perfectly through the same code, because
+  what scrolls there is an ordinary Chromium document. That asymmetry is what
+  made it look intermittent when it was not.
 
-  **Confirmed at runtime, three times, and the asymmetry is the giveaway.** With
-  counters armed in the page, the calendar counted 234, then 616, then 180
-  `wheel` events across separate sessions -- arriving at sane coordinates, with
-  `elementFromPoint` returning the agenda's own `eventGroup` -- and every
-  `.enyo-scroller` stayed at `scrollTop: 0` with `transform: none` throughout. A
-  sweep of every element in the page for a computed `overflow-y` of `auto` or
-  `scroll` with content to spare returns **0 of them**, and the document itself
-  has 3px of slack. There is nothing there for a wheel to move.
-  Meanwhile the browser keeps scrolling perfectly through the same code, because
-  what scrolls there is an ordinary Chromium document.
+  Measured three times before the fix, with counters armed in the page: the
+  calendar counted 234, then 616, then 180 `wheel` events across separate
+  sessions -- arriving at sane coordinates, with `elementFromPoint` returning
+  the agenda's own `eventGroup` -- against **0** `mousewheel`, and a sweep of
+  every element for a computed `overflow-y` of `auto` or `scroll` with content
+  to spare returned 0 of them.
+
+  **Fixed in v0.2.0**, in the shim rather than in HP's JavaScript:
+  `qtwebkit-compat` injects a script that re-dispatches the standard `wheel` as
+  the legacy `mousewheel` enyo listens for, scoped to targets inside an
+  `.enyo-scroller` so it cannot double-scroll what Chromium already scrolls --
+  a census of the running pages found the browser's embedded content with 0 enyo
+  scrollers and its chrome with 2 holding none. The sign is taken from the real
+  event rather than from the constructor, which derives `wheelDeltaY` as
+  `+deltaY` and would have scrolled the lists backwards.
+
+  What is measured about the fix is that the event arrives: `mousewheel` went
+  from 0 to matching the wheel count in every burst. That the lists visibly move
+  was **verified by hand rather than by instrument**, and the distinction is
+  kept here because the instrument disagreed -- see the section below.
 
   Two traps for whoever picks this up. A card is a **new document every time it
   is opened**, so instrumentation injected through the inspector is wiped by
@@ -176,38 +187,36 @@ Traps found on the way, each confirmed before being fixed:
   enyo's dragstart path consumes, which looks exactly like the wheel working if
   you are not watching which gesture you used.
 
-### The calendar is reported scrolling by wheel, and the instruments disagree
+### ~~The calendar is reported scrolling by wheel, and the instruments disagree~~
 
-Open, and written down unresolved rather than settled in favour of either side.
+Settled by use: the lists do scroll, and the instruments were wrong. Kept
+because what the instruments got wrong is worth more than the conclusion.
 
-**What was observed**, driving the machine by hand: the calendar's agenda
-scrolls with the wheel on some occasions and not on others, with closing and
-reopening the app and switching away to another window and back both named as
-things that change it. The browser is never affected, which is explained -- its
-content is an ordinary Chromium document.
+Driving the machine by hand after the fix, the calendar's agenda scrolls with
+the wheel. Meanwhile a tracker sampling the scrollee's `transform` at 20Hz read
+min 0 and max 0 across 1,086 samples spanning a long burst, and a live watcher
+reported movement and no movement in alternation over the same bursts.
 
-**What every measurement says instead**: three sessions counted 234, then 616,
-then 180 `wheel` events inside the calendar's page with every `.enyo-scroller`
-left at `scrollTop: 0` and `transform: none`; a sweep for any element with a
-computed `overflow-y` of `auto` or `scroll` and content to spare returns 0; enyo
-listens for `"mousewheel"` alone and Chromium dispatched it 0 times. By that
-picture the wheel cannot move an enyo list at all, ever, and there is nothing
-intermittent about it.
+**Three instrument faults, each of which produced a confident wrong answer:**
 
-Both cannot be true. Either there is a path that occasionally moves these lists
-that none of the above found, or what was seen moving came from dragging, which
-does scroll them through the pen events and is easy to mistake for the wheel
-when you are not tracking which gesture you used. No measurement yet
-distinguishes the two.
+- The watcher's "did it move" test compared a **concatenated string** of every
+  qualifying scroller. It reports a change when the *set* of scrollers changes,
+  which an app re-rendering does constantly -- so it fired on pages that never
+  scrolled and stayed silent on ones that did.
+- The tracker sampled the scroller's **first child**, where the node enyo moves
+  is the `.enyo-scroller-scrollee`, which need not be it.
+- The tracker read **`transform`** only. `ScrollStrategy` has two paths and
+  `effectScrollNonAccelerated` writes `top`/`left`, in which case a list can
+  scroll perfectly while the instrument reads zero forever.
 
-**And the attempt to settle it failed, which is part of the record.** A live
-watcher was attached to the browser endpoint to auto-instrument every page as it
-is created -- so that reopening the app could not wipe it -- and report each
-burst of wheel events with whether anything moved. It printed its startup line
-and then nothing at all while the behaviour was being reproduced, so the fault
-is in the watcher rather than in what it was watching. Fix that first: check
-that `Target.setDiscoverTargets` actually yields `attachedToTarget`, and that a
-dropped websocket is not being swallowed by a bare `except: continue`.
+Two more traps, both paid for twice: a card is a **new document every time the
+app is opened**, so instrumentation injected through the inspector is wiped by
+reopening and a counter reading 0 can mean "never armed" rather than "never
+fired" -- check the target id is still the one you armed. And an earlier watcher
+printed its startup line and nothing else while the behaviour was reproduced,
+because a dropped websocket was swallowed by a bare `except: continue` and
+target discovery never announced whether it had attached to anything. Silence
+from an instrument means nothing until the instrument says it is listening.
 
 ### ~~A pointer moving over a page never arrived~~ (fixed)
 
