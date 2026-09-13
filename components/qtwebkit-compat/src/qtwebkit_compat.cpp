@@ -38,6 +38,7 @@ const char kBorderImageScriptName[] = "webos-border-image";
 const char kPrefixedEventScriptName[] = "webos-prefixed-events";
 const char kAppViewShimScriptName[] = "webos-app-view-shims";
 const char kFrameCancelScriptName[] = "webos-frame-cancel";
+const char kFlexWidthScriptName[] = "webos-flex-width";
 
 // Before QApplication exists: a URL scheme can only be registered then, and
 // QtWebEngine wants shared GL contexts decided before the first one is made.
@@ -367,6 +368,98 @@ const char kBorderImageCompat[] = R"JS(
             }
         // document, not documentElement: this runs at document creation, and
         // there is no <html> yet to observe.
+        }).observe(document, { childList: true, subtree: true });
+    }
+})();
+)JS";
+
+// ---------------------------------------------------------------------------
+// The width enyo's flex layout writes and Chromium never gives back.
+//
+// enyo is built on the 2009 flexbox. FlexLayout.flowExtent redefines flex to
+// mean "be exactly the left over space" rather than "natural size plus the
+// left over space", and implements that by writing an inline width of 0 next
+// to the flex:
+//
+//     s[this.prefix + "-box-flex"] = f;
+//     if (f) { if (!s[inExtent]) s[inExtent] = "0px"; }
+//
+// In the WebKit webOS shipped, a -webkit-box child with flex:1 and width:0
+// still grew to its share of the line. Chromium's legacy -webkit-box gives it
+// nothing, so the element stays 0 wide and its content either disappears or
+// paints outside the parent that was supposed to hold it.
+//
+// Contacts is where it shows. Measured in the running app: the type pickers'
+// labels -- MOBILE, HOME, .MAC -- sat in containers 0px wide, so the text was
+// simply not painted; the account selector at the top right came out 50px
+// wide with its content escaping 28px past it; and the open dropdown's option
+// read "HP" because the caption had clientWidth 34 against scrollWidth 290.
+// One mechanism, three symptoms.
+//
+// The sweep is deliberately narrow. Clearing every inline width:0px would
+// touch 51 nodes in that page; clearing only the ones whose content is
+// demonstrably starved touches 15 and produces the identical result -- 46
+// changed boxes either way, because the other 36 were not holding anything
+// back. Across the other apps running at the time -- Calendar, Mail, Just
+// Type, the status bar -- the narrow rule changes nothing at all, which is the
+// point: it repairs a broken box, it does not re-lay out the framework.
+//
+// It runs again on mutation because the popup lists are built when they are
+// opened, and re-running is safe: enyo writes these styles when it renders and
+// nothing re-applies them afterwards, verified by calling resized() on 564
+// controls and finding the cleared widths still cleared.
+const char kFlexWidthCompat[] = R"JS(
+(function () {
+    if (window.__webosFlexWidth)
+        return;
+    window.__webosFlexWidth = true;
+
+    // Starved means: the element carries the inline zero width AND something
+    // is actually being cut off by it. scrollWidth past clientWidth catches a
+    // clipped caption; the second test catches content that measures nothing
+    // at all, which is what an invisible label looks like.
+    function starved(n) {
+        if (n.scrollWidth > n.clientWidth + 1)
+            return true;
+        return (n.textContent || "").trim().length > 0 &&
+               n.getBoundingClientRect().width < 1;
+    }
+
+    var scheduled = false;
+
+    function sweep() {
+        scheduled = false;
+        var nodes = document.querySelectorAll(
+            '[style*="width:0px"],[style*="width: 0px"]');
+        for (var i = 0; i < nodes.length; i++)
+            if (starved(nodes[i]))
+                nodes[i].style.removeProperty("width");
+    }
+
+    // Coalesce: enyo renders in bursts, and one pass after the burst is both
+    // cheaper and more accurate than one per node -- the measurements above
+    // only mean anything once the surrounding layout has settled.
+    function schedule() {
+        if (scheduled)
+            return;
+        scheduled = true;
+        window.setTimeout(sweep, 0);
+    }
+
+    document.addEventListener("DOMContentLoaded", schedule);
+    window.addEventListener("load", schedule);
+    window.addEventListener("resize", schedule);
+
+    if (window.MutationObserver) {
+        // childList only, never attributes: the sweep itself edits style
+        // attributes, and observing those would have it wake itself up.
+        new MutationObserver(function (records) {
+            for (var i = 0; i < records.length; i++) {
+                if (records[i].addedNodes.length) {
+                    schedule();
+                    return;
+                }
+            }
         }).observe(document, { childList: true, subtree: true });
     }
 })();
@@ -1206,6 +1299,17 @@ QWebPage::QWebPage(QObject* parent)
     borderImage.setRunsOnSubFrames(true);
     borderImage.setSourceCode(QString::fromLatin1(kBorderImageCompat));
     m_engine->scripts().insert(borderImage);
+
+    // The zero width enyo's flex layout leaves behind; see above. Separate
+    // from the border image script because the two answer different questions
+    // and one is not a good place to hide the other.
+    QWebEngineScript flexWidth;
+    flexWidth.setName(kFlexWidthScriptName);
+    flexWidth.setInjectionPoint(QWebEngineScript::DocumentCreation);
+    flexWidth.setWorldId(QWebEngineScript::MainWorld);
+    flexWidth.setRunsOnSubFrames(true);
+    flexWidth.setSourceCode(QString::fromLatin1(kFlexWidthCompat));
+    m_engine->scripts().insert(flexWidth);
 
     // The prefixed events Chromium dropped; see above.
     QWebEngineScript prefixedEvents;

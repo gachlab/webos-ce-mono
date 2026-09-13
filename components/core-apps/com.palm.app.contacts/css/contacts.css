@@ -187,33 +187,6 @@ img {
     -webkit-border-image: url(../images/bg_prefix.png) 12 repeat;
 }
 
-/* The type pickers -- MOBILE, HOME, .MAC next to each field -- were painting
-   outside their field instead of inside its right edge. Measured through the
-   inspector: the label "Mobile" was 55px wide with its container at width 0,
-   and the same for email (43), address (43) and IM (36).
-
-   enyo is built on the 2009 flexbox, and the collapse is a chain of it. The
-   picker is `-webkit-box-flex: 0`, so it sizes to its content; its only
-   visible child asks for `-webkit-box-flex: 1`, so it wants to fill its
-   parent. In the WebKit this was written against that resolved; in Chromium's
-   legacy -webkit-box a flexible child contributes no intrinsic width to a
-   shrink-to-fit parent, so both measure 0 and the text spills out.
-
-   Taking these two nodes out of the legacy box and letting them size to their
-   content puts every label back inside, flush with the field's right edge:
-   all four go from +55/+43/+43/+36 to exactly 0, and the fifth picker, which
-   has no label, is left untouched.
-
-   Not `-webkit-box-flex: 1` on the picker, which also removes the overflow and
-   is the wrong fix: it stretches the picker to 323px and drags the label into
-   the middle of the field. Measured too. Modern `display: flex` alone changes
-   nothing here. */
-.edit .editable-label.enyo-listselector,
-.edit .editable-label.enyo-listselector > .enyo-hflexbox {
-    display: inline-block;
-    width: auto;
-}
-
 .edit .label,
 .edit .editable-label .enyo-menucheckitem-caption {
     color: #1879cd;
