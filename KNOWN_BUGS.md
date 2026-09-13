@@ -873,6 +873,27 @@ was LunaSysMgr exiting with code 1 three seconds after the hub had gone,
 which the log shows plainly as `Failed to connect. Is the hub running?`. Start
 the whole stack under one `setsid`.
 
+**It happened again after the fix, on 2026-09-12, and is not explained.** A dev
+tree, the `fclose` guard in place, Memos maximised and idle: exit 139 with the
+script's own `Segmentation fault` line, so a real fault and not a signal. No
+backtrace, because `WEBOS_SYSMGR_WRAPPER` was not armed on that run -- arm it
+before trying to reproduce, which is the whole reason it exists.
+
+Two causes were proposed during that session and **both are already refuted
+above**, which is why they are named here rather than investigated again:
+
+* The log shows `displayInactive` at 21:36:20 and `displayActive` at 21:36:34
+  immediately before the fault. That is the same adjacency the table above
+  disproves; the event fires every 120 seconds regardless.
+* A `tools/build.sh rootfs` ran in the same session. It cannot be the cause,
+  for the reason already given -- overwriting a running executable fails with
+  ETXTBSY -- and the timestamps say so independently: the reassembly wrote at
+  21:38:18, nearly two minutes *after* the crash.
+
+So the entry stays struck through for the fault it names, which was found and
+fixed, and this is recorded as a separate unexplained SIGSEGV rather than a
+regression of it. Nothing establishes they are the same bug.
+
 ### ~~LunaUniversalSearchMgr dies inside the namespace~~ (never did)
 
 It was reported dead in every status line while up to thirteen copies of it were
