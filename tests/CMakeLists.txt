@@ -39,7 +39,7 @@ enable_testing()
 set(SYSMGR "${CMAKE_CURRENT_SOURCE_DIR}/../components/luna-sysmgr")
 
 # --- input plumbing, no webOS ------------------------------------------------
-foreach (t touch-in eater-synthesis home-gesture wheel-in)
+foreach (t touch-in eater-synthesis home-gesture wheel-in filter-order)
     add_executable(${t} ${t}.cpp)
     target_link_libraries(${t} PRIVATE Qt::Core Qt::Gui Qt::Widgets Qt::GuiPrivate)
     add_test(NAME ${t} COMMAND ${t} -platform offscreen)
@@ -54,6 +54,14 @@ target_include_directories(wheel-pack PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/../components/input-compat/include"
     "${WEBOS_STAGING}/usr/include/sysmgr-ipc")
 add_test(NAME wheel-pack COMMAND wheel-pack)
+
+# The other event input-compat carries, and that the two never read as each
+# other: both ride in HP's reserved User range off the same union.
+add_executable(hover-pack hover-pack.cpp)
+target_include_directories(hover-pack PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/../components/input-compat/include"
+    "${WEBOS_STAGING}/usr/include/sysmgr-ipc")
+add_test(NAME hover-pack COMMAND hover-pack)
 
 # --- which coordinate space a touch point arrives in --------------------------
 add_executable(touch-coordinate-spaces touch-coordinate-spaces.cpp)

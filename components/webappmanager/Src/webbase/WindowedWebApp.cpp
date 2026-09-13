@@ -39,9 +39,11 @@
 #include "WebAppManager.h"
 #include "WebKitKeyMap.h"
 #include "WheelDelivery.h"
+#include "HoverDelivery.h"
 #include "WindowMetaData.h"
 
 #include <webos_wheel.h>
+#include <webos_hover.h>
 
 #include <QDebug>
 
@@ -412,6 +414,13 @@ void WindowedWebApp::inputEvent(sptr<Event> e)
     // in WheelDelivery.
     if (WebosWheel::isScroll(*evt)) {
         WheelDelivery::deliver(bridge, *evt);
+        return;
+    }
+
+    // A hover, which HP's catalogue has no member for either: webOS had no
+    // pointer. Same reserved range, same adapter.
+    if (WebosHover::isHover(*evt)) {
+        HoverDelivery::deliver(bridge, *evt);
         return;
     }
 

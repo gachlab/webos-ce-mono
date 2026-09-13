@@ -246,6 +246,7 @@ add_executable(LunaSysMgr
     Src/base/QmlSceneItem.cpp
     Src/base/MouseToTouch.cpp
     Src/base/WheelToScroll.cpp
+    Src/base/HoverToMouseMove.cpp
 
     # Q_OBJECT headers AUTOMOC would not find on its own. qmake ran moc over
     # everything in HEADERS; AUTOMOC pairs X.cpp with an X.h in the SAME

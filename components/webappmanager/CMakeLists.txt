@@ -69,6 +69,7 @@ add_executable(WebAppMgr
     Src/webbase/WebAppFactory.cpp
     Src/webbase/WebAppManager.cpp
     Src/webbase/WheelDelivery.cpp
+    Src/webbase/HoverDelivery.cpp
     Src/webbase/WindowedWebApp.cpp
 )
 

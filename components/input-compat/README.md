@@ -13,6 +13,12 @@ the components that need it pull in.
 ## What is here
 
 - `include/webos_wheel.h` — a scroll wheel packed into HP's `Event`.
+- `include/webos_hover.h` — a pointer moving with no button held.
+
+Both take a value out of the range `Event::Type` reserves as `User`, and both
+are read off fields of the union their own event never fills. `tests/wheel-pack`
+and `tests/hover-pack` hold the two apart: each has to round-trip, and neither
+may read as the other or trip any mask HP's code tests.
 
 ## Why a wheel needs an adapter at all
 
