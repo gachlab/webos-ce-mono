@@ -63,6 +63,16 @@ target_include_directories(hover-pack PRIVATE
     "${WEBOS_STAGING}/usr/include/sysmgr-ipc")
 add_test(NAME hover-pack COMMAND hover-pack)
 
+# --- where the gesture strip's vertical drag begins, and where HP's ends -----
+# Only the header is compiled, not the filter: the decision is a pure function
+# precisely so it can be checked without bringing a shell up. What matters is
+# the boundary -- claiming a sideways drag would fire Launcher on top of HP's
+# own Back and the strip would do two things at once.
+add_executable(strip-drag strip-drag.cpp)
+target_include_directories(strip-drag PRIVATE "${SYSMGR}/Src/base")
+target_link_libraries(strip-drag PRIVATE Qt::Core)
+add_test(NAME strip-drag COMMAND strip-drag)
+
 # --- which coordinate space a touch point arrives in --------------------------
 add_executable(touch-coordinate-spaces touch-coordinate-spaces.cpp)
 target_link_libraries(touch-coordinate-spaces PRIVATE Qt::Core Qt::Gui Qt::Widgets Qt::GuiPrivate)
