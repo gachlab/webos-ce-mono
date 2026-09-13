@@ -176,6 +176,39 @@ Traps found on the way, each confirmed before being fixed:
   enyo's dragstart path consumes, which looks exactly like the wheel working if
   you are not watching which gesture you used.
 
+### The calendar is reported scrolling by wheel, and the instruments disagree
+
+Open, and written down unresolved rather than settled in favour of either side.
+
+**What was observed**, driving the machine by hand: the calendar's agenda
+scrolls with the wheel on some occasions and not on others, with closing and
+reopening the app and switching away to another window and back both named as
+things that change it. The browser is never affected, which is explained -- its
+content is an ordinary Chromium document.
+
+**What every measurement says instead**: three sessions counted 234, then 616,
+then 180 `wheel` events inside the calendar's page with every `.enyo-scroller`
+left at `scrollTop: 0` and `transform: none`; a sweep for any element with a
+computed `overflow-y` of `auto` or `scroll` and content to spare returns 0; enyo
+listens for `"mousewheel"` alone and Chromium dispatched it 0 times. By that
+picture the wheel cannot move an enyo list at all, ever, and there is nothing
+intermittent about it.
+
+Both cannot be true. Either there is a path that occasionally moves these lists
+that none of the above found, or what was seen moving came from dragging, which
+does scroll them through the pen events and is easy to mistake for the wheel
+when you are not tracking which gesture you used. No measurement yet
+distinguishes the two.
+
+**And the attempt to settle it failed, which is part of the record.** A live
+watcher was attached to the browser endpoint to auto-instrument every page as it
+is created -- so that reopening the app could not wipe it -- and report each
+burst of wheel events with whether anything moved. It printed its startup line
+and then nothing at all while the behaviour was being reproduced, so the fault
+is in the watcher rather than in what it was watching. Fix that first: check
+that `Target.setDiscoverTargets` actually yields `attachedToTarget`, and that a
+dropped websocket is not being swallowed by a bare `except: continue`.
+
   The fix belongs in `qtwebkit-compat`, not in HP's JavaScript: it already
   injects scripts at document creation, and one more that re-dispatches a
   `wheel` as a legacy `mousewheel` carrying `wheelDeltaY` would make
