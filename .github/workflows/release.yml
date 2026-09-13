@@ -27,7 +27,18 @@ permissions:
   contents: write          # the release upload needs it; nothing else does
 
 jobs:
-  deb:
+  package:
+    # Named for what it produces rather than for what it produced first. This
+    # job built only the .deb when it was written and the key stayed `deb` after
+    # the AppImage was added, which reads in the Actions UI as though the
+    # AppImage were missing -- someone watching a run reasonably concluded
+    # exactly that. The display name says both out loud.
+    #
+    # Safe to rename: nothing uses `needs:`, master is unprotected with no
+    # rulesets, so no required status check is pinned to the old name, and the
+    # `steps.deb.outputs.*` references point at the step whose id is `deb`,
+    # which is a different namespace and keeps its name.
+    name: .deb and AppImage
     # Every self-hosted runner carries these three labels automatically, so this
     # matches without depending on whatever custom labels it was registered with.
     runs-on: [self-hosted, linux, x64]
