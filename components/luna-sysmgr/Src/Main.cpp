@@ -47,6 +47,7 @@
 
 #if defined TARGET_DESKTOP && (QT_VERSION >= QT_VERSION_CHECK(5, 0, 0))
 #include "MouseEventEater.h"
+#include "WheelToScroll.h"
 #endif
 
 #include <sys/time.h>
@@ -753,6 +754,13 @@ int main( int argc, char** argv)
     // object, leaving the gesture strip's home button unable to receive clicks.
     eater->watch(windowServer->viewport());
     QCoreApplication::instance()->installEventFilter(eater);
+
+    // webOS scrolled by gesture and has no wheel anywhere in its event
+    // catalogue, so a QWheelEvent reaches the viewport and is dropped. This
+    // picks it up and tells the active card; see Src/base/WheelToScroll.cpp.
+    WheelToScroll *wheel = new WheelToScroll();
+    wheel->watch(windowServer->viewport());
+    QCoreApplication::instance()->installEventFilter(wheel);
 #endif
 
 	// Initialize the SysMgr MemoryMonitor

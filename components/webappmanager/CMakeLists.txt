@@ -27,8 +27,10 @@ set(WEBOS_STAGING "${CMAKE_INSTALL_PREFIX}")
 find_package(Qt6 REQUIRED COMPONENTS Core Gui Network Widgets Quick OpenGL OpenGLWidgets)
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../qt6-compat ${CMAKE_CURRENT_BINARY_DIR}/qt6-compat)
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../qtwebkit-compat ${CMAKE_CURRENT_BINARY_DIR}/qtwebkit-compat)
+# The other end of the scroll the shell packs; see components/input-compat.
+add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../input-compat ${CMAKE_CURRENT_BINARY_DIR}/input-compat)
 set(WEBOS_WAM_QT_LIBS Qt::Core Qt::Gui Qt::Network Qt::Widgets Qt::Quick Qt::OpenGL
-    Qt::OpenGLWidgets qt6compat-gl qtwebkit-compat-lib)
+    Qt::OpenGLWidgets qt6compat-gl qtwebkit-compat-lib input-compat)
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(GLIB REQUIRED glib-2.0 gthread-2.0)
 pkg_check_modules(SQLITE REQUIRED sqlite3)
@@ -66,6 +68,7 @@ add_executable(WebAppMgr
     Src/webbase/WebAppDeferredUpdateHandler.cpp
     Src/webbase/WebAppFactory.cpp
     Src/webbase/WebAppManager.cpp
+    Src/webbase/WheelDelivery.cpp
     Src/webbase/WindowedWebApp.cpp
 )
 

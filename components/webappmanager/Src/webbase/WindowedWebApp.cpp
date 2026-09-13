@@ -38,7 +38,10 @@
 #include "Utils.h"
 #include "WebAppManager.h"
 #include "WebKitKeyMap.h"
+#include "WheelDelivery.h"
 #include "WindowMetaData.h"
+
+#include <webos_wheel.h>
 
 #include <QDebug>
 
@@ -402,6 +405,15 @@ void WindowedWebApp::inputEvent(sptr<Event> e)
         return;
 
     Event* evt = e.get();
+
+    // A scroll wheel. HP's catalogue has no member for one, so it travels in
+    // the range Event::Type reserves for events he did not define and is
+    // unpacked by components/input-compat; everything it means on this side is
+    // in WheelDelivery.
+    if (WebosWheel::isScroll(*evt)) {
+        WheelDelivery::deliver(bridge, *evt);
+        return;
+    }
 
     if(Event::isPenEvent(evt)) {
         if (evt->type == Event::PenDown) {

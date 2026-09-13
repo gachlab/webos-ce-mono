@@ -104,14 +104,43 @@ Traps found on the way, each confirmed before being fixed:
   `QWebEngineFrame` now; ids come from one counter for the whole page, so the
   owner is reached and every other frame's `emit` finds nothing and stops.
   `tests/subframe-signal` fails without it.
-- **Nothing scrolls a page by wheel, anywhere, because webOS had no wheel.**
+- **~~Nothing scrolls a page by wheel, anywhere, because webOS had no wheel~~**
+  (fixed, in `components/input-compat` and the two files beside it).
   `Event::Type` (`luna-sysmgr-ipc-messages/.../SysMgrEvent.h`, reached through
   `luna-sysmgr-common/include/Event.h`) is `Key*`, `Pen*`, `Gesture*` and the
   sensors -- there is no scroll or wheel member, and `QEvent::Wheel`,
-  `QWheelEvent` and `wheelEvent` appear nowhere in luna-sysmgr or in
-  webappmanager. A trackpad's two-finger swipe is therefore dropped before any
-  of our code sees it, and the browser's embedded page cannot be scrolled by
-  one. Adding it means a new event type carried the whole way: shell, IPC, app.
+  `QWheelEvent` and `wheelEvent` appeared nowhere in luna-sysmgr or in
+  webappmanager. A trackpad's two-finger swipe was therefore dropped before any
+  of our code saw it.
+
+  It does not need a new event type after all. `Event::Type` reserves
+  `User = 0xFF000000` for events HP did not define, and a value there carries
+  none of the `PenMask`/`KeyMask`/`GestureMask` bits, so every `isPenEvent()`
+  test in HP's code answers no and every switch falls through: the event crosses
+  the whole path untouched and is invisible until our own code asks for it. The
+  struct does not grow either -- the scroll rides in fields of the union a
+  scroll never fills, mapped in one header. `tests/wheel-pack` holds both halves
+  down.
+
+  The shell picks the wheel up in an application event filter
+  (`Src/base/WheelToScroll.cpp`, installed from `Main.cpp` beside
+  `MouseEventEater`) rather than in `CardWindow::wheelEvent`, and that is not a
+  style preference: `QGraphicsSceneWheelEvent` is `delta()` and `orientation()`
+  and nothing else in Qt 6, with nowhere to put `pixelDelta`. MEASURED in
+  `tests/wheel-in`: an event carrying only `pixelDelta` arrives at an item as
+  delta 0, so taking it from the scene would have silently dropped exactly the
+  trackpads it was meant to serve. WebAppMgr hands the page a real `QWheelEvent`
+  (`Src/webbase/WheelDelivery.cpp`), which `QWebPage::event` already forwards to
+  the engine: Chromium scrolls natively and enyo still gets the `"mousewheel"`
+  its `Dispatcher.js` has been listening for since 2010.
+
+  **Verified with a real trackpad, and worth saying why that mattered.** A probe
+  that drove the wheel with `xdotool` and counted events in the page reported
+  zero, twice, with the feature working the whole time: under XWayland the
+  synthetic button-4/5 never reached the shell's window. That is the same shape
+  as the `xdotool search --name '^LunaSysMgr$'` trap below. A negative result
+  from synthetic input here proves nothing until the injection itself is shown
+  to land.
 - **Faking that scroll from the drag does not work, and the numbers are worth
   keeping so nobody pays for them twice.** A drag already reaches an embedded
   page as mouse events, so it was turned into wheel events there instead.
