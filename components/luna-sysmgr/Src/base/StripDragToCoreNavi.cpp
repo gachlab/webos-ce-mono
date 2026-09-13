@@ -52,6 +52,12 @@ void postBoth(int key)
     if (!window)
         return;
 
+    // The same line GestureStrip::postGesture prints, and for the same reason:
+    // without it the only evidence that this fired is whether the screen moved.
+    // That cost a whole round of "did it work?" while this was being built --
+    // HP's horizontal gestures could be counted in the log and ours could not.
+    g_warning("STRIP: postGesture key=%d destino=%p", key, (void*) window);
+
     QApplication::postEvent(window, new QKeyEvent(QEvent::KeyPress, key, Qt::NoModifier));
     QApplication::postEvent(window, new QKeyEvent(QEvent::KeyRelease, key, Qt::NoModifier));
 }

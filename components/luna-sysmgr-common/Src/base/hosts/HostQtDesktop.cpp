@@ -219,8 +219,26 @@ public:
 			if (deltaX * deltaX > deltaY * deltaY) {
 
 				// Horizontal movement
+				//
+				// The long-swipe threshold is capped. It was width()/2, which
+				// is the whole strip: on a Pre that was ~160px and on the
+				// TouchPad ~512, both a flick a thumb can make. The strip here
+				// follows the window, so on a 1330px desktop window it asks for
+				// 665px of travel on a band 40px tall, and nobody ever crosses
+				// it. MEASURED before this cap: across 38 gestures driven by
+				// hand, Key_CoreNavi_Back was posted 23 times and
+				// Key_CoreNavi_Previous and _Next exactly ZERO -- every
+				// leftward drag, however long, came out short.
+				//
+				// qMin keeps HP's rule wherever his assumption still holds, so
+				// a phone-sized window behaves exactly as before, and only caps
+				// it once the window grows past what a hand can swipe. The cap
+				// is four times the gesture area, which is a configured value
+				// (GestureAreaHeight) rather than a number invented here.
+				const int longSwipe = qMin(width() / 2, 4 * GESTURE_AREA_HEIGHT);
+
 				if (deltaX > 0) {
-					if (deltaX > width()/2) {
+					if (deltaX > longSwipe) {
                         postGesture(KEYS::Key_CoreNavi_Next);
 					}
 					else {
@@ -228,7 +246,7 @@ public:
 					}
 				}
 				else {
-					if (-deltaX > width()/2) {
+					if (-deltaX > longSwipe) {
                         postGesture(KEYS::Key_CoreNavi_Previous);
 					}
 					else {
