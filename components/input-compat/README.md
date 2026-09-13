@@ -20,9 +20,16 @@ webOS scrolled by gesture. `Event::Type` is `Key*`, `Pen*`, `Gesture*` and the
 sensors, with no scroll member anywhere, and `QEvent::Wheel`, `QWheelEvent` and
 `wheelEvent` appear zero times in luna-sysmgr, luna-sysmgr-common and
 webappmanager. So a wheel is dropped in the shell before any of HP's code sees
-it, and the receiver on the other side has been waiting the whole time: enyo's
+it.
+
+This was written expecting enyo to be the receiver waiting on the other side:
 `Dispatcher.js` registers `"mousewheel"` and `ScrollStrategy.mousewheel` reads
-`wheelDeltaY` out of it.
+`wheelDeltaY` out of it. Measured, that is not what happens. Over a real
+trackpad the browser's embedded page counted 353 `wheel` events and 0
+`mousewheel`: Chromium dispatches the standard event and not the legacy alias,
+so enyo's handler never runs. What scrolls is Chromium itself. Whether HP's own
+enyo lists scroll too -- as ordinary overflow, needing no JavaScript -- is not
+checked yet.
 
 The obvious fix is to add a member to `Event::Type`, a pair of fields to
 `SysMgrEvent`, a branch to `CardWebApp`'s orientation mapping and another to

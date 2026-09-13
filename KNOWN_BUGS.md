@@ -131,8 +131,25 @@ Traps found on the way, each confirmed before being fixed:
   delta 0, so taking it from the scene would have silently dropped exactly the
   trackpads it was meant to serve. WebAppMgr hands the page a real `QWheelEvent`
   (`Src/webbase/WheelDelivery.cpp`), which `QWebPage::event` already forwards to
-  the engine: Chromium scrolls natively and enyo still gets the `"mousewheel"`
-  its `Dispatcher.js` has been listening for since 2010.
+  the engine, and Chromium scrolls the page natively.
+
+  **What it does, measured through the inspector**, driving a real trackpad over
+  the browser with counters armed on every page: 353 `wheel` events and 6,749px
+  of movement out of 8,968 on the browser's *embedded* page, and exactly 0 on
+  the host page that draws the address bar. That split is the proof that
+  `deliverToEmbedded` routes by position -- the content scrolls, its chrome does
+  not.
+
+  **And one claim that did not survive the measurement.** This was written
+  believing enyo would pick the same event up, because `Dispatcher.js` registers
+  `"mousewheel"` and `ScrollStrategy.mousewheel` reads `wheelDeltaY` out of it.
+  It does not: of those 353 events, `mousewheel` fired **0** times. Chromium
+  dispatches the standard `wheel` and not the legacy alias, so enyo's own wheel
+  handler cannot run at all. Whether that costs anything is still open --
+  enyo's scrollers may be scrolled natively by Chromium as ordinary overflow,
+  which needs no JavaScript. Not yet checked in an enyo app; until it is, the
+  honest statement is that the browser's content scrolls and HP's own lists are
+  unverified.
 
   **Verified with a real trackpad, and worth saying why that mattered.** A probe
   that drove the wheel with `xdotool` and counted events in the page reported
