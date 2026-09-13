@@ -70,24 +70,68 @@ jobs:
             >> "$GITHUB_STEP_SUMMARY" || true
 
       - name: Keep the package even if the release step fails
+        # Before the AppImage is built, deliberately. This step exists to make
+        # sure a finished package survives a later failure, and building the
+        # AppImage first would have made a broken mkappimage.sh throw away a
+        # perfectly good .deb -- the exact thing this is here to prevent.
         uses: actions/upload-artifact@v7
         with:
           name: ${{ steps.deb.outputs.name }}
           path: dist/*.deb
           if-no-files-found: error
 
+      - name: Build the AppImage
+        id: appimage
+        # Made out of the .deb that was just built, not from a second build of
+        # the tree: mkappimage.sh unpacks that package and adds an AppRun, so
+        # the two artifacts are the same bits and cannot drift apart.
+        #
+        # This step runs on the runner itself rather than in the container, so
+        # it needs two things the .deb build did not: dpkg-deb to unpack, and
+        # network to fetch appimagetool. Checked here so a missing one fails
+        # with a sentence instead of a stack of shell errors.
+        run: |
+          set -e
+          command -v dpkg-deb >/dev/null || {
+            echo "dpkg-deb is needed to unpack the package; install dpkg-dev" >&2
+            exit 1
+          }
+          tools/mkappimage.sh "${{ steps.deb.outputs.path }}"
+          path="$(ls -t dist/*.AppImage | head -1)"
+          echo "path=$path" >> "$GITHUB_OUTPUT"
+          echo "name=$(basename "$path")" >> "$GITHUB_OUTPUT"
+          echo "### $(basename "$path")" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Keep the AppImage too
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ steps.appimage.outputs.name }}
+          path: dist/*.AppImage
+          if-no-files-found: error
+
       - name: Attach it to the release
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v3
         with:
-          files: dist/*.deb
+          files: |
+            dist/*.deb
+            dist/*.AppImage
           generate_release_notes: true
           body: |
-            Built from ${{ github.sha }} by the release workflow.
+            Built from ${{ github.sha }} by the release workflow. Two artifacts,
+            the same bits: the AppImage is made from the .deb rather than from a
+            second build of the tree.
 
-            Install with `sudo apt-get install ./${{ steps.deb.outputs.name }}`;
+            **Package** — `sudo apt-get install ./${{ steps.deb.outputs.name }}`.
             apt resolves the dependencies, which are computed from the binaries
-            themselves by dpkg-shlibdeps rather than written by hand.
-
-            Installs self-contained under `/opt/webos-ce`. Start it with
+            themselves by dpkg-shlibdeps rather than written by hand. Installs
+            self-contained under `/opt/webos-ce`; start it with
             `/opt/webos-ce/bin/webos-ce`.
+
+            **AppImage** — `chmod +x ${{ steps.appimage.outputs.name }}` and run
+            it. It needs `bubblewrap` on the host and nothing else: the tree
+            carries `/opt/webos-ce` compiled into 24 of its binaries and cannot
+            be relocated, so the AppImage binds itself there inside a private
+            mount namespace, which needs no privileges and leaves the host
+            untouched. Its writable state lives in `$XDG_DATA_HOME/webos-ce` and
+            survives restarts.

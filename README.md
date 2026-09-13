@@ -69,6 +69,35 @@ number of builds on the machine that wrote it would ever have said so.
 configurable, so `bwrap` is used to build a namespace where the paths webOS
 expects point at the local rootfs.
 
+## Packages
+
+```sh
+tools/mkdeb.sh              # a .deb, built in an Ubuntu 26.04 container
+tools/mkappimage.sh         # an AppImage, made from that .deb
+```
+
+The second wraps the first rather than building a tree of its own, so the two
+artifacts are the same bits by construction and a fix present in one cannot be
+missing from the other. Both are self-contained under `/opt/webos-ce`, and both
+start through one process that owns the whole stack and tears it down on the
+way out — `tools/webos-session.sh`. `run-lunasysmgr.sh` stays what it was, the
+development tool: granular, and nothing torn down behind your back.
+
+The AppImage needs `bubblewrap` on the host and it is not optional, because
+this tree cannot be relocated. 24 of its ELF files carry `/opt/webos-ce`
+compiled into them — four components generate a header from a `.in` template
+holding a `WEBOS_INSTALL_*` path, and `ls-hubd` and `ls-monitor` get theirs
+through `add_definitions`. Run `filecache` with that directory absent and it
+opens `/opt/webos-ce/etc/palm/FileCache.conf`, takes `ENOENT` and gives up. So
+`AppRun` does not move the prefix: it binds the payload there inside a private
+mount namespace, which needs no privileges and leaves the host untouched.
+
+`var/` is the other half. A squashfs is read-only and webOS writes as it runs:
+the payload ships 12 directories and one file, and a session leaves 90 behind —
+db8's log, the dock's pages, `used-first-card`. So the writable copy is seeded
+once under `$XDG_DATA_HOME/webos-ce` and bound over the payload's own, which
+also means a session's state survives restarts and outlives any one image.
+
 ## Layout
 
 - `components/` — HP's sources, vendored with `git subtree --squash`. Each
