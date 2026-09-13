@@ -1173,6 +1173,74 @@ across 16 processes and that a full card repaint costs 2.96 ms, so nothing
 observed so far points at the bridge as a bottleneck. That is an absence of
 evidence for a problem, not evidence that each call is free.
 
+### The back gesture reaches every app, and no app listens for it
+
+The gesture strip's back now arrives in an app's document exactly as webOS
+defined it. What it does not do is make the browser go back, and the reason is
+in HP's app, not in the path.
+
+**The path, measured end to end.** The strip posts `Key_CoreNavi_Back`, which in
+`SysMgrDeviceKeydefs.h` is that catalogue's `Key_Escape` (`0x1B`).
+`components/input-compat` turns it into Qt's `Key_Escape` (`0x01000000`), which
+is the only value Chromium turns into DOM `keyCode` 27, and the shim's
+`sendKeyToHostPage` addresses it to the app's own document rather than to
+whichever page was last clicked. With a listener on every document and the
+gesture driven by hand:
+
+```
+[Web] keydown keyCode=27 key="Escape" target=BODY
+[Web] enyo-back-dispatched
+```
+
+`[Web]` is the browser app's document, and `enyo-back-dispatched` is enyo's
+`Gesture.js` synthesising the `back` event from `if (e.keyCode == 27)`. Both
+halves were broken before and both are fixed: the same gesture used to produce
+`keyCode=0`, and then, once the code was right, arrived in the embedded content
+(`[La Tomatina - Wikipedia]`) instead.
+
+**Where it stops.** `Gesture.js` dispatches `{type: "back", target: null}`. With
+no target the dispatcher falls to `findDefaultTarget`, which is
+`enyo.dispatcher.rootHandler`; that broadcasts to its listeners, each an
+`ApplicationEvents` component, whose `dispatchDomEvent` calls
+`dispatchIndirectly('on' + enyo.cap('back'))`, i.e. `onBack`. And
+`dispatchIndirectly` resolves `this.owner[this['onBack']]` -- the name of the
+method the app *asked* for. `BrowserApp.js:27` declares:
+
+```js
+{kind: "ApplicationEvents", onWindowActivated: "windowActivatedHandler",
+ onWindowDeactivated: "windowDeactivatedHandler",
+ onApplicationRelaunch: "applicationRelaunchHandler"},
+```
+
+-- no `onBack`, so `this['onBack']` is `''`, the lookup is `undefined`, and
+nothing is called. Across the whole tree no bundled app subscribes to it. The
+`onBack` in `ActionBar.js:33` and `Browser.js:42` is a different thing: an event
+the browser publishes for its own toolbar button, wired to `goBack`.
+
+Measured with the browser on an article, two pages deep: `history.length=3`, the
+URL unchanged after eight gestures, and an `enyo-back-dispatched` for every one
+of them.
+
+**Why it is left alone.** The fix is one line in HP's application JavaScript --
+adding `onBack: "backHandler"` to that declaration -- and editing HP's app code
+is the last resort in `docs/architecture.md`, not something to spend on an app
+whose author chose not to subscribe. The system side is done and is what this
+port owes.
+
+Two things stay broken behind it, both in the commented-out half of this port:
+
+- **A card that ignores the back never minimises.** On a device an app that did
+  not handle the key returned it, and `SystemUiController::slotKeyEventRejected`
+  minimised the active card. The sender,
+  `View_Host_ReturnedKeyEvent`, sits inside the comment block in
+  `WindowedWebApp.cpp` (811-882), so nothing ever comes back and the shell never
+  hears a refusal.
+- **`Menu`, `Previous` and `Next` never reach apps at all.** They have no Qt
+  equivalent; webOS delivered them as Mojo gestures through `keyGesture()`,
+  which is commented out too. `input-compat` deliberately refuses to invent a Qt
+  key for them, and `tests/key-translate` pins that refusal: giving them one
+  would type into pages that never asked.
+
 ### The browser's padlock was never clickable, and the SSL dialog is a real gap
 
 Two separate things, and only one of them is missing.

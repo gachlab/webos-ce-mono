@@ -186,9 +186,20 @@ window the whole UI re-lays out to, and **the browser** — real page content,
 clickable links, typing in the address bar and in pages, YouTube at 1080p
 including fullscreen.
 
+**The gesture strip** under the screen works as it did on the phones: short
+swipes for back and menu, long ones to move between cards, and a drag up or down
+for the launcher and to minimise. Half of it had never fired here — the vertical
+drags were delegated to a flick recogniser that reads touches a handled mouse
+drag never produces, and the long-swipe threshold was half the window's width,
+which on a desktop asks for most of the screen. The back gesture now reaches an
+app's document as a real `keyCode` 27, which is what enyo turns into its `back`
+event; what the apps do with it is in `KNOWN_BUGS.md`.
+
 Not working, with the reasons measured in `KNOWN_BUGS.md`: the on-screen
-keyboard (it draws, but every touch is consumed upstream before it arrives) and
-the browser's padlock dialog.
+keyboard (it draws, but every touch is consumed upstream before it arrives), the
+browser's padlock dialog, and the back gesture's effect inside an app — it
+arrives correctly and enyo raises its `back` event, but no bundled app ever
+subscribed to it, so the browser does not go back.
 
 `KNOWN_BUGS.md` lists what is broken, what it depends on and what has already
 been ruled out — including which failures reproduce identically on HP's own
