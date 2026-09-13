@@ -98,6 +98,31 @@ db8's log, the dock's pages, `used-first-card`. So the writable copy is seeded
 once under `$XDG_DATA_HOME/webos-ce` and bound over the payload's own, which
 also means a session's state survives restarts and outlives any one image.
 
+### Not a Flatpak, and not for the expected reason
+
+The obvious objection is that webOS needs six absolute paths a Flatpak sandbox
+does not have, and that `bwrap` cannot nest inside one to create them. The
+second half is true — `unshare` is refused inside the sandbox on four different
+runtimes, with and without `--allow=devel`, while the same command succeeds on
+the host — and it turns out not to matter. Flatpak already gives an app a
+writable `/etc` and `/var`, so four of the six (`/etc/palm`, `/var/luna`,
+`/var/palm`, `/var/db`) are one `mkdir` at startup, measured inside a real
+app's sandbox rather than a bare runtime, which mounts them differently.
+
+The two that are refused are `/usr/palm` and `/usr/lib/luna`, both under the
+runtime's read-only `/usr`. `/usr/palm` appears in 68 data files, which the
+build already rewrites, and in roughly 43 literals in compiled code — 20 of
+them the keyboards' emoticons — but all of them are the same string, so it is a
+substitution in a Flatpak build, not a patch to HP's sources. `/usr/lib/luna`
+is the harder one: it holds the service binaries, and ls-hubd authorises a
+caller by comparing its `/proc/<pid>/exe` against the path in a role file.
+
+What actually decides it is QtWebEngine. `org.kde.Platform` 6.10 and 6.11 ship
+its translations but not the library, and none of flathub's 2,441 runtime refs
+mentions it, so a Flatpak would have to compile it inside the manifest: hours
+per build, indefinitely. The `.deb` and the AppImage take it from the
+distribution instead, which is the whole reason they are cheap.
+
 ## Layout
 
 - `components/` — HP's sources, vendored with `git subtree --squash`. Each
