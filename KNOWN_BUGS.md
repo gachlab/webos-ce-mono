@@ -104,14 +104,162 @@ Traps found on the way, each confirmed before being fixed:
   `QWebEngineFrame` now; ids come from one counter for the whole page, so the
   owner is reached and every other frame's `emit` finds nothing and stops.
   `tests/subframe-signal` fails without it.
-- **Nothing scrolls a page by wheel, anywhere, because webOS had no wheel.**
+- **~~Nothing scrolls a page by wheel, anywhere, because webOS had no wheel~~**
+  (fixed, in `components/input-compat` and the two files beside it).
   `Event::Type` (`luna-sysmgr-ipc-messages/.../SysMgrEvent.h`, reached through
   `luna-sysmgr-common/include/Event.h`) is `Key*`, `Pen*`, `Gesture*` and the
   sensors -- there is no scroll or wheel member, and `QEvent::Wheel`,
-  `QWheelEvent` and `wheelEvent` appear nowhere in luna-sysmgr or in
-  webappmanager. A trackpad's two-finger swipe is therefore dropped before any
-  of our code sees it, and the browser's embedded page cannot be scrolled by
-  one. Adding it means a new event type carried the whole way: shell, IPC, app.
+  `QWheelEvent` and `wheelEvent` appeared nowhere in luna-sysmgr or in
+  webappmanager. A trackpad's two-finger swipe was therefore dropped before any
+  of our code saw it.
+
+  It does not need a new event type after all. `Event::Type` reserves
+  `User = 0xFF000000` for events HP did not define, and a value there carries
+  none of the `PenMask`/`KeyMask`/`GestureMask` bits, so every `isPenEvent()`
+  test in HP's code answers no and every switch falls through: the event crosses
+  the whole path untouched and is invisible until our own code asks for it. The
+  struct does not grow either -- the scroll rides in fields of the union a
+  scroll never fills, mapped in one header. `tests/wheel-pack` holds both halves
+  down.
+
+  The shell picks the wheel up in an application event filter
+  (`Src/base/WheelToScroll.cpp`, installed from `Main.cpp` beside
+  `MouseEventEater`) rather than in `CardWindow::wheelEvent`, and that is not a
+  style preference: `QGraphicsSceneWheelEvent` is `delta()` and `orientation()`
+  and nothing else in Qt 6, with nowhere to put `pixelDelta`. MEASURED in
+  `tests/wheel-in`: an event carrying only `pixelDelta` arrives at an item as
+  delta 0, so taking it from the scene would have silently dropped exactly the
+  trackpads it was meant to serve. WebAppMgr hands the page a real `QWheelEvent`
+  (`Src/webbase/WheelDelivery.cpp`), which `QWebPage::event` already forwards to
+  the engine, and Chromium scrolls the page natively.
+
+  **What it does, measured through the inspector**, driving a real trackpad over
+  the browser with counters armed on every page: 353 `wheel` events and 6,749px
+  of movement out of 8,968 on the browser's *embedded* page, and exactly 0 on
+  the host page that draws the address bar. That split is the proof that
+  `deliverToEmbedded` routes by position -- the content scrolls, its chrome does
+  not.
+
+  **And one claim that did not survive the measurement.** This was written
+  believing enyo would pick the same event up, because `Dispatcher.js` registers
+  `"mousewheel"` and `ScrollStrategy.mousewheel` reads `wheelDeltaY` out of it.
+  It does not: of those 353 events, `mousewheel` fired **0** times. Chromium
+  dispatches the standard `wheel` and not the legacy alias, so enyo's own wheel
+  handler cannot run at all.
+
+  **That does cost something, and the answer is in enyo's own CSS.**
+  `.enyo-scroller` is `overflow: hidden` (`Scroller.css:1`), and the content is
+  moved by `effectScrollAccelerated` writing
+  `-webkit-transform: translate3d(...)` -- or `effectScrollNonAccelerated`
+  writing `top`/`left` -- from the Verlet simulation in `ScrollStrategy`. So
+  there is no native overflow for Chromium to scroll and no JavaScript listener
+  that will ever hear the event: **the wheel reaches an enyo app's page and does
+  nothing there.** It scrolls the browser's web content, which is Chromium's own
+  scrolling, and that is the whole of what it does today.
+
+  **Confirmed at runtime, three times, and the asymmetry is the giveaway.** With
+  counters armed in the page, the calendar counted 234, then 616, then 180
+  `wheel` events across separate sessions -- arriving at sane coordinates, with
+  `elementFromPoint` returning the agenda's own `eventGroup` -- and every
+  `.enyo-scroller` stayed at `scrollTop: 0` with `transform: none` throughout. A
+  sweep of every element in the page for a computed `overflow-y` of `auto` or
+  `scroll` with content to spare returns **0 of them**, and the document itself
+  has 3px of slack. There is nothing there for a wheel to move.
+  Meanwhile the browser keeps scrolling perfectly through the same code, because
+  what scrolls there is an ordinary Chromium document.
+
+  Two traps for whoever picks this up. A card is a **new document every time it
+  is opened**, so instrumentation injected through the inspector is wiped by
+  reopening the app, and a counter reading 0 may mean "never armed" rather than
+  "never fired" -- check that the target id is still the one you armed. And
+  dragging with the mouse *does* scroll these lists, through the pen events
+  enyo's dragstart path consumes, which looks exactly like the wheel working if
+  you are not watching which gesture you used.
+
+### The calendar is reported scrolling by wheel, and the instruments disagree
+
+Open, and written down unresolved rather than settled in favour of either side.
+
+**What was observed**, driving the machine by hand: the calendar's agenda
+scrolls with the wheel on some occasions and not on others, with closing and
+reopening the app and switching away to another window and back both named as
+things that change it. The browser is never affected, which is explained -- its
+content is an ordinary Chromium document.
+
+**What every measurement says instead**: three sessions counted 234, then 616,
+then 180 `wheel` events inside the calendar's page with every `.enyo-scroller`
+left at `scrollTop: 0` and `transform: none`; a sweep for any element with a
+computed `overflow-y` of `auto` or `scroll` and content to spare returns 0; enyo
+listens for `"mousewheel"` alone and Chromium dispatched it 0 times. By that
+picture the wheel cannot move an enyo list at all, ever, and there is nothing
+intermittent about it.
+
+Both cannot be true. Either there is a path that occasionally moves these lists
+that none of the above found, or what was seen moving came from dragging, which
+does scroll them through the pen events and is easy to mistake for the wheel
+when you are not tracking which gesture you used. No measurement yet
+distinguishes the two.
+
+**And the attempt to settle it failed, which is part of the record.** A live
+watcher was attached to the browser endpoint to auto-instrument every page as it
+is created -- so that reopening the app could not wipe it -- and report each
+burst of wheel events with whether anything moved. It printed its startup line
+and then nothing at all while the behaviour was being reproduced, so the fault
+is in the watcher rather than in what it was watching. Fix that first: check
+that `Target.setDiscoverTargets` actually yields `attachedToTarget`, and that a
+dropped websocket is not being swallowed by a bare `except: continue`.
+
+### ~~A pointer moving over a page never arrived~~ (fixed)
+
+webOS had fingers and no pointer, so nothing in HP's code carries a hover.
+`Event::PenMove` exists but only ever describes a finger already down: the shell
+builds it out of touch, and Qt synthesises touch only while a button is held, so
+a move with nothing pressed produced no touch, no pen event and nothing that
+crossed the IPC. Every piece of web content that reveals itself on hover stayed
+hidden -- the browser's player controls being the case you notice.
+
+MEASURED before, with counters armed on the page: **0** `mousemove` and **0**
+`pointermove` against 148 `mouseover`, those last ones coming from content
+sliding under a pointer that never moved. That asymmetry is what named the bug:
+the engine knew where the pointer was and was never told that it moved.
+
+Carried now the same way as the wheel, through the range `Event::Type` reserves
+as `User` and fields of the union a hover never fills
+(`components/input-compat/include/webos_hover.h`), picked up by
+`Src/base/HoverToMouseMove.cpp` and handed to the page as a buttonless
+`QMouseEvent(MouseMove)` by `Src/webbase/HoverDelivery.cpp`.
+
+**Measured after, and the split is the interesting half**: with the pointer over
+the browser's own toolbar at y=52 the *host* page counted 3 moves and the
+embedded page 0; with the pointer over the video the *embedded* page counted 433
+moves and 433 `pointermove`. That is `deliverToEmbedded` routing by position,
+demonstrated in both directions -- hover the chrome and the chrome hears it,
+hover the content and the content does.
+
+Two things it depends on, both held down by tests rather than by comment.
+`tests/filter-order` pins the ordering: the filter is installed *after*
+`MouseEventEater` because Qt activates event filters in reverse order of
+installation, so it is offered the move before the eater swallows it, and if
+that rule ever changed hovers would stop arriving with nothing in the build to
+say so. And it throttles to one hover per frame, dropping moves that did not
+move: a pointer produces hundreds a second, and each one is an IPC message plus
+a synthesised event inside WebAppMgr.
+
+  The fix belongs in `qtwebkit-compat`, not in HP's JavaScript: it already
+  injects scripts at document creation, and one more that re-dispatches a
+  `wheel` as a legacy `mousewheel` carrying `wheelDeltaY` would make
+  `ScrollStrategy.mousewheel` fire with nothing of HP's edited. What needs
+  measuring before writing it is the double-scroll case -- a page that Chromium
+  already scrolls natively would then get both -- so it likely has to be scoped
+  to targets inside an `.enyo-scroller`.
+
+  **Verified with a real trackpad, and worth saying why that mattered.** A probe
+  that drove the wheel with `xdotool` and counted events in the page reported
+  zero, twice, with the feature working the whole time: under XWayland the
+  synthetic button-4/5 never reached the shell's window. That is the same shape
+  as the `xdotool search --name '^LunaSysMgr$'` trap below. A negative result
+  from synthetic input here proves nothing until the injection itself is shown
+  to land.
 - **Faking that scroll from the drag does not work, and the numbers are worth
   keeping so nobody pays for them twice.** A drag already reaches an embedded
   page as mouse events, so it was turned into wheel events there instead.

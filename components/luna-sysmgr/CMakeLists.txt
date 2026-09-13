@@ -27,6 +27,9 @@ find_package(Qt6 REQUIRED COMPONENTS Core Gui Network Widgets Quick Qml OpenGL S
 # what Qt 6 removed comes back through components/qt6-compat.
 find_package(Qt6 REQUIRED COMPONENTS OpenGLWidgets StateMachine GuiPrivate)
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../qt6-compat ${CMAKE_CURRENT_BINARY_DIR}/qt6-compat)
+# Input modern hardware produces that webOS's catalogue never had -- the wheel,
+# so far -- packed into HP's Event without changing it.
+add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../input-compat ${CMAKE_CURRENT_BINARY_DIR}/input-compat)
 # Qt 6's moc needs the complete type behind every pointer-typed property.
 # icon.h declares Q_PROPERTY(LayoutItem * ...) with LayoutItem only forward
 # declared, which Qt 5 accepted. -b puts the definition in front of every
@@ -242,6 +245,8 @@ add_executable(LunaSysMgr
     Src/sound/SoundPlayerPool.cpp
     Src/base/QmlSceneItem.cpp
     Src/base/MouseToTouch.cpp
+    Src/base/WheelToScroll.cpp
+    Src/base/HoverToMouseMove.cpp
 
     # Q_OBJECT headers AUTOMOC would not find on its own. qmake ran moc over
     # everything in HEADERS; AUTOMOC pairs X.cpp with an X.h in the SAME
@@ -339,7 +344,7 @@ find_package(Threads REQUIRED)
 target_link_libraries(LunaSysMgr PRIVATE
     Qt::Core Qt::Gui Qt::Network Qt::Widgets
     Qt::Quick Qt::Qml Qt::OpenGL Qt::Sql
-    Qt::OpenGLWidgets Qt::StateMachine Qt::GuiPrivate qt6compat-gl
+    Qt::OpenGLWidgets Qt::StateMachine Qt::GuiPrivate qt6compat-gl input-compat
     ${GLIB_LDFLAGS} ${SQLITE_LDFLAGS} OpenGL::GL
     OpenSSL::SSL OpenSSL::Crypto Threads::Threads
     -L${WEBOS_STAGING}/lib -L${WEBOS_STAGING}/usr/lib

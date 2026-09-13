@@ -175,7 +175,10 @@ removed, `qtwebkit-compat` for the QtWebKit API WebAppMgr is written against
 (on QtWebEngine), and `node-v8-shim` for HP's three node addons on node 26.
 
 Working: the lock screen, the launcher, the dock, keyboard input, taps and
-drag-to-scroll, apps opening as cards, db8 with its schemas loaded, HP's
+drag-to-scroll, scrolling the browser's page content with a wheel or a trackpad,
+and a pointer that hovers — neither of which webOS itself had, so both are
+carried across HP's IPC by `components/input-compat` without changing it —
+apps opening as cards, db8 with its schemas loaded, HP's
 services up alongside it (`mojodb-luna`, `LunaSysService`, `filecache`,
 `activitymanager`, `LunaUniversalSearchMgr`, `mojomail`), the base apps
 (calendar, accounts, email) with a local profile account, a resizable shell
@@ -184,9 +187,8 @@ clickable links, typing in the address bar and in pages, YouTube at 1080p
 including fullscreen.
 
 Not working, with the reasons measured in `KNOWN_BUGS.md`: the on-screen
-keyboard (it draws, but every touch is consumed upstream before it arrives),
-trackpad swipe scrolling (nothing in the stack carries a wheel event), and the
-browser's padlock dialog.
+keyboard (it draws, but every touch is consumed upstream before it arrives) and
+the browser's padlock dialog.
 
 `KNOWN_BUGS.md` lists what is broken, what it depends on and what has already
 been ruled out — including which failures reproduce identically on HP's own

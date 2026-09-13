@@ -39,6 +39,7 @@ const char kPrefixedEventScriptName[] = "webos-prefixed-events";
 const char kAppViewShimScriptName[] = "webos-app-view-shims";
 const char kFrameCancelScriptName[] = "webos-frame-cancel";
 const char kFlexWidthScriptName[] = "webos-flex-width";
+const char kEnyoWheelScriptName[] = "webos-enyo-wheel";
 
 // Before QApplication exists: a URL scheme can only be registered then, and
 // QtWebEngine wants shared GL contexts decided before the first one is made.
@@ -467,6 +468,82 @@ const char kFlexWidthCompat[] = R"JS(
 
 // ---------------------------------------------------------------------------
 // The JavaScript side of the object bridge. Runs once per document, first.
+
+// The wheel event enyo is listening for, which Chromium stopped sending.
+//
+// enyo's Dispatcher.js registers "mousewheel" -- the legacy name -- and
+// ScrollStrategy.mousewheel reads wheelDeltaY out of it. Chromium dispatches
+// the standard "wheel" and never the alias: MEASURED in the running shell as
+// 558 wheel events against 0 mousewheel. And nothing else can scroll these
+// lists either, because .enyo-scroller is overflow:hidden and enyo moves its
+// content with translate3d from a JavaScript simulation. So the wheel arrived
+// at HP's apps and did nothing at all, while the browser scrolled perfectly --
+// what scrolls there is an ordinary Chromium document.
+//
+// Scoped to targets inside an .enyo-scroller, and that is measured rather than
+// cautious: a census of the running pages found the browser's embedded content
+// with 0 enyo scrollers and its chrome with 2 that hold no content, so this
+// cannot fire where Chromium is already scrolling and cannot double-scroll
+// anything.
+//
+// wheelDeltaY is set explicitly instead of being left to the constructor. A
+// constructed WheelEvent does expose the attribute, but derives it as +deltaY
+// -- MEASURED: {deltaY: 100} yields wheelDeltaY 100, where a real event
+// reports the negation. Handed to enyo unchanged it would scroll the list
+// backwards, since ScrollStrategy adds the value straight to its position.
+//
+// A real event does carry one, and carries it correctly, so that is what is
+// passed through. MEASURED on the events this port delivers, in both contexts:
+// deltaY 63, 135 and 145 inside an enyo scroller arrived as wheelDeltaY -125,
+// -270 and -290, and deltaY 78, 150 and 242.5 on the browser's page as -156,
+// -300 and -484. Negated, and a factor of two rather than the three of Blink's
+// older convention -- which is why the fallback below uses the number that was
+// measured instead of the one that is usually quoted.
+//
+// The same samples confirm the scoping: closest(".enyo-scroller") was true for
+// every sample taken in the calendar and false for every one taken on the
+// browser's content.
+const char kEnyoWheelCompat[] = R"JS(
+(function () {
+    if (window.__webosEnyoWheel)
+        return;
+    window.__webosEnyoWheel = true;
+
+    document.addEventListener("wheel", function (e) {
+        var target = e.target;
+        if (!target || !target.closest || !target.closest(".enyo-scroller"))
+            return;
+
+        // What Blink already computed for this event, which on a real one is
+        // the negated delta and is exactly what enyo expects. The fallback is
+        // only for an event that arrives without it; its factor is the one
+        // measured here rather than the 3 of Blink's historical convention.
+        var legacyY = e.wheelDeltaY;
+        if (typeof legacyY !== "number" || !isFinite(legacyY) || legacyY === 0)
+            legacyY = -e.deltaY * 2;
+        var legacyX = e.wheelDeltaX;
+        if (typeof legacyX !== "number" || !isFinite(legacyX))
+            legacyX = -e.deltaX * 2;
+
+        // A "mousewheel" of our own. It does not re-enter this listener --
+        // that one is bound to "wheel" -- and it bubbles, which is how it
+        // reaches the document listener enyo installed.
+        var synth = new WheelEvent("mousewheel", {
+            bubbles: true,
+            cancelable: true,
+            clientX: e.clientX,
+            clientY: e.clientY,
+            deltaX: e.deltaX,
+            deltaY: e.deltaY
+        });
+        Object.defineProperty(synth, "wheelDeltaY", { value: legacyY, configurable: true });
+        Object.defineProperty(synth, "wheelDeltaX", { value: legacyX, configurable: true });
+        Object.defineProperty(synth, "wheelDelta",  { value: legacyY, configurable: true });
+
+        target.dispatchEvent(synth);
+    }, true);
+})();
+)JS";
 
 const char kBridgeCore[] = R"JS(
 (function () {
@@ -1310,6 +1387,17 @@ QWebPage::QWebPage(QObject* parent)
     flexWidth.setRunsOnSubFrames(true);
     flexWidth.setSourceCode(QString::fromLatin1(kFlexWidthCompat));
     m_engine->scripts().insert(flexWidth);
+
+    // The legacy wheel event enyo listens for; see above. Separate again,
+    // because this one is about an event Chromium renamed and the others are
+    // about layout.
+    QWebEngineScript enyoWheel;
+    enyoWheel.setName(kEnyoWheelScriptName);
+    enyoWheel.setInjectionPoint(QWebEngineScript::DocumentCreation);
+    enyoWheel.setWorldId(QWebEngineScript::MainWorld);
+    enyoWheel.setRunsOnSubFrames(true);
+    enyoWheel.setSourceCode(QString::fromLatin1(kEnyoWheelCompat));
+    m_engine->scripts().insert(enyoWheel);
 
     // The prefixed events Chromium dropped; see above.
     QWebEngineScript prefixedEvents;
