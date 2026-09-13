@@ -27,9 +27,16 @@ This was written expecting enyo to be the receiver waiting on the other side:
 `wheelDeltaY` out of it. Measured, that is not what happens. Over a real
 trackpad the browser's embedded page counted 353 `wheel` events and 0
 `mousewheel`: Chromium dispatches the standard event and not the legacy alias,
-so enyo's handler never runs. What scrolls is Chromium itself. Whether HP's own
-enyo lists scroll too -- as ordinary overflow, needing no JavaScript -- is not
-checked yet.
+so enyo's handler never runs. What scrolls is Chromium itself.
+
+Which means this carries the wheel to HP's apps and they ignore it.
+`.enyo-scroller` is `overflow: hidden` and enyo moves its content with
+`translate3d` from a JavaScript physics simulation, so there is no native
+overflow for Chromium to scroll either. The wheel arrives and nothing happens.
+Making HP's lists answer it is a script in `qtwebkit-compat` -- re-dispatching
+the standard `wheel` as the legacy `mousewheel` enyo listens for -- and not a
+change here: what this component carries is already correct and already
+arrives.
 
 The obvious fix is to add a member to `Event::Type`, a pair of fields to
 `SysMgrEvent`, a branch to `CardWebApp`'s orientation mapping and another to

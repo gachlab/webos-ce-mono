@@ -145,11 +145,25 @@ Traps found on the way, each confirmed before being fixed:
   `"mousewheel"` and `ScrollStrategy.mousewheel` reads `wheelDeltaY` out of it.
   It does not: of those 353 events, `mousewheel` fired **0** times. Chromium
   dispatches the standard `wheel` and not the legacy alias, so enyo's own wheel
-  handler cannot run at all. Whether that costs anything is still open --
-  enyo's scrollers may be scrolled natively by Chromium as ordinary overflow,
-  which needs no JavaScript. Not yet checked in an enyo app; until it is, the
-  honest statement is that the browser's content scrolls and HP's own lists are
-  unverified.
+  handler cannot run at all.
+
+  **That does cost something, and the answer is in enyo's own CSS.**
+  `.enyo-scroller` is `overflow: hidden` (`Scroller.css:1`), and the content is
+  moved by `effectScrollAccelerated` writing
+  `-webkit-transform: translate3d(...)` -- or `effectScrollNonAccelerated`
+  writing `top`/`left` -- from the Verlet simulation in `ScrollStrategy`. So
+  there is no native overflow for Chromium to scroll and no JavaScript listener
+  that will ever hear the event: **the wheel reaches an enyo app's page and does
+  nothing there.** It scrolls the browser's web content, which is Chromium's own
+  scrolling, and that is the whole of what it does today.
+
+  The fix belongs in `qtwebkit-compat`, not in HP's JavaScript: it already
+  injects scripts at document creation, and one more that re-dispatches a
+  `wheel` as a legacy `mousewheel` carrying `wheelDeltaY` would make
+  `ScrollStrategy.mousewheel` fire with nothing of HP's edited. What needs
+  measuring before writing it is the double-scroll case -- a page that Chromium
+  already scrolls natively would then get both -- so it likely has to be scoped
+  to targets inside an `.enyo-scroller`.
 
   **Verified with a real trackpad, and worth saying why that mattered.** A probe
   that drove the wheel with `xdotool` and counted events in the page reported
