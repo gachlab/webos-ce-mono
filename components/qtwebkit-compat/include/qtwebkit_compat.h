@@ -212,6 +212,22 @@ public:
     void embedPage(QWebPage* page, const QRect& rect);
     void removeEmbeddedPage(QWebPage* page);
 
+    // NOT QtWebKit API: a key addressed to the app rather than to the cursor.
+    //
+    // event() sends keys to whichever page was last pressed, which is what
+    // makes typing land in a field inside an embedded page. A system gesture is
+    // not typing: the back gesture belongs to the app that owns the card, and
+    // its document is the host's. MEASURED with the browser showing a page and
+    // the strip's back gesture driven by hand:
+    //
+    //     [La Tomatina - Wikipedia] keydown keyCode=27 key="Escape"
+    //
+    // -- the escape went to the embedded content, which ignores it, while
+    // enyo's listener sits in the browser app's own document and never saw one.
+    // Only the caller knows which of the two a key is, so it says so by
+    // choosing this instead of event().
+    void sendKeyToHostPage(QKeyEvent* event);
+
 Q_SIGNALS:
     void loadStarted();
     void loadProgress(int progress);

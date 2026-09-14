@@ -63,6 +63,40 @@ target_include_directories(hover-pack PRIVATE
     "${WEBOS_STAGING}/usr/include/sysmgr-ipc")
 add_test(NAME hover-pack COMMAND hover-pack)
 
+# --- which webOS key codes have to become Qt ones, and which must not --------
+# The back gesture posts SysMgrDeviceKeydefs' Key_Escape (0x1B), which is not
+# Qt's (0x01000000), so Chromium hands the DOM keyCode 0 and enyo's Gesture.js
+# -- which tests keyCode == 27 and nothing else -- never synthesises "back".
+# Measured in the running browser before the fix. Most of the test is about
+# refusing to translate anything else: this runs on every key a card receives.
+add_executable(key-translate key-translate.cpp)
+target_include_directories(key-translate PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/../components/input-compat/include")
+target_link_libraries(key-translate PRIVATE Qt::Core)
+add_test(NAME key-translate COMMAND key-translate)
+
+# --- and where that key goes once it is the right one ------------------------
+# Getting the code right was only half of it: measured in the running browser,
+# the escape then landed in the embedded content, which ignores it, while enyo's
+# listener sits in the app's own document. Keys follow the last press so that
+# typing reaches a field inside the content; a gesture has to go to the app
+# instead. Both directions are pinned here.
+add_executable(gesture-key-routing gesture-key-routing.cpp)
+target_link_libraries(gesture-key-routing PRIVATE qtwebkit-compat-lib)
+add_test(NAME gesture-key-routing COMMAND gesture-key-routing)
+set_tests_properties(gesture-key-routing PROPERTIES
+    ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
+# --- where the gesture strip's vertical drag begins, and where HP's ends -----
+# Only the header is compiled, not the filter: the decision is a pure function
+# precisely so it can be checked without bringing a shell up. What matters is
+# the boundary -- claiming a sideways drag would fire Launcher on top of HP's
+# own Back and the strip would do two things at once.
+add_executable(strip-drag strip-drag.cpp)
+target_include_directories(strip-drag PRIVATE "${SYSMGR}/Src/base")
+target_link_libraries(strip-drag PRIVATE Qt::Core)
+add_test(NAME strip-drag COMMAND strip-drag)
+
 # --- which coordinate space a touch point arrives in --------------------------
 add_executable(touch-coordinate-spaces touch-coordinate-spaces.cpp)
 target_link_libraries(touch-coordinate-spaces PRIVATE Qt::Core Qt::Gui Qt::Widgets Qt::GuiPrivate)

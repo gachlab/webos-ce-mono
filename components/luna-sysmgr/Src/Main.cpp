@@ -49,6 +49,7 @@
 #include "MouseEventEater.h"
 #include "WheelToScroll.h"
 #include "HoverToMouseMove.h"
+#include "StripDragToCoreNavi.h"
 #endif
 
 #include <sys/time.h>
@@ -771,6 +772,15 @@ int main( int argc, char** argv)
     HoverToMouseMove *hover = new HoverToMouseMove();
     hover->watch(windowServer->viewport());
     QCoreApplication::instance()->installEventFilter(hover);
+
+    // The vertical half of the gesture strip, which never fired here: HP left
+    // it to a flick gesture whose recogniser reads touch events that a handled
+    // mouse drag never produces. Measured before this existed: dragging
+    // sideways posted Back 7 times, dragging up posted Launcher 0 times.
+    //
+    // No watch() unlike the three above: this one finds its target by class
+    // name, which is what lets it repair GestureStrip without editing it.
+    QCoreApplication::instance()->installEventFilter(new StripDragToCoreNavi());
 #endif
 
 	// Initialize the SysMgr MemoryMonitor
