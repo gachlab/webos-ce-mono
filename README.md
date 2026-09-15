@@ -41,7 +41,7 @@ tools/run-lunasysmgr.sh     # start the shell
 ```
 
 Each stage can be run on its own: `headers`, `autotools`, `cmake`, `node`,
-`rootfs`. Everything lands in `build/`, and nothing outside the repository is
+`powerd`, `rootfs`. Everything lands in `build/`, and nothing outside the repository is
 downloaded or compiled.
 
 That last sentence is checked rather than asserted, and by something stronger
@@ -194,6 +194,13 @@ drag never produces, and the long-swipe threshold was half the window's width,
 which on a desktop asks for most of the screen. The back gesture now reaches an
 app's document as a real `keyCode` 27, which is what enyo turns into its `back`
 event; what the apps do with it is in `KNOWN_BUGS.md`.
+
+**The battery**, on a laptop, from `/sys/class/power_supply`: the status bar shows
+the real percentage and the charging state follows the cable, systemui's
+"Charging Battery" banner appears on plug-in, and webOS's own Power Off and
+Restart end or restart the session without touching the machine. On a device
+that was powerd; nothing in the CE drop provides `com.palm.power`, so
+`components/sysfs-powerd` answers it.
 
 Not working, with the reasons measured in `KNOWN_BUGS.md`: the on-screen
 keyboard (it draws, but every touch is consumed upstream before it arrives), the
