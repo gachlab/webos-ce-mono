@@ -208,10 +208,24 @@ inline std::string batteryPayload(const PowerState& s, bool withReturnValue)
     return buf;
 }
 
+// What USBName to report. A laptop's AC adapter is a wall charger.
+//
+// A machine with no battery is on external power but never charging, and that
+// combination is exactly what PowerdService.js raises its "not charging" alert
+// for -- USBConnected true, Charging false -- unless USBName is "pc", which it
+// skips on purpose (luna-systemui/data/PowerdService.js, handlePowerNotifications).
+// Reporting "wall" there popped that alert two seconds after every start on a
+// desktop. "pc" keeps "on external power" for DisplayManager without it, and is
+// also the honest reading: power that is not charging a battery.
+inline const char* chargerName(const PowerState& s)
+{
+    if (!s.hasBattery)
+        return "pc";
+    return s.externalPower ? "wall" : "none";
+}
+
 // The payload of the chargerStatus signal and of a chargerStatusQuery reply.
-// There is no dock on a desktop. External power is reported as a wall charger,
-// which is what a laptop's AC adapter is: PowerdService.js distinguishes "wall"
-// from "pc" only to skip its "not charging" alert for the latter.
+// There is no dock on a desktop.
 inline std::string chargerPayload(const PowerState& s, bool withReturnValue)
 {
     const bool plugged = s.externalPower || !s.hasBattery;
@@ -222,7 +236,7 @@ inline std::string chargerPayload(const PowerState& s, bool withReturnValue)
                   withReturnValue ? "\"returnValue\":true," : "",
                   isCharging(s) ? "true" : "false",
                   plugged ? "true" : "false",
-                  plugged ? "wall" : "none");
+                  chargerName(s));
     return buf;
 }
 

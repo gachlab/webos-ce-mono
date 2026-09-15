@@ -49,8 +49,11 @@ method.
 Things worth knowing
 --------------------
 
-- **A machine with no battery reports 100% on external power.** HP's status bar
-  has no way to hide its battery icon; with no powerd at all it shows " ? ".
+- **A machine with no battery reports 100% on external power, as `USBName:"pc"`.**
+  HP's status bar has no way to hide its battery icon; with no powerd at all it
+  shows " ? ". The charger name matters: external power that is not charging is
+  exactly what systemui's "not charging" alert fires on, and `"pc"` is the one
+  name it skips. `"wall"` there popped that alert on every start of a desktop.
 - **Schema validation is off, and this relies on it.** `DisplayManager` declares
   `batteryStatus` as `{"percent": integer}` with `additionalProperties:false`,
   while the status bar reads `percent_ui`. One signal carries both, which works

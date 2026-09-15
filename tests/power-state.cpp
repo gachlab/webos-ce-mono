@@ -125,7 +125,14 @@ int main()
         const SysfsPower::PowerState s = SysfsPower::readPowerState(fs.root);
         check(!s.hasBattery && s.percent == 100, "no battery reads 100%, never an empty battery");
         check(!SysfsPower::isCharging(s), "no battery is never charging");
-        check(contains(SysfsPower::chargerPayload(s, false), "\"USBConnected\":true"), "no battery reports being on external power");
+        const std::string charger = SysfsPower::chargerPayload(s, false);
+        check(contains(charger, "\"USBConnected\":true"), "no battery reports being on external power");
+        // PowerdService.js opens its "not charging" alert for USBConnected true
+        // with Charging false unless USBName is "pc". Found in review: "wall" here
+        // popped that alert two seconds after every start on a desktop.
+        check(contains(charger, "\"USBName\":\"pc\""), "no battery names the charger pc, which systemui's not-charging alert skips");
+        check(!(contains(charger, "\"Charging\":false") && contains(charger, "\"USBName\":\"wall\"")),
+              "no battery never reads as a wall charger that is not charging");
     }
     {
         check(!SysfsPower::readPowerState("/nonexistent/power_supply").hasBattery, "a missing power_supply directory is a machine with no battery");
