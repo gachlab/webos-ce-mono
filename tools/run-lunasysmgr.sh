@@ -262,12 +262,12 @@ case "${1:-run}" in
     # to read from -- hence the "Service does not exist: com.palm.systemservice /
     # com.palm.preferences" lines in the log.
     L="$ROOTFS/usr/lib/luna"
-    ALL_SERVICES="mojodb-luna LunaSysService filecache activitymanager LunaUniversalSearchMgr"
+    ALL_SERVICES="mojodb-luna LunaSysService sysfs-powerd filecache activitymanager LunaUniversalSearchMgr"
     for svc in $ALL_SERVICES; do service_stop "$L/$svc"; done
     sleep 1
     "$L/mojodb-luna" -c /etc/palm/mojodb.conf /var/db > /tmp/webos/mojodb.log 2>&1 &
     sleep 2
-    for svc in LunaSysService filecache activitymanager LunaUniversalSearchMgr; do
+    for svc in LunaSysService sysfs-powerd filecache activitymanager LunaUniversalSearchMgr; do
         [ -x "$L/$svc" ] || { echo "$svc: no binary"; continue; }
         "$L/$svc" > "/tmp/webos/$svc.log" 2>&1 &
         sleep 1
@@ -344,7 +344,7 @@ case "${1:-run}" in
     ;;
   stop)
     pkill -x LunaSysMgr; pkill -x WebAppMgr
-    for s in mojodb-luna LunaSysService filecache activitymanager LunaUniversalSearchMgr; do
+    for s in mojodb-luna LunaSysService sysfs-powerd filecache activitymanager LunaUniversalSearchMgr; do
         service_stop "$ROOTFS/usr/lib/luna/$s"
     done
     # The JavaScript services too, and they cannot be found the way the C++ ones

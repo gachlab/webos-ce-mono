@@ -97,6 +97,15 @@ target_include_directories(strip-drag PRIVATE "${SYSMGR}/Src/base")
 target_link_libraries(strip-drag PRIVATE Qt::Core)
 add_test(NAME strip-drag COMMAND strip-drag)
 
+# --- what com.palm.power reports, from a fake /sys/class/power_supply ----------
+# The status bar and DisplayManager each drop a payload missing a field they
+# read, so a wrong name shows up as a battery icon that never moves rather than
+# as a wrong number. The fields are checked as strings for that reason.
+add_executable(power-state power-state.cpp)
+target_include_directories(power-state PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/../components/sysfs-powerd/src")
+add_test(NAME power-state COMMAND power-state)
+
 # --- which coordinate space a touch point arrives in --------------------------
 add_executable(touch-coordinate-spaces touch-coordinate-spaces.cpp)
 target_link_libraries(touch-coordinate-spaces PRIVATE Qt::Core Qt::Gui Qt::Widgets Qt::GuiPrivate)

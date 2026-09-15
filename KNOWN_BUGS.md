@@ -750,6 +750,45 @@ Confirmed in the shell afterwards, on the same card that used to freeze:
 `display: none` and `firstLaunch` at `opacity: 1` -- one view, fully opaque,
 and navigation works again.
 
+### ~~A banner that hides takes the shell down~~ (fixed)
+
+**Found by making the battery work.** Until `com.palm.power` existed, no charger
+signal ever reached systemui, so its "Charging Battery" banner never appeared and
+no banner in this port had ever reached the end of its hide animation. The first
+one did, five seconds after plugging the laptop in, and LunaSysMgr died with a
+segmentation fault.
+
+**Caught under gdb**, through `WEBOS_SYSMGR_WRAPPER`, and reproduced on the second
+plug-in:
+
+```
+#0  QtCore (a signal emission)
+#1  QStateMachine::runningChanged(bool)
+#2  QStateMachinePrivate::_q_process()
+#6  QState::propertiesAssigned()
+#7  QStateMachinePrivate::_q_animationFinished()
+```
+
+**The cause is in `BannerMessageHandler.cpp`, and Qt 6 is what exposes it.**
+Each banner message owns a `QStateMachine` as a child. The machine's `finished()`
+runs `bannerStateMachineFinished()`, which removes the message from
+`deletedMsgList` -- the last `QExplicitlySharedDataPointer` reference -- so the
+message, and with it the machine, is destroyed from inside that machine's own
+emission. Qt 5 emitted nothing after `finished()`. Qt 6 goes on to emit
+`runningChanged(false)` from the same machine, which by then is freed memory.
+
+**The fix** keeps a copy of the message alive in a zero-delay single-shot until
+the event loop comes back round, so the emission finishes before anything is
+destroyed. It is an edit inside HP's file -- the last resort in
+`docs/architecture.md`, and justified: a use-after-free cannot be adapted from
+outside. Verified by plugging in twice under gdb: both banners appeared and hid,
+and the shell was still running afterwards with the same pid.
+
+Not covered by an automated test. Reproducing it needs the handler, its views
+and a running event loop with real animations; what is pinned instead, in
+`tests/power-state`, is that the charger state reaches the listeners that raise
+the banner in the first place.
+
 ## Blocked on a missing dependency
 
 ### ~~The QML parts of the UI do not draw~~ (fixed)
@@ -1106,6 +1145,33 @@ only ever a QtWebKit 5.212 rendering difference.
 ---
 
 ## Known and accepted
+
+### Services started through `ns-exec` outlive the session's teardown
+
+Found while restarting `sysfs-powerd` by hand; not fixed.
+
+`webos-session.sh`'s `teardown` finds the C++ services by comparing
+`/proc/<pid>/exe` against `$ROOTFS/usr/lib/luna/<name>`. The `services` stage
+starts them by that full path, so they match. A service started through
+`run-lunasysmgr.sh ns-exec /usr/lib/luna/<name>` does not: from outside the
+namespace its executable reads as `/usr/lib/luna/<name>`, with no rootfs prefix,
+and it survives the session ending. MEASURED: a relaunched `sysfs-powerd` was still
+running after the supervisor had torn everything else down, and a second copy
+would then fail to register `com.palm.power`.
+
+Low impact today. Nothing in the normal flow starts a static service through
+`ns-exec` -- the hub uses it only for on-demand services, and the JavaScript
+services are found by their working directory instead. Matching on the basename
+of the executable, or on both forms, would close it.
+
+### Every powerd connection logs "Charging field is missing!"
+
+HP's own behaviour, harmless. When `com.palm.power` appears, `DisplayManager`
+asks for the current state by sending an empty `{}` on
+`.../com/palm/power/USBDockStatus`, and the status bar's charger callback is
+registered on exactly that signal, so it receives the request, finds no
+`Charging` and says so. Once per connection. The state itself arrives right
+after on the same signal.
 
 ### The bridge is synchronous, on purpose, and why that is safe here
 
