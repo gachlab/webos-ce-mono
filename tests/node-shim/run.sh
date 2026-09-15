@@ -13,7 +13,9 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$HERE/../.."
 BUILD="${1:-$ROOT/build/node-shim-test}"
 
-command -v node >/dev/null || { echo "SKIP: no node on PATH"; exit 0; }
+# The node that ships, the one the addons are for.
+. "$ROOT/tools/node-home.sh" \
+    || { echo "SKIP: the pinned node is not unpacked (run tools/fetch-node.sh)"; exit 0; }
 
 rm -rf "$BUILD"; mkdir -p "$BUILD"
 

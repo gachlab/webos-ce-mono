@@ -770,7 +770,14 @@ if (future.result.returnValue === true && future.result.results) {
 
 ## ES5 Constraint
 
-Synergy services run on a very old Node.js. ES5 only:
+**On a device.** This section describes the phones' node, which is where Synergy
+services were written for. In this port they run on the node LTS pinned in
+`tools/node-version`, and modern JavaScript works there: measured by loading a
+service source through the real `webos.node` `include()`, which saw `fetch`,
+`crypto.subtle`, `URL`, `setTimeout`, `require` and async arrow functions. Keep
+to ES5 only for code that must also run on a device.
+
+On a device, Synergy services run on a very old Node.js. ES5 only:
 - No arrow functions (`=>`)
 - No `let`/`const` (use `var`)
 - No template literals (use `+` concatenation)

@@ -27,15 +27,18 @@ Needs a modern Debian (tested on sid) with Qt 6 -- `qt6-base-dev`,
 `qt6-webengine-dev`, `qt6-scxml-dev` -- plus the development headers for glib,
 sqlite3, openssl, libxml2 and boost.
 
-**node comes from the host**, and it is the one dependency that is not in here.
-HP's own `components/nodejs` is not built: it needs Python 2 and SCons. His three
-addons are, from their original sources, against `components/node-v8-shim` --
-which implements node 0.4's V8 API on N-API, so they keep loading on later node
-releases without recompiling. Verified on **node 26.7.0**; anything with N-API
-should do. Without a `node` on `PATH` everything else still builds, and the
-JavaScript services simply do not start.
+**node is pinned, and ships inside the package.** HP's own `components/nodejs`
+is not built: it needs Python 2 and SCons. The official node LTS is used instead,
+at the version and SHA-256 in `tools/node-version` -- **24.21.0** today, moving
+to 26 when that becomes LTS. HP's three addons are built from their original
+sources against `components/node-v8-shim`, which implements node 0.4's V8 API on
+N-API, so a new node does not mean rebuilding them for a new ABI.
+
+Fetching it is the one step that needs the network, in the same place as
+installing Qt with apt. The build itself never does:
 
 ```sh
+tools/fetch-node.sh         # once: download, check the pinned hash, unpack
 tools/build.sh              # everything, in MANIFEST order
 tools/run-lunasysmgr.sh     # start the shell
 ```
@@ -158,7 +161,7 @@ native Wayland client — see `docs/lunasysmgr-on-debian.png`.
 |---|---|
 | Listed in the manifest | 55 components |
 | Marked buildable | 35 |
-| Actually built | 26 — the other nine are skipped on purpose, each with its reason in `tools/build.sh` (`qt4` and `webkit` are replaced by Debian's Qt 6 and QtWebEngine; `nodejs` by Debian's node) |
+| Actually built | 26 — the other nine are skipped on purpose, each with its reason in `tools/build.sh` (`qt4` and `webkit` are replaced by Debian's Qt 6 and QtWebEngine; `nodejs` by the official node LTS pinned in `tools/node-version`) |
 | Changes inside HP's components | 230 files, +8,111 −433 — `git diff --stat hp-original -- components/` |
 | …in files HP never shipped | 6,740 lines: the adapters below |
 | …inside HP's own files | 1,804 lines |

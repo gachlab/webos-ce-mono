@@ -55,6 +55,15 @@ if [ ! -x "$PAYLOAD/bin/webos-ce" ]; then
     exit 2
 fi
 
+# The node the package ships. Before it did, the launcher bound the host's node
+# into place and quietly bound nothing when the host had none: the shell came up
+# and no JavaScript service ever did, which reads like a dozen unrelated bugs.
+# An image missing it is broken, and should say so here.
+if [ ! -s "$PAYLOAD/usr/palm/nodejs/node" ] || [ ! -x "$PAYLOAD/usr/palm/nodejs/node" ]; then
+    echo "webos-ce: this AppImage is incomplete -- $PREFIX/usr/palm/nodejs/node is missing" >&2
+    exit 2
+fi
+
 if ! command -v bwrap >/dev/null 2>&1; then
     # Worth an explicit message rather than bwrap's own "command not found":
     # without it there is no way to put the prefix where the binaries look, and

@@ -27,7 +27,17 @@ set -u
 
 R="$(cd "$(dirname "$0")/.." && pwd)"
 PREFIX=/opt/webos-ce
-IMAGE=webos-ce-pkg:ubuntu-26.04
+# The node version is part of the tag. build_image reuses an image that already
+# exists, so without it a new tools/node-version would silently keep building
+# against the node baked into the old one. Read from HEAD, like everything the
+# container builds: the working tree's copy could name a pin that is not
+# committed.
+NODE_VERSION="$(git -C "$R" show HEAD:tools/node-version 2>/dev/null | sed -n 's/^NODE_VERSION=//p')"
+if [ -z "$NODE_VERSION" ]; then
+    echo "mkdeb: no NODE_VERSION in HEAD:tools/node-version" >&2
+    exit 1
+fi
+IMAGE=webos-ce-pkg:ubuntu-26.04-node-$NODE_VERSION
 DIST="$R/dist"
 
 RUNNER="$(command -v podman || command -v docker || true)"
@@ -82,7 +92,7 @@ libsqlite3-dev libssl-dev libxml2-dev libyajl-dev libicu-dev
 libdb5.3-dev libcurl4-openssl-dev zlib1g-dev
 libboost-filesystem-dev libboost-regex-dev libboost-program-options-dev
 libc-ares-dev liburiparser-dev
-nodejs libnode-dev
+curl xz-utils ca-certificates
 dpkg-dev fakeroot
 PKGS
 
@@ -92,10 +102,29 @@ build_image() {
         return 0
     fi
     echo "== building $IMAGE =="
-    printf 'FROM ubuntu:26.04\nENV DEBIAN_FRONTEND=noninteractive\nRUN apt-get update && apt-get install -y --no-install-recommends %s && rm -rf /var/lib/apt/lists/*\n' \
+    # The build context is two files taken from HEAD, not the repository root:
+    # the source the container builds is git archive HEAD, and the pin it fetches
+    # has to come from the same commit, not from an uncommitted working tree.
+    # Found in review of tools/ci.sh, which had the same shape.
+    local ctx status
+    ctx="$(mktemp -d)"
+    mkdir -p "$ctx/tools"
+    if ! git -C "$R" show HEAD:tools/node-version > "$ctx/tools/node-version" \
+       || ! git -C "$R" show HEAD:tools/fetch-node.sh > "$ctx/tools/fetch-node.sh"; then
+        echo "  FAILED to take tools/node-version and tools/fetch-node.sh from HEAD"
+        rm -rf "$ctx"
+        return 1
+    fi
+    chmod +x "$ctx/tools/fetch-node.sh"
+    # node is fetched here, in the image, because this is the only step with a
+    # network: the build below runs with --network none. The pinned hash is
+    # checked by fetch-node.sh itself.
+    printf 'FROM ubuntu:26.04\nENV DEBIAN_FRONTEND=noninteractive\nRUN apt-get update && apt-get install -y --no-install-recommends %s && rm -rf /var/lib/apt/lists/*\nCOPY tools/node-version tools/fetch-node.sh /tmp/node/tools/\nRUN /tmp/node/tools/fetch-node.sh /opt/node-dist && rm -rf /tmp/node\n' \
         "$(echo "$PACKAGES" | tr '\n' ' ')" \
-        | "$RUNNER" build -t "$IMAGE" -f - "$R" > /tmp/webos-mkdeb-image.log 2>&1
-    if [ $? -ne 0 ]; then
+        | "$RUNNER" build -t "$IMAGE" -f - "$ctx" > /tmp/webos-mkdeb-image.log 2>&1
+    status=$?
+    rm -rf "$ctx"
+    if [ "$status" -ne 0 ]; then
         echo "  FAILED; what apt said:"
         # apt's real error is near the top, not at the end: the tail is only the
         # RUN line echoed back. Same trap as tools/ci.sh documents.
@@ -119,6 +148,8 @@ INNER
     cat >> "$1" <<'INNER'
 mkdir -p /src && tar -x -C /src
 cd /src
+# The node the image fetched: what the addons build against and what ships.
+export WEBOS_NODE_HOME=/opt/node-dist/current
 
 echo "== build =="
 # WEBOS_PREFIX is what gets COMPILED IN, and it is the whole reason the build
@@ -226,13 +257,15 @@ printf 'Source: webos-ce\n\nPackage: webos-ce\nArchitecture: amd64\nDepends: ${s
 # links directly. The result would be a Depends: that looks right and fails on
 # a machine that does not already have them.
 BINS=$(find "$ROOT/usr/lib/luna" -maxdepth 1 -type f -executable; \
-       find "$ROOT/usr/lib" -maxdepth 1 -type f -name '*.so*')
+       find "$ROOT/usr/lib" -maxdepth 1 -type f -name '*.so*'; \
+       echo "$ROOT/usr/palm/nodejs/node")
 SHLIBDEPS=$(dpkg-shlibdeps -O --ignore-missing-info -l"$ROOT/usr/lib" $BINS 2>/dev/null \
             | sed 's/^shlibs:Depends=//')
-# bubblewrap and node are run, not linked, so nothing above can find them.
-# Without bwrap the launcher cannot start at all; without node the JavaScript
-# services never come up, which reads like a dozen unrelated bugs.
-DEPENDS="bubblewrap, nodejs${SHLIBDEPS:+, $SHLIBDEPS}"
+# bubblewrap is run, not linked, so nothing above can find it; without it the
+# launcher cannot start at all. node is not a dependency any more: the package
+# carries the one pinned in tools/node-version, and its own libraries are in
+# SHLIBDEPS through BINS above.
+DEPENDS="bubblewrap${SHLIBDEPS:+, $SHLIBDEPS}"
 
 echo "== control =="
 mkdir -p "$PKG/DEBIAN"

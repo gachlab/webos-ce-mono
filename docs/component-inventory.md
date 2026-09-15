@@ -105,18 +105,25 @@ from `components/mojomail/desktop-support/` by the `*/desktop-support` loop:
 `roles/prv/`. They exist only in the private (`.prv`) variant, so their absence
 from `services/` and `roles/pub/` is correct rather than a gap.
 
-## node is a host dependency
+## node is pinned and shipped
 
-The one thing not in this repository. HP's `components/nodejs` is not built, so
-the host's `node` is bind-mounted at `/usr/palm/nodejs/node` — the path HP's own
-bus role file and `run-js-service` already look for.
+HP's `components/nodejs` is not built: it needs Python 2 and SCons. The official
+node LTS is used instead, pinned by version and SHA-256 in `tools/node-version`
+(24.21.0 today). `tools/fetch-node.sh` downloads it and refuses a tarball that
+does not match the pin; it is the one step that needs the network, and the
+build never does.
+
+That node is used everywhere: the addons compile against its headers, the tests
+run on it, and `assemble-rootfs.sh` copies the binary to `/usr/palm/nodejs/node`
+-- the path HP's own bus role file and `run-js-service` already look for. It
+used to be an empty file the launcher bind-mounted the host's node onto, so the
+`.deb` depended on the distribution's node and the AppImage used whatever the
+host had, or none.
 
 `components/node-v8-shim` implements node 0.4's V8 API on **N-API**, which is
-ABI-stable, so the addons keep loading on later node releases without being
-recompiled. Verified on **node 26.7.0**; there is no version pin anywhere in the
-tree, and anything with N-API should work. Without a `node` on `PATH` everything
-else still builds and the shell starts — only the JavaScript services stay down,
-and `assemble-rootfs.sh` now says so out loud instead of silently.
+ABI-stable. MEASURED: the built addons import only `napi_*` (and `uv_*`) symbols,
+none from `v8::` or `node::`, and load under both node 24 and 26 -- so moving the
+pin to a newer LTS does not mean rebuilding them for a new ABI.
 
 ## Why the unused components stay
 

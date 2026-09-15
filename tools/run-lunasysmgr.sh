@@ -171,13 +171,11 @@ enter_namespace() {
       for d in /usr/*;     do [ -e "$d" ] && rebind+=(--bind "$d" "$d"); done
       rebind+=(--tmpfs /usr/lib)
       for d in /usr/lib/*; do [ -e "$d" ] && rebind+=(--bind "$d" "$d"); done
-      # The node binary goes where HP's bus role says it lives. A bind, not a
-      # symlink: ls-hubd identifies a caller through /proc/<pid>/exe.
+      # node used to be bound in here from the host, over an empty file in the
+      # rootfs. The rootfs carries the real binary now -- the one pinned in
+      # tools/node-version, copied by assemble-rootfs.sh -- and it arrives with
+      # the /usr/palm bind below like everything else in that directory.
       node_bind=()
-      node_real="$(command -v node 2>/dev/null || true)"
-      if [ -n "$node_real" ] && [ -e "$ROOTFS/usr/palm/nodejs/node" ]; then
-          node_bind=(--bind "$node_real" /usr/palm/nodejs/node)
-      fi
       if [ -e "$ROOTFS/usr/lib/libmemcpy.so" ]; then
           node_bind+=(--bind "$ROOTFS/usr/lib/libmemcpy.so" /usr/lib/libmemcpy.so)
       fi
