@@ -928,6 +928,18 @@ void BannerMessageHandler::bannerStateMachineFinished()
 		BannerMessage* m = mp.data();
 		if (m->stateMachine == sm) {
 			d->deletedMsgList.removeAll(mp);
+			// Not released here. This slot runs inside the state machine's own
+			// finished() emission, and the machine is a child of the message:
+			// dropping the last reference deletes the machine while it is still
+			// emitting. Qt 5 emitted nothing after finished(); Qt 6 goes on to emit
+			// runningChanged(false) from the same machine, on freed memory.
+			// MEASURED under gdb, reproduced by plugging in the charger: SIGSEGV
+			// in QStateMachine::runningChanged <- _q_process <- propertiesAssigned
+			// <- _q_animationFinished, five seconds after the "Charging Battery"
+			// banner appeared -- the first banner this port ever got to hide.
+			// Holding a copy until the event loop comes back round lets the
+			// emission finish before the message and its machine go.
+			QTimer::singleShot(0, this, [mp]() { Q_UNUSED(mp); });
 			return;
 		}
 	}
