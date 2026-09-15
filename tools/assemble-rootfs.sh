@@ -504,21 +504,29 @@ echo "  js services:         $(ls "$ROOTFS/usr/palm/services" 2>/dev/null | wc -
 # which luna-service2 requires -- hence the "Unable to get permission from JSON"
 # line in the hub log. A permissions block is written alongside it here instead
 # of editing HP's file.
-NODE_BIN="$(command -v node 2>/dev/null || true)"
+# The node pinned in tools/node-version, the same one the addons were built
+# against -- not the host's.
+NODE_BIN=""
+if . "$R/tools/node-home.sh"; then
+    NODE_BIN="$NODE_HOME/bin/node"
+fi
 if [ -n "$NODE_BIN" ]; then
     mkdir -p "$ROOTFS/usr/palm/nodejs"
-    # A mount point, not a symlink. ls-hubd checks who is calling by reading
-    # /proc/<pid>/exe, which resolves a symlink to its target -- so the role
-    # above would be looked up under the real node path and not found. The run
-    # script bind-mounts the real binary onto this file inside the namespace,
-    # and then /proc/<pid>/exe reports the path the role names.
-    # rm first, and never write through what might be there.
+    # The real binary, copied. This used to be an empty file the launcher
+    # bind-mounted the host's node onto, which meant the package shipped no node
+    # at all: the .deb had to depend on the distribution's, and the AppImage ran
+    # whatever the host had, or started with no JavaScript services and said
+    # nothing. A real file at the path HP's role names needs neither.
     #
-    # An earlier version of this created the mount point with ": > $file" while
-    # a symlink to the real node was still sitting at that path. The redirection
-    # followed the link and truncated the node installation to zero bytes.
+    # Not a symlink: ls-hubd identifies a caller through /proc/<pid>/exe, which
+    # resolves one to its target and would then match no role.
+    #
+    # rm first, and never write through what might be there. An earlier version
+    # created this path with ": > $file" while a symlink to the host's node still
+    # sat on it; the redirection followed the link and truncated the host's node
+    # installation to zero bytes.
     rm -f "$ROOTFS/usr/palm/nodejs/node"
-    : > "$ROOTFS/usr/palm/nodejs/node"
+    cp -f "$NODE_BIN" "$ROOTFS/usr/palm/nodejs/node"
     chmod 0755 "$ROOTFS/usr/palm/nodejs/node"
 
     for side in pub prv; do
@@ -543,15 +551,14 @@ JSON
     # tools/build.sh installed them.
     cp -f "$S/usr/palm/nodejs/"*.node "$ROOTFS/usr/palm/nodejs/" 2>/dev/null || true
     cp -f "$R/components/node-v8-shim/js/webos-node-compat.js" "$ROOTFS/usr/palm/nodejs/"
-    echo "  node:                $NODE_BIN bound at /usr/palm/nodejs/node"
+    echo "  node:                $("$NODE_BIN" -v) copied from $NODE_HOME"
 else
     # Say it out loud. Everything else assembles without node and the shell
     # starts, so the only symptom is that the JavaScript services never come
     # up -- accounts, contacts, calendar reminders -- which reads like a dozen
     # unrelated bugs rather than one missing dependency.
-    echo "  node:                NOT FOUND on PATH -- JavaScript services will not start"
-    echo "                       (HP's own node is not built: it needs Python 2 and SCons."
-    echo "                        Any node with N-API works; verified on 26.7.0.)"
+    echo "  node:                the pinned node is NOT unpacked -- JavaScript services will not start"
+    echo "                       (run tools/fetch-node.sh; the version is in tools/node-version)"
 fi
 
 # The bus's own .conf files, written last and only when they change.

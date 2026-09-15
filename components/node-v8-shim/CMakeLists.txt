@@ -10,8 +10,10 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
-# Where node keeps node_api.h. Found from the node on PATH, so the build follows
-# whichever node the rest of the system uses.
+# Where node keeps node_api.h. tools/build.sh passes it explicitly, pointing at
+# the node pinned in tools/node-version: found from the node on PATH instead,
+# CMake caches the answer and a reused build directory keeps whatever node it
+# saw first. The lookup below is the fallback for a build run by hand.
 if (NOT NODE_INCLUDE_DIR)
     find_program(NODE_EXECUTABLE node REQUIRED)
     get_filename_component(_node_bin "${NODE_EXECUTABLE}" DIRECTORY)

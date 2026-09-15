@@ -1,0 +1,22 @@
+# The node that ships inside the package, and the only place its version lives.
+#
+# Read by tools/fetch-node.sh, which downloads exactly this tarball and refuses
+# it unless it matches the hash below, and by everything that needs node through
+# tools/node-home.sh.
+#
+# The hash is pinned here rather than fetched alongside the tarball, so a
+# compromised mirror cannot hand over both a tampered file and a matching
+# SHASUMS256.txt. It was taken from SHASUMS256.txt after checking that file's
+# signature against nodejs/release-keys:
+#
+#   gpg: Good signature from "Antoine du Hamel <antoine.duhamel@platformatic.dev>"
+#   using EDDSA key 5BE8A3F6C8A5C01D106C0AD820B1A390B168D356
+#
+# To move to another release: take the new line from its SHASUMS256.txt, verify
+# that file's signature the same way, and change both values together.
+#
+# 24 is the active LTS ("Krypton"). 26 becomes LTS in October 2026. The addons
+# are pure N-API -- measured, no v8:: or node:: symbols -- so changing this does
+# not mean rebuilding them for a new ABI.
+NODE_VERSION=v24.21.0
+NODE_SHA256_LINUX_X64=fd8e59d5a511510f6a298afb548f18c7d2b1be404d8b4a27d94fbe49f56cb2d6

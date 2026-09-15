@@ -55,14 +55,16 @@ libsqlite3-dev libssl-dev libxml2-dev libyajl-dev libicu-dev
 libdb5.3-dev libcurl4-openssl-dev zlib1g-dev
 libboost-filesystem-dev libboost-regex-dev libboost-program-options-dev
 libc-ares-dev liburiparser-dev
-nodejs libnode-dev
+curl xz-utils ca-certificates
 PKGS
 
 build_image() {                 # build_image <release>
     local rel="$1" tag="webos-ce-ci:$rel"
     echo "== image for debian:$rel =="
     # Network is on here, and only here.
-    printf 'FROM debian:%s\nENV DEBIAN_FRONTEND=noninteractive\nRUN apt-get update && apt-get install -y --no-install-recommends %s && rm -rf /var/lib/apt/lists/*\n' \
+    # node too, for the same reason: the pinned one, fetched and hash-checked
+    # while the network is still on. The build then uses it, not Debian's.
+    printf 'FROM debian:%s\nENV DEBIAN_FRONTEND=noninteractive\nRUN apt-get update && apt-get install -y --no-install-recommends %s && rm -rf /var/lib/apt/lists/*\nCOPY tools/node-version tools/fetch-node.sh /tmp/node/tools/\nRUN /tmp/node/tools/fetch-node.sh /opt/node-dist && rm -rf /tmp/node\n' \
         "$rel" "$(echo "$PACKAGES" | tr '\n' ' ')" \
         | "$RUNNER" build -t "$tag" -f - . > "/tmp/webos-ci-image-$rel.log" 2>&1
     if [ $? -ne 0 ]; then
@@ -119,6 +121,7 @@ run_target() {                  # run_target <release>
     if ! git -C "$R" archive --format=tar HEAD \
         | "$RUNNER" run --rm -i --network none \
             -e QTWEBENGINE_CHROMIUM_FLAGS="--no-sandbox --disable-gpu" \
+            -e WEBOS_NODE_HOME=/opt/node-dist/current \
             -w /src "$tag" \
             sh -c 'mkdir -p /src && tar -x -C /src && \
                    { echo "--- build.sh ---" && tools/build.sh \

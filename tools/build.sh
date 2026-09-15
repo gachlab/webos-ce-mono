@@ -50,7 +50,7 @@ declare -A SKIP=(
     [cmake-modules-webos]="CMake modules, consumed via CMAKE_MODULE_PATH"
     [qt4]="replaced by Debian's Qt 6"
     [webkit]="replaced by QtWebEngine; WebAppMgr reaches it through components/qtwebkit-compat"
-    [nodejs]="we use Debian node; HP's needs Python 2 and SCons"
+    [nodejs]="the official node LTS ships instead (tools/node-version); HP's needs Python 2 and SCons"
     # The three addons are built from components/node-v8-shim/addons, which
     # compiles HP's sources against the shim. Their own CMakeLists are HP's and
     # need a node that no longer exists.
@@ -214,10 +214,16 @@ stage_node_addons() {
     # HP's three addons, built from his sources against components/node-v8-shim.
     # Separate from the CMake stage because they are not one MANIFEST component:
     # one project builds all three, which is what lets them share the shim.
-    if ! command -v node >/dev/null; then
-        echo "  no node on PATH; skipped"
-        return 0
+    # The node that ships, not whatever the host has: its headers are what the
+    # addons compile against and its binary is what assemble-rootfs.sh puts in
+    # the package. A missing one used to be skipped quietly, which built a tree
+    # whose JavaScript services could never start; it is an error now.
+    if ! . "$R/tools/node-home.sh"; then
+        echo "  the pinned node ($(sed -n 's/^NODE_VERSION=//p' "$R/tools/node-version")) is not unpacked."
+        echo "  Run tools/fetch-node.sh first -- the one step that needs the network."
+        return 1
     fi
+    echo "  node: $NODE_HOME"
     mkdir -p /tmp/webos
     # The rpath matters here and this stage never got one. The addons install to
     # <prefix>/usr/palm/nodejs and our libraries to <prefix>/usr/lib, so
@@ -227,7 +233,12 @@ stage_node_addons() {
     # In the package that cost every JavaScript service, with
     # "Error: libluna-service2.so.3: cannot open shared object file", and with
     # them the profile account.
+    # NODE_INCLUDE_DIR is given, not left to node-v8-shim to find. It finds the
+    # node on PATH, but CMake caches the result, and this build directory is not
+    # wiped between runs: MEASURED, with the pinned node first on PATH the addons
+    # still compiled against the headers of the node cached from an earlier run.
     cmake -S "$R/components/node-v8-shim/addons" -B "$B/node-addons" \
+          -DNODE_INCLUDE_DIR="$NODE_HOME/include/node" \
           -DCMAKE_INSTALL_PREFIX="$WEBOS_PREFIX" \
           -DCMAKE_INSTALL_RPATH='$ORIGIN/../../lib' \
           -DCMAKE_SHARED_LINKER_FLAGS='-Wl,--disable-new-dtags' > /tmp/webos/node-addons.log 2>&1 \
