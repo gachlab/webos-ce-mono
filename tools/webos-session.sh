@@ -4,6 +4,12 @@
 #   webos-session.sh            bring everything up and stay in the foreground
 #   webos-session.sh --down     tear down whatever is running and exit
 #
+# webOS's own Power Off and Restart end up here too. com.palm.power
+# (components/sysfs-powerd) writes "poweroff" or "restart" to
+# $WEBOS_SESSION_REQUEST and ends the shell; after the shell exits, a restart
+# brings the whole stack back and anything else stops. The machine itself is
+# never powered off or rebooted.
+#
 # Why this exists, and why it is not tools/run-lunasysmgr.sh.
 #
 # run-lunasysmgr.sh is the development tool and stays exactly as it is: granular
@@ -27,6 +33,9 @@ R="$(cd "$(dirname "$0")/.." && pwd)"
 LAUNCH="${WEBOS_LAUNCHER:-$R/tools/run-lunasysmgr.sh}"
 ROOTFS="${WEBOS_ROOTFS:-$R/build/rootfs}"
 LOGDIR="${WEBOS_LOGDIR:-/tmp/webos}"
+# Inherited by the services through the launcher, so com.palm.power writes
+# where this reads.
+export WEBOS_SESSION_REQUEST="$LOGDIR/session-request"
 
 # init is idempotent -- configurator checks what is already registered and
 # createLocalAccount asks listAccounts before creating anything -- but it costs
@@ -53,7 +62,7 @@ teardown() {
         esac
     done
 
-    for s in mojodb-luna LunaSysService filecache activitymanager LunaUniversalSearchMgr; do
+    for s in mojodb-luna LunaSysService sysfs-powerd filecache activitymanager LunaUniversalSearchMgr; do
         for d in /proc/[0-9]*; do
             [ "$(readlink "$d/exe" 2>/dev/null)" = "$ROOTFS/usr/lib/luna/$s" ] \
                 && kill "${d#/proc/}" 2>/dev/null
@@ -77,13 +86,17 @@ if [ "${1:-}" = "--down" ]; then
     exit 0
 fi
 
+while :; do
+
 # Start from a clean slate rather than fighting whatever a previous session
 # left: a held IPC socket or a stale hub is the usual reason a start looks like
-# it worked and then nothing answers.
+# it worked and then nothing answers. On a restart, that previous session is the
+# one that just asked to go.
 teardown >/dev/null 2>&1
 trap teardown EXIT INT TERM
 
 mkdir -p "$LOGDIR"
+rm -f "$WEBOS_SESSION_REQUEST"
 say "webos: starting the bus"
 "$LAUNCH" bus      > "$LOGDIR/bus.log"      2>&1
 sleep 3
@@ -107,5 +120,13 @@ say "webos: starting the shell"
 "$LAUNCH" run      > "$LOGDIR/run.log"      2>&1
 
 # run returns when LunaSysMgr exits. The trap does the rest, which is the
-# difference between this and running the launcher by hand.
+# difference between this and running the launcher by hand -- unless webOS's own
+# Restart is what ended it, in which case the loop brings everything back.
 say "webos: the shell exited"
+if [ "$(cat "$WEBOS_SESSION_REQUEST" 2>/dev/null)" = restart ]; then
+    say "webos: restart requested, bringing the session back"
+    continue
+fi
+break
+
+done

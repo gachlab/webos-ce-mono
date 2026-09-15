@@ -1,0 +1,4 @@
+[D-BUS Service]
+Name=com.palm.power
+Exec=/usr/sbin/sysfs-powerd
+Type=static

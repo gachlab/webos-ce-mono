@@ -237,6 +237,29 @@ stage_node_addons() {
       || { echo "  FAILED (see /tmp/webos/node-addons.log)"; return 1; }
 }
 
+stage_powerd() {
+    echo "== powerd =="
+    # com.palm.power, ours rather than HP's: nothing in the CE drop provides it.
+    # Not a MANIFEST component -- the MANIFEST stays an inventory of what HP
+    # released -- so it gets its own stage, built against staging like the rest.
+    export PKG_CONFIG_PATH=$S/lib/pkgconfig:$S/usr/share/pkgconfig:$S/usr/lib/pkgconfig
+    mkdir -p /tmp/webos
+    # -build in the name: the services stage already writes the running
+    # service's output to /tmp/webos/sysfs-powerd.log, and the two used to
+    # overwrite each other.
+    # Installed to <prefix>/usr/sbin and copied to <rootfs>/usr/lib/luna, so the
+    # libraries are one level up from either.
+    cmake -S "$R/components/sysfs-powerd" -B "$B/sysfs-powerd" \
+          -DCMAKE_BUILD_TYPE="$BUILD_TYPE" \
+          -DCMAKE_INSTALL_PREFIX="$WEBOS_PREFIX" \
+          -DCMAKE_INSTALL_RPATH='$ORIGIN/../lib:$ORIGIN/..' \
+          -DCMAKE_EXE_LINKER_FLAGS='-Wl,--disable-new-dtags' > /tmp/webos/sysfs-powerd-build.log 2>&1 \
+      && cmake --build "$B/sysfs-powerd" -j"$(nproc)" >> /tmp/webos/sysfs-powerd-build.log 2>&1 \
+      && DESTDIR="$DESTDIR" cmake --install "$B/sysfs-powerd" >> /tmp/webos/sysfs-powerd-build.log 2>&1 \
+      && echo "  sysfs-powerd                 OK" \
+      || { echo "  FAILED (see /tmp/webos/sysfs-powerd-build.log)"; return 1; }
+}
+
 stage_rootfs() {
     echo "== rootfs =="
     # The MANIFEST's "copiar" components are not built: they are JS, themes and
@@ -251,12 +274,13 @@ case "$STAGE" in
     autotools) stage_autotools ;;
     cmake)  stage_cmake ;;
     node)   stage_node_addons ;;
+    powerd) stage_powerd ;;
     rootfs) stage_rootfs ;;
     all)   # NOTE the placement: the echoes go INSIDE the if, not loose after
             # the chain. They were outside and the script announced success even
             # when a stage had failed.
             if stage_headers && stage_autotools \
-               && stage_cmake && stage_node_addons && stage_rootfs; then
+               && stage_cmake && stage_node_addons && stage_powerd && stage_rootfs; then
                 echo
                 echo "Done. To start the shell:  tools/run-lunasysmgr.sh"
             else
@@ -264,5 +288,5 @@ case "$STAGE" in
                 echo "FAILED: a stage did not finish. See the logs in build/." >&2
                 exit 1
             fi ;;
-    *)      echo "unknown stage: $STAGE (headers | autotools | cmake | node | rootfs | all)"; exit 2 ;;
+    *)      echo "unknown stage: $STAGE (headers | autotools | cmake | node | powerd | rootfs | all)"; exit 2 ;;
 esac
