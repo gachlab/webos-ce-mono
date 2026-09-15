@@ -62,12 +62,31 @@ build_image() {                 # build_image <release>
     local rel="$1" tag="webos-ce-ci:$rel"
     echo "== image for debian:$rel =="
     # Network is on here, and only here.
+    # The build context is two files taken from HEAD, not ".". Found in review:
+    # "." was whatever directory the script was started from, so run from
+    # anywhere but the repository root the COPY below found no
+    # tools/node-version and the image failed; and it was the working tree, so
+    # an uncommitted pin could reach an image meant to test only what is
+    # committed. (It was never the upload it looks like with docker: BuildKit
+    # sent 3.19 kB, only what COPY names. Podman would send all of it.)
+    local ctx status
+    ctx="$(mktemp -d)"
+    mkdir -p "$ctx/tools"
+    if ! git -C "$R" show HEAD:tools/node-version > "$ctx/tools/node-version" \
+       || ! git -C "$R" show HEAD:tools/fetch-node.sh > "$ctx/tools/fetch-node.sh"; then
+        echo "  FAILED to take tools/node-version and tools/fetch-node.sh from HEAD"
+        rm -rf "$ctx"
+        return 1
+    fi
+    chmod +x "$ctx/tools/fetch-node.sh"
     # node too, for the same reason: the pinned one, fetched and hash-checked
     # while the network is still on. The build then uses it, not Debian's.
     printf 'FROM debian:%s\nENV DEBIAN_FRONTEND=noninteractive\nRUN apt-get update && apt-get install -y --no-install-recommends %s && rm -rf /var/lib/apt/lists/*\nCOPY tools/node-version tools/fetch-node.sh /tmp/node/tools/\nRUN /tmp/node/tools/fetch-node.sh /opt/node-dist && rm -rf /tmp/node\n' \
         "$rel" "$(echo "$PACKAGES" | tr '\n' ' ')" \
-        | "$RUNNER" build -t "$tag" -f - . > "/tmp/webos-ci-image-$rel.log" 2>&1
-    if [ $? -ne 0 ]; then
+        | "$RUNNER" build -t "$tag" -f - "$ctx" > "/tmp/webos-ci-image-$rel.log" 2>&1
+    status=$?
+    rm -rf "$ctx"
+    if [ "$status" -ne 0 ]; then
         echo "  FAILED to build the image; see /tmp/webos-ci-image-$rel.log"
         # apt's own error is near the top of its output, not at the end: the tail
         # is docker repeating the RUN line back. Printing the tail hid

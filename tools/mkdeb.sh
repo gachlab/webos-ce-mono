@@ -29,8 +29,14 @@ R="$(cd "$(dirname "$0")/.." && pwd)"
 PREFIX=/opt/webos-ce
 # The node version is part of the tag. build_image reuses an image that already
 # exists, so without it a new tools/node-version would silently keep building
-# against the node baked into the old one.
-. "$(cd "$(dirname "$0")" && pwd)/node-version"
+# against the node baked into the old one. Read from HEAD, like everything the
+# container builds: the working tree's copy could name a pin that is not
+# committed.
+NODE_VERSION="$(git -C "$R" show HEAD:tools/node-version 2>/dev/null | sed -n 's/^NODE_VERSION=//p')"
+if [ -z "$NODE_VERSION" ]; then
+    echo "mkdeb: no NODE_VERSION in HEAD:tools/node-version" >&2
+    exit 1
+fi
 IMAGE=webos-ce-pkg:ubuntu-26.04-node-$NODE_VERSION
 DIST="$R/dist"
 
@@ -96,13 +102,29 @@ build_image() {
         return 0
     fi
     echo "== building $IMAGE =="
+    # The build context is two files taken from HEAD, not the repository root:
+    # the source the container builds is git archive HEAD, and the pin it fetches
+    # has to come from the same commit, not from an uncommitted working tree.
+    # Found in review of tools/ci.sh, which had the same shape.
+    local ctx status
+    ctx="$(mktemp -d)"
+    mkdir -p "$ctx/tools"
+    if ! git -C "$R" show HEAD:tools/node-version > "$ctx/tools/node-version" \
+       || ! git -C "$R" show HEAD:tools/fetch-node.sh > "$ctx/tools/fetch-node.sh"; then
+        echo "  FAILED to take tools/node-version and tools/fetch-node.sh from HEAD"
+        rm -rf "$ctx"
+        return 1
+    fi
+    chmod +x "$ctx/tools/fetch-node.sh"
     # node is fetched here, in the image, because this is the only step with a
     # network: the build below runs with --network none. The pinned hash is
     # checked by fetch-node.sh itself.
     printf 'FROM ubuntu:26.04\nENV DEBIAN_FRONTEND=noninteractive\nRUN apt-get update && apt-get install -y --no-install-recommends %s && rm -rf /var/lib/apt/lists/*\nCOPY tools/node-version tools/fetch-node.sh /tmp/node/tools/\nRUN /tmp/node/tools/fetch-node.sh /opt/node-dist && rm -rf /tmp/node\n' \
         "$(echo "$PACKAGES" | tr '\n' ' ')" \
-        | "$RUNNER" build -t "$IMAGE" -f - "$R" > /tmp/webos-mkdeb-image.log 2>&1
-    if [ $? -ne 0 ]; then
+        | "$RUNNER" build -t "$IMAGE" -f - "$ctx" > /tmp/webos-mkdeb-image.log 2>&1
+    status=$?
+    rm -rf "$ctx"
+    if [ "$status" -ne 0 ]; then
         echo "  FAILED; what apt said:"
         # apt's real error is near the top, not at the end: the tail is only the
         # RUN line echoed back. Same trap as tools/ci.sh documents.
