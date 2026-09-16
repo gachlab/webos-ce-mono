@@ -89,6 +89,7 @@ protected:
 	virtual void hoverMoveEvent(QGraphicsSceneHoverEvent* event);
 	virtual void keyPressEvent(QKeyEvent* event);
 	virtual void keyReleaseEvent(QKeyEvent* event);
+	virtual QVariant itemChange(GraphicsItemChange change, const QVariant& value);
 
 private Q_SLOTS:
 	void scheduleRender();
@@ -107,6 +108,9 @@ private:
 	QTimer m_renderTimer;
 	QSizeF m_size;
 	bool m_initialized;
+	// Set while the host is pushing its own visibility onto the root, so the
+	// root's visibleChanged does not come back as an explicit setVisible.
+	bool m_pushingVisible = false;
 };
 
 #endif /* QT_VERSION >= 5 */

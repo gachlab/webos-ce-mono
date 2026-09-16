@@ -151,8 +151,28 @@ void QmlSceneItem::syncSize()
 
 void QmlSceneItem::syncVisible()
 {
-	if (m_root)
+	if (m_root && !m_pushingVisible)
 		setVisible(m_root->isVisible());
+}
+
+// The other direction. With QML 1 the root WAS the item in the scene, so hiding
+// a parent -- StatusBarItemGroup hides the SystemMenu when the menu closes --
+// hid the root too, and HP's QML reacts to that in onVisibleChanged: the system
+// menu applies the rows it held back while open and closes its drawers there.
+// Hosted here the root sits in its own offscreen window and never heard of it,
+// so that handler never ran. Found live: the cable's row froze after one tap.
+//
+// Only what arrives from the scene is pushed, and it is not echoed back: an
+// echo would turn the parent's hide into an explicit one on the host, and the
+// host would then stay hidden when the parent is shown again.
+QVariant QmlSceneItem::itemChange(GraphicsItemChange change, const QVariant& value)
+{
+	if (change == ItemVisibleHasChanged && m_root && m_root->isVisible() != value.toBool()) {
+		m_pushingVisible = true;
+		m_root->setVisible(value.toBool());
+		m_pushingVisible = false;
+	}
+	return QGraphicsObject::itemChange(change, value);
 }
 
 void QmlSceneItem::scheduleRender()
