@@ -16,6 +16,8 @@
 //                   BSSID and channel, and the address in the field
 //   radio           the switch turns the radio off and waits for it
 //   known networks  listed with their security, one forgotten by swipe
+//   settings        When Device Sleeps, read, changed, and a refused change
+//   help            the archived help site
 //   relaunch        a card already open, sent to a network by the menu
 //
 // Also caught here, because it broke the card outright: lib/wifi loads
@@ -98,6 +100,8 @@ public:
         "{\"returnValue\":true,\"profileList\":["
         "{\"wifiProfile\":{\"profileId\":10,\"ssid\":\"Casa\"}},"
         "{\"wifiProfile\":{\"profileId\":13,\"ssid\":\"Oficina\",\"security\":{\"securityType\":\"wpa-personal\"}}}]}");
+    QString sleepMode = QStringLiteral("enable");
+    bool refuseSleepMode = false;
     QStringList calls;
     QList<FakeBridge*> statusSubscribers;
 
@@ -164,6 +168,16 @@ public:
             if (method == QLatin1String("setstate") || method == QLatin1String("connect"))
                 return QStringLiteral("{\"returnValue\":true}");
         }
+        if (service == QLatin1String("com.palm.connectionmanager") && method == QLatin1String("getWakeOnWiFiMode"))
+            return QStringLiteral("{\"returnValue\":true,\"mode\":\"%1\"}").arg(sleepMode);
+        if (service == QLatin1String("com.palm.connectionmanager") && method == QLatin1String("setWakeOnWiFiMode")) {
+            if (refuseSleepMode)
+                return QStringLiteral("{\"returnValue\":false,\"errorText\":\"could not save\"}");
+            sleepMode = QJsonDocument::fromJson(payload.toUtf8()).object().value("mode").toString();
+            return QStringLiteral("{\"returnValue\":true,\"mode\":\"%1\"}").arg(sleepMode);
+        }
+        if (service == QLatin1String("com.palm.applicationManager") && method == QLatin1String("open"))
+            return QStringLiteral("{\"returnValue\":true}");
         if (service == QLatin1String("com.palm.connectionmanager"))
             return QStringLiteral("{\"returnValue\":true,\"subscribed\":true,\"isInternetConnectionAvailable\":true,"
                                   "\"wifi\":{\"state\":\"connected\",\"onInternet\":\"yes\"}}");
@@ -403,6 +417,9 @@ int main(int argc, char** argv)
         card.js("enyo.$.wifiApp.showKnown()");
         check(card.until("enyo.$.wifiApp_knownGroup.getShowing()"), "the menu's Known Networks lists them");
         check(card.services.count("com.palm.wifi/getprofilelist") == 1, "from getprofilelist");
+        check(card.until("enyo.$.wifiApp_knownGroup.hasNode().offsetParent !== null"
+                         " && enyo.$.wifiApp_sleepMode.hasNode().offsetParent === null"),
+              "on screen, and not the settings");
         const QString text = card.js("enyo.$.wifiApp_knownGroup.hasNode().textContent");
         check(text.contains("Casa") && text.contains("Open") && text.contains("Oficina")
                   && text.contains("WPA Personal"),
@@ -434,6 +451,57 @@ int main(int argc, char** argv)
         card.js("enyo.$.wifiApp_backButton.hasNode().click()");
         check(card.until("enyo.$.wifiApp_radioSwitch.getShowing() && !enyo.$.wifiApp_backButton.getShowing()"),
               "Back returns to the list and its switch");
+    }
+
+    std::printf("settings\n");
+    {
+        Card card(index, QString());
+        card.until("enyo.$.wifiApp_config.isInNetworkView()");
+        card.services.sleepMode = QStringLiteral("disable");
+        card.js("enyo.$.wifiApp.showSettings()");
+        check(card.services.count("com.palm.connectionmanager/getWakeOnWiFiMode") == 1,
+              "the menu's Settings reads the sleep mode");
+        check(card.until("enyo.$.wifiApp_sleepMode.hasNode().offsetParent !== null"
+                         " && enyo.$.wifiApp_config.hasNode().offsetParent === null"),
+              "and is the view on screen");
+        check(card.until("enyo.$.wifiApp_sleepMode.getValue() === 'disable'"),
+              "and shows it", card.js("enyo.$.wifiApp_sleepMode.getValue()"));
+        check(card.js("enyo.$.wifiApp_sleepNote.getContent()").startsWith("May provide better battery life"),
+              "with its explanation", card.js("enyo.$.wifiApp_sleepNote.getContent()"));
+        check(card.js("enyo.$.wifiApp_radioSwitch.getShowing()") == "false"
+                  && card.js("enyo.$.wifiApp_backButton.getShowing()") == "true",
+              "the switch gives way to Back");
+
+        card.js("enyo.$.wifiApp_sleepMode.setValue('enable'); enyo.$.wifiApp.sleepModeChosen();");
+        check(waitFor([&]() { return card.services.count("com.palm.connectionmanager/setWakeOnWiFiMode") == 1; }, 5000)
+                  && card.services.last("com.palm.connectionmanager/setWakeOnWiFiMode").contains("\"mode\":\"enable\""),
+              "choosing Keep Wi-Fi On sets it", card.services.last("com.palm.connectionmanager/setWakeOnWiFiMode"));
+        check(card.until("enyo.$.wifiApp_sleepNote.getContent().indexOf('Best for prolonging') === 0"),
+              "and the explanation follows the answer");
+
+        card.services.refuseSleepMode = true;
+        card.js("enyo.$.wifiApp_sleepMode.setValue('disable'); enyo.$.wifiApp.sleepModeChosen();");
+        check(waitFor([&]() { return card.services.count("com.palm.connectionmanager/getWakeOnWiFiMode") == 2; }, 5000),
+              "a refused change reads the mode again");
+        check(card.until("enyo.$.wifiApp_sleepMode.getValue() === 'enable'"),
+              "and the list goes back to it", card.js("enyo.$.wifiApp_sleepMode.getValue()"));
+    }
+
+    std::printf("help\n");
+    {
+        Card card(index, QString());
+        card.until("enyo.$.wifiApp_config.isInNetworkView()");
+        // The menu makes its items when it is opened, as the user would open it.
+        card.js("enyo.$.wifiApp_appMenu.open()");
+        const QString items = card.js(
+            "(function () { var r = []; for (var k in enyo.$) if (enyo.$[k].owner === enyo.$.wifiApp"
+            " && /MenuItem|HelpMenu/.test(String(enyo.$[k].kind))) r.push(enyo.$[k].caption); return r.join('|'); })()");
+        check(items == "Settings|Known Networks|Help", "the menu is Settings, Known Networks, Help", items);
+        card.js("(function () { for (var k in enyo.$) if (/HelpMenu$/.test(String(enyo.$[k].kind))) enyo.$[k].itemClick(); })()");
+        check(waitFor([&]() { return card.services.count("com.palm.applicationManager/open") == 1; }, 5000)
+                  && card.services.last("com.palm.applicationManager/open")
+                         .contains("\"target\":\"https://help.webosarchive.org/en-us/\""),
+              "Help opens the archived help site", card.services.last("com.palm.applicationManager/open"));
     }
 
     std::printf("relaunch\n");

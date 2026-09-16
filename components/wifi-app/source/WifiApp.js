@@ -26,9 +26,10 @@
 // release), and a list of known networks behind the app menu, each removable
 // with a swipe.
 //
-// Two things the phone's card had are not here, both because a laptop has
-// nothing behind them: the "When Device Sleeps" setting (com.palm.connection-
-// manager's wake-on-wifi mode) and the help link, whose site no longer exists.
+// Settings keeps the phone's "When Device Sleeps": on a laptop, "Turn Wi-Fi
+// Off" switches the radio off while the machine is suspended (see
+// nm-connectionmanager). Help opens webOS Archive's copy of HP's help site,
+// since help.palm.com is gone.
 //
 // The system menu opens this card with a "target": the network the user
 // tapped, which is either a secured network to join or the joined one to show.
@@ -40,13 +41,21 @@ enyo.kind({
 
 	// The pane's views, in order.
 	VIEW_MAIN: 0,
-	VIEW_KNOWN: 1,
+	VIEW_SETTINGS: 1,
+	VIEW_KNOWN: 2,
+
+	LABEL_SLEEP_KEEP_ON: $L("Best for prolonging battery life in most cases."),
+	LABEL_SLEEP_TURN_OFF: $L("May provide better battery life when connected to some Wi-Fi networks."),
 
 	components: [
 		{name: "profileList", kind: "PalmService", service: "palm://com.palm.wifi/", method: "getprofilelist",
 			onResponse: "profileListReceived"},
 		{name: "profileDelete", kind: "PalmService", service: "palm://com.palm.wifi/", method: "deleteprofile",
 			onResponse: "profileDeleted"},
+		{name: "sleepModeGet", kind: "PalmService", service: "palm://com.palm.connectionmanager/",
+			method: "getWakeOnWiFiMode", onResponse: "sleepModeReceived"},
+		{name: "sleepModeSet", kind: "PalmService", service: "palm://com.palm.connectionmanager/",
+			method: "setWakeOnWiFiMode", onResponse: "sleepModeReceived"},
 
 		{kind: "ApplicationEvents", onApplicationRelaunch: "applyTarget"},
 
@@ -72,6 +81,15 @@ enyo.kind({
 						content: $L("Your device automatically connects to known networks.")}
 				]},
 				{kind: "VFlexBox", components: [
+					{kind: "RowGroup", caption: $L("When Device Sleeps"), components: [
+						{name: "sleepMode", kind: "ListSelector", onChange: "sleepModeChosen", items: [
+							{caption: $L("Keep Wi-Fi On"), value: "enable"},
+							{caption: $L("Turn Wi-Fi Off"), value: "disable"}
+						]}
+					]},
+					{name: "sleepNote", className: "wifi-app-note"}
+				]},
+				{kind: "VFlexBox", components: [
 					{name: "knownGroup", kind: "RowGroup", caption: $L("Known Networks"), showing: false, components: [
 						{name: "knownList", kind: "VirtualRepeater", onSetupRow: "knownRow", components: [
 							{name: "knownItem", kind: "SwipeableItem", layoutKind: "HFlexLayout", confirmRequired: true,
@@ -90,7 +108,9 @@ enyo.kind({
 			caption: $L("Back"), onclick: "showMain"},
 
 		{kind: "AppMenu", components: [
-			{caption: $L("Known Networks"), onclick: "showKnown"}
+			{caption: $L("Settings"), onclick: "showSettings"},
+			{caption: $L("Known Networks"), onclick: "showKnown"},
+			{kind: "HelpMenu", target: "https://help.webosarchive.org/en-us/"}
 		]}
 	],
 
@@ -194,12 +214,41 @@ enyo.kind({
 		this.$.radioSwitch.setDisabled(true);
 	},
 
+	// --- the menu's other views ---------------------------------------------
+
+	showView(index) {
+		this.$.pane.selectViewByIndex(index);
+		this.$.radioSwitch.hide();
+		this.$.backButton.show();
+	},
+
+	showSettings() {
+		this.showView(this.VIEW_SETTINGS);
+		this.$.sleepModeGet.call({});
+	},
+
+	sleepModeChosen() {
+		this.$.sleepModeSet.call({mode: this.$.sleepMode.getValue()});
+	},
+
+	// The mode in force, from either call. A refused change asks again, so the
+	// list goes back to what the service holds instead of showing the choice
+	// that was not taken.
+	sleepModeReceived(inSender, inResponse) {
+		const mode = inResponse && inResponse.mode;
+		if (mode !== "enable" && mode !== "disable") {
+			if (inSender === this.$.sleepModeSet)
+				this.$.sleepModeGet.call({});
+			return;
+		}
+		this.$.sleepMode.setValue(mode);
+		this.$.sleepNote.setContent(mode === "enable" ? this.LABEL_SLEEP_KEEP_ON : this.LABEL_SLEEP_TURN_OFF);
+	},
+
 	// --- the known networks -------------------------------------------------
 
 	showKnown() {
-		this.$.pane.selectViewByIndex(this.VIEW_KNOWN);
-		this.$.radioSwitch.hide();
-		this.$.backButton.show();
+		this.showView(this.VIEW_KNOWN);
 		this.$.profileList.call({});
 	},
 

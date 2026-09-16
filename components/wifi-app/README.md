@@ -10,15 +10,18 @@ it is not redistributed here. This one was written to give the same experience:
   the connected network's address settings — all of it enyo's `WiFiConfig`
   (`enyo-1.0/framework/lib/wifi`), which HP did release;
 * "Connected to *name*. BSSID …, Channel …." above the connected network;
-* **Known Networks** in the app menu, each removable with a swipe.
+* **Settings** in the app menu, with the phone's **When Device Sleeps**: *Turn
+  Wi-Fi Off* switches the radio off while the laptop is suspended;
+* **Known Networks** in the app menu, each removable with a swipe;
+* **Help**, which opens webOS Archive's copy of HP's help site.
 
 The system menu opens it in two ways: from **Wi-Fi Preferences**, and by tapping
 a network in the wifi drawer that needs it — a secured network with no saved
 profile (the card opens on its join screen) or the joined network (the card opens
 on its address settings). Both arrive as a `target` launch parameter.
 
-Left out, because a laptop has nothing behind them: the phone's **When Device
-Sleeps** setting and the help link, whose site no longer exists.
+help.palm.com is gone, and the archived copy has no Wi-Fi page of its own, so
+Help opens the copy's English index.
 
 Everything the card does goes through `com.palm.wifi`, answered by
 `components/nm-connectionmanager`.
