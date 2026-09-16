@@ -169,6 +169,21 @@ mkdir -p /tmp/misc-props
 # NOTE: never in "bus". ls-hubd has to stay outside -- it validates each client
 # by reading its /proc/<pid>/exe, and from inside another namespace that does
 # not match; LunaSysMgr dies with "Invalid permissions for (null)".
+# run_configurator <run parameters...>: configurator applies each set in turn.
+# We start it ourselves, not ls-hubd: the hub lives OUTSIDE the namespace, so
+# whatever it launches cannot see /etc/palm/db/kinds and finds nothing to load.
+run_configurator() {
+  pkill -x configurator 2>/dev/null; sleep 1
+  "$ROOTFS/usr/lib/luna/configurator" service > /tmp/webos/configurator.log 2>&1 &
+  sleep 3
+  local t
+  for t in "$@"; do
+      echo "configurator <- $t"
+      timeout 60 "$WEBOS_BINDIR/luna-send" -n 1 palm://com.palm.configurator/run "$t" 2>&1 | head -2
+  done
+  pkill -x configurator 2>/dev/null
+}
+
 enter_namespace() {
   if [ -z "${WEBOS_EN_NAMESPACE:-}" ]; then
       export WEBOS_EN_NAMESPACE=1
@@ -252,18 +267,8 @@ case "${1:-run}" in
         sleep 1
     done
 
-    # We start configurator ourselves, not ls-hubd. The hub lives OUTSIDE the
-    # namespace, so whatever it launches cannot see /etc/palm/db/kinds and
-    # configurator finds nothing to load.
-    pkill -x configurator 2>/dev/null; sleep 1
-    "$ROOTFS/usr/lib/luna/configurator" service > /tmp/webos/configurator.log 2>&1 &
-    sleep 3
+    run_configurator '{"types":["dbkinds","filecache"]}' '{"types":["dbpermissions"]}' '{"types":["activities"]}'
     LS="$WEBOS_BINDIR/luna-send"
-    for t in '{"types":["dbkinds","filecache"]}' '{"types":["dbpermissions"]}' '{"types":["activities"]}'; do
-        echo "configurator <- $t"
-        timeout 60 "$LS" -n 1 palm://com.palm.configurator/run "$t" 2>&1 | head -2
-    done
-    pkill -x configurator 2>/dev/null
 
     # The profile account HP made when first use was skipped. Its upstart job,
     # com.palm.service.accounts/files/etc/event.d/createLocalAccount, called
@@ -276,6 +281,17 @@ case "${1:-run}" in
     # running this on every init is harmless.
     echo "accounts <- createLocalAccount"
     timeout 30 "$LS" -n 1 palm://com.palm.service.accounts/createLocalAccount '{}' 2>&1 | head -2
+    ;;
+  tempdb)
+    # tempdb, db8's temporary database, is emptied whenever db8 starts without
+    # /tmp/mojodb/tempdb_init -- after every reboot of the host. Its kinds and
+    # permissions have to be registered again each time, as HP's configurator
+    # did on every boot; the one-time init above is not enough. Cheap: the
+    # persistent db8 configurations are cached by configurator and skipped,
+    # only tempdb's are applied. Without it the Accounts app stayed on
+    # "Loading Accounts..." (tempdb refused it with "permission denied").
+    enter_namespace "$@"
+    run_configurator '{"types":["dbkinds"]}' '{"types":["dbpermissions"]}'
     ;;
   services)
     enter_namespace "$@"

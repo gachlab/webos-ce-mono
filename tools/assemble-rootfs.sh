@@ -365,7 +365,7 @@ mkdir -p "$ROOTFS"/var/db
 # The db8 kinds and permissions that do not come from core-apps or app-services.
 # Without them com.palm.db has no schema and every app query fails -- which is
 # why email and calendar came up empty.
-mkdir -p "$ROOTFS"/etc/palm/db/{kinds,permissions} "$ROOTFS"/etc/palm/tempdb/kinds
+mkdir -p "$ROOTFS"/etc/palm/db/{kinds,permissions} "$ROOTFS"/etc/palm/tempdb/{kinds,permissions}
 for d in "$C"/activitymanager/files/db8 "$C"/mojomail/*/files/db8 "$C"/isis-browser/db; do
     [ -d "$d/kinds" ]       && cp -rf "$d"/kinds/*       "$ROOTFS/etc/palm/db/kinds/"       2>/dev/null
     [ -d "$d/permissions" ] && cp -rf "$d"/permissions/* "$ROOTFS/etc/palm/db/permissions/" 2>/dev/null
@@ -374,6 +374,10 @@ done
 A="$C/app-services/com.palm.service.accounts"
 cp -f  "$A"/desktop/com.palm.account.credentials "$ROOTFS/etc/palm/db/kinds/" 2>/dev/null
 cp -rf "$A"/tempdb/kinds/*                       "$ROOTFS/etc/palm/tempdb/kinds/" 2>/dev/null
+# And who may use them. Without these tempdb answers "permission denied" to
+# every app: the Accounts app never learned its sync status and stayed on
+# "Loading Accounts..." for good.
+cp -rf "$A"/tempdb/permissions/*                 "$ROOTFS/etc/palm/tempdb/permissions/" 2>/dev/null
 
 mkdir -p "$ROOTFS"/var/palm/data/universalsearchmgr/searchplugins
 mkdir -p "$ROOTFS"/var/palm/data "$ROOTFS"/var/file-cache

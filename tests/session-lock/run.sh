@@ -27,7 +27,7 @@ command -v "$FLOCK" >/dev/null || { echo "SKIP: no flock"; exit 0; }
 
 T="$(mktemp -d)"
 trap '"$RM" -rf "$T"' EXIT
-mkdir -p "$T/stub" "$T/log" "$T/rootfs"
+mkdir -p "$T/stub" "$T/log" "$T/rootfs/var/luna"
 
 failures=0
 check() {
@@ -85,6 +85,7 @@ kill "$holder" 2>/dev/null; wait "$holder" 2>/dev/null
 real=0
 for d in /proc/[0-9]*; do
     case "$(readlink "$d/cwd" 2>/dev/null)" in */usr/palm/services/*) real=1; break ;; esac
+    case "$(readlink "$d/exe" 2>/dev/null)" in /usr/palm/nodejs/node) real=1; break ;; esac
 done
 if [ "$real" = 1 ]; then
     echo
@@ -93,11 +94,35 @@ else
     echo
     echo "a start with nothing else running"
     "$RM" -f "$T/teardown.calls" "$T/launch.calls"
+    # A service from components/node-services, as teardown sees one: the
+    # rootfs's node running a script under /usr/palm/node-services. bash stands
+    # in for node, waiting on a fifo so it stays itself (a sleep would be a
+    # different executable).
+    mkdir -p "$T/rootfs/usr/palm/nodejs"
+    cp /bin/bash "$T/rootfs/usr/palm/nodejs/node"
+    mkfifo "$T/wait"
+    "$T/rootfs/usr/palm/nodejs/node" -c 'read -t 30 <> "$1"' /usr/palm/node-services/services/fake/main.ts "$T/wait" &
+    fake=$!
     run_session; rc=$?
     [ "$rc" -eq 0 ] && check ok "goes through (exit 0)" || check fail "goes through (exit $rc; $(head -3 "$T/stderr" | tr '\n' ' '))"
     [ "$(tr '\n' ' ' < "$T/launch.calls" 2>/dev/null)" = "bus services init run " ] \
         && check ok "and starts every stage in order" \
         || check fail "and starts every stage in order (got: $(tr '\n' ' ' < "$T/launch.calls" 2>/dev/null))"
+    "$SLEEP" 0.2
+    kill -0 "$fake" 2>/dev/null \
+        && { check fail "and stops the rewritten services too"; kill "$fake"; } \
+        || check ok "and stops the rewritten services too"
+    wait "$fake" 2>/dev/null
+
+    echo
+    echo "a later start of the same tree"
+    daemon=$(cat "$T/daemon.pid" 2>/dev/null)
+    [ -n "$daemon" ] && kill "$daemon" 2>/dev/null
+    "$RM" -f "$T/teardown.calls" "$T/launch.calls"
+    run_session; rc=$?
+    [ "$(tr '\n' ' ' < "$T/launch.calls" 2>/dev/null)" = "bus services tempdb run " ] \
+        && check ok "registers tempdb again instead of the whole init" \
+        || check fail "registers tempdb again instead of the whole init (got: $(tr '\n' ' ' < "$T/launch.calls" 2>/dev/null))"
 
     echo
     echo "after that session has ended"
