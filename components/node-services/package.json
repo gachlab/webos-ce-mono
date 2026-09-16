@@ -1,0 +1,9 @@
+{
+  "name": "webos-ce-node-services",
+  "private": true,
+  "description": "webOS services in modern TypeScript. Node runs the .ts files as they are, by stripping their types.",
+  "type": "module",
+  "imports": {
+    "#kit/*": "./kit/*"
+  }
+}

@@ -361,6 +361,13 @@ add_test(NAME long-process-name
 # --- HP's node 0.4 addons, unmodified, in a modern node ----------------------
 add_test(NAME node-shim COMMAND "${CMAKE_CURRENT_SOURCE_DIR}/node-shim/run.sh")
 
+# --- services in modern TypeScript --------------------------------------------
+# components/node-services: type check, then the kit's tests, twice over for the
+# bus (an in-memory palmbus and a real ls-hubd) and once for db8. The script
+# gives the run a /tmp of its own, since the hub's sockets live there.
+add_test(NAME node-services COMMAND "${CMAKE_CURRENT_SOURCE_DIR}/../components/node-services/test/run.sh")
+set_tests_properties(node-services PROPERTIES SKIP_RETURN_CODE 77)
+
 # --- one webOS session at a time ---------------------------------------------
 # A second start while one is up must leave it alone. Found live: the new
 # supervisor's startup teardown killed the running session, and two starts

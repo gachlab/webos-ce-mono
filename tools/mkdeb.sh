@@ -262,10 +262,12 @@ BINS=$(find "$ROOT/usr/lib/luna" -maxdepth 1 -type f -executable; \
 SHLIBDEPS=$(dpkg-shlibdeps -O --ignore-missing-info -l"$ROOT/usr/lib" $BINS 2>/dev/null \
             | sed 's/^shlibs:Depends=//')
 # bubblewrap is run, not linked, so nothing above can find it; without it the
-# launcher cannot start at all. node is not a dependency any more: the package
+# launcher cannot start at all. glib-networking is GIO's TLS backend, loaded as
+# a module at run time: without it GTlsCertificate reads nothing and
+# com.palm.certificatemanager lists no certificates. node is not a dependency any more: the package
 # carries the one pinned in tools/node-version, and its own libraries are in
 # SHLIBDEPS through BINS above.
-DEPENDS="bubblewrap${SHLIBDEPS:+, $SHLIBDEPS}"
+DEPENDS="bubblewrap, glib-networking${SHLIBDEPS:+, $SHLIBDEPS}"
 
 echo "== control =="
 mkdir -p "$PKG/DEBIAN"

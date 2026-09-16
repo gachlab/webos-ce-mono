@@ -74,8 +74,18 @@ list_of() {  # list_of <build-system> -> names in MANIFEST order
     # The four components the MANIFEST marks as qmake have a CMakeLists.txt of
     # their own now, so they are built with everything else. Their position in
     # the MANIFEST already puts them after what they depend on.
+    #
+    # One change to HP's order: luna-prefs goes before luna-sysmgr. Our shell
+    # links it (DeviceInfo asks it whether the machine has wifi), which HP's
+    # did not, and HP's order builds it four components later. Every build from
+    # a clean tree failed on lunaprefs.h. luna-prefs itself needs only cjson,
+    # glib, luna-service2 and sqlite, all earlier.
     if [ "$1" = cmake ]; then
-        awk -F'\t' 'NR>1 && ($5=="cmake" || $5=="qmake") {print $2}' "$R/MANIFEST.tsv"
+        awk -F'\t' 'NR>1 && ($5=="cmake" || $5=="qmake") {
+            if ($2 == "luna-prefs") next
+            if ($2 == "luna-sysmgr") print "luna-prefs"
+            print $2
+        }' "$R/MANIFEST.tsv"
     else
         awk -F'\t' -v s="$1" 'NR>1 && $5==s {print $2}' "$R/MANIFEST.tsv"
     fi
@@ -246,6 +256,16 @@ stage_node_addons() {
       && DESTDIR="$DESTDIR" cmake --install "$B/node-addons" >> /tmp/webos/node-addons.log 2>&1 \
       && echo "  pmloglib, palmbus, webos     OK" \
       || { echo "  FAILED (see /tmp/webos/node-addons.log)"; return 1; }
+    # Ours: the bus for components/node-services, on Node-API directly.
+    cmake -S "$R/components/node-services/native" -B "$B/node-services-native" \
+          -DNODE_INCLUDE_DIR="$NODE_HOME/include/node" \
+          -DCMAKE_INSTALL_PREFIX="$WEBOS_PREFIX" \
+          -DCMAKE_INSTALL_RPATH='$ORIGIN/../../lib' \
+          -DCMAKE_SHARED_LINKER_FLAGS='-Wl,--disable-new-dtags' > /tmp/webos/node-services-native.log 2>&1 \
+      && cmake --build "$B/node-services-native" -j"$(nproc)" >> /tmp/webos/node-services-native.log 2>&1 \
+      && DESTDIR="$DESTDIR" cmake --install "$B/node-services-native" >> /tmp/webos/node-services-native.log 2>&1 \
+      && echo "  lunabus                      OK" \
+      || { echo "  FAILED (see /tmp/webos/node-services-native.log)"; return 1; }
 }
 
 stage_powerd() {

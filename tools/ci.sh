@@ -1,9 +1,8 @@
 #!/bin/bash
-# Builds and tests the tree in a container, for one Debian release.
+# Builds and tests the tree in a container, for one distribution image.
 #
-#   tools/ci.sh trixie      # Debian stable
-#   tools/ci.sh sid         # what development happens on
-#   tools/ci.sh             # every target in TARGETS, in order
+#   tools/ci.sh                   # every target in TARGETS, in order
+#   tools/ci.sh ubuntu:26.04      # one image, named as in FROM
 #
 # Why this exists: everything about this project has been verified on exactly
 # one machine, with one Qt. "It builds from scratch" is a promise to someone
@@ -28,10 +27,11 @@ set -u
 
 R="$(cd "$(dirname "$0")/.." && pwd)"
 
-# The releases worth knowing about. Debian stable is the one that matters for
-# anyone else: sid is where this was developed and proves nothing about
-# portability.
-TARGETS=(trixie sid)
+# The distribution the release is built on (tools/mkdeb.sh and the release
+# workflow use ubuntu:26.04), so CI tests what ships. Debian stable (trixie)
+# carries Qt 6.8, older than the tree needs; Debian sid is unstable by
+# definition and proves nothing to anyone else.
+TARGETS=(ubuntu:26.04)
 
 RUNNER="$(command -v podman || command -v docker || true)"
 if [ -z "$RUNNER" ]; then
@@ -50,7 +50,7 @@ python3
 qt6-base-dev qt6-base-private-dev
 qt6-declarative-dev qt6-declarative-private-dev
 qt6-webengine-dev qt6-scxml-dev
-libglib2.0-dev libglibmm-2.4-dev libsigc++-2.0-dev dbus-daemon
+libglib2.0-dev libglibmm-2.4-dev libsigc++-2.0-dev dbus-daemon glib-networking
 libsqlite3-dev libssl-dev libxml2-dev libyajl-dev libicu-dev
 libdb5.3-dev libcurl4-openssl-dev zlib1g-dev
 libboost-filesystem-dev libboost-regex-dev libboost-program-options-dev
@@ -59,8 +59,10 @@ curl xz-utils ca-certificates
 PKGS
 
 build_image() {                 # build_image <release>
-    local rel="$1" tag="webos-ce-ci:$rel"
-    echo "== image for debian:$rel =="
+    local rel="$1"
+    local name="${rel//[:\/]/-}"
+    local tag="webos-ce-ci:$name"
+    echo "== image for $rel =="
     # Network is on here, and only here.
     # The build context is two files taken from HEAD, not ".". Found in review:
     # "." was whatever directory the script was started from, so run from
@@ -73,40 +75,46 @@ build_image() {                 # build_image <release>
     ctx="$(mktemp -d)"
     mkdir -p "$ctx/tools"
     if ! git -C "$R" show HEAD:tools/node-version > "$ctx/tools/node-version" \
-       || ! git -C "$R" show HEAD:tools/fetch-node.sh > "$ctx/tools/fetch-node.sh"; then
-        echo "  FAILED to take tools/node-version and tools/fetch-node.sh from HEAD"
+       || ! git -C "$R" show HEAD:tools/fetch-node.sh > "$ctx/tools/fetch-node.sh" \
+       || ! git -C "$R" show HEAD:package.json > "$ctx/package.json" \
+       || ! git -C "$R" show HEAD:package-lock.json > "$ctx/package-lock.json"; then
+        echo "  FAILED to take the node pin and package files from HEAD"
         rm -rf "$ctx"
         return 1
     fi
     chmod +x "$ctx/tools/fetch-node.sh"
     # node too, for the same reason: the pinned one, fetched and hash-checked
-    # while the network is still on. The build then uses it, not Debian's.
-    printf 'FROM debian:%s\nENV DEBIAN_FRONTEND=noninteractive\nRUN apt-get update && apt-get install -y --no-install-recommends %s && rm -rf /var/lib/apt/lists/*\nCOPY tools/node-version tools/fetch-node.sh /tmp/node/tools/\nRUN /tmp/node/tools/fetch-node.sh /opt/node-dist && rm -rf /tmp/node\n' \
+    # while the network is still on. The build then uses it, not the distribution's.
+    # TypeScript as well, from package-lock.json, into /opt/node-tools: the
+    # tests type-check components/node-services with it.
+    printf 'FROM %s\nENV DEBIAN_FRONTEND=noninteractive\nRUN apt-get update && apt-get install -y --no-install-recommends %s && rm -rf /var/lib/apt/lists/*\nCOPY tools/node-version tools/fetch-node.sh /tmp/node/tools/\nRUN /tmp/node/tools/fetch-node.sh /opt/node-dist && rm -rf /tmp/node\nCOPY package.json package-lock.json /opt/node-tools/\nRUN cd /opt/node-tools && PATH=/opt/node-dist/current/bin:$PATH npm ci --ignore-scripts --no-audit --no-fund\n' \
         "$rel" "$(echo "$PACKAGES" | tr '\n' ' ')" \
-        | "$RUNNER" build -t "$tag" -f - "$ctx" > "/tmp/webos-ci-image-$rel.log" 2>&1
+        | "$RUNNER" build -t "$tag" -f - "$ctx" > "/tmp/webos-ci-image-$name.log" 2>&1
     status=$?
     rm -rf "$ctx"
     if [ "$status" -ne 0 ]; then
-        echo "  FAILED to build the image; see /tmp/webos-ci-image-$rel.log"
+        echo "  FAILED to build the image; see /tmp/webos-ci-image-$name.log"
         # apt's own error is near the top of its output, not at the end: the tail
         # is docker repeating the RUN line back. Printing the tail hid
         # "E: Package 'libboost-system-dev' has no installation candidate"
         # behind three screens of the command being echoed.
         echo "  what apt actually said:"
         grep -hE "^(E|W): |Unable to locate|no installation candidate|Depends:|Conflicts:" \
-            "/tmp/webos-ci-image-$rel.log" | sed 's/^/    /' | head -10
+            "/tmp/webos-ci-image-$name.log" | sed 's/^/    /' | head -10
         echo "  (last lines, for anything apt did not report)"
-        tail -3 "/tmp/webos-ci-image-$rel.log" | sed 's/^/    /'
+        tail -3 "/tmp/webos-ci-image-$name.log" | sed 's/^/    /'
         return 1
     fi
     echo "  ok"
 }
 
 run_target() {                  # run_target <release>
-    local rel="$1" tag="webos-ce-ci:$rel"
+    local rel="$1"
+    local name="${rel//[:\/]/-}"
+    local tag="webos-ce-ci:$name"
     build_image "$rel" || return 1
 
-    echo "== build and test on debian:$rel, with no network =="
+    echo "== build and test on $rel, with no network =="
     # git archive gives the committed tree and nothing else: no .git, no build/,
     # no editor droppings. Piped in, so nothing is written on the host.
     # On failure the logs matter more than the summary, and --rm would take them
@@ -143,6 +151,7 @@ run_target() {                  # run_target <release>
             -e WEBOS_NODE_HOME=/opt/node-dist/current \
             -w /src "$tag" \
             sh -c 'mkdir -p /src && tar -x -C /src && \
+                   ln -s /opt/node-tools/node_modules node_modules && \
                    { echo "--- build.sh ---" && tools/build.sh \
                      && echo "--- tests ---" \
                      && cmake -S tests -B build/tests > /tmp/t.log 2>&1 \

@@ -169,6 +169,50 @@ mkdir -p /tmp/misc-props
 # NOTE: never in "bus". ls-hubd has to stay outside -- it validates each client
 # by reading its /proc/<pid>/exe, and from inside another namespace that does
 # not match; LunaSysMgr dies with "Invalid permissions for (null)".
+# run_configurator <run parameters...>: configurator applies each set in turn.
+# We start it ourselves, not ls-hubd: the hub lives OUTSIDE the namespace, so
+# whatever it launches cannot see /etc/palm/db/kinds and finds nothing to load.
+# Fails when any set did not come back with returnValue true.
+run_configurator() {
+  pkill -x configurator 2>/dev/null; sleep 1
+  "$ROOTFS/usr/lib/luna/configurator" service > /tmp/webos/configurator.log 2>&1 &
+  sleep 3
+  local t reply status=0
+  for t in "$@"; do
+      echo "configurator <- $t"
+      reply="$(timeout 60 "$WEBOS_BINDIR/luna-send" -n 1 palm://com.palm.configurator/run "$t" 2>&1 </dev/null)"
+      printf '%s\n' "$reply" | head -2
+      case "$reply" in
+          *'"returnValue":true'*) ;;
+          *) status=1 ;;
+      esac
+  done
+  pkill -x configurator 2>/dev/null || true
+  return "$status"
+}
+
+# Waits up to 30 s for db8 to answer as both com.palm.db and com.palm.tempdb:
+# configurator run before that registers nothing and says so only in its log.
+wait_for_db8() {
+  local _ svc up reply
+  for _ in $(seq 30); do
+      up=1
+      for svc in com.palm.db com.palm.tempdb; do
+          # An answer from db8 itself: JSON with a returnValue, and not the
+          # hub's "is not running" or "does not exist", nor no hub at all.
+          reply="$(timeout 3 "$WEBOS_BINDIR/luna-send" -n 1 "palm://$svc/find" '{"query":{"from":"com.palm.db.kind:1"}}' </dev/null 2>&1)"
+          case "$reply" in
+              *'is not running'*|*'does not exist'*|*'Is the hub running'*) up=0 ;;
+              *'"returnValue"'*) ;;
+              *) up=0 ;;
+          esac
+      done
+      [ "$up" = 1 ] && return 0
+      sleep 1
+  done
+  return 1
+}
+
 enter_namespace() {
   if [ -z "${WEBOS_EN_NAMESPACE:-}" ]; then
       export WEBOS_EN_NAMESPACE=1
@@ -246,24 +290,11 @@ case "${1:-run}" in
         echo "db8 was not running; starting it"
         "$L/mojodb-luna" -c /etc/palm/mojodb.conf /var/db > /tmp/webos/mojodb.log 2>&1 &
     fi
-    for _ in $(seq 30); do
-        timeout 3 "$WEBOS_BINDIR/luna-send" -n 1 palm://com.palm.db/find '{"query":{"from":"com.palm.db.kind:1"}}' </dev/null 2>&1 \
-            | grep -q 'is not running' || break
-        sleep 1
-    done
+    wait_for_db8 || echo "db8 is not answering; configurator will register nothing"
 
-    # We start configurator ourselves, not ls-hubd. The hub lives OUTSIDE the
-    # namespace, so whatever it launches cannot see /etc/palm/db/kinds and
-    # configurator finds nothing to load.
-    pkill -x configurator 2>/dev/null; sleep 1
-    "$ROOTFS/usr/lib/luna/configurator" service > /tmp/webos/configurator.log 2>&1 &
-    sleep 3
+    run_configurator '{"types":["dbkinds","filecache"]}' '{"types":["dbpermissions"]}' '{"types":["activities"]}' \
+        || echo "configurator: some configurations did not apply"
     LS="$WEBOS_BINDIR/luna-send"
-    for t in '{"types":["dbkinds","filecache"]}' '{"types":["dbpermissions"]}' '{"types":["activities"]}'; do
-        echo "configurator <- $t"
-        timeout 60 "$LS" -n 1 palm://com.palm.configurator/run "$t" 2>&1 | head -2
-    done
-    pkill -x configurator 2>/dev/null
 
     # The profile account HP made when first use was skipped. Its upstart job,
     # com.palm.service.accounts/files/etc/event.d/createLocalAccount, called
@@ -276,6 +307,22 @@ case "${1:-run}" in
     # running this on every init is harmless.
     echo "accounts <- createLocalAccount"
     timeout 30 "$LS" -n 1 palm://com.palm.service.accounts/createLocalAccount '{}' 2>&1 | head -2
+    ;;
+  tempdb)
+    # tempdb, db8's temporary database, is emptied whenever db8 starts without
+    # /tmp/mojodb/tempdb_init -- after every reboot of the host. Its kinds and
+    # permissions have to be registered again each time, as HP's configurator
+    # did on every boot; the one-time init above is not enough. Cheap where
+    # configurator can write its cache (a development tree): the persistent db8
+    # configurations are skipped, and only tempdb's, which are never cached,
+    # are applied. Without this the Accounts app stayed on "Loading
+    # Accounts..." (tempdb refused it with "permission denied").
+    enter_namespace "$@"
+    if ! wait_for_db8; then
+        echo "db8 is not answering; tempdb cannot be registered"
+        exit 1
+    fi
+    run_configurator '{"types":["dbkinds"]}' '{"types":["dbpermissions"]}'
     ;;
   services)
     enter_namespace "$@"

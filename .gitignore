@@ -35,3 +35,6 @@ __pycache__/
 
 # editor settings, not the project's
 .vscode/
+
+# npm ci installs the pinned tooling from package-lock.json
+node_modules/

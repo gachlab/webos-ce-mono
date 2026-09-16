@@ -1,0 +1,12 @@
+{
+  "name": "webos-ce-mono",
+  "private": true,
+  "description": "Pinned tooling for the TypeScript in the tree. Nothing here ships: node runs the .ts files by stripping their types, and tsc only checks them.",
+  "scripts": {
+    "typecheck": "tsc -p components/node-services"
+  },
+  "devDependencies": {
+    "@types/node": "24.13.5",
+    "typescript": "7.0.2"
+  }
+}

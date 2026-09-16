@@ -86,6 +86,15 @@ teardown() {
         case "$(readlink "$d/cwd" 2>/dev/null)" in
             */usr/palm/services/*) kill "$pid" 2>/dev/null ;;
         esac
+        # The services rewritten in components/node-services run the same node
+        # from the rootfs directory; their script path gives them away. Read with
+        # mapfile, a builtin, so the sweep stays free of forks.
+        if [ "$exe" = /usr/palm/nodejs/node ] || [ "$exe" = "$ROOTFS/usr/palm/nodejs/node" ]; then
+            { mapfile -d '' -t args < "$d/cmdline"; } 2>/dev/null || args=()
+            case " ${args[*]} " in
+                *" /usr/palm/node-services/"*) kill "$pid" 2>/dev/null ;;
+            esac
+        fi
     done
 
     pkill -x ls-hubd 2>/dev/null
@@ -164,6 +173,10 @@ if [ ! -e "$SENTINEL" ]; then
         # db8 answers "kind not registered" to everything.
         say "webos: init failed -- apps may come up empty. See $LOGDIR/init.log"
     fi
+else
+    # tempdb does not survive a reboot of the host; see "tempdb" in the launcher.
+    "$LAUNCH" tempdb > "$LOGDIR/tempdb.log" 2>&1 9>&- \
+        || say "webos: registering tempdb failed -- see $LOGDIR/tempdb.log"
 fi
 
 say "webos: starting the shell"
