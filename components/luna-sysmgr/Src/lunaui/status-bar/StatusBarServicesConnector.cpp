@@ -2836,15 +2836,33 @@ bool StatusBarServicesConnector::connMgrEventsCallback(LSHandle* handle, LSMessa
 	// should still show that it is plugged in -- that is the difference between
 	// "no cable" and "cable, no internet", and the second is worth seeing.
 	bool wiredConnected = false;
+	std::string wiredInterface;
+	std::string wiredAddress;
 	struct json_object* wiredObj = json_object_object_get(root, "wired");
 	if (wiredObj && !is_error(wiredObj) && json_object_is_type(wiredObj, json_type_object)) {
-		struct json_object* wiredState = json_object_object_get(wiredObj, "state");
-		if (wiredState && !is_error(wiredState) && json_object_is_type(wiredState, json_type_string)) {
-			const char* wiredStateStr = json_object_get_string(wiredState);
+		struct json_object* wiredField = json_object_object_get(wiredObj, "state");
+		if (wiredField && !is_error(wiredField) && json_object_is_type(wiredField, json_type_string)) {
+			const char* wiredStateStr = json_object_get_string(wiredField);
 			wiredConnected = (wiredStateStr && !strcmp(wiredStateStr, "connected"));
 		}
+
+		// The interface name doubles as "this machine has a socket": the system
+		// menu hides the row entirely when there is none.
+		wiredField = json_object_object_get(wiredObj, "interfaceName");
+		if (wiredField && !is_error(wiredField) && json_object_is_type(wiredField, json_type_string)) {
+			const char* value = json_object_get_string(wiredField);
+			if (value)
+				wiredInterface = value;
+		}
+
+		wiredField = json_object_object_get(wiredObj, "ipAddress");
+		if (wiredField && !is_error(wiredField) && json_object_is_type(wiredField, json_type_string)) {
+			const char* value = json_object_get_string(wiredField);
+			if (value)
+				wiredAddress = value;
+		}
 	}
-	Q_EMIT signalWiredStateChanged(wiredConnected);
+	Q_EMIT signalWiredStateChanged(wiredConnected, wiredInterface, wiredAddress);
 
 	if (root && !is_error(root)) json_object_put(root);
 
@@ -3177,6 +3195,23 @@ bool StatusBarServicesConnector::wifiConnectCallback(LSHandle* handle, LSMessage
 	if (root && !is_error(root)) json_object_put(root);
 
 	return true;
+}
+
+// The cable's equivalent of setWifiOnState. com.palm.connectionmanager is ours
+// once nm-connectionmanager answers it, and setWiredState is a method HP never
+// had -- a phone has no socket to unplug.
+void StatusBarServicesConnector::setWiredOnState(bool on)
+{
+	LSError lsError;
+	LSErrorInit(&lsError);
+
+	const char* params = on ? "{\"connected\":true}" : "{\"connected\":false}";
+
+	if (!LSCall(m_service, "palm://com.palm.connectionmanager/setWiredState", params,
+				NULL, NULL, NULL, &lsError)) {
+		LSErrorPrint(&lsError, stderr);
+		LSErrorFree(&lsError);
+	}
 }
 
 void StatusBarServicesConnector::setWifiOnState(bool on)

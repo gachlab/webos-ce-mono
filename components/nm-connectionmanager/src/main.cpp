@@ -55,6 +55,7 @@
 
 #include <luna-service2/lunaservice.h>
 
+#include <cjson/json.h>
 #include <gio/gio.h>
 #include <glib.h>
 #include <glib-unix.h>
@@ -232,6 +233,91 @@ bool anyVpnActive()
     return found;
 }
 
+// The ethernet device's object path, for the calls that change its state. The
+// first one found: a machine with two sockets is a machine where either will do
+// as "the cable", and nothing in webOS can express a choice between them anyway.
+std::string wiredDevicePath()
+{
+    if (!g_system)
+        return std::string();
+    GVariant* devices = property(kNmPath, kNmIface, "Devices");
+    if (!devices)
+        return std::string();
+    std::string found;
+    GVariantIter iter;
+    const char* path = nullptr;
+    g_variant_iter_init(&iter, devices);
+    while (found.empty() && g_variant_iter_next(&iter, "&o", &path)) {
+        if (uintProperty(path, "org.freedesktop.NetworkManager.Device", "DeviceType",
+                         NmNet::kDeviceUnknown) == NmNet::kDeviceEthernet)
+            found = path;
+    }
+    g_variant_unref(devices);
+    return found;
+}
+
+// Bringing the cable up is not the mirror image of taking it down.
+//
+// Down is Device.Disconnect, which also tells NetworkManager not to bring it
+// back by itself. Up has two cases: normally there is a saved connection for the
+// device and ActivateConnection uses it, but a socket that has never been
+// configured has none -- measured, AvailableConnections was empty -- and then
+// AddAndActivateConnection with empty settings makes NM build the default DHCP
+// profile, which is what it would have done unprompted.
+bool activateWired(const std::string& device, std::string& error)
+{
+    GVariant* available = property(device.c_str(),
+                                   "org.freedesktop.NetworkManager.Device",
+                                   "AvailableConnections");
+    std::string connection;
+    if (available) {
+        GVariantIter iter;
+        const char* path = nullptr;
+        g_variant_iter_init(&iter, available);
+        if (g_variant_iter_next(&iter, "&o", &path))
+            connection = path;
+        g_variant_unref(available);
+    }
+
+    GError* gerror = nullptr;
+    GVariant* reply = nullptr;
+    if (!connection.empty()) {
+        reply = g_dbus_connection_call_sync(
+            g_system, kNmService, kNmPath, kNmIface, "ActivateConnection",
+            g_variant_new("(ooo)", connection.c_str(), device.c_str(), "/"),
+            nullptr, G_DBUS_CALL_FLAGS_NONE, 8000, nullptr, &gerror);
+    } else {
+        GVariantBuilder settings;
+        g_variant_builder_init(&settings, G_VARIANT_TYPE("a{sa{sv}}"));
+        reply = g_dbus_connection_call_sync(
+            g_system, kNmService, kNmPath, kNmIface, "AddAndActivateConnection",
+            g_variant_new("(a{sa{sv}}oo)", &settings, device.c_str(), "/"),
+            nullptr, G_DBUS_CALL_FLAGS_NONE, 8000, nullptr, &gerror);
+    }
+    if (!reply) {
+        error = gerror && gerror->message ? gerror->message : "no reply";
+        g_clear_error(&gerror);
+        return false;
+    }
+    g_variant_unref(reply);
+    return true;
+}
+
+bool deactivateWired(const std::string& device, std::string& error)
+{
+    GError* gerror = nullptr;
+    GVariant* reply = g_dbus_connection_call_sync(
+        g_system, kNmService, device.c_str(), "org.freedesktop.NetworkManager.Device",
+        "Disconnect", nullptr, nullptr, G_DBUS_CALL_FLAGS_NONE, 8000, nullptr, &gerror);
+    if (!reply) {
+        error = gerror && gerror->message ? gerror->message : "no reply";
+        g_clear_error(&gerror);
+        return false;
+    }
+    g_variant_unref(reply);
+    return true;
+}
+
 void readDevice(const char* path, guint32 type, NmNet::Device& out)
 {
     // Several devices can share a type -- two wifi adapters, or a laptop dock's
@@ -391,9 +477,60 @@ bool getStatus(LSHandle* sh, LSMessage* message, void*)
     return true;
 }
 
+// Ours, not HP's: his connectionmanager had no such method because a phone had
+// no socket to unplug. The name is on com.palm.connectionmanager because that is
+// where the wired state already lives.
+bool setWiredState(LSHandle* sh, LSMessage* message, void*)
+{
+    bool wanted = false;
+    bool parsed = false;
+    const char* payload = LSMessageGetPayload(message);
+    if (payload) {
+        json_object* root = json_tokener_parse(payload);
+        if (root && !is_error(root)) {
+            json_object* label = json_object_object_get(root, "connected");
+            if (label && json_object_is_type(label, json_type_boolean)) {
+                wanted = json_object_get_boolean(label);
+                parsed = true;
+            }
+            json_object_put(root);
+        }
+    }
+
+    std::string reply;
+    if (!parsed) {
+        reply = "{\"returnValue\":false,\"errorText\":\"expected {\\\"connected\\\": boolean}\"}";
+    } else {
+        const std::string device = wiredDevicePath();
+        if (device.empty()) {
+            reply = "{\"returnValue\":false,\"errorText\":\"no wired device\"}";
+        } else {
+            std::string error;
+            const bool ok = wanted ? activateWired(device, error)
+                                   : deactivateWired(device, error);
+            if (ok) {
+                reply = "{\"returnValue\":true}";
+                // NetworkManager's own signals will carry the new state to every
+                // subscriber; this only shortens the wait for the first change.
+                scheduleRefresh();
+            } else {
+                reply = std::string("{\"returnValue\":false,\"errorText\":\"")
+                        + NmNet::jsonEscape(error) + "\"}";
+            }
+        }
+    }
+
+    LSError lserror;
+    LSErrorInit(&lserror);
+    if (!LSMessageReply(sh, message, reply.c_str(), &lserror))
+        logAndFree("LSMessageReply", lserror);
+    return true;
+}
+
 LSMethod kMethods[] = {
     { "getStatus", getStatus },
     { "getstatus", getStatus },
+    { "setWiredState", setWiredState },
     { },
 };
 

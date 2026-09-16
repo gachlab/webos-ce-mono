@@ -309,7 +309,7 @@ void StatusBar::init()
 		connect(m_svcConnector,SIGNAL(signalWanIndexChanged(bool, StatusBar::IndexWAN)), SLOT(slotWanIndexChanged(bool, StatusBar::IndexWAN)));
 		connect(m_svcConnector,SIGNAL(signalBluetoothIndexChanged(bool, StatusBar::IndexBluetooth)), SLOT(slotBluetoothIndexChanged(bool, StatusBar::IndexBluetooth)));
 		connect(m_svcConnector,SIGNAL(signalWifiIndexChanged(bool, StatusBar::IndexWiFi)), SLOT(slotWifiIndexChanged(bool, StatusBar::IndexWiFi)));
-		connect(m_svcConnector,SIGNAL(signalWiredStateChanged(bool)), SLOT(slotWiredStateChanged(bool)));
+		connect(m_svcConnector,SIGNAL(signalWiredStateChanged(bool, std::string, std::string)), SLOT(slotWiredStateChanged(bool)));
 	}
 
 	switch (m_type) {

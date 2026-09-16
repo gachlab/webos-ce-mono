@@ -29,8 +29,12 @@ pkg_check_modules(LS2 REQUIRED luna-service2)
 pkg_check_modules(CJSON REQUIRED cjson)
 
 add_executable(nm-connectionmanager src/main.cpp)
+# CJSON's include directory is named as well as its library: setWiredState parses
+# its argument with it, and staging keeps that header in include/cjson while
+# luna-service2's live in usr/include, so pkg-config is the only thing that knows
+# where both are.
 target_include_directories(nm-connectionmanager PRIVATE
-    src ${GLIB_INCLUDE_DIRS} ${GIO_INCLUDE_DIRS} ${LS2_INCLUDE_DIRS})
+    src ${GLIB_INCLUDE_DIRS} ${GIO_INCLUDE_DIRS} ${LS2_INCLUDE_DIRS} ${CJSON_INCLUDE_DIRS})
 target_link_directories(nm-connectionmanager PRIVATE
     ${LS2_LIBRARY_DIRS} ${CJSON_LIBRARY_DIRS})
 target_link_libraries(nm-connectionmanager PRIVATE
