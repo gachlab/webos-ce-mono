@@ -40,6 +40,7 @@ const char kAppViewShimScriptName[] = "webos-app-view-shims";
 const char kFrameCancelScriptName[] = "webos-frame-cancel";
 const char kFlexWidthScriptName[] = "webos-flex-width";
 const char kEnyoWheelScriptName[] = "webos-enyo-wheel";
+const char kNumberInputScriptName[] = "webos-number-inputs";
 
 // Before QApplication exists: a URL scheme can only be registered then, and
 // QtWebEngine wants shared GL contexts decided before the first one is made.
@@ -541,6 +542,58 @@ const char kEnyoWheelCompat[] = R"JS(
         Object.defineProperty(synth, "wheelDelta",  { value: legacyY, configurable: true });
 
         target.dispatchEvent(synth);
+    }, true);
+})();
+)JS";
+
+// ---------------------------------------------------------------------------
+// Number inputs that take text, as they did in webOS's WebKit.
+//
+// HP's Wi-Fi settings declare the address fields -- IP, subnet, gateway, DNS --
+// as <input type="number">, so the keyboard offers digits, and write addresses
+// like "10.20.30.99" into them. The WebKit webOS shipped kept whatever text it
+// was given. Chromium sanitizes a number input's value and drops anything that
+// is not a floating-point number -- "The specified value "10.20.30.99" cannot
+// be parsed" -- so the connected network's address showed as an empty field,
+// and an address typed by hand would read back as "".
+//
+// A number input that is handed text, or that takes focus, becomes a text
+// input with inputmode="decimal": the same digits-first keyboard, and no
+// sanitizing. The value setter is where it has to happen: enyo renders the
+// field and sets its value in the same task, so an observer would run after
+// the value was already dropped.
+const char kNumberInputs[] = R"JS(
+(function () {
+    if (window.__webosNumberInputs)
+        return;
+    window.__webosNumberInputs = true;
+    var proto = window.HTMLInputElement && HTMLInputElement.prototype;
+    var desc = proto && Object.getOwnPropertyDescriptor(proto, "value");
+    if (!desc || !desc.set)
+        return;
+
+    function asText(input) {
+        if (input.type !== "number")
+            return;
+        input.setAttribute("inputmode", "decimal");
+        input.type = "text";
+    }
+
+    Object.defineProperty(proto, "value", {
+        configurable: true,
+        enumerable: desc.enumerable,
+        get: desc.get,
+        set: function (v) {
+            if (this.type === "number" && v !== null && v !== undefined && v !== "" &&
+                    !/^[-+]?(\d+\.?\d*|\.\d+)([eE][-+]?\d+)?$/.test(String(v)))
+                asText(this);
+            desc.set.call(this, v);
+        }
+    });
+
+    document.addEventListener("focusin", function (e) {
+        if (e.target instanceof HTMLInputElement)
+            asText(e.target);
     }, true);
 })();
 )JS";
@@ -1416,6 +1469,15 @@ QWebPage::QWebPage(QObject* parent)
     appViewShims.setRunsOnSubFrames(true);
     appViewShims.setSourceCode(QString::fromLatin1(kAppViewShims));
     m_engine->scripts().insert(appViewShims);
+
+    // Number inputs that keep their text; see above.
+    QWebEngineScript numberInputs;
+    numberInputs.setName(kNumberInputScriptName);
+    numberInputs.setInjectionPoint(QWebEngineScript::DocumentCreation);
+    numberInputs.setWorldId(QWebEngineScript::MainWorld);
+    numberInputs.setRunsOnSubFrames(true);
+    numberInputs.setSourceCode(QString::fromLatin1(kNumberInputs));
+    m_engine->scripts().insert(numberInputs);
 
     // The frame canceller Chromium dropped; see above.
     QWebEngineScript frameCancel;

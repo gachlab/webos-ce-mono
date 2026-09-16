@@ -235,6 +235,14 @@ add_test(NAME app-view-shims COMMAND app-view-shims)
 set_tests_properties(app-view-shims PROPERTIES
     ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
 
+# Number inputs that keep text, as the address fields of the Wi-Fi settings
+# need; Chromium drops anything that is not a floating-point number.
+add_executable(number-inputs number-inputs.cpp)
+target_link_libraries(number-inputs PRIVATE qtwebkit-compat-lib)
+add_test(NAME number-inputs COMMAND number-inputs)
+set_tests_properties(number-inputs PROPERTIES
+    ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
 # The prefixed transition events enyo listens for. Without them a Pane's
 # transition never ends and the outgoing view is never hidden: two views paint
 # at once, which looked like transparency in the mail card.
