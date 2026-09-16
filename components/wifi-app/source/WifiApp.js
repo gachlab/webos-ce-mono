@@ -124,7 +124,54 @@ enyo.kind({
 		// A target that names the joined network can only be shown once
 		// WiFiConfig knows which network that is; it waits here until then.
 		this.pendingTarget = null;
+		this.addressError = null;
+		this.handleRefusals();
 		this.applyTarget();
+	},
+
+	// --- what lib/wifi does not do when the service says no ----------------
+	//
+	// lib/wifi names handleConnectFailure, handleSetStateFailure and
+	// handleDeleteProfileFailure as its services' onFailure handlers and never
+	// defines them, and its connect handler reads only a profileId. A refusal
+	// went nowhere: the Sign In button spun for good, and the radio switch
+	// stayed disabled on a position the radio never took. The handlers are
+	// given here, on this card's own instances, rather than in HP's library.
+
+	handleRefusals() {
+		const config = this.$.config;
+		const answered = config.handleConnectResponse;
+		config.handleConnectResponse = (inSender, inResponse, inRequest) => {
+			if (inResponse && inResponse.returnValue === false && config.isInSecurityView())
+				this.joinRefused(inResponse.errorText);
+			return answered.call(config, inSender, inResponse, inRequest);
+		};
+		config.handleSetStateFailure = () => this.radioRefused();
+		config.handleDeleteProfileFailure = () => {};
+		config.$.wifiIpConfig.handleConnectFailure = (inSender, inResponse) =>
+			this.addressesRefused(inResponse && inResponse.errorText);
+	},
+
+	joinRefused(text) {
+		const config = this.$.config;
+		config.$.joinMessage.setContent(text || $L("Unable to connect. Try again."));
+		config.$.joinMessage.show();
+		config.disableJoinButtons(false);
+	},
+
+	radioRefused() {
+		const wanted = this.radioWanted;
+		this.radioWanted = null;
+		if (wanted !== null)
+			this.$.radioSwitch.setState(!wanted);
+		this.$.radioSwitch.setDisabled(false);
+	},
+
+	// Kept until the view changes: the access point's next update would
+	// otherwise put the connected caption straight back over it.
+	addressesRefused(text) {
+		this.addressError = $L("The address settings were not applied: ") + (text || "");
+		this.$.caption.setContent(this.addressError);
 	},
 
 	// --- the target the system menu sent -----------------------------------
@@ -154,6 +201,7 @@ enyo.kind({
 	// --- the header and the caption, per WiFiConfig view --------------------
 
 	configViewChanged(inSender, inView) {
+		this.addressError = null;
 		const radioOn = inView !== "Off";
 		const onMain = this.$.pane.getViewIndex() === this.VIEW_MAIN;
 		const listLike = inView === "Off" || inView === "NetworkList" || inView === "NoInternet";
@@ -190,7 +238,7 @@ enyo.kind({
 
 	accessPointChanged(inSender, inInfo) {
 		this.accessPoint = inInfo;
-		if (this.$.config.isInIpConfigView())
+		if (this.$.config.isInIpConfigView() && !this.addressError)
 			this.$.caption.setContent(this.connectedCaption());
 	},
 

@@ -102,6 +102,8 @@ public:
         "{\"wifiProfile\":{\"profileId\":13,\"ssid\":\"Oficina\",\"security\":{\"securityType\":\"wpa-personal\"}}}]}");
     QString sleepMode = QStringLiteral("enable");
     bool refuseSleepMode = false;
+    QString refuseConnect;     // errorText for connect, or empty to accept
+    bool refuseRadio = false;
     QStringList calls;
     QList<FakeBridge*> statusSubscribers;
 
@@ -165,6 +167,10 @@ public:
                 profileList = QString::fromUtf8(QJsonDocument(list).toJson(QJsonDocument::Compact));
                 return QStringLiteral("{\"returnValue\":true}");
             }
+            if (method == QLatin1String("connect") && !refuseConnect.isEmpty())
+                return QStringLiteral("{\"returnValue\":false,\"errorText\":\"%1\"}").arg(refuseConnect);
+            if (method == QLatin1String("setstate") && refuseRadio)
+                return QStringLiteral("{\"returnValue\":false,\"errorText\":\"not allowed\"}");
             if (method == QLatin1String("setstate") || method == QLatin1String("connect"))
                 return QStringLiteral("{\"returnValue\":true}");
         }
@@ -378,6 +384,43 @@ int main(int argc, char** argv)
         check(card.until("enyo.$.wifiApp_config_joinMessage.getShowing()"), "a wrong password is reported");
         check(card.js("enyo.$.wifiApp_config_joinMessage.getContent()").contains("password"),
               "as a password problem", card.js("enyo.$.wifiApp_config_joinMessage.getContent()"));
+    }
+
+    std::printf("refusals\n");
+    {
+        Card card(index, launchWith("Oficina", "wpa-personal", 0, QString()));
+        card.until("enyo.$.wifiApp_config.isInSecurityView()");
+        card.services.refuseConnect = QStringLiteral("an enterprise network needs a user name");
+        card.js("enyo.$.wifiApp_config_joinPassword.setValue('correcthorse');"
+                "enyo.$.wifiApp_config.joinInfoChanged();"
+                "enyo.$.wifiApp_config_joinButton.hasNode().click();");
+        check(card.until("enyo.$.wifiApp_config_joinMessage.getShowing()"),
+              "a refused join is shown on the join screen");
+        check(card.js("enyo.$.wifiApp_config_joinMessage.getContent()") == "an enterprise network needs a user name",
+              "with the service's reason", card.js("enyo.$.wifiApp_config_joinMessage.getContent()"));
+        check(card.js("enyo.$.wifiApp_config_joinButton.getActive() || enyo.$.wifiApp_config_joinButton.getDisabled()") == "false",
+              "and Sign In stops spinning, ready to try again");
+    }
+    {
+        Card card(index, QString());
+        card.until("enyo.$.wifiApp_config.isInNetworkView()");
+        card.services.refuseRadio = true;
+        card.js("enyo.$.wifiApp_radioSwitch.hasNode().click()");
+        check(waitFor([&]() { return card.services.count("com.palm.wifi/setstate") == 1; }, 5000),
+              "a radio switch the service refuses");
+        check(card.until("!enyo.$.wifiApp_radioSwitch.getDisabled() && enyo.$.wifiApp_radioSwitch.getState()"),
+              "goes back to where the radio is, and can be used again");
+    }
+    {
+        Card card(index, launchWith("Casa", "", 10, "ipConfigured"));
+        card.until("enyo.$.wifiApp_config.isInIpConfigView()");
+        card.services.refuseConnect = QStringLiteral("not a gateway address: x");
+        // "void": the call returns enyo's request object, which evaluateJavaScript
+        // cannot turn into a value; it waits five seconds for nothing.
+        card.js("void enyo.$.wifiApp_config_wifiIpConfig.$.Connect.call({profileId: 10, useStaticIp: true, "
+                "ipInfo: {ip: '10.0.0.2', subnet: '255.0.0.0', gateway: 'x'}})");
+        check(card.until("enyo.$.wifiApp_caption.getContent().indexOf('not a gateway address') >= 0"),
+              "refused address settings are said above them", card.js("enyo.$.wifiApp_caption.getContent()"));
     }
 
     std::printf("an open network the menu could not join\n");
