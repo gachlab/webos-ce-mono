@@ -4,6 +4,9 @@
 #   webos-session.sh            bring everything up and stay in the foreground
 #   webos-session.sh --down     tear down whatever is running and exit
 #
+# Only one session runs at a time. A second start while one is up says so and
+# exits without touching it; --down still works, since it is how to recover.
+#
 # webOS's own Power Off and Restart end up here too. com.palm.power
 # (components/sysfs-powerd) writes "poweroff" or "restart" to
 # $WEBOS_SESSION_REQUEST and ends the shell; after the shell exits, a restart
@@ -86,6 +89,37 @@ if [ "${1:-}" = "--down" ]; then
     exit 0
 fi
 
+# One session at a time, and a second start leaves the first alone.
+#
+# Found live, with the installed AppImage: webOS was opened from the menu while
+# a session was already up, and then once more half a minute later. Each start
+# begins with the teardown below, which finds processes by name, so the second
+# supervisor killed the running session and the two then kept tearing down each
+# other's stack. It settled on LunaSysMgr and WebAppMgr alive with no ls-hubd --
+# a window on screen with no bus behind it.
+#
+# The lock is taken before that teardown and before the trap, so a refused start
+# changes nothing. Its path is fixed rather than under $LOGDIR: what two sessions
+# fight over is fixed too -- /tmp/pipcserver.sysmgr and the hub's sockets -- and
+# the AppImage, the .deb and a development tree all share them.
+# WEBOS_SESSION_LOCK exists for tests/session-lock.
+#
+# flock is released when the descriptor closes, so a crashed supervisor leaves
+# nothing stale behind. That only holds if nothing else keeps the descriptor
+# open, which is why every stage below is started with 9>&-: a service that
+# outlived the supervisor would otherwise hold the lock and refuse every later
+# start.
+LOCK="${WEBOS_SESSION_LOCK:-/tmp/webos-ce-session.lock}"
+if ! exec 9>"$LOCK"; then
+    say "webos: cannot open the session lock $LOCK"
+    exit 1
+fi
+if ! flock -n 9; then
+    say "webos: webOS CE is already running; not starting a second session"
+    say "       (to stop the running one: webos-session.sh --down)"
+    exit 1
+fi
+
 while :; do
 
 # Start from a clean slate rather than fighting whatever a previous session
@@ -98,15 +132,15 @@ trap teardown EXIT INT TERM
 mkdir -p "$LOGDIR"
 rm -f "$WEBOS_SESSION_REQUEST"
 say "webos: starting the bus"
-"$LAUNCH" bus      > "$LOGDIR/bus.log"      2>&1
+"$LAUNCH" bus      > "$LOGDIR/bus.log"      2>&1 9>&-
 sleep 3
 say "webos: starting the services"
-"$LAUNCH" services > "$LOGDIR/services.log" 2>&1
+"$LAUNCH" services > "$LOGDIR/services.log" 2>&1 9>&-
 sleep 3
 
 if [ ! -e "$SENTINEL" ]; then
     say "webos: first start for this tree, loading the database"
-    if "$LAUNCH" init > "$LOGDIR/init.log" 2>&1; then
+    if "$LAUNCH" init > "$LOGDIR/init.log" 2>&1 9>&-; then
         : > "$SENTINEL" 2>/dev/null || true
     else
         # Not fatal on its own, and worth saying out loud rather than leaving
@@ -117,7 +151,7 @@ if [ ! -e "$SENTINEL" ]; then
 fi
 
 say "webos: starting the shell"
-"$LAUNCH" run      > "$LOGDIR/run.log"      2>&1
+"$LAUNCH" run      > "$LOGDIR/run.log"      2>&1 9>&-
 
 # run returns when LunaSysMgr exits. The trap does the rest, which is the
 # difference between this and running the launcher by hand -- unless webOS's own

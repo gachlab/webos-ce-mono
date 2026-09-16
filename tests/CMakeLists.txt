@@ -290,6 +290,13 @@ add_test(NAME long-process-name
 # --- HP's node 0.4 addons, unmodified, in a modern node ----------------------
 add_test(NAME node-shim COMMAND "${CMAKE_CURRENT_SOURCE_DIR}/node-shim/run.sh")
 
+# --- one webOS session at a time ---------------------------------------------
+# A second start while one is up must leave it alone. Found live: the new
+# supervisor's startup teardown killed the running session, and two starts
+# settled on a shell with no bus. Runs against stubs; see the script for why the
+# cases that let a start through skip themselves while a real session is up.
+add_test(NAME session-lock COMMAND "${CMAKE_CURRENT_SOURCE_DIR}/session-lock/run.sh")
+
 # --- static sweeps over the tree ---------------------------------------------
 # Both grew out of a real bug in HP's Qt 5 desktop branch, which never ran on a
 # device: a scene position handed to mapFromParent, and an else-if that repeated
