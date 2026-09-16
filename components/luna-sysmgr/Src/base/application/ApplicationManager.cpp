@@ -2385,7 +2385,14 @@ bool ApplicationManager::isTrustedInstallerApp (const std::string& app) const {
 }
 
 bool ApplicationManager::isTrustedPalmApp(const ApplicationDescription* appDesc) const {
-	return (appDesc->id().find("com.palm.") == 0 && ((appDesc->vendorName().find("Palm") == 0) || (appDesc->vendorName().find("HP") == 0))) ? true : false;
+	// "webOS CE" as well as Palm and HP: the apps this port writes to stand in
+	// for HP's own unreleased ones keep their com.palm ids, so the system menu
+	// can launch them, and are platform apps like the ones they replace. As an
+	// untrusted app, com.palm.app.wifi was placed with downloaded apps; trusted,
+	// its "Settings" category puts it on the launcher's Settings page.
+	const std::string& vendor = appDesc->vendorName();
+	return (appDesc->id().find("com.palm.") == 0
+	        && (vendor.find("Palm") == 0 || vendor.find("HP") == 0 || vendor == "webOS CE")) ? true : false;
 }
 
 bool ApplicationManager::isTrustedPalmApp(const std::string& appId)

@@ -2,6 +2,7 @@
 	"id": "com.palm.app.wifi",
 	"title": "Wi-Fi",
 	"type": "web",
+	"category": "Settings",
 	"main": "index.html",
 	"icon": "icon.png",
 	"splashicon": "icon-256x256.png",
