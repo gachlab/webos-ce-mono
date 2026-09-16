@@ -61,6 +61,7 @@
 #include "Utils.h"
 #include "FlickGesture.h"
 #include "DockModeWindowManager.h"
+#include "QmlGraphicsSlot.h"
 
 #include <QGraphicsPixmapItem>
 
@@ -176,6 +177,10 @@ void DashboardWindowManager::init()
 				 if (!m_menuObject) {
 					 delete m_menuSurface;
 					 m_menuSurface = 0;
+				 } else {
+					 // The QML keeps the container's place; see QmlGraphicsSlot.
+					 new QmlGraphicsSlot(m_menuSurface, m_menuObject->property("mainMenuItem").value<QQuickItem*>(),
+					                     m_dashboardWinContainer);
 				 }
 #endif
 				 if(m_menuObject) {

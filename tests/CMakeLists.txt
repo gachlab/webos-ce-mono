@@ -215,6 +215,20 @@ target_link_libraries(qml-scene-item PRIVATE
     Qt::Core Qt::Gui Qt::Widgets Qt::Qml Qt::Quick Qt::GuiPrivate Qt::Test ${GLIB_LIBRARIES})
 add_test(NAME qml-scene-item COMMAND qml-scene-item -platform offscreen)
 
+# --- QmlGraphicsSlot: a native item where the QML keeps its place ------------
+# The dashboard menu's notifications, which QtQuick 2 cannot parent.
+add_executable(qml-graphics-slot
+    qml-graphics-slot.cpp
+    ${SYSMGR}/Src/base/QmlGraphicsSlot.cpp
+    ${SYSMGR}/Src/base/QmlSceneItem.cpp
+)
+target_include_directories(qml-graphics-slot PRIVATE
+    ${SYSMGR}/Src ${SYSMGR}/Src/base ${GLIB_INCLUDE_DIRS}
+    "${WEBOS_STAGING}/include/luna-sysmgr-common")
+target_link_libraries(qml-graphics-slot PRIVATE
+    Qt::Core Qt::Gui Qt::Widgets Qt::Qml Qt::Quick Qt::GuiPrivate Qt::Test ${GLIB_LIBRARIES})
+add_test(NAME qml-graphics-slot COMMAND qml-graphics-slot -platform offscreen)
+
 # --- what WebAppMgr needs from a web engine, and the layer built on it --------
 find_package(Qt6 REQUIRED COMPONENTS WebEngineWidgets)
 
@@ -236,6 +250,14 @@ target_link_libraries(qtwebkit-compat PRIVATE qtwebkit-compat-lib)
 target_compile_options(qtwebkit-compat PRIVATE -fno-rtti)
 add_test(NAME qtwebkit-compat COMMAND qtwebkit-compat)
 set_tests_properties(qtwebkit-compat PROPERTIES
+    ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
+# What a dashboard window needs: its window.open attributes, a transparent
+# render, and its clipped layers left clipped.
+add_executable(dashboard-window dashboard-window.cpp)
+target_link_libraries(dashboard-window PRIVATE qtwebkit-compat-lib)
+add_test(NAME dashboard-window COMMAND dashboard-window)
+set_tests_properties(dashboard-window PROPERTIES
     ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
 
 # The WebView methods the mail app calls on a plain view. Without them its

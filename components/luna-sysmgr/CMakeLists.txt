@@ -244,6 +244,7 @@ add_executable(LunaSysMgr
     Src/sound/SoundPlayerDummy.cpp
     Src/sound/SoundPlayerPool.cpp
     Src/base/QmlSceneItem.cpp
+    Src/base/QmlGraphicsSlot.cpp
     Src/base/MouseToTouch.cpp
     Src/base/WheelToScroll.cpp
     Src/base/HoverToMouseMove.cpp
