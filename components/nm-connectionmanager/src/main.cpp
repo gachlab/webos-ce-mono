@@ -71,15 +71,23 @@ const char kCategory[] = "/";
 // getstatus. The stub declared both in its services.json and so does this.
 const char* const kStatusMethods[] = { "getStatus", "getstatus", nullptr };
 
+// com.palm.wifi, the second name this process owns. It is the same network read
+// from the same NetworkManager state, in the shape the status bar's wifi
+// indicator wants -- see network_state.h. Registering both names in one process
+// keeps them from ever disagreeing about what the radio is doing.
+const char kWifiServiceName[] = "com.palm.wifi";
+
 const char kNmService[] = "org.freedesktop.NetworkManager";
 const char kNmPath[] = "/org/freedesktop/NetworkManager";
 const char kNmIface[] = "org.freedesktop.NetworkManager";
 
 GMainLoop* g_loop = nullptr;
 LSPalmService* g_service = nullptr;
+LSPalmService* g_wifiService = nullptr;
 GDBusConnection* g_system = nullptr;
 NmNet::NetworkState g_state;
 std::string g_lastPayload;
+std::string g_lastWifiPayload;
 guint g_refreshPending = 0;
 
 void logAndFree(const char* where, LSError& error)
@@ -289,11 +297,13 @@ NmNet::NetworkState readState()
 
 // --- telling webOS ----------------------------------------------------------
 
-void post(const std::string& payload)
+void post(LSPalmService* service, const std::string& payload)
 {
+    if (!service)
+        return;
     LSHandle* const handles[] = {
-        LSPalmServiceGetPrivateConnection(g_service),
-        LSPalmServiceGetPublicConnection(g_service),
+        LSPalmServiceGetPrivateConnection(service),
+        LSPalmServiceGetPublicConnection(service),
     };
     for (LSHandle* handle : handles) {
         if (!handle)
@@ -315,18 +325,31 @@ void refresh()
     // NetworkManager emits PropertiesChanged for things webOS has no notion of
     // -- a container's veth appearing, a route metric moving -- and each one
     // would otherwise wake every consumer.
+    // The two names are posted independently: the wifi indicator follows states
+    // the connectionmanager payload does not distinguish -- joining a network
+    // moves through associating and associated while both of its answers still
+    // read "disconnected" -- so a shared guard would swallow those updates.
     const std::string payload = NmNet::statusPayload(g_state, true);
-    if (payload == g_lastPayload)
+    const std::string wifiPayload = NmNet::wifiStatusPayload(g_state, true);
+    const bool changed = payload != g_lastPayload;
+    const bool wifiChanged = wifiPayload != g_lastWifiPayload;
+    if (!changed && !wifiChanged)
         return;
-    g_lastPayload = payload;
 
-    g_message("nm-connectionmanager: wifi=%s%s%s wired=%s internet=%s",
-              NmNet::deviceState(g_state.wifi),
-              g_state.wifi.ssid.empty() ? "" : " ",
-              g_state.wifi.ssid.c_str(),
-              NmNet::deviceState(g_state.wired),
-              NmNet::internetAvailable(g_state) ? "yes" : "no");
-    post(payload);
+    if (changed) {
+        g_lastPayload = payload;
+        g_message("nm-connectionmanager: wifi=%s%s%s wired=%s internet=%s",
+                  NmNet::deviceState(g_state.wifi),
+                  g_state.wifi.ssid.empty() ? "" : " ",
+                  g_state.wifi.ssid.c_str(),
+                  NmNet::deviceState(g_state.wired),
+                  NmNet::internetAvailable(g_state) ? "yes" : "no");
+        post(g_service, payload);
+    }
+    if (wifiChanged) {
+        g_lastWifiPayload = wifiPayload;
+        post(g_wifiService, wifiPayload);
+    }
 }
 
 gboolean refreshNow(gpointer)
@@ -370,6 +393,29 @@ bool getStatus(LSHandle* sh, LSMessage* message, void*)
 LSMethod kMethods[] = {
     { "getStatus", getStatus },
     { "getstatus", getStatus },
+    { },
+};
+
+// The status bar calls getstatus; enyo's wifi library calls it too. Both
+// spellings again, for the same reason as above.
+bool getWifiStatus(LSHandle* sh, LSMessage* message, void*)
+{
+    bool subscribed = false;
+    LSError error;
+    LSErrorInit(&error);
+    if (!LSSubscriptionProcess(sh, message, &subscribed, &error))
+        logAndFree("LSSubscriptionProcess", error);
+
+    const std::string payload = NmNet::wifiStatusPayload(g_state, subscribed);
+    LSErrorInit(&error);
+    if (!LSMessageReply(sh, message, payload.c_str(), &error))
+        logAndFree("LSMessageReply", error);
+    return true;
+}
+
+LSMethod kWifiMethods[] = {
+    { "getStatus", getWifiStatus },
+    { "getstatus", getWifiStatus },
     { },
 };
 
@@ -423,6 +469,28 @@ int main()
         return 1;
     }
 
+    // com.palm.wifi. Not fatal if it cannot be had: com.palm.connectionmanager
+    // is what the apps need to stop believing they are online, and losing the
+    // indicator is better than losing both.
+    LSErrorInit(&error);
+    if (!LSRegisterPalmService(kWifiServiceName, &g_wifiService, &error)) {
+        logAndFree("LSRegisterPalmService(com.palm.wifi)", error);
+        g_wifiService = nullptr;
+    } else {
+        LSErrorInit(&error);
+        if (!LSPalmServiceRegisterCategory(g_wifiService, kCategory, kWifiMethods,
+                                           kWifiMethods, nullptr, nullptr, &error)) {
+            logAndFree("LSPalmServiceRegisterCategory(com.palm.wifi)", error);
+            g_wifiService = nullptr;
+        } else {
+            LSErrorInit(&error);
+            if (!LSGmainAttachPalmService(g_wifiService, g_loop, &error)) {
+                logAndFree("LSGmainAttachPalmService(com.palm.wifi)", error);
+                g_wifiService = nullptr;
+            }
+        }
+    }
+
     if (g_system) {
         // Everything NetworkManager says about itself and its objects. The
         // property signal carries the interface it belongs to, but filtering on
@@ -445,6 +513,7 @@ int main()
     // first real change is what gets posted rather than a duplicate of this.
     g_state = readState();
     g_lastPayload = NmNet::statusPayload(g_state, true);
+    g_lastWifiPayload = NmNet::wifiStatusPayload(g_state, true);
     g_message("nm-connectionmanager: com.palm.connectionmanager up, wifi=%s wired=%s internet=%s",
               NmNet::deviceState(g_state.wifi), NmNet::deviceState(g_state.wired),
               NmNet::internetAvailable(g_state) ? "yes" : "no");
@@ -457,6 +526,11 @@ int main()
     LSErrorInit(&error);
     if (!LSUnregisterPalmService(g_service, &error))
         logAndFree("LSUnregisterPalmService", error);
+    if (g_wifiService) {
+        LSErrorInit(&error);
+        if (!LSUnregisterPalmService(g_wifiService, &error))
+            logAndFree("LSUnregisterPalmService(com.palm.wifi)", error);
+    }
     if (g_system)
         g_object_unref(g_system);
     g_main_loop_unref(g_loop);

@@ -115,13 +115,32 @@ struct NetworkState {
     bool vpnActive = false;
 };
 
+// Whether any transport webOS knows about is carrying traffic.
+inline bool anyTransportUp(const NetworkState& state)
+{
+    return state.wifi.activated() || state.wired.activated();
+}
+
 // Whether anything at all can reach the internet. A captive portal is
 // deliberately NOT internet: the email app would otherwise keep trying to sync
 // against the portal's login page, which is the failure this ticket exists to
 // end.
+//
+// A transport is required on top of NM's own verdict, and that is not belt and
+// braces -- it was measured. Switching wifi off, NetworkManager kept reporting
+// Connectivity FULL for about two seconds after the device was already gone, so
+// the payload said "no wifi, no cable, and the internet is available". That
+// contradiction is not harmless: luna-sysservice acts on this field, and the
+// apps spend those seconds syncing against a network that is no longer there.
+//
+// The cost of the rule is a machine online through something this service does
+// not model -- mobile broadband, a bridge -- reading as offline. webOS has
+// nowhere to put such a connection anyway: its consumers ask about wifi and wan,
+// and answering "online" while every interface it knows reads disconnected is
+// the same contradiction pointing the other way.
 inline bool internetAvailable(const NetworkState& state)
 {
-    return state.connectivity == kConnectivityFull;
+    return state.connectivity == kConnectivityFull && anyTransportUp(state);
 }
 
 inline const char* deviceState(const Device& device)
@@ -245,6 +264,122 @@ inline std::string statusPayload(const NetworkState& state, bool subscribed)
     out += ",\"vpn\":{\"state\":\"";
     out += state.vpnActive ? "connected" : "disconnected";
     out += "\"}}";
+    return out;
+}
+
+// --- com.palm.wifi ----------------------------------------------------------
+//
+// The status bar's wifi indicator is driven entirely by this service, not by
+// com.palm.connectionmanager above: StatusBarServicesConnector subscribes to
+// com.palm.wifi/getstatus and switches on a top-level "status" string. Nothing
+// in the CE drop provides the name at all, which is why the indicator has never
+// moved in this port.
+//
+// The vocabulary is HP's and is matched with strcmp, so these strings are not a
+// choice either:
+//
+//   status "serviceDisabled"          radio off: the icon goes out
+//          "serviceEnabled"           radio on, nothing joined
+//          "connectionStateChanged"   with networkInfo below
+//   networkInfo.connectState
+//          "associating"/"associated" the connecting icon
+//          "ipConfigured"             connected, and the bars are drawn
+//          "notAssociated", "ipFailed", "associationFailed"
+//                                     joined nothing, plain wifi icon
+//
+// TWO TRAPS IN THAT HANDLER, both of which shape what is sent here.
+//
+// It does `m_wifiSSID = std::string(ssid)` on the raw pointer for the
+// associating, associated and ipConfigured branches, with no null check -- the
+// same class of crash as the connectionmanager payload's. So "ssid" is always
+// written as a string for those states, empty if the network has no name yet.
+//
+// And it indexes the icon enum out of range. For connectionStateChanged it
+// computes WIFI_BAR_1 + clamp(signalBars - 1, 1, 3), and StatusBar.h ends at
+// WIFI_BAR_3 = WIFI_BAR_1 + 2, so any signalBars of 4 or more selects an icon
+// that does not exist. signalBars is therefore capped at 3 here. (Its
+// "signalStrengthChanged" branch has the same arithmetic without the -1, so
+// even a 3 overruns there; that status is deliberately never sent -- the
+// connectionStateChanged path already draws the bars.)
+
+// NM_DEVICE_STATE_*, the rest of the values a wifi device passes through.
+enum WifiDeviceState {
+    kDeviceDisconnected = 30,
+    kDevicePrepare      = 40,
+    kDeviceConfig       = 50,
+    kDeviceNeedAuth     = 60,
+    kDeviceIpConfig     = 70,
+    kDeviceIpCheck      = 80,
+    kDeviceSecondaries  = 90,
+    kDeviceDeactivating = 110,
+    kDeviceFailed       = 120,
+};
+
+inline const char* wifiConnectState(const Device& device)
+{
+    if (device.state == kDeviceActivated)
+        return "ipConfigured";
+    if (device.state >= kDevicePrepare && device.state <= kDeviceNeedAuth)
+        return "associating";
+    // Associated with the access point, still settling the address. HP draws
+    // the same connecting icon for both.
+    if (device.state >= kDeviceIpConfig && device.state <= kDeviceSecondaries)
+        return "associated";
+    if (device.state == kDeviceFailed)
+        return "associationFailed";
+    return "notAssociated";
+}
+
+// 1..3, capped for the reason above. The thresholds are the same ones
+// confidence() uses, so the bars and the confidence level never disagree.
+inline int signalBars(int strength)
+{
+    if (strength >= 75)
+        return 3;
+    if (strength >= 50)
+        return 2;
+    return 1;
+}
+
+// What com.palm.wifi/getstatus answers. Three shapes, because the status bar
+// acts on three different top-level statuses.
+inline std::string wifiStatusPayload(const NetworkState& state, bool subscribed)
+{
+    std::string out = "{\"returnValue\":true,\"subscribed\":";
+    out += subscribed ? "true" : "false";
+
+    // No wifi hardware at all is the same thing, as far as the indicator is
+    // concerned, as a radio that has been switched off.
+    if (!state.wifi.present) {
+        out += ",\"status\":\"serviceDisabled\"}";
+        return out;
+    }
+
+    // Up but joined to nothing, and not on the way to joining anything: the
+    // icon is on and empty. Sent as serviceEnabled rather than as a
+    // notAssociated connectionStateChanged because that is the status HP uses
+    // to mean exactly this, and it also clears the remembered ssid.
+    if (state.wifi.state == kDeviceDisconnected) {
+        out += ",\"status\":\"serviceEnabled\"}";
+        return out;
+    }
+
+    out += ",\"status\":\"connectionStateChanged\",\"networkInfo\":{\"connectState\":\"";
+    out += wifiConnectState(state.wifi);
+    // Unconditional, and a string even when empty: the handler assigns it
+    // without a null check on three of its branches.
+    out += "\",\"ssid\":\"";
+    out += jsonEscape(state.wifi.ssid);
+    out += "\"";
+    if (state.wifi.activated()) {
+        char bars[64];
+        std::snprintf(bars, sizeof bars, ",\"signalBars\":%d,\"signalLevel\":%d",
+                      signalBars(state.wifi.strength), state.wifi.strength);
+        out += bars;
+        if (!state.wifi.ipAddress.empty())
+            out += ",\"ipAddress\":\"" + jsonEscape(state.wifi.ipAddress) + "\"";
+    }
+    out += "}}";
     return out;
 }
 

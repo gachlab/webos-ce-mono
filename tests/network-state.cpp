@@ -228,6 +228,63 @@ int main()
               "a control character is escaped too");
     }
 
+    // --- com.palm.wifi, which is what actually moves the status bar's icon ----
+    // The handler assigns m_wifiSSID = std::string(ssid) with no null check on
+    // three of its branches, and indexes WIFI_BAR_1 + clamp(signalBars - 1, 1, 3)
+    // into an enum that ends at WIFI_BAR_1 + 2. Both are pinned here.
+    {
+        std::printf("\ncom.palm.wifi status\n");
+
+        NmNet::NetworkState none;                       // no wifi hardware
+        check(has(NmNet::wifiStatusPayload(none, true), "\"status\":\"serviceDisabled\""),
+              "no wifi device puts the icon out");
+
+        NmNet::NetworkState idle;
+        idle.wifi = wifiDevice(NmNet::kDeviceDisconnected, 0, "");
+        check(has(NmNet::wifiStatusPayload(idle, true), "\"status\":\"serviceEnabled\""),
+              "a radio joined to nothing leaves the icon on and empty");
+
+        NmNet::NetworkState joining;
+        joining.wifi = wifiDevice(NmNet::kDeviceConfig, 0, "");
+        const std::string jp = NmNet::wifiStatusPayload(joining, true);
+        check(has(jp, "\"connectState\":\"associating\""), "joining reads associating");
+        check(has(jp, "\"ssid\":\""), "with an ssid that is a string, not absent");
+
+        NmNet::NetworkState settling;
+        settling.wifi = wifiDevice(NmNet::kDeviceIpConfig, 0, "");
+        check(has(NmNet::wifiStatusPayload(settling, true), "\"connectState\":\"associated\""),
+              "waiting for an address reads associated");
+
+        NmNet::NetworkState failed;
+        failed.wifi = wifiDevice(NmNet::kDeviceFailed, 0, "");
+        check(has(NmNet::wifiStatusPayload(failed, true), "\"connectState\":\"associationFailed\""),
+              "a failed association says so");
+
+        NmNet::NetworkState up;
+        up.connectivity = NmNet::kConnectivityFull;
+        up.wifi = wifiDevice(NmNet::kDeviceActivated, 81, "GachWLAN");
+        const std::string p = NmNet::wifiStatusPayload(up, true);
+        check(has(p, "\"connectState\":\"ipConfigured\""), "connected reads ipConfigured");
+        check(has(p, "\"ssid\":\"GachWLAN\""), "with the real network name");
+        check(has(p, "\"signalBars\":3"), "and three bars at 81%");
+        check(has(p, "\"signalLevel\":81"), "and the raw level beside them");
+        check(has(p, "\"ipAddress\":\"192.168.1.66\""), "and the address");
+    }
+
+    // --- the icon enum must never be indexed past its end --------------------
+    {
+        std::printf("\nsignal bars stay inside HP's icon enum\n");
+        bool everAboveThree = false;
+        for (int strength = 0; strength <= 100; ++strength) {
+            NmNet::Device d = wifiDevice(NmNet::kDeviceActivated, strength, "GachWLAN");
+            const int bars = NmNet::signalBars(d.strength);
+            if (bars > 3 || bars < 1)
+                everAboveThree = true;
+        }
+        check(!everAboveThree, "every strength from 0 to 100 maps into 1..3");
+        check(NmNet::signalBars(100) == 3 && NmNet::signalBars(0) == 1, "and spans the range");
+    }
+
     std::printf("\n%s\n", g_failures == 0 ? "OK" : "FAILED");
     return g_failures == 0 ? 0 : 1;
 }

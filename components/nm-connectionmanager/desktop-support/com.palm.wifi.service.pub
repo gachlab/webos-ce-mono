@@ -1,0 +1,4 @@
+[D-BUS Service]
+Name=com.palm.wifi
+Exec=/usr/sbin/nm-connectionmanager
+Type=static
