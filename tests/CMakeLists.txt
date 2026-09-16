@@ -188,6 +188,11 @@ add_test(NAME system-menu-wired
          COMMAND system-menu-wired -platform offscreen
                  ${SYSMGR}/uiComponents/SystemMenu/SystemMenu.qml)
 
+# --- which apps came with the system, under the rootfs prefix ------------------
+add_executable(rom-app-path rom-app-path.cpp)
+target_include_directories(rom-app-path PRIVATE ${SYSMGR}/Src/base/application)
+add_test(NAME rom-app-path COMMAND rom-app-path)
+
 # --- what the system menu opens the Wi-Fi card with ---------------------------
 add_executable(wifi-launch-params wifi-launch-params.cpp)
 target_include_directories(wifi-launch-params PRIVATE ${SYSMGR}/Src/lunaui/status-bar)
