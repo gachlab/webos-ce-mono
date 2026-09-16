@@ -1,5 +1,5 @@
-// kit/luna.ts against the in-memory palmbus: runs anywhere, no hub needed.
-import { createFakePalmbus } from "./fake-palmbus.ts";
+// kit/luna.ts against the in-memory bus: runs anywhere, no hub needed.
+import { createFakeBus } from "./fake-bus.ts";
 import { lunaSuite } from "./luna-suite.ts";
 
-lunaSuite(async () => ({ openHandle: createFakePalmbus().openHandle, teardown: () => {} }));
+lunaSuite(async () => ({ openHandle: createFakeBus().openHandle, teardown: () => {} }));

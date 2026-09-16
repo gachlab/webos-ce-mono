@@ -1,5 +1,5 @@
-// kit/luna.ts against a real ls-hubd, through HP's palmbus addon.
-import { openHandle } from "#kit/palmbus.ts";
+// kit/luna.ts against a real ls-hubd, through native/lunabus.cpp.
+import { openHandle } from "#kit/lunabus.ts";
 import { startTestBus } from "./hub.ts";
 import { lunaSuite, SERVICES } from "./luna-suite.ts";
 

@@ -16,9 +16,9 @@ ROOT="$(cd "$COMPONENT/../.." && pwd)"
     || { echo "SKIP: the pinned node is not unpacked (run tools/fetch-node.sh)"; exit 0; }
 
 STAGING="$ROOT/build/staging"
-PALMBUS="$ROOT/build/rootfs/usr/palm/nodejs/palmbus.node"
+LUNABUS="$ROOT/build/staging/usr/palm/nodejs/lunabus.node"
 [ -x "$STAGING/usr/sbin/ls-hubd" ] || { echo "SKIP: ls-hubd is not staged"; exit 0; }
-[ -f "$PALMBUS" ] || { echo "SKIP: palmbus.node is not built"; exit 0; }
+[ -f "$LUNABUS" ] || { echo "SKIP: lunabus.node is not built"; exit 0; }
 
 TSC="$ROOT/node_modules/.bin/tsc"
 if [ -x "$TSC" ]; then
@@ -32,12 +32,12 @@ if [ $# -eq 0 ]; then
 fi
 
 export WEBOS_STAGING="$STAGING"
-export WEBOS_PALMBUS="$PALMBUS"
+export WEBOS_LUNABUS="$LUNABUS"
 export LD_LIBRARY_PATH="$STAGING/usr/lib:$STAGING/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
 
-# --test-force-exit: palmbus keeps node's loop alive for as long as it is
-# loaded, the way a service wants it, so a finished test file would never exit.
-RUN=(node --test --test-force-exit --test-concurrency=1 "$@")
+# No --test-force-exit: a test file must end on its own once it closes its bus
+# handles. One that hangs has left something open, and the timeout says so.
+RUN=(node --test --test-timeout=60000 --test-concurrency=1 "$@")
 
 if bwrap --dev-bind / / --tmpfs /tmp true 2>/dev/null; then
     exec bwrap --dev-bind / / --tmpfs /tmp --die-with-parent "${RUN[@]}"

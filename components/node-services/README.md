@@ -5,16 +5,18 @@ webOS services in modern TypeScript (#39). **Ours**, Apache 2.0.
 
 HP's JavaScript services (`components/app-services`) run on a stack built for
 node 0.4: MojoLoader, `mojoservice`, `Foundations` futures and HP's `palmbus`
-callbacks. This component is what replaces that stack, one service at a time,
-keeping each service's API exactly as it is.
+addon, carried by `components/node-v8-shim`. This component is what replaces
+that stack, one service at a time, keeping each service's API exactly as it is.
+Nothing here uses any of it: the bus is our own addon.
 
 * **No build step.** The pinned node (`tools/node-version`) runs the `.ts`
   files as they are by stripping their types, so the code stays within what
   stripping handles (`erasableSyntaxOnly`). TypeScript 7 (`npm ci`, pinned in the
   root `package.json`) only checks the types.
-* **Functional.** No classes. Every module exposes `createX(deps)`, which
-  returns the thing itself; the default wiring is exported next to it
-  (`openBus`, `openHandle`). Tests pass fakes through the same door.
+* **Functional.** No classes in the TypeScript. Every module exposes
+  `createX(deps)`, which returns the thing itself; the default wiring is
+  exported next to it (`openBus`, `openHandle`). Tests pass fakes through the
+  same door.
 * **Imports** go through `#kit/*`, mapped in this directory's `package.json`.
 
 The kit
@@ -54,7 +56,36 @@ loop asks), `get`, `put`, `merge`, `mergeWhere`, `del`, `delWhere`, `batch`,
 `putKind`, `delKind`, and `watchFind`, which yields a query's results now and
 again after each change (db8's watches fire once; it re-arms them).
 
-`kit/palmbus.ts` — the native addon, typed. Nothing but `luna.ts` uses it.
+`kit/handle.ts` — what `luna.ts` needs from the bus underneath (`OpenHandle`,
+`BusHandle`, `BusMessage`). `kit/lunabus.ts` provides it over the addon; the
+tests provide an in-memory one.
+
+The addon
+---------
+
+`native/lunabus.cpp` builds `lunabus.node` (C++20, Node-API only, so it loads
+on later node releases without a rebuild), installed next to HP's addons in
+`/usr/palm/nodejs`. `tools/build.sh` builds it in the node addons stage.
+
+* **The loop.** luna-service2 runs on a glib main context and node on libuv.
+  The context is driven from libuv: `uv_prepare` runs glib's prepare and query
+  and keeps one `uv_poll` per descriptor plus a timer for glib's timeout;
+  `uv_check` runs check and dispatch. None of that keeps node alive; an open
+  bus handle does. A script that closes its handles ends; a service keeps
+  running. (palmbus kept every process alive for good.)
+* **Messages are data.** Each arrives as a plain object with its fields read
+  once, by kind: a request has a sender and an application id, a reply does
+  not, and luna-service2 crashes when asked for a sender a hub-made reply lacks.
+* **No unregistering inside a dispatch.** JavaScript runs inside
+  luna-service2's callbacks (microtasks drain at the end of each), and a handle
+  closed there is unregistered only once glib's dispatch returns. Doing it on
+  the spot freed what luna-service2 was still using.
+* **Polls are dropped before an unregister.** The next handle may get the same
+  descriptor numbers, and a poll left on a closed descriptor never hears the
+  new socket.
+* **Not covered by a test:** the timer that follows glib's timeout. It is
+  glib's contract for a foreign loop, but luna-service2's client side adds no
+  timed or idle sources, so nothing on the bus exercises it.
 
 What luna-service2 needs, found the hard way
 --------------------------------------------
@@ -78,12 +109,16 @@ components/node-services/test/run.sh test/luna.fake.test.ts
 WEBOS_TEST_LOGS=build/node-services-logs components/node-services/test/run.sh
 ```
 
-* `luna-suite.ts` is written once and runs twice: against an in-memory palmbus
-  (`luna.fake.test.ts`, runs anywhere) and against a real `ls-hubd`
-  (`luna.hub.test.ts`). The real run is what keeps the fake honest.
+* `luna-suite.ts` is written once and runs twice: against an in-memory bus
+  (`luna.fake.test.ts`, runs anywhere) and against a real `ls-hubd` through the
+  addon (`luna.hub.test.ts`). The real run is what keeps the fake honest.
+* `lunabus.hub.test.ts` covers the addon's own rules: a script ends once its
+  handles close and not before, descriptor reuse, closing inside a callback.
 * `db8.hub.test.ts` runs against a real `mojodb-luna`.
 * The hub's sockets have fixed paths under `/tmp`, so `run.sh` gives the run a
   `/tmp` of its own with bwrap, or uses a throwaway container's; anywhere else
   it skips rather than touch a running session.
+* No `--test-force-exit`: a test file that does not end on its own has left
+  something open.
 * Every test was checked by mutation: each behavior above was broken on purpose
-  and a test failed.
+  (in the addon too, rebuilding it each time) and a test failed.

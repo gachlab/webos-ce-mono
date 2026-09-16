@@ -1,12 +1,12 @@
 // What kit/luna.ts must do, written once and run twice: against the in-memory
-// palmbus (luna.fake.test.ts) and against a real ls-hubd (luna.hub.test.ts).
+// bus (luna.fake.test.ts) and against a real ls-hubd (luna.hub.test.ts).
 
 import assert from "node:assert/strict";
 import { after, before, describe, test } from "node:test";
 import { setTimeout as sleep } from "node:timers/promises";
 
 import { createBus, isLunaError, lunaError, type Bus, type Payload, type Request } from "#kit/luna.ts";
-import type { OpenHandle } from "#kit/palmbus.ts";
+import type { BusMessage, OpenHandle } from "#kit/handle.ts";
 
 export interface Setup {
     readonly openHandle: OpenHandle;
@@ -25,6 +25,9 @@ const until = async (condition: () => boolean, what: string) => {
     }
     assert.fail(`timed out waiting for ${what}`);
 };
+
+// Listeners for a raw client handle, which is never called.
+const ignore = { onRequest: (_: BusMessage) => {}, onCancel: (_: BusMessage) => {} };
 
 const isLunaErrorWith = (fields: Payload) => (error: unknown) => {
     assert.ok(isLunaError(error), `not a LunaError: ${String(error)}`);
@@ -184,11 +187,11 @@ export const lunaSuite = (setUp: () => Promise<Setup>) => {
         });
 
         test("a malformed payload is refused", async () => {
-            const raw = env.setup!.openHandle(null, false);
+            const raw = env.setup!.openHandle(null, false, ignore);
             const reply = await new Promise<string>((resolve) => {
-                raw.call(`${URI}/add`, "{not json").addListener("response", (message) => resolve(message.payload()));
+                raw.call(`${URI}/add`, "{not json", true, (message) => resolve(message.payload));
             });
-            raw.unregister();
+            raw.close();
             const parsed = JSON.parse(reply) as Payload;
             assert.equal(parsed.returnValue, false);
             assert.equal(parsed.errorCode, -1);
@@ -333,17 +336,17 @@ export const lunaSuite = (setUp: () => Promise<Setup>) => {
             });
             // A raw client that never cancels, unlike luna.ts's own subscribe,
             // so nothing but the service can forget the failed subscription.
-            const raw = env.setup!.openHandle(null, false);
+            const raw = env.setup!.openHandle(null, false, ignore);
             try {
                 const reply = await new Promise<string>((resolve) => {
-                    raw.subscribe(`luna://${name}/watch`, JSON.stringify({ subscribe: true }))
-                        .addListener("response", (message) => resolve(message.payload()));
+                    raw.call(`luna://${name}/watch`, JSON.stringify({ subscribe: true }), false,
+                        (message) => resolve(message.payload));
                 });
                 assert.equal((JSON.parse(reply) as Payload).errorCode, 5);
                 failing.exitWhenIdle(100, () => fired.count++);
                 await until(() => fired.count === 1, "the idle callback");
             } finally {
-                raw.unregister();
+                raw.close();
                 failing.close();
             }
         });

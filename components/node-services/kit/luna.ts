@@ -21,14 +21,15 @@
 // createBus takes what the bus depends on and returns the function that opens
 // one; openBus is that function wired to the real addon and timers.
 
-import { openHandle, type OpenHandle, type PalmHandle, type PalmMessage } from "./palmbus.ts";
+import type { BusHandle, BusMessage, OpenHandle } from "./handle.ts";
+import { openHandle } from "./lunabus.ts";
 
 export type Payload = Record<string, unknown>;
 
 // The hub answers in this category when a call cannot be delivered at all:
 // the service does not exist, or the caller is not allowed to reach it. Every
 // such reply also carries returnValue false (luna-service2's callmap.c), which
-// is what readReply goes by; palmbus ends the call on it.
+// is what readReply goes by.
 export const HUB_ERROR_CATEGORY = "/com/palm/luna/private/error";
 
 // ---- errors -----------------------------------------------------------------
@@ -133,8 +134,8 @@ const parse = (text: string): Payload => {
 };
 
 // The reply a caller receives, or the LunaError it stands for.
-export const readReply = (message: PalmMessage): Payload => {
-    const reply = parse(message.payload());
+export const readReply = (message: BusMessage): Payload => {
+    const reply = parse(message.payload);
     if (reply.returnValue !== false) {
         return reply;
     }
@@ -159,25 +160,27 @@ const methodKey = (category: string, method: string): string =>
 
 // ---- calling ----------------------------------------------------------------
 
-const callWith = (deps: BusDeps, handle: PalmHandle) =>
+const callWith = (deps: BusDeps, handle: BusHandle) =>
     <R extends Payload>(uri: string, payload: Payload = {}, options: CallOptions = {}): Promise<R> =>
         new Promise<R>((resolve, reject) => {
-            const call = handle.call(uri, JSON.stringify(payload));
-            const timer = options.timeout === undefined ? undefined : deps.setTimer(() => {
-                call.cancel();
-                reject(lunaError(-1, `Timed out after ${options.timeout} s calling ${uri}`));
-            }, options.timeout * 1000);
-            call.addListener("response", (message) => {
-                deps.clearTimer(timer);
+            const timing: { timer: Timer } = { timer: undefined };
+            const token = handle.call(uri, JSON.stringify(payload), true, (message) => {
+                deps.clearTimer(timing.timer);
                 try {
                     resolve(readReply(message) as R);
                 } catch (error) {
                     reject(error);
                 }
             });
+            if (options.timeout !== undefined) {
+                timing.timer = deps.setTimer(() => {
+                    handle.cancel(token);
+                    reject(lunaError(-1, `Timed out after ${options.timeout} s calling ${uri}`));
+                }, options.timeout * 1000);
+            }
         });
 
-const subscribeWith = (handle: PalmHandle) =>
+const subscribeWith = (handle: BusHandle) =>
     <R extends Payload>(uri: string, payload: Payload = {}, options: SubscribeOptions = {}): AsyncIterableIterator<R> => {
         const queue: R[] = [];
         const state: { failure?: unknown; done: boolean; wake?: (() => void) | undefined } = { done: false };
@@ -194,8 +197,7 @@ const subscribeWith = (handle: PalmHandle) =>
                 state.done = true;
                 return undefined;
             }
-            const call = handle.subscribe(uri, JSON.stringify({ ...payload, subscribe: true }));
-            call.addListener("response", (message) => {
+            return handle.call(uri, JSON.stringify({ ...payload, subscribe: true }), false, (message) => {
                 if (state.done) {
                     return;
                 }
@@ -206,14 +208,15 @@ const subscribeWith = (handle: PalmHandle) =>
                 }
                 wake();
             });
-            return call;
         };
-        const call = start();
+        const token = start();
 
         const finish = () => {
             if (!state.done) {
                 state.done = true;
-                call?.cancel();
+                if (token !== undefined) {
+                    handle.cancel(token);
+                }
             }
             wake();
         };
@@ -267,7 +270,14 @@ interface Idle {
 }
 
 export const createBus = (deps: BusDeps) => (name: string | null, options: BusOptions = {}): Bus => {
-    const handle = deps.openHandle(name, options.public ?? false);
+    const handle = deps.openHandle(name, options.public ?? false, {
+        onRequest: (message) => void dispatch(message),
+        onCancel: (message) => {
+            if (endLive(message.uniqueToken ?? "")) {
+                armIdle();
+            }
+        },
+    });
     const handlers = new Map<string, Registered>();
     // Open subscriptions, by the message token the hub reports on cancel.
     const live = new Map<string, Live>();
@@ -288,9 +298,9 @@ export const createBus = (deps: BusDeps) => (name: string | null, options: BusOp
         armIdle();
     };
 
-    const respond = (message: PalmMessage, reply: Payload) => {
+    const respond = (message: BusMessage, reply: Payload) => {
         if (!state.closed) {
-            message.respond(JSON.stringify(reply));
+            handle.respond(message, JSON.stringify(reply));
         }
     };
 
@@ -308,10 +318,10 @@ export const createBus = (deps: BusDeps) => (name: string | null, options: BusOp
     // Replies from a generator: the first one answers the request; while
     // subscribed, every later one is pushed until the generator ends or the
     // subscriber goes away.
-    const stream = async (message: PalmMessage, request: Request, replies: AsyncIterable<Payload>,
+    const stream = async (message: BusMessage, request: Request, replies: AsyncIterable<Payload>,
                           abort: AbortController, answer: (reply: Payload) => void) => {
         const iterator = replies[Symbol.asyncIterator]();
-        const token = message.uniqueToken();
+        const token = message.uniqueToken ?? "";
         if (request.subscribe) {
             live.set(token, { iterator, abort });
             handle.subscriptionAdd(token, message);
@@ -340,8 +350,10 @@ export const createBus = (deps: BusDeps) => (name: string | null, options: BusOp
         }
     };
 
-    const dispatch = async (message: PalmMessage) => {
-        const registered = handlers.get(methodKey(message.category(), message.method()));
+    const dispatch = async (message: BusMessage) => {
+        const method = message.method ?? "";
+        const category = message.category ?? "/";
+        const registered = handlers.get(methodKey(category, method));
         if (!registered) {
             return;
         }
@@ -360,19 +372,19 @@ export const createBus = (deps: BusDeps) => (name: string | null, options: BusOp
             answered.timer = deps.setTimer(() => answer({
                 returnValue: false,
                 errorCode: 504,
-                errorText: `Timed out after ${timeout} s in ${message.method()}`,
+                errorText: `Timed out after ${timeout} s in ${method}`,
             }), timeout * 1000);
         }
         try {
-            const payload = parse(message.payload());
+            const payload = parse(message.payload);
             const request: Request = {
-                method: message.method(),
-                category: message.category(),
+                method,
+                category,
                 payload,
                 subscribe: payload.subscribe === true,
-                sender: message.sender(),
-                senderServiceName: message.senderServiceName(),
-                applicationId: message.applicationID(),
+                sender: message.sender,
+                senderServiceName: message.senderServiceName,
+                applicationId: message.applicationId,
                 signal: abort.signal,
             };
             const result = registered.handler(request);
@@ -388,13 +400,6 @@ export const createBus = (deps: BusDeps) => (name: string | null, options: BusOp
             setBusy(-1);
         }
     };
-
-    handle.addListener("request", (message) => void dispatch(message));
-    handle.addListener("cancel", (message) => {
-        if (endLive(message.uniqueToken())) {
-            armIdle();
-        }
-    });
 
     return {
         call: callWith(deps, handle),
@@ -418,7 +423,7 @@ export const createBus = (deps: BusDeps) => (name: string | null, options: BusOp
             for (const token of [...live.keys()]) {
                 endLive(token);
             }
-            handle.unregister();
+            handle.close();
         },
     };
 };
