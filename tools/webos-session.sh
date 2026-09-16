@@ -59,17 +59,33 @@ teardown() {
     pkill -x LunaSysMgr 2>/dev/null
     pkill -x WebAppMgr  2>/dev/null
 
+    # One sweep of /proc, not one per service name.
+    #
+    # Every readlink here is a fork. This machine runs about 460 processes, and
+    # teardown runs twice per session -- once before starting, once from the EXIT
+    # trap -- so the nested version cost roughly 3,200 forks and eleven seconds a
+    # pass. Adding a seventh service was enough to push tests/session-lock past
+    # its timeout, which is how the cost was noticed at all.
+    #
+    # Both kinds of service are recognised in the same pass. HP's JavaScript ones
+    # all run the same node binary, so they are found by the working directory
+    # run-js-service leaves them in; ours are found by their path, and never by
+    # name alone -- "nm-connectionmanager" is 20 characters and Linux truncates
+    # comm to 15, so anything pgrep -x based would silently miss it.
+    services=" mojodb-luna LunaSysService sysfs-powerd nm-connectionmanager filecache activitymanager LunaUniversalSearchMgr "
     for d in /proc/[0-9]*; do
-        case "$(readlink "$d/cwd" 2>/dev/null)" in
-            */usr/palm/services/*) kill "${d#/proc/}" 2>/dev/null ;;
+        pid=${d#/proc/}
+        exe="$(readlink "$d/exe" 2>/dev/null)"
+        case "$exe" in
+            "$ROOTFS/usr/lib/luna/"*)
+                case "$services" in
+                    *" ${exe##*/} "*) kill "$pid" 2>/dev/null ;;
+                esac
+                ;;
         esac
-    done
-
-    for s in mojodb-luna LunaSysService sysfs-powerd nm-connectionmanager filecache activitymanager LunaUniversalSearchMgr; do
-        for d in /proc/[0-9]*; do
-            [ "$(readlink "$d/exe" 2>/dev/null)" = "$ROOTFS/usr/lib/luna/$s" ] \
-                && kill "${d#/proc/}" 2>/dev/null
-        done
+        case "$(readlink "$d/cwd" 2>/dev/null)" in
+            */usr/palm/services/*) kill "$pid" 2>/dev/null ;;
+        esac
     done
 
     pkill -x ls-hubd 2>/dev/null
