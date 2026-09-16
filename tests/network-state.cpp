@@ -285,6 +285,39 @@ int main()
         check(NmNet::signalBars(100) == 3 && NmNet::signalBars(0) == 1, "and spans the range");
     }
 
+    // --- what counts as a wifi change ---------------------------------------
+    // Measured live: the signal read 84, 80 then 79 within fifteen seconds, and
+    // every one of them was a separate push to every subscriber for an icon that
+    // has two distinguishable states.
+    {
+        std::printf("\nwhat is worth pushing to subscribers\n");
+        NmNet::NetworkState a;
+        a.connectivity = NmNet::kConnectivityFull;
+        a.wifi = wifiDevice(NmNet::kDeviceActivated, 84, "GachWLAN");
+        NmNet::NetworkState b = a;
+        b.wifi.strength = 79;
+        check(NmNet::wifiChangeKey(a) == NmNet::wifiChangeKey(b),
+              "signal drifting within the same bar is not a change");
+        check(NmNet::wifiStatusPayload(b, true).find("\"signalLevel\":79") != std::string::npos,
+              "but the level still goes out when something else pushes");
+
+        NmNet::NetworkState weak = a;
+        weak.wifi.strength = 40;
+        check(NmNet::wifiChangeKey(a) != NmNet::wifiChangeKey(weak), "a bar gained or lost is");
+
+        NmNet::NetworkState renamed = a;
+        renamed.wifi.ssid = "SomewhereElse";
+        check(NmNet::wifiChangeKey(a) != NmNet::wifiChangeKey(renamed), "so is joining another network");
+
+        NmNet::NetworkState moved = a;
+        moved.wifi.ipAddress = "10.0.0.5";
+        check(NmNet::wifiChangeKey(a) != NmNet::wifiChangeKey(moved), "so is a new address");
+
+        NmNet::NetworkState dropped = a;
+        dropped.wifi.state = NmNet::kDeviceDisconnected;
+        check(NmNet::wifiChangeKey(a) != NmNet::wifiChangeKey(dropped), "so is dropping the network");
+    }
+
     std::printf("\n%s\n", g_failures == 0 ? "OK" : "FAILED");
     return g_failures == 0 ? 0 : 1;
 }

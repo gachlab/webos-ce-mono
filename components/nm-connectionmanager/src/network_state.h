@@ -383,6 +383,33 @@ inline std::string wifiStatusPayload(const NetworkState& state, bool subscribed)
     return out;
 }
 
+// What a wifi update is actually about.
+//
+// The payload carries signalLevel because enyo's wifi library reads it, and a
+// laptop's signal wanders a percent at a time: measured in a running session,
+// 84, then 80, then 79 within fifteen seconds, each one a different payload and
+// so each one an update pushed to every subscriber. The status bar redraws the
+// indicator for all of them, and with signalBars capped at 3 it cannot even
+// show the difference.
+//
+// So what counts as a change is decided here rather than by comparing payloads:
+// the state the device is in, the network's name and address, and the bars that
+// are actually drawn. The level still goes out with every update -- it is simply
+// not a reason to send one.
+inline std::string wifiChangeKey(const NetworkState& state)
+{
+    if (!state.wifi.present)
+        return "absent";
+    std::string key = std::to_string(state.wifi.state);
+    key += '|';
+    key += state.wifi.ssid;
+    key += '|';
+    key += state.wifi.ipAddress;
+    key += '|';
+    key += std::to_string(state.wifi.activated() ? signalBars(state.wifi.strength) : 0);
+    return key;
+}
+
 }  // namespace NmNet
 
 #endif  // NM_CONNECTIONMANAGER_NETWORK_STATE_H

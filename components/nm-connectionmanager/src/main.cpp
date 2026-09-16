@@ -87,7 +87,7 @@ LSPalmService* g_wifiService = nullptr;
 GDBusConnection* g_system = nullptr;
 NmNet::NetworkState g_state;
 std::string g_lastPayload;
-std::string g_lastWifiPayload;
+std::string g_lastWifiKey;
 guint g_refreshPending = 0;
 
 void logAndFree(const char* where, LSError& error)
@@ -331,8 +331,9 @@ void refresh()
     // read "disconnected" -- so a shared guard would swallow those updates.
     const std::string payload = NmNet::statusPayload(g_state, true);
     const std::string wifiPayload = NmNet::wifiStatusPayload(g_state, true);
+    const std::string wifiKey = NmNet::wifiChangeKey(g_state);
     const bool changed = payload != g_lastPayload;
-    const bool wifiChanged = wifiPayload != g_lastWifiPayload;
+    const bool wifiChanged = wifiKey != g_lastWifiKey;
     if (!changed && !wifiChanged)
         return;
 
@@ -347,7 +348,7 @@ void refresh()
         post(g_service, payload);
     }
     if (wifiChanged) {
-        g_lastWifiPayload = wifiPayload;
+        g_lastWifiKey = wifiKey;
         post(g_wifiService, wifiPayload);
     }
 }
@@ -513,7 +514,7 @@ int main()
     // first real change is what gets posted rather than a duplicate of this.
     g_state = readState();
     g_lastPayload = NmNet::statusPayload(g_state, true);
-    g_lastWifiPayload = NmNet::wifiStatusPayload(g_state, true);
+    g_lastWifiKey = NmNet::wifiChangeKey(g_state);
     g_message("nm-connectionmanager: com.palm.connectionmanager up, wifi=%s wired=%s internet=%s",
               NmNet::deviceState(g_state.wifi), NmNet::deviceState(g_state.wired),
               NmNet::internetAvailable(g_state) ? "yes" : "no");
