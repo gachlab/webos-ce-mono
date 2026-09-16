@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
+  <defs>
+    <linearGradient id="tile" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#8a8f98"/>
+      <stop offset="0.45" stop-color="#3c4048"/>
+      <stop offset="1" stop-color="#15171b"/>
+    </linearGradient>
+    <linearGradient id="rim" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#d9dde3"/>
+      <stop offset="1" stop-color="#4a4e56"/>
+    </linearGradient>
+    <radialGradient id="disc" cx="0.45" cy="0.35" r="0.7">
+      <stop offset="0" stop-color="#6f8fd6"/>
+      <stop offset="0.6" stop-color="#2d4a9a"/>
+      <stop offset="1" stop-color="#16285c"/>
+    </radialGradient>
+    <linearGradient id="gloss" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.55"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <!-- the tile: a rounded diamond, lit from the top left -->
+  <g transform="translate(128 132) rotate(45)">
+    <rect x="-86" y="-86" width="172" height="172" rx="22" fill="#0b0c0e" opacity="0.35" transform="translate(4 6)"/>
+    <rect x="-86" y="-86" width="172" height="172" rx="22" fill="url(#rim)"/>
+    <rect x="-80" y="-80" width="160" height="160" rx="18" fill="url(#tile)"/>
+  </g>
+  <!-- the disc -->
+  <circle cx="128" cy="130" r="72" fill="#0e1430" opacity="0.6"/>
+  <circle cx="128" cy="128" r="70" fill="url(#disc)" stroke="#9fb3e6" stroke-width="2"/>
+  <!-- the fan: a dot and three arcs -->
+  <g fill="none" stroke="#ffffff" stroke-linecap="round" stroke-width="11">
+    <path d="M 84 116 A 62 62 0 0 1 172 116"/>
+    <path d="M 99 131 A 41 41 0 0 1 157 131"/>
+    <path d="M 114 146 A 20 20 0 0 1 142 146"/>
+  </g>
+  <circle cx="128" cy="164" r="9" fill="#ffffff"/>
+  <!-- gloss over the top half of the disc -->
+  <ellipse cx="128" cy="96" rx="56" ry="34" fill="url(#gloss)"/>
+</svg>

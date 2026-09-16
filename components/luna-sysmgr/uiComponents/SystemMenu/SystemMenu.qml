@@ -108,6 +108,15 @@ Item {
             muteControl.muteText      = muteControl.newText;
             muteControl.mute          = muteControl.newMuteStatus;
         }
+
+        // Without this the cable's row stayed frozen after its first tap: every
+        // later state was parked in newText and never shown, and the next tap
+        // asked for the same change again. tests/system-menu-wired.cpp.
+        if(wired.delayUpdate) {
+            wired.delayUpdate = false;
+            wired.statusText  = wired.newText;
+            wired.connected   = wired.newConnectedStatus;
+        }
     }
 
     function setSystemBrightness(newValue) {
@@ -209,6 +218,7 @@ Item {
 
                 WiredElement {
                     id: wired
+                    objectName: "wiredMenu"
                     visible: false
                     ident:   headerIdent;
 

@@ -21,6 +21,9 @@
 
 #include "StatusBar.h"
 #include "StatusBarServicesConnector.h"
+
+#include <QJsonDocument>
+#include <QJsonObject>
 #include "cjson/json.h"
 #include "HostBase.h"
 #include "Localization.h"
@@ -3168,17 +3171,19 @@ void StatusBarServicesConnector::connectToWifiNetwork(std::string ssid, int prof
 	LSError lsError;
 	LSErrorInit(&lsError);
 
-	char params[255];
+	// As JSON rather than sprintf: the name is whatever the access point
+	// advertises, and a quote in it made the request unparseable.
+	QJsonObject request;
 	if(profileId) {
-		sprintf(params, "{\"profileId\":%d}", profileId);
+		request.insert(QStringLiteral("profileId"), profileId);
 	} else {
-		if(security.empty())
-			sprintf(params, "{\"ssid\":\"%s\"}", ssid.c_str());
-		else
-			sprintf(params, "{\"ssid\":\"%s\",\"securityType\":\"%s\"}", ssid.c_str(), security.c_str());
+		request.insert(QStringLiteral("ssid"), QString::fromStdString(ssid));
+		if(!security.empty())
+			request.insert(QStringLiteral("securityType"), QString::fromStdString(security));
 	}
+	const QByteArray params = QJsonDocument(request).toJson(QJsonDocument::Compact);
 
-	result = LSCall(m_service, "palm://com.palm.wifi/connect", params,
+	result = LSCall(m_service, "palm://com.palm.wifi/connect", params.constData(),
 			statusBarWifiConnectCallback, NULL, NULL, &lsError);
 
 	if (LSErrorIsSet(&lsError)) {

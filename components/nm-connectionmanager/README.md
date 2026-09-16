@@ -54,8 +54,11 @@ How it reads the network
 
 `src/network_state.h` holds the mapping, free of both buses, so
 `tests/network-state.cpp` can check every decision without a D-Bus daemon and
-without ls-hubd. `src/main.cpp` fills it in from NetworkManager and answers the
-bus.
+without ls-hubd. `src/nm_client.cpp` is everything said to NetworkManager —
+what is read, and the calls that connect and disconnect the cable — and takes the
+D-Bus connection as an argument, so `tests/nm-client.cpp` runs it against a fake
+NetworkManager on a private bus. `src/main.cpp` hands it the system bus and
+answers the webOS bus.
 
 Two things are worth knowing, both measured on the machine this was written for:
 
@@ -69,6 +72,77 @@ Two things are worth knowing, both measured on the machine this was written for:
   follows NM's `Connectivity`, so a portal reads as connected wifi with
   `onInternet: "no"` and no internet, which is what stops the email app from
   syncing against a login page.
+
+com.palm.wifi
+-------------
+
+The same process owns `com.palm.wifi`, so the two names can never disagree about
+the radio. Its callers are the system menu's wifi drawer and enyo's wifi library
+(`enyo-1.0/framework/lib/wifi`), and the vocabulary is theirs:
+
+| Method | What it does |
+|---|---|
+| `getstatus` | subscribable; `serviceDisabled`, `serviceEnabled`, or `connectionStateChanged` with `networkInfo`, plus `apInfo` (BSSID and channel) once joined |
+| `setstate` | `{"state": "enabled" \| "disabled"}`, NetworkManager's `WirelessEnabled` |
+| `findnetworks` | the networks in range, one entry per name, strongest access point first after the joined one, with the saved `profileId` of each |
+| `connect` | `{"profileId": n}`, or `{"ssid": s}` with the security either top-level (the menu) or under `security.simpleSecurity` (the library) |
+| `getprofile` | a saved wifi profile, and the address in use when it is the active one |
+| `deleteprofile` | a saved wifi profile, by id |
+| `getprofilelist` | every saved wifi profile, for the settings card's known networks |
+| `getinfo` | the radio's MAC address |
+
+A `profileId` is the number that ends NetworkManager's settings path
+(`/org/freedesktop/NetworkManager/Settings/12`). Joining a network that already
+has a profile reuses it — with a new key, only its security is replaced, so
+settings made in GNOME survive.
+
+Supported: open networks, WPA/WPA2 personal, WPA3 personal (SAE, chosen from what
+the access point advertises, since the user only ever types a password), WEP, and
+enterprise (802.1X): PEAP, TTLS and FAST with a user name and password checked
+with MSCHAPv2 ("Auto" offers PEAP and TTLS), and TLS with a certificate. Checking
+the server's certificate checks it against the system's CAs. A rejected
+enterprise login is reported as `IncorrectPassword`, a rejected key as
+`IncorrectPasskey`.
+
+The settings card's address screen sends a saved profile back with
+`useStaticIp`: the profile's `ipv4` is replaced — DHCP, or the address, mask,
+gateway and DNS servers given — and the profile brought up again.
+
+`com.palm.certificatemanager/listcertificates` — a third name owned by the same
+process — lists the certificates a TLS login can use: the PEM files, each with
+its unencrypted key, in `$WEBOS_CERTIFICATE_DIR` or
+`~/.local/share/webos-ce/certificates`.
+
+Three guards that are deliberate:
+
+* **Only wifi profiles.** `getprofile`, `deleteprofile` and `connect` refuse a
+  profile whose type is not `802-11-wireless`: the cable and a VPN live in the
+  same list, and this is not their API.
+* **`deleteprofile` needs an id.** enyo's library also calls it with no
+  arguments, which on the phone meant every saved network. Here that would be
+  the user's NetworkManager profiles.
+* **A failed join is still a failure once NetworkManager has moved on.** NM goes
+  from FAILED to DISCONNECTED within a second, keeping the reason; the service
+  reads the state once per burst, so FAILED is often never seen. A disconnected
+  radio whose reason is a join failure, while a join was requested, is reported
+  as `associationFailed` with `lastConnectError` — `IncorrectPasskey` for the
+  supplicant disconnecting, timing out or asking for secrets again — and named
+  after the network being joined, because the library ignores a failure that
+  does not name it.
+
+When Device Sleeps
+------------------
+
+`com.palm.connectionmanager/getWakeOnWiFiMode` and `setWakeOnWiFiMode`, with
+`"enable"` or `"disable"`, are what the settings card's **When Device Sleeps**
+reads and writes. The mode is kept in
+`/var/luna/preferences/com.palm.connectionmanager.wakeonwifi`.
+
+With `"disable"` (*Turn Wi-Fi Off*), `src/sleep_watch.cpp` holds a logind
+`delay` inhibitor. On `PrepareForSleep(true)` the radio is switched off — only
+if it was on — and the lock released, which is what lets the machine sleep; on
+`PrepareForSleep(false)` the radio comes back and the lock is taken again. A
+radio the user had switched off stays off.
 
 The one field that is not a preference
 --------------------------------------
@@ -88,8 +162,11 @@ Testing it
 ----------
 
 ```sh
-ctest --test-dir build/tests -R network-state --output-on-failure
+ctest --test-dir build/tests -R 'network-state|nm-client' --output-on-failure
 ```
+
+`nm-client` needs `dbus-daemon`: GLib's `GTestDBus` starts a private one for the
+fake NetworkManager, so the host's network is never touched.
 
 The mapping is verified by mutation: removing the escape for a quote in an SSID,
 moving a confidence threshold, letting a captive portal count as internet,

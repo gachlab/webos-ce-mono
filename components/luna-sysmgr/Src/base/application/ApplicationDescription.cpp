@@ -27,6 +27,7 @@
 #include <cjson/json.h>
 
 #include "ApplicationDescription.h"
+#include "RomAppPath.h"
 #include "ApplicationStatus.h"
 #include "LaunchPoint.h"
 #include "Utils.h"
@@ -361,8 +362,10 @@ ApplicationDescription* ApplicationDescription::fromFile(const std::string& file
 	   	g_debug("%s: App %s is %s because of appinfo.json",__FUNCTION__, appDesc->m_id.c_str(), appDesc->m_isRemovable ? "removable" : "non-removable");
 	}
     else {
-        // apps in ROM are never removable
-	    appDesc->m_isRemovable = !(folderPath.find("/usr") == 0);
+        // apps in ROM are never removable -- under the rootfs this port runs
+        // from; see RomAppPath.h.
+	    appDesc->m_isRemovable = !isRomAppPath(folderPath,
+	                                           rootfsPrefix(Settings::LunaSettings()->lunaSystemPath));
         g_debug("%s: App %s is %s by default",__FUNCTION__, appDesc->m_id.c_str(), appDesc->m_isRemovable ? "removable" : "non-removable");
     }
 

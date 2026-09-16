@@ -6,7 +6,7 @@
 // did not draw. QmlSceneItem is the seam: a QGraphicsObject hosting an
 // offscreen QQuickWindow, grabbed to a QImage and blitted.
 //
-// Four things have to hold, and all four broke at some point while writing it:
+// Five things have to hold, and all five broke at some point:
 //
 //   1. the QML root comes back, as a QQuickItem
 //   2. its pixels reach the QGraphicsScene
@@ -15,9 +15,13 @@
 //      rest, so a mouse-only host looks alive and answers nothing
 //   4. hiding the QML root hides the host, or the host stays in the scene
 //      swallowing input for a panel that is meant to be gone
+//   5. hiding the host's parent reaches the QML root, which is how the shell
+//      closes a menu -- without it HP's onVisibleChanged handlers never run
+//      (found live: the system menu's cable row froze after one tap)
 //
 // Verified by mutation: dropping setAcceptTouchEvents, the visibleChanged
-// mirror, or the drawImage in paint() each turn this red, and reverting an
+// mirror, the push onto the root in itemChange, its echo guard, or the
+// drawImage in paint() each turn this red, and reverting an
 // import back to "import Qt 4.7" turns qml-loads red.
 //
 // NOT covered: QQuickRenderControl::initialize() has to be handed the context
@@ -26,6 +30,7 @@
 // QGLWidget viewport in play.
 //
 //   ./qml-scene-item-qt5 -platform offscreen
+#include <QGraphicsRectItem>
 #include <QGraphicsScene>
 #include <QGraphicsView>
 #include <QGuiApplication>
@@ -94,8 +99,11 @@ int main(int argc, char **argv)
     view.resize(200, 200);
     view.show();
 
-    QmlSceneItem *host = new QmlSceneItem(&component);
-    scene.addItem(host);
+    // Parented, as every host in the shell is: the parent is what the shell
+    // hides and shows.
+    QGraphicsRectItem *parent = new QGraphicsRectItem(0, 0, 200, 200);
+    scene.addItem(parent);
+    QmlSceneItem *host = new QmlSceneItem(&component, parent);
     host->setPos(0, 0);
 
     // The host renders on a zero-timer, so let it run before looking.
@@ -152,6 +160,30 @@ int main(int argc, char **argv)
     const bool shown = host->isVisible();
     printf("showing root shows host  : %s\n", shown ? "yes" : "NO");
     failures += shown ? 0 : 1;
+
+    // 5. hiding the host's parent reaches the QML, and showing it brings both back
+    int rootVisibleChanges = 0;
+    QObject::connect(root, &QQuickItem::visibleChanged, [&] { ++rootVisibleChanges; });
+    parent->setVisible(false);
+    QCoreApplication::processEvents();
+    const bool rootHeard = !root->isVisible() && rootVisibleChanges == 1;
+    printf("hiding parent hides root : %s\n", rootHeard ? "yes" : "NO");
+    failures += rootHeard ? 0 : 1;
+
+    parent->setVisible(true);
+    QCoreApplication::processEvents();
+    const bool bothBack = root->isVisible() && host->isVisible() && rootVisibleChanges == 2;
+    printf("showing parent shows both: %s\n", bothBack ? "yes" : "NO");
+    failures += bothBack ? 0 : 1;
+
+    // 6. a root the QML hid itself stays hidden through the parent's hide and show
+    root->setVisible(false);
+    parent->setVisible(false);
+    parent->setVisible(true);
+    QCoreApplication::processEvents();
+    const bool stayedHidden = !root->isVisible() && !host->isVisible();
+    printf("QML's own hide survives  : %s\n", stayedHidden ? "yes" : "NO");
+    failures += stayedHidden ? 0 : 1;
 
     printf("%s\n", failures == 0 ? "OK" : "FAIL");
     return failures == 0 ? 0 : 1;

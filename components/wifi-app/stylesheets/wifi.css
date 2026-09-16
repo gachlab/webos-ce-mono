@@ -1,0 +1,68 @@
+/* Copyright (c) 2026 webOS CE modern build. Licensed under the Apache License, Version 2.0. */
+
+/* The content column, centred, as the phone-era settings cards laid out. */
+.wifi-app-column {
+	width: 500px;
+	margin: 23px auto 0;
+}
+
+/*
+ * The same column for the pane inside the scroller, with its 23px gap moved
+ * inside each view. HP's card put the gap on the pane as a margin, and the
+ * pane already fills the scroller, so the content was always 23px taller than
+ * the screen and the whole card moved under a wheel or a drag.
+ */
+.wifi-app-pane {
+	width: 500px;
+	margin: 0 auto;
+}
+
+.wifi-app-pane > * {
+	padding-top: 23px;
+	box-sizing: border-box;
+}
+
+.wifi-app-header .enyo-header-inner {
+	padding-top: 3px;
+	padding-bottom: 3px;
+}
+
+.wifi-app-header-icon {
+	width: 48px;
+	height: 48px;
+	background: url(../images/header-icon-wifi.png) no-repeat center;
+}
+
+.wifi-app-title {
+	padding-left: 10px;
+}
+
+.wifi-app-radio-switch {
+	float: right;
+	padding: 0;
+}
+
+/* A soft edge under the header, drawn rather than shipped as an image. */
+.wifi-app-header-shadow {
+	position: absolute;
+	top: 54px;
+	z-index: 100;
+	height: 3px;
+	width: 100%;
+	pointer-events: none;
+	background: linear-gradient(to bottom, rgba(0, 0, 0, 0.18), rgba(0, 0, 0, 0));
+}
+
+.wifi-app-note {
+	font-size: 16px;
+	color: #666;
+	margin: 3px 5px;
+}
+
+.wifi-app-caption {
+	font-size: 18px;
+}
+
+.wifi-app-back {
+	margin-bottom: 10px;
+}

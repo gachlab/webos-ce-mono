@@ -171,11 +171,18 @@ MojErr ActivityManagerApp::open()
 			m_powerManager);
 		m_db = boost::make_shared<MojoDBProxy>(this, &m_client, m_am, m_json);
 
-#ifndef WEBOS_TARGET_MACHINE_IMPL_SIMULATOR
+		// Outside the simulator guard, unlike its neighbours: this port is built
+		// as the simulator, and without this proxy every "internet",
+		// "wifi" or "*Confidence" requirement was skipped with "Unable to find
+		// Manager", so an activity waiting for the network -- the mail sync --
+		// started with or without one. com.palm.connectionmanager is real here
+		// (components/nm-connectionmanager); the system and telephony services
+		// the other two proxies follow are not.
 		boost::shared_ptr<ConnectionManagerProxy> cmp =
 			boost::make_shared<ConnectionManagerProxy>(&m_client);
 		m_requirementManager->AddManager(cmp);
 
+#ifndef WEBOS_TARGET_MACHINE_IMPL_SIMULATOR
 		boost::shared_ptr<SystemManagerProxy> smp =
 			boost::make_shared<SystemManagerProxy>(&m_client, m_am);
 		m_requirementManager->AddManager(smp);

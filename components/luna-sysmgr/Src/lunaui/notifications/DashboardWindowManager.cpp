@@ -415,7 +415,15 @@ void DashboardWindowManager::slotDashboardAreaRightEdgeOffset(int offset)
 {
     if (m_menuObject) {
     	m_dashboardRightOffset = offset;
-	    m_menuObject->setX((boundingRect().width()/2) - m_dashboardRightOffset - m_menuObject->boundingRect().width() + m_notifMenuRightEdgeOffset);
+	    const qreal x = (boundingRect().width()/2) - m_dashboardRightOffset - m_menuObject->boundingRect().width() + m_notifMenuRightEdgeOffset;
+#if (QT_VERSION < QT_VERSION_CHECK(5, 0, 0))
+	    m_menuObject->setX(x);
+#else
+	    // The host, as setPos is everywhere else here: moving the QML root only
+	    // shifts it inside its offscreen window, where the part pushed past
+	    // the window's edge is cut off.
+	    m_menuSurface->setX(x);
+#endif
     }
 }
 
@@ -1362,7 +1370,11 @@ void DashboardWindowManager::positionDashboardContainer(const QRect& posSpace)
 
     	int uiHeight = SystemUiController::instance()->currentUiHeight();
 
+#if (QT_VERSION < QT_VERSION_CHECK(5, 0, 0))
     	m_menuObject->setY(-uiHeight/2 + positiveSpace.y());
+#else
+    	m_menuSurface->setY(-uiHeight/2 + positiveSpace.y());
+#endif
     }
 }
 

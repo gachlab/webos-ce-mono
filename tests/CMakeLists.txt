@@ -117,6 +117,22 @@ target_include_directories(network-state PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/../components/nm-connectionmanager/src")
 add_test(NAME network-state COMMAND network-state)
 
+# --- what is read from NetworkManager, and what is asked of it ----------------
+# The other half: nm_client.cpp against a fake NetworkManager on a private bus,
+# started by GTestDBus -- so it needs dbus-daemon, and not the host's network.
+pkg_check_modules(GIO REQUIRED gio-2.0)
+set(CONNMGR "${CMAKE_CURRENT_SOURCE_DIR}/../components/nm-connectionmanager/src")
+add_executable(nm-client nm-client.cpp ${CONNMGR}/nm_client.cpp ${CONNMGR}/sleep_watch.cpp)
+target_include_directories(nm-client PRIVATE ${CONNMGR} ${GIO_INCLUDE_DIRS})
+target_link_libraries(nm-client PRIVATE ${GIO_LIBRARIES})
+add_test(NAME nm-client COMMAND nm-client)
+
+# The certificate store the Wi-Fi card's enterprise TLS login lists.
+add_executable(certificates certificates.cpp ${CONNMGR}/certificates.cpp)
+target_include_directories(certificates PRIVATE ${CONNMGR} ${GIO_INCLUDE_DIRS})
+target_link_libraries(certificates PRIVATE ${GIO_LIBRARIES})
+add_test(NAME certificates COMMAND certificates)
+
 # --- which coordinate space a touch point arrives in --------------------------
 add_executable(touch-coordinate-spaces touch-coordinate-spaces.cpp)
 target_link_libraries(touch-coordinate-spaces PRIVATE Qt::Core Qt::Gui Qt::Widgets Qt::GuiPrivate)
@@ -155,6 +171,33 @@ target_link_libraries(qml-functions PRIVATE Qt::Core Qt::Gui Qt::Qml Qt::Quick)
 file(GLOB_RECURSE QML_WITH_FUNCTIONS "${SYSMGR}/uiComponents/*.qml")
 add_test(NAME qml-functions
          COMMAND qml-functions -platform offscreen ${QML_WITH_FUNCTIONS})
+
+# --- the cable's row in the system menu, tapped twice -------------------------
+# Hosted in QmlSceneItem, as the shell hosts it, because the second bug was in
+# the hosting.
+add_executable(system-menu-wired
+    system-menu-wired.cpp
+    ${SYSMGR}/Src/base/QmlSceneItem.cpp
+)
+target_include_directories(system-menu-wired PRIVATE
+    ${SYSMGR}/Src ${SYSMGR}/Src/base ${GLIB_INCLUDE_DIRS}
+    "${WEBOS_STAGING}/include/luna-sysmgr-common")
+target_link_libraries(system-menu-wired PRIVATE
+    Qt::Core Qt::Gui Qt::Widgets Qt::Qml Qt::Quick Qt::GuiPrivate ${GLIB_LIBRARIES})
+add_test(NAME system-menu-wired
+         COMMAND system-menu-wired -platform offscreen
+                 ${SYSMGR}/uiComponents/SystemMenu/SystemMenu.qml)
+
+# --- which apps came with the system, under the rootfs prefix ------------------
+add_executable(rom-app-path rom-app-path.cpp)
+target_include_directories(rom-app-path PRIVATE ${SYSMGR}/Src/base/application)
+add_test(NAME rom-app-path COMMAND rom-app-path)
+
+# --- what the system menu opens the Wi-Fi card with ---------------------------
+add_executable(wifi-launch-params wifi-launch-params.cpp)
+target_include_directories(wifi-launch-params PRIVATE ${SYSMGR}/Src/lunaui/status-bar)
+target_link_libraries(wifi-launch-params PRIVATE Qt::Core)
+add_test(NAME wifi-launch-params COMMAND wifi-launch-params)
 
 # --- QmlSceneItem's contract -------------------------------------------------
 # Compiles the adapter straight out of the shell's tree: it is the thing under
@@ -202,6 +245,23 @@ target_link_libraries(app-view-shims PRIVATE qtwebkit-compat-lib)
 add_test(NAME app-view-shims COMMAND app-view-shims)
 set_tests_properties(app-view-shims PROPERTIES
     ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
+# Number inputs that keep text, as the address fields of the Wi-Fi settings
+# need; Chromium drops anything that is not a floating-point number.
+add_executable(number-inputs number-inputs.cpp)
+target_link_libraries(number-inputs PRIVATE qtwebkit-compat-lib)
+add_test(NAME number-inputs COMMAND number-inputs)
+set_tests_properties(number-inputs PROPERTIES
+    ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
+# The Wi-Fi settings card, run as WebAppMgr runs it: its own index.html on the
+# real enyo framework, through the compat layer, with the services stood in for.
+add_executable(wifi-card wifi-card.cpp)
+target_link_libraries(wifi-card PRIVATE qtwebkit-compat-lib)
+add_test(NAME wifi-card COMMAND wifi-card)
+set_tests_properties(wifi-card PROPERTIES
+    ENVIRONMENT "QT_QPA_PLATFORM=offscreen;WEBOS_SOURCE_DIR=${CMAKE_CURRENT_SOURCE_DIR}/.."
+    TIMEOUT 240)
 
 # The prefixed transition events enyo listens for. Without them a Pane's
 # transition never ends and the outgoing view is never hidden: two views paint
