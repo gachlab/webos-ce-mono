@@ -93,6 +93,19 @@ export interface BusOptions {
     // Register on the public bus instead of the private one. A service that
     // answers on both opens one bus for each, as HP's did.
     readonly public?: boolean;
+    // What counts the open requests and subscriptions for exitWhenIdle. A
+    // service with two buses gives both the same one, so neither exits while
+    // the other is busy. Each bus has its own when left out.
+    readonly activity?: Activity;
+}
+
+export interface Activity {
+    // `delta` more requests or subscriptions are open (negative: closed).
+    change(delta: number): void;
+    // Calls `onIdle` once nothing has been open for `ms` milliseconds.
+    exitWhenIdle(ms: number, onIdle: () => void): void;
+    // Forgets the idle timer.
+    stop(): void;
 }
 
 export interface Bus {
@@ -103,7 +116,7 @@ export interface Bus {
                                            options?: SubscribeOptions): AsyncIterableIterator<R>;
     method<P extends Payload = Payload>(name: string, handler: Handler<P>, options?: MethodOptions): void;
     // Calls `onIdle` once nothing has been asked for `ms` milliseconds and no
-    // request or subscription is still open. HP's services quit this way, a
+    // request or subscription is still open (on any bus sharing the activity). HP's services quit this way, a
     // few seconds after their last command, and the hub starts them again on
     // demand. Without `onIdle` the process exits.
     exitWhenIdle(ms: number, onIdle?: () => void): void;
@@ -269,33 +282,55 @@ interface Idle {
     timer: Timer;
 }
 
+export const createActivity = (deps: Pick<BusDeps, "setTimer" | "clearTimer">): Activity => {
+    const state: { open: number; idle: Idle | undefined } = { open: 0, idle: undefined };
+    const arm = () => {
+        const { idle } = state;
+        if (idle) {
+            deps.clearTimer(idle.timer);
+            idle.timer = state.open === 0 ? deps.setTimer(idle.onIdle, idle.ms) : undefined;
+        }
+    };
+    return {
+        change: (delta) => {
+            state.open += delta;
+            arm();
+        },
+        exitWhenIdle: (ms, onIdle) => {
+            deps.clearTimer(state.idle?.timer);
+            state.idle = { ms, onIdle, timer: undefined };
+            arm();
+        },
+        stop: () => {
+            deps.clearTimer(state.idle?.timer);
+            state.idle = undefined;
+        },
+    };
+};
+
 export const createBus = (deps: BusDeps) => (name: string | null, options: BusOptions = {}): Bus => {
     const handle = deps.openHandle(name, options.public ?? false, {
         onRequest: (message) => void dispatch(message),
-        onCancel: (message) => {
-            if (endLive(message.uniqueToken ?? "")) {
-                armIdle();
-            }
-        },
+        onCancel: (message) => void endLive(message.uniqueToken ?? ""),
     });
     const handlers = new Map<string, Registered>();
     // Open subscriptions, by the message token the hub reports on cancel.
     const live = new Map<string, Live>();
-    const state: { busy: number; closed: boolean; idle: Idle | undefined } =
-        { busy: 0, closed: false, idle: undefined };
+    const ownActivity = options.activity === undefined;
+    const activity = options.activity ?? createActivity(deps);
+    const state = { closed: false };
 
-    const armIdle = () => {
-        const { idle } = state;
-        if (!idle) {
-            return;
-        }
-        deps.clearTimer(idle.timer);
-        idle.timer = state.busy === 0 && live.size === 0 ? deps.setTimer(idle.onIdle, idle.ms) : undefined;
+    // A request counts from its arrival until it is fully done, a subscribed
+    // one for as long as the subscription lasts; a live subscription counts on
+    // its own as well, so one that is never forgotten keeps the service up.
+    const addLive = (token: string, entry: Live) => {
+        live.set(token, entry);
+        activity.change(+1);
     };
-
-    const setBusy = (delta: number) => {
-        state.busy += delta;
-        armIdle();
+    const removeLive = (token: string) => {
+        if (live.delete(token)) {
+            activity.change(-1);
+        }
     };
 
     const respond = (message: BusMessage, reply: Payload) => {
@@ -309,7 +344,7 @@ export const createBus = (deps: BusDeps) => (name: string | null, options: BusOp
         if (!entry) {
             return false;
         }
-        live.delete(token);
+        removeLive(token);
         entry.abort.abort();
         void entry.iterator.return?.();
         return true;
@@ -323,21 +358,19 @@ export const createBus = (deps: BusDeps) => (name: string | null, options: BusOp
         const iterator = replies[Symbol.asyncIterator]();
         const token = message.uniqueToken ?? "";
         if (request.subscribe) {
-            live.set(token, { iterator, abort });
+            addLive(token, { iterator, abort });
             handle.subscriptionAdd(token, message);
         }
         const first = await iterator.next().catch((error: unknown) => {
-            live.delete(token);
+            removeLive(token);
             throw error;
         });
         answer(successReply(first.done ? undefined : first.value));
         if (!request.subscribe || first.done) {
-            live.delete(token);
+            removeLive(token);
             await iterator.return?.();
             return;
         }
-        // An open subscription does not count as busy: it may last forever.
-        setBusy(-1);
         try {
             for (let next = await iterator.next(); !next.done && live.has(token); next = await iterator.next()) {
                 respond(message, successReply(next.value));
@@ -345,7 +378,6 @@ export const createBus = (deps: BusDeps) => (name: string | null, options: BusOp
         } catch (error) {
             respond(message, errorReply(error));
         } finally {
-            state.busy += 1;
             endLive(token);
         }
     };
@@ -357,7 +389,7 @@ export const createBus = (deps: BusDeps) => (name: string | null, options: BusOp
         if (!registered) {
             return;
         }
-        setBusy(+1);
+        activity.change(+1);
         const abort = new AbortController();
         const answered: { done: boolean; timer: Timer } = { done: false, timer: undefined };
         const answer = (reply: Payload) => {
@@ -397,7 +429,7 @@ export const createBus = (deps: BusDeps) => (name: string | null, options: BusOp
             answer(errorReply(error));
         } finally {
             deps.clearTimer(answered.timer);
-            setBusy(-1);
+            activity.change(-1);
         }
     };
 
@@ -409,17 +441,15 @@ export const createBus = (deps: BusDeps) => (name: string | null, options: BusOp
             handle.registerMethod(category, method);
             handlers.set(methodKey(category, method), { handler: handler as Handler, options: methodOptions });
         },
-        exitWhenIdle: (ms, onIdle = deps.exit) => {
-            state.idle = { ms, onIdle, timer: undefined };
-            armIdle();
-        },
+        exitWhenIdle: (ms, onIdle = deps.exit) => activity.exitWhenIdle(ms, onIdle),
         close: () => {
             if (state.closed) {
                 return;
             }
             state.closed = true;
-            deps.clearTimer(state.idle?.timer);
-            state.idle = undefined;
+            if (ownActivity) {
+                activity.stop();
+            }
             for (const token of [...live.keys()]) {
                 endLive(token);
             }

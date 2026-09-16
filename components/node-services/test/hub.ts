@@ -13,7 +13,7 @@ import { setTimeout as sleep } from "node:timers/promises";
 export interface TestBusOptions {
     // The service names tests will call.
     readonly services: readonly string[];
-    // Whether the tests start db8 (startDb8), which needs its own name listed.
+    // Whether the tests start db8 (startDb8), which needs its own names listed.
     readonly db8?: boolean;
 }
 
@@ -33,6 +33,9 @@ export interface TestBusDeps {
 }
 
 const DB8 = "usr/sbin/mojodb-luna";
+
+// The name a test uses to register db8 kinds, as com.palm.configurator does.
+export const CONFIGURATOR = "com.webosce.test.configurator";
 
 const waitFor = async (what: string, ready: () => boolean | Promise<boolean>, child: ChildProcess) => {
     for (let i = 0; i < 100; i++) {
@@ -117,7 +120,7 @@ export const createTestBus = (deps: TestBusDeps) => async (options: TestBusOptio
 
     try {
         const roles = writeRoles(dir, [process.execPath, join(deps.staging, DB8)]);
-        const names = options.db8 ? [...options.services, "com.palm.db"] : options.services;
+        const names = options.db8 ? [...options.services, "com.palm.db", "com.palm.tempdb", CONFIGURATOR] : options.services;
         for (const side of ["private", "public"] as const) {
             const conf = hubConf(dir, side, roles, names);
             const args = side === "public" ? ["--public", "--conf", conf] : ["--conf", conf];
@@ -135,7 +138,11 @@ export const createTestBus = (deps: TestBusDeps) => async (options: TestBusOptio
             const data = join(dir, "db8");
             mkdirSync(data);
             const conf = join(dir, "mojodb.conf");
-            writeFileSync(conf, JSON.stringify({ log: { appender: { type: "stderr" } }, db: {} }));
+            // The configurator may register any kind, as on the device.
+            writeFileSync(conf, JSON.stringify({
+                log: { appender: { type: "stderr" } },
+                db: { permissions: [{ type: "db.role", object: "admin", caller: CONFIGURATOR, operations: { "*": "allow" } }] },
+            }));
             await waitFor("mojodb-luna", ready, start("mojodb", DB8, ["-c", conf, data]));
         },
         stop,

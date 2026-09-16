@@ -39,8 +39,12 @@ export LD_LIBRARY_PATH="$STAGING/usr/lib:$STAGING/lib${LD_LIBRARY_PATH:+:$LD_LIB
 # handles. One that hangs has left something open, and the timeout says so.
 RUN=(node --test --test-timeout=60000 --test-concurrency=1 "$@")
 
-if bwrap --dev-bind / / --tmpfs /tmp true 2>/dev/null; then
-    exec bwrap --dev-bind / / --tmpfs /tmp --die-with-parent "${RUN[@]}"
+# Its own pid namespace too: a run that dies (a timeout, a crash, a debugger)
+# takes the hubs and db8 it started with it, instead of leaving them running.
+# ls-hubd reads callers from /proc, so /proc is the namespace's own.
+BWRAP=(bwrap --dev-bind / / --tmpfs /tmp --unshare-pid --proc /proc --die-with-parent)
+if "${BWRAP[@]}" true 2>/dev/null; then
+    exec "${BWRAP[@]}" "${RUN[@]}"
 elif [ "$(id -u)" = 0 ] && [ ! -e /tmp/com.palm.private_hub ]; then
     exec "${RUN[@]}"
 fi

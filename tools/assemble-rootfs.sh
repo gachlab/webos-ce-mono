@@ -517,6 +517,28 @@ sed -i -E "s|^Exec=$WEBOS_PREFIX/usr/lib/luna/|Exec=$WEBOS_LAUNCHER ns-exec /usr
     "$ROOTFS"/usr/share/ls2/services/*.service \
     "$ROOTFS"/usr/share/ls2/system-services/*.service 2>/dev/null
 
+# Services rewritten in modern TypeScript (components/node-services) take over
+# from HP's JavaScript service of the same name. HP's copy stays where it was,
+# since its db8 kinds, permissions and role are installed from it, but the hub
+# now starts the new one: the pinned node on its main.ts, inside the namespace,
+# with NODE_PATH pointing at lunabus.node. node runs the .ts files as they are.
+NS="$C/node-services"
+if [ -d "$NS/services" ]; then
+    rm -rf "$ROOTFS/usr/palm/node-services"
+    mkdir -p "$ROOTFS/usr/palm/node-services/services"
+    cp -f "$NS/package.json" "$ROOTFS/usr/palm/node-services/"
+    cp -rf "$NS/kit" "$ROOTFS/usr/palm/node-services/"
+    for svc in "$NS"/services/*/; do
+        name="$(basename "$svc")"
+        cp -rf "${svc%/}" "$ROOTFS/usr/palm/node-services/services/"
+        for sf in "$ROOTFS"/usr/share/ls2/services/"$name".service \
+                  "$ROOTFS"/usr/share/ls2/system-services/"$name".service; do
+            [ -f "$sf" ] || continue
+            sed -i -E "s|^Exec=.*$|Exec=$WEBOS_LAUNCHER ns-exec /usr/bin/env NODE_PATH=/usr/palm/nodejs /usr/palm/nodejs/node /usr/palm/node-services/services/$name/main.ts|" "$sf"
+        done
+    done
+fi
+
 # run-js-service preloads /usr/lib/libmemcpy.so, an optimised memcpy that only
 # existed on the device. An empty library stands in for it, so every service
 # launch stops printing an ld.so error; the system memcpy is used either way.

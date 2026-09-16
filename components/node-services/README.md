@@ -56,6 +56,19 @@ loop asks), `get`, `put`, `merge`, `mergeWhere`, `del`, `delWhere`, `batch`,
 `putKind`, `delKind`, and `watchFind`, which yields a query's results now and
 again after each change (db8's watches fire once; it re-arms them).
 
+`kit/mojoservice.ts` — what HP's mojoservice did around every command, for
+services whose callers still expect it: its failure replies (`errorCode`, or
+-9999 with "MojoService: no errorCode supplied " before the text), the 60-second
+command timeout, the 5-second idle exit, and `__quit` (which answers and exits
+100 ms later, or the answer is lost). `registerCommands` puts a service's
+commands on the private bus and the public ones on the public bus too; both
+buses share one `Activity`, so neither exits while the other is busy.
+
+`kit/json-schema.ts` — the early JSON Schema dialect Foundations'
+`Json.Schema.validate` implemented (a property is required unless
+`"optional": true`), limited to the keywords HP's schemas use. Anything else is
+refused rather than passed.
+
 `kit/handle.ts` — what `luna.ts` needs from the bus underneath (`OpenHandle`,
 `BusHandle`, `BusMessage`). `kit/lunabus.ts` provides it over the addon; the
 tests provide an in-memory one.
@@ -87,6 +100,46 @@ on later node releases without a rebuild), installed next to HP's addons in
   glib's contract for a foreign loop, but luna-service2's client side adds no
   timed or idle sources, so nothing on the bus exercises it.
 
+The services
+------------
+
+Each lives in `services/<name>/`, answers under HP's name, and takes over from
+HP's JavaScript service when the rootfs is assembled: `tools/assemble-rootfs.sh`
+installs the kit and the services under `/usr/palm/node-services` and points the
+service's `.service` file at `node …/main.ts`. HP's directory stays installed,
+because its db8 kinds, permissions and role still come from there.
+
+### com.palm.service.accounts
+
+The accounts service Synergy is built on: templates, accounts, credentials, and
+the calls that tell transports about them. All 19 of HP's commands, with the
+same names, parameters, replies and side effects.
+
+* `accounts.ts`: the pure part (weaving a template into an account,
+  permissions, the public whitelist).
+* `templates.ts`: templates read from `/usr/palm/public/accounts` in their
+  localized version, as `Globalization.ResourceBundle` looked them up, validated
+  with HP's schemas (`schemas/`, copied from HP's service) and sorted by name.
+* `credentials.ts`: credentials in db8, as HP's desktop model stored them.
+* `commands.ts`: the commands. `service.ts` wires them; `main.ts` is what the
+  hub starts.
+
+Deliberate differences from HP's code, both in the transport notifications:
+
+* A transport callback that fails stops the sequence and fails the command.
+  HP's left the command waiting for its hour-long timeout, which kept the
+  service up for that hour; what happened to the account is the same.
+* Each `onEnabled` call carries its own `capabilityProviderId`. HP's shared one
+  parameter object between the calls, so they all carried the last one.
+
+Kept as HP had it, on purpose: a validator that fails is only logged (the
+account is still made, without credentials); new credentials are announced to
+every provider, including the ones being enabled at the same time.
+
+Not covered on the bus: the application id of a public caller cannot be set here
+(it needs `LSCallFromApplication`), so the whitelisted path of
+`listAccountsPublic` and `readCredentialsPublic` is covered by unit tests only.
+
 What luna-service2 needs, found the hard way
 --------------------------------------------
 
@@ -115,9 +168,15 @@ WEBOS_TEST_LOGS=build/node-services-logs components/node-services/test/run.sh
 * `lunabus.hub.test.ts` covers the addon's own rules: a script ends once its
   handles close and not before, descriptor reuse, closing inside a callback.
 * `db8.hub.test.ts` runs against a real `mojodb-luna`.
+* `accounts.unit.test.ts` covers the accounts service's pure parts and the
+  schema validator; `accounts.hub.test.ts` runs HP's own test cases
+  (`tests/accounts-test.js`) and the rest of the commands against a real hub and
+  db8, with the transports, validator and system service faked on the bus;
+  `accounts.main.test.ts` starts `main.ts` as its own process.
 * The hub's sockets have fixed paths under `/tmp`, so `run.sh` gives the run a
   `/tmp` of its own with bwrap, or uses a throwaway container's; anywhere else
-  it skips rather than touch a running session.
+  it skips rather than touch a running session. The bwrap run has its own pid
+  namespace as well, so a run that dies takes its hubs and db8 with it.
 * No `--test-force-exit`: a test file that does not end on its own has left
   something open.
 * Every test was checked by mutation: each behavior above was broken on purpose

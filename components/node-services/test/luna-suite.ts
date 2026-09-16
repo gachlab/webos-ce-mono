@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import { after, before, describe, test } from "node:test";
 import { setTimeout as sleep } from "node:timers/promises";
 
-import { createBus, isLunaError, lunaError, type Bus, type Payload, type Request } from "#kit/luna.ts";
+import { createActivity, createBus, isLunaError, lunaError, type Bus, type BusOptions, type Payload, type Request } from "#kit/luna.ts";
 import type { BusMessage, OpenHandle } from "#kit/handle.ts";
 
 export interface Setup {
@@ -38,14 +38,15 @@ const isLunaErrorWith = (fields: Payload) => (error: unknown) => {
 };
 
 // Every name the suite calls, for a real hub's service files.
-export const SERVICES = [SERVICE, "com.webosce.test.idle", "com.webosce.test.closing", "com.webosce.test.failing"] as const;
+export const SERVICES = [SERVICE, "com.webosce.test.idle", "com.webosce.test.closing", "com.webosce.test.failing",
+    "com.webosce.test.shared"] as const;
 
 export const lunaSuite = (setUp: () => Promise<Setup>) => {
     // What each handler saw, and what its cleanup did, for the tests to inspect.
     const seen: Request[] = [];
     const cleanedUp: string[] = [];
     const waiting: { release?: (() => void) | undefined } = {};
-    const env: { setup?: Setup; service?: Bus; client?: Bus; openBus?: (name: string | null) => Bus } = {};
+    const env: { setup?: Setup; service?: Bus; client?: Bus; openBus?: (name: string | null, options?: BusOptions) => Bus } = {};
 
     const client = () => env.client!;
 
@@ -348,6 +349,37 @@ export const lunaSuite = (setUp: () => Promise<Setup>) => {
             } finally {
                 raw.close();
                 failing.close();
+            }
+        });
+
+        test("two buses sharing an activity stay up while either is busy", async () => {
+            const name = "com.webosce.test.shared";
+            const timers = {
+                setTimer: (callback: () => void, ms: number) => setTimeout(callback, ms),
+                clearTimer: (timer: unknown) => clearTimeout(timer as ReturnType<typeof setTimeout> | undefined),
+            };
+            const activity = createActivity(timers);
+            const quiet = env.openBus!(null, { activity });
+            const busy = env.openBus!(name, { public: true, activity });
+            const fired = { count: 0 };
+            const held: { finish?: (() => void) | undefined } = {};
+            busy.method("hold", () => new Promise<Payload>((resolve) => { held.finish = () => resolve({}); }));
+            quiet.exitWhenIdle(200, () => fired.count++);
+            try {
+                // The busy bus is on the public side; the quiet one is private.
+                const publicClient = env.openBus!(null, { public: true });
+                const publicCall = publicClient.call(`luna://${name}/hold`);
+                await until(() => held.finish !== undefined, "the request to arrive");
+                await sleep(400);
+                assert.equal(fired.count, 0, "the quiet bus fired while the other was busy");
+                held.finish!();
+                await publicCall;
+                publicClient.close();
+                await until(() => fired.count === 1, "the idle callback");
+            } finally {
+                quiet.close();
+                busy.close();
+                activity.stop();
             }
         });
 
