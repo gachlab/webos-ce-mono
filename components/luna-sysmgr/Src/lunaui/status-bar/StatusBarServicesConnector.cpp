@@ -2827,6 +2827,25 @@ bool StatusBarServicesConnector::connMgrEventsCallback(LSHandle* handle, LSMessa
 		}
 	}
 
+	// The cable, which HP's connectionmanager never reported: a phone had no
+	// socket. components/nm-connectionmanager answers with a "wired" object
+	// shaped like the "wifi" one.
+	//
+	// Read outside the isInternetConnectionAvailable branch above on purpose. A
+	// cable can be plugged into a network that goes nowhere, and the indicator
+	// should still show that it is plugged in -- that is the difference between
+	// "no cable" and "cable, no internet", and the second is worth seeing.
+	bool wiredConnected = false;
+	struct json_object* wiredObj = json_object_object_get(root, "wired");
+	if (wiredObj && !is_error(wiredObj) && json_object_is_type(wiredObj, json_type_object)) {
+		struct json_object* wiredState = json_object_object_get(wiredObj, "state");
+		if (wiredState && !is_error(wiredState) && json_object_is_type(wiredState, json_type_string)) {
+			const char* wiredStateStr = json_object_get_string(wiredState);
+			wiredConnected = (wiredStateStr && !strcmp(wiredStateStr, "connected"));
+		}
+	}
+	Q_EMIT signalWiredStateChanged(wiredConnected);
+
 	if (root && !is_error(root)) json_object_put(root);
 
 	return true;

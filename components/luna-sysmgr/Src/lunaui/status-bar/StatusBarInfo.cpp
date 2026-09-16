@@ -75,6 +75,7 @@ StatusBarInfo::StatusBarInfo(StatusBar::StatusBarType type)
 	, m_wan(0)
 	, m_bluetooth(0)
 	, m_wifi(0)
+	, m_wired(0)
 	, m_tty(0)
 	, m_hac(0)
 	, m_callForward(0)
@@ -103,6 +104,9 @@ StatusBarInfo::~StatusBarInfo()
 
 	if(m_wifi)
 		delete m_wifi;
+
+	if(m_wired)
+		delete m_wired;
 
 	if(m_tty)
 		delete m_tty;
@@ -226,6 +230,14 @@ void StatusBarInfo::init()
 		m_wifi->loadImage((int)StatusBar::WIFI_BAR_2, statusBarImagesPath + "wifi-2.png");
 		m_wifi->loadImage((int)StatusBar::WIFI_BAR_3, statusBarImagesPath + "wifi-3.png");
 		setWifi(false, StatusBar::WIFI_OFF);
+
+		// Wired networking, ours: see StatusBar::slotWiredStateChanged. Appended
+		// after the wifi item so it sits beside it -- these are painted right to
+		// left in the order they are added. One image, so one index.
+		m_wired = new StatusBarInfoItem(this);
+		m_icons.append(m_wired);
+		m_wired->loadImage(0, statusBarImagesPath + "wired-connected.png");
+		setWired(false);
 
 		// TTY
 		m_tty = new StatusBarInfoItem(this);
@@ -390,6 +402,11 @@ void StatusBarInfo::setWAN(bool shown, StatusBar::IndexWAN index)
 void StatusBarInfo::setBluetooth(bool shown, StatusBar::IndexBluetooth index)
 {
 	updateItem(m_bluetooth, shown, (int) index);
+}
+
+void StatusBarInfo::setWired(bool connected)
+{
+	updateItem(m_wired, connected, 0);
 }
 
 void StatusBarInfo::setWifi(bool shown, StatusBar::IndexWiFi index)

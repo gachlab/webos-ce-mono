@@ -212,6 +212,7 @@ Q_SIGNALS:
 	void signalWanIndexChanged(bool show, StatusBar::IndexWAN index);
 	void signalBluetoothIndexChanged(bool show, StatusBar::IndexBluetooth index);
 	void signalWifiIndexChanged(bool show, StatusBar::IndexWiFi index);
+	void signalWiredStateChanged(bool connected);
 	void signalSystemTimeChanged();
 
 

@@ -161,6 +161,8 @@ private Q_SLOTS:
 	void slotWanIndexChanged(bool show, StatusBar::IndexWAN index);
 	void slotBluetoothIndexChanged(bool show, StatusBar::IndexBluetooth index);
 	void slotWifiIndexChanged(bool show, StatusBar::IndexWiFi index);
+	// Ours. webOS had no wired networking to show: a phone has no socket.
+	void slotWiredStateChanged(bool connected);
     void slotRotationLockChanged(OrientationEvent::Orientation rotationLock);
 	void slotMuteSoundChanged(bool muteOn);
 	void slotChildBoundingRectChanged();

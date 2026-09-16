@@ -309,6 +309,7 @@ void StatusBar::init()
 		connect(m_svcConnector,SIGNAL(signalWanIndexChanged(bool, StatusBar::IndexWAN)), SLOT(slotWanIndexChanged(bool, StatusBar::IndexWAN)));
 		connect(m_svcConnector,SIGNAL(signalBluetoothIndexChanged(bool, StatusBar::IndexBluetooth)), SLOT(slotBluetoothIndexChanged(bool, StatusBar::IndexBluetooth)));
 		connect(m_svcConnector,SIGNAL(signalWifiIndexChanged(bool, StatusBar::IndexWiFi)), SLOT(slotWifiIndexChanged(bool, StatusBar::IndexWiFi)));
+		connect(m_svcConnector,SIGNAL(signalWiredStateChanged(bool)), SLOT(slotWiredStateChanged(bool)));
 	}
 
 	switch (m_type) {
@@ -666,6 +667,15 @@ void StatusBar::slotWifiIndexChanged(bool show, StatusBar::IndexWiFi index)
 {
 	if(m_infoItems)
 		m_infoItems->setWifi(show, index);
+}
+
+// A separate indicator rather than another state of the wifi one, because both
+// can be up at once -- which is the ordinary case on a laptop with the cable in
+// and the radio still on.
+void StatusBar::slotWiredStateChanged(bool connected)
+{
+	if(m_infoItems)
+		m_infoItems->setWired(connected);
 }
 
 void StatusBar::slotChildBoundingRectChanged()
