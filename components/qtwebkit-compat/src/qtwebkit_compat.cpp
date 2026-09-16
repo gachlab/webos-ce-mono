@@ -30,6 +30,8 @@
 #include <QWebEngineUrlSchemeHandler>
 #include <QWebEngineView>
 
+#include <memory>
+
 namespace {
 
 const char kScheme[] = "webos-bridge";
@@ -1876,20 +1878,28 @@ void QWebFrame::addToJavaScriptWindowObject(const QString& name, QObject* object
 
 QVariant QWebFrame::evaluateAndWait(const QString& script) const
 {
-    QVariant result;
-    bool done = false;
-    m_page->m_engine->runJavaScript(script, [&result, &done](const QVariant& value) {
-        result = value;
-        done = true;
+    // Shared with the callback rather than captured by reference: a script that
+    // has not answered within the wait leaves its callback pending, and
+    // QtWebEngine still runs it later -- at the latest while the page is being
+    // destroyed -- when this frame's locals are long gone. Written through a
+    // reference, that answer landed on a dead stack and crashed the process.
+    struct Outcome {
+        QVariant result;
+        bool done = false;
+    };
+    const auto outcome = std::make_shared<Outcome>();
+    m_page->m_engine->runJavaScript(script, [outcome](const QVariant& value) {
+        outcome->result = value;
+        outcome->done = true;
     });
     QElapsedTimer timer;
     timer.start();
-    while (!done && timer.elapsed() < 5000) {
+    while (!outcome->done && timer.elapsed() < 5000) {
         QEventLoop loop;
         QTimer::singleShot(5, &loop, &QEventLoop::quit);
         loop.exec(QEventLoop::ExcludeUserInputEvents);
     }
-    return result;
+    return outcome->result;
 }
 
 QVariant QWebFrame::evaluateJavaScript(const QString& script)
