@@ -96,6 +96,8 @@ std::string g_lastWifiKey;
 guint g_refreshPending = 0;
 // The network the last connect asked for; see NetworkState::attemptedSsid.
 std::string g_attemptedSsid;
+// The network com.palm.wifi last reported as joined; see leftNetworkPayload.
+std::string g_joinedSsid;
 
 void logAndFree(const char* where, LSError& error)
 {
@@ -170,6 +172,10 @@ void refresh()
     }
     if (wifiChanged) {
         g_lastWifiKey = wifiKey;
+        const std::string left = NmNet::leftNetworkPayload(g_joinedSsid, g_state);
+        if (!left.empty())
+            post(g_wifiService, left);
+        g_joinedSsid = NmNet::joinedSsid(g_state);
         post(g_wifiService, wifiPayload);
     }
 }
@@ -597,6 +603,7 @@ int main()
     g_state = currentState();
     g_lastPayload = NmNet::statusPayload(g_state, true);
     g_lastWifiKey = NmNet::wifiChangeKey(g_state);
+    g_joinedSsid = NmNet::joinedSsid(g_state);
     g_message("nm-connectionmanager: com.palm.connectionmanager up, wifi=%s wired=%s internet=%s",
               NmNet::deviceState(g_state.wifi), NmNet::deviceState(g_state.wired),
               NmNet::internetAvailable(g_state) ? "yes" : "no");

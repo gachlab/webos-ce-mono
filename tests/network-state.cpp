@@ -496,6 +496,30 @@ int main()
               "errors are JSON too");
     }
 
+    std::printf("\nleaving a network\n");
+    {
+        NmNet::NetworkState casa;
+        casa.wifi = wifiDevice(NmNet::kDeviceActivated, 80, "Casa");
+        check(NmNet::joinedSsid(casa) == "Casa", "the joined network is named");
+        NmNet::NetworkState joining;
+        joining.wifi = wifiDevice(NmNet::kDeviceConfig, 0, "");
+        joining.attemptedSsid = "Oficina";
+        check(NmNet::joinedSsid(joining).empty(), "a network being joined is not joined yet");
+        check(NmNet::leftNetworkPayload("Casa", joining)
+                  == "{\"returnValue\":true,\"subscribed\":true,\"status\":\"connectionStateChanged\","
+                     "\"networkInfo\":{\"connectState\":\"notAssociated\",\"ssid\":\"Casa\"}}",
+              "moving on from Casa says Casa was left");
+        check(NmNet::leftNetworkPayload("Casa", casa).empty(), "staying on Casa says nothing");
+        check(NmNet::leftNetworkPayload("", joining).empty(), "nothing joined before, nothing left");
+        NmNet::NetworkState off = casa;
+        off.wifiEnabled = false;
+        check(!NmNet::leftNetworkPayload("Casa", off).empty(), "the radio going off leaves it too");
+        NmNet::NetworkState other;
+        other.wifi = wifiDevice(NmNet::kDeviceActivated, 60, "Ofi\"cina");
+        check(has(NmNet::leftNetworkPayload("Ca\"sa", other), "\"ssid\":\"Ca\\\"sa\""),
+              "the left network's name escaped");
+    }
+
     std::printf("\nthe access point, for the settings card\n");
     {
         NmNet::NetworkState joined;

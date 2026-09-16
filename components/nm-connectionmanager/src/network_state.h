@@ -498,6 +498,31 @@ inline std::string wifiStatusPayload(const NetworkState& state, bool subscribed)
     return out;
 }
 
+// The network the radio is joined to, or empty.
+inline std::string joinedSsid(const NetworkState& state)
+{
+    return (state.wifiEnabled && state.wifi.activated()) ? state.wifi.ssid : std::string();
+}
+
+// The update that says a network was left, or empty when none was.
+//
+// getstatus describes one network at a time, and its listeners -- the system
+// menu's drawer and enyo's wifi library -- change only the row of the network
+// each update names. Going from one network straight to joining another, the
+// row of the one left behind kept its tick: measured on the settings card, two
+// networks read as connected until the next scan replaced the list. HP's
+// service said so first; this is that update, sent before the new state.
+inline std::string leftNetworkPayload(const std::string& previouslyJoined, const NetworkState& now)
+{
+    if (previouslyJoined.empty())
+        return std::string();
+    if (joinedSsid(now) == previouslyJoined)
+        return std::string();
+    return "{\"returnValue\":true,\"subscribed\":true,\"status\":\"connectionStateChanged\","
+           "\"networkInfo\":{\"connectState\":\"notAssociated\",\"ssid\":\""
+           + jsonEscape(previouslyJoined) + "\"}}";
+}
+
 // What a wifi update is actually about.
 //
 // The payload carries signalLevel because enyo's wifi library reads it, and a
