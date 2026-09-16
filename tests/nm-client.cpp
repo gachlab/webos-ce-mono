@@ -877,6 +877,91 @@ static void run(const std::string& address)
         measuredLaptop(nm);
     }
 
+
+    std::printf("enterprise and address settings\n");
+    {
+        wifiScene(nm);
+        accessPoint(nm, AP4, "Corp", 70, 1, 0, 0x200);
+        nm.takeCalls();
+        std::string why;
+        int id = 0;
+
+        NmNet::ConnectRequest peap;
+        peap.ssid = "Corp";
+        peap.securityType = "enterprise";
+        peap.eapType = "eapPeap";
+        peap.userId = "gach";
+        peap.password = "s3cret";
+        check(NmClient::connectWifi(bus, peap, id, why), "a PEAP network");
+        std::vector<std::string> calls = writes(nm);
+        check(calls.size() == 1 && has(calls[0], "'key-mgmt': <'wpa-eap'>")
+                  && has(calls[0], "'802-1x': {'eap': <['peap']>, 'identity': <'gach'>, 'password': <'s3cret'>, 'phase2-auth': <'mschapv2'>, 'system-ca-certs': <true>}")
+                  && !has(calls[0], "'psk'"),
+              "gets an 802-1x login, checked against the system's CAs");
+
+        NmNet::ConnectRequest tls = peap;
+        tls.eapType = "eapTls";
+        tls.password.clear();
+        tls.verifyServerCert = false;
+        tls.clientCertificatePath = "/certs/me.pem";
+        check(NmClient::connectWifi(bus, tls, id, why), "a TLS network");
+        calls = writes(nm);
+        check(calls.size() == 1 && has(calls[0], "'eap': <['tls']>")
+                  && has(calls[0], "'client-cert': <b'file:///certs/me.pem'>")
+                  && has(calls[0], "'private-key': <b'file:///certs/me.pem'>")
+                  && has(calls[0], "'private-key-password-flags': <uint32 4>")
+                  && !has(calls[0], "'password'") && !has(calls[0], "system-ca-certs"),
+              "logs in with the certificate file, and checks no server when told not to");
+
+        NmNet::ConnectRequest fast = peap;
+        fast.eapType = "eapFast";
+        check(NmClient::connectWifi(bus, fast, id, why), "a FAST network");
+        calls = writes(nm);
+        check(calls.size() == 1 && has(calls[0], "'phase1-fast-provisioning': <'3'>"),
+              "provisions its PAC");
+
+        nm.set(SAVED_WIFI, I_CONN, "@reply", settings("802-11-wireless", "Home", "Home", "wpa-psk"));
+        NmNet::ConnectRequest move = peap;
+        move.ssid = "Home";
+        check(NmClient::connectWifi(bus, move, id, why) && id == 3, "a saved network moving to enterprise");
+        calls = writes(nm);
+        check(calls.size() == 2 && has(calls[0], SAVED_WIFI " Update") && has(calls[0], "'key-mgmt': <'wpa-eap'>")
+                  && has(calls[0], "'802-1x'") && has(calls[0], "'802-11-wireless': {'ssid'"),
+              "gets its security and its login replaced, the rest kept");
+
+        NmNet::ConnectRequest manual;
+        manual.profileId = 3;
+        manual.addressChange = true;
+        manual.staticIp = true;
+        manual.ip = "192.168.1.20";
+        manual.subnet = "255.255.255.0";
+        manual.gateway = "192.168.1.1";
+        manual.dns1 = "1.1.1.1";
+        // Not a palindrome, so the byte order shows: NetworkManager's "dns" is
+        // in network order, read here as a little-endian integer.
+        manual.dns2 = "8.8.4.4";
+        check(NmClient::connectWifi(bus, manual, id, why) && id == 3, "static addresses on a saved network");
+        calls = writes(nm);
+        check(calls.size() == 2 && has(calls[0], SAVED_WIFI " Update")
+                  && has(calls[0], "'ipv4': {'method': <'manual'>, 'address-data': <[{'address': <'192.168.1.20'>, 'prefix': <uint32 24>}]>, 'gateway': <'192.168.1.1'>, 'dns': <[uint32 16843009, 67373064]>}")
+                  && has(calls[0], "'802-11-wireless-security'") && has(calls[1], "ActivateConnection ('" SAVED_WIFI "'"),
+              "replace its ipv4, keep the rest, and bring it up again");
+
+        nm.set(SAVED_WIFI, I_CONN, "@reply", settings("802-11-wireless", "Home", "Home", nullptr, "manual"));
+        NmNet::ConnectRequest dhcp;
+        dhcp.profileId = 3;
+        dhcp.addressChange = true;
+        check(NmClient::connectWifi(bus, dhcp, id, why), "back to DHCP");
+        calls = writes(nm);
+        check(calls.size() == 2 && has(calls[0], "'ipv4': {'method': <'auto'>}") && !has(calls[0], "manual"),
+              "is an automatic ipv4 and nothing more");
+
+        NmNet::ConnectRequest vpn = dhcp;
+        vpn.profileId = 5;
+        check(!NmClient::connectWifi(bus, vpn, id, why) && why == "not a wifi profile" && writes(nm).empty(),
+              "the VPN's addresses are not touched");
+        measuredLaptop(nm);
+    }
     std::printf("profiles\n");
     {
         wifiScene(nm);

@@ -613,10 +613,118 @@ GVariant* securityGroup(NmNet::Security security, const NmNet::ConnectRequest& r
         g_variant_builder_add(&group, "{sv}", "wep-tx-keyidx",
                               g_variant_new_uint32(static_cast<guint32>(request.keyIndex)));
         g_variant_builder_add(&group, "{sv}", "wep-key-type", g_variant_new_uint32(1));
-    } else {
+    } else if (security != NmNet::kSecurityEnterprise) {
         g_variant_builder_add(&group, "{sv}", "psk", g_variant_new_string(request.passKey.c_str()));
     }
     return g_variant_builder_end(&group);
+}
+
+// A certificate or key property: NetworkManager takes a path as the bytes of a
+// file:// URI with its terminating NUL.
+GVariant* pathBlob(const std::string& path)
+{
+    std::string uri = "file://" + path;
+    uri.push_back('\0');
+    return bytesVariant(uri);
+}
+
+// The 802-1x group of an enterprise join, or nullptr for any other.
+//
+// PEAP, TTLS and FAST log in with a user name and password, checked inside the
+// tunnel with MSCHAPv2, which is what every enterprise network the settings
+// card was made for used; "Auto" offers PEAP and TTLS and lets the server pick.
+// TLS logs in with a certificate, whose file carries its key too. Checking the
+// server's certificate means checking it against the system's CAs.
+GVariant* eapGroup(NmNet::Security security, const NmNet::ConnectRequest& request)
+{
+    if (security != NmNet::kSecurityEnterprise)
+        return nullptr;
+    GVariantBuilder group;
+    g_variant_builder_init(&group, G_VARIANT_TYPE("a{sv}"));
+    GVariantBuilder methods;
+    g_variant_builder_init(&methods, G_VARIANT_TYPE("as"));
+    for (const std::string& method : NmNet::eapMethods(request.eapType))
+        g_variant_builder_add(&methods, "s", method.c_str());
+    g_variant_builder_add(&group, "{sv}", "eap", g_variant_builder_end(&methods));
+    g_variant_builder_add(&group, "{sv}", "identity", g_variant_new_string(request.userId.c_str()));
+    if (request.eapType == "eapTls") {
+        g_variant_builder_add(&group, "{sv}", "client-cert", pathBlob(request.clientCertificatePath));
+        g_variant_builder_add(&group, "{sv}", "private-key", pathBlob(request.clientCertificatePath));
+        // NM_SETTING_SECRET_FLAG_NOT_REQUIRED: the key in these files is not
+        // encrypted, and the card has nowhere to ask for a key password.
+        g_variant_builder_add(&group, "{sv}", "private-key-password-flags", g_variant_new_uint32(4));
+    } else {
+        g_variant_builder_add(&group, "{sv}", "password", g_variant_new_string(request.password.c_str()));
+        g_variant_builder_add(&group, "{sv}", "phase2-auth", g_variant_new_string("mschapv2"));
+        if (request.eapType == "eapFast")
+            g_variant_builder_add(&group, "{sv}", "phase1-fast-provisioning", g_variant_new_string("3"));
+    }
+    if (request.verifyServerCert)
+        g_variant_builder_add(&group, "{sv}", "system-ca-certs", g_variant_new_boolean(TRUE));
+    return g_variant_builder_end(&group);
+}
+
+// An IPv4 address as NetworkManager's "dns" wants it: network byte order.
+guint32 networkOrder(const std::string& address)
+{
+    unsigned long value = 0;
+    NmNet::parseIpv4(address, value);
+    return g_htonl(static_cast<guint32>(value));
+}
+
+// The ipv4 group for the address settings screen: DHCP, or the addresses given.
+GVariant* ipv4Group(const NmNet::ConnectRequest& request)
+{
+    GVariantBuilder group;
+    g_variant_builder_init(&group, G_VARIANT_TYPE("a{sv}"));
+    if (!request.staticIp) {
+        g_variant_builder_add(&group, "{sv}", "method", g_variant_new_string("auto"));
+        return g_variant_builder_end(&group);
+    }
+    g_variant_builder_add(&group, "{sv}", "method", g_variant_new_string("manual"));
+    GVariantBuilder addresses;
+    g_variant_builder_init(&addresses, G_VARIANT_TYPE("aa{sv}"));
+    GVariantBuilder address;
+    g_variant_builder_init(&address, G_VARIANT_TYPE("a{sv}"));
+    g_variant_builder_add(&address, "{sv}", "address", g_variant_new_string(request.ip.c_str()));
+    g_variant_builder_add(&address, "{sv}", "prefix",
+                          g_variant_new_uint32(static_cast<guint32>(NmNet::prefixOfMask(request.subnet))));
+    g_variant_builder_add(&addresses, "a{sv}", &address);
+    g_variant_builder_add(&group, "{sv}", "address-data", g_variant_builder_end(&addresses));
+    if (!request.gateway.empty())
+        g_variant_builder_add(&group, "{sv}", "gateway", g_variant_new_string(request.gateway.c_str()));
+    GVariantBuilder dns;
+    g_variant_builder_init(&dns, G_VARIANT_TYPE("au"));
+    for (const std::string* server : { &request.dns1, &request.dns2 })
+        if (!server->empty())
+            g_variant_builder_add(&dns, "u", networkOrder(*server));
+    g_variant_builder_add(&group, "{sv}", "dns", g_variant_builder_end(&dns));
+    return g_variant_builder_end(&group);
+}
+
+// A profile's settings with the named groups replaced by the ones given (a null
+// group is only removed), everything else kept.
+GVariant* replaceGroups(GVariant* settings,
+                        std::initializer_list<std::pair<const char*, GVariant*>> groups)
+{
+    GVariantBuilder all;
+    g_variant_builder_init(&all, G_VARIANT_TYPE("a{sa{sv}}"));
+    GVariantIter iter;
+    const char* group = nullptr;
+    GVariant* values = nullptr;
+    g_variant_iter_init(&iter, settings);
+    while (g_variant_iter_next(&iter, "{&s@a{sv}}", &group, &values)) {
+        bool replaced = false;
+        for (const auto& g : groups)
+            replaced = replaced || std::string(g.first) == group;
+        if (!replaced)
+            g_variant_builder_add(&all, "{s@a{sv}}", group, values);
+        g_variant_unref(values);
+    }
+    for (const auto& g : groups)
+        if (g.second)
+            g_variant_builder_add(&all, "{s@a{sv}}", g.first, g.second);
+    return g_variant_builder_end(&all);
 }
 
 // The settings of a new profile.
@@ -645,6 +753,8 @@ GVariant* newWifiSettings(const NmNet::ConnectRequest& request, NmNet::Security 
 
     if (GVariant* sec = securityGroup(security, request))
         g_variant_builder_add(&all, "{s@a{sv}}", "802-11-wireless-security", sec);
+    if (GVariant* eap = eapGroup(security, request))
+        g_variant_builder_add(&all, "{s@a{sv}}", "802-1x", eap);
     return g_variant_builder_end(&all);
 }
 
@@ -653,21 +763,20 @@ GVariant* newWifiSettings(const NmNet::ConnectRequest& request, NmNet::Security 
 GVariant* withSecurity(GVariant* settings, NmNet::Security security,
                        const NmNet::ConnectRequest& request)
 {
-    GVariantBuilder all;
-    g_variant_builder_init(&all, G_VARIANT_TYPE("a{sa{sv}}"));
-    GVariantIter iter;
-    const char* group = nullptr;
-    GVariant* values = nullptr;
-    g_variant_iter_init(&iter, settings);
-    while (g_variant_iter_next(&iter, "{&s@a{sv}}", &group, &values)) {
-        const std::string name = group;
-        if (name != "802-11-wireless-security" && name != "802-1x")
-            g_variant_builder_add(&all, "{s@a{sv}}", group, values);
-        g_variant_unref(values);
-    }
-    if (GVariant* sec = securityGroup(security, request))
-        g_variant_builder_add(&all, "{s@a{sv}}", "802-11-wireless-security", sec);
-    return g_variant_builder_end(&all);
+    return replaceGroups(settings, {
+        { "802-11-wireless-security", securityGroup(security, request) },
+        { "802-1x", eapGroup(security, request) },
+    });
+}
+
+bool update(GDBusConnection* bus, const std::string& path, GVariant* settings, std::string& error)
+{
+    GVariant* reply = call(bus, path.c_str(), kConnectionIface, "Update",
+                           g_variant_new_tuple(&settings, 1), nullptr, error);
+    if (!reply)
+        return false;
+    g_variant_unref(reply);
+    return true;
 }
 
 bool activate(GDBusConnection* bus, const std::string& connection, const std::string& device,
@@ -756,7 +865,16 @@ bool connectWifi(GDBusConnection* bus, const NmNet::ConnectRequest& request,
         GVariant* settings = wifiSettingsOf(bus, request.profileId, error);
         if (!settings)
             return false;
-        g_variant_unref(settings);
+        // The address settings screen: the profile's ipv4 replaced, then the
+        // profile brought up again so the new addresses apply.
+        if (request.addressChange) {
+            GVariant* updated = replaceGroups(settings, { { "ipv4", ipv4Group(request) } });
+            g_variant_unref(settings);
+            if (!update(bus, NmNet::settingsPathOf(request.profileId), updated, error))
+                return false;
+        } else {
+            g_variant_unref(settings);
+        }
         if (!activate(bus, NmNet::settingsPathOf(request.profileId), device, "/", error))
             return false;
         profileId = request.profileId;
@@ -794,11 +912,8 @@ bool connectWifi(GDBusConnection* bus, const NmNet::ConnectRequest& request,
                 return false;
             GVariant* updated = withSecurity(settings, security, request);
             g_variant_unref(settings);
-            GVariant* reply = call(bus, existing.c_str(), kConnectionIface, "Update",
-                                   g_variant_new_tuple(&updated, 1), nullptr, error);
-            if (!reply)
+            if (!update(bus, existing, updated, error))
                 return false;
-            g_variant_unref(reply);
         }
         if (!activate(bus, existing, device, apPath, error))
             return false;

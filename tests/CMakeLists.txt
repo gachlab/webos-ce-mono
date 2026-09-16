@@ -127,6 +127,12 @@ target_include_directories(nm-client PRIVATE ${CONNMGR} ${GIO_INCLUDE_DIRS})
 target_link_libraries(nm-client PRIVATE ${GIO_LIBRARIES})
 add_test(NAME nm-client COMMAND nm-client)
 
+# The certificate store the Wi-Fi card's enterprise TLS login lists.
+add_executable(certificates certificates.cpp ${CONNMGR}/certificates.cpp)
+target_include_directories(certificates PRIVATE ${CONNMGR} ${GIO_INCLUDE_DIRS})
+target_link_libraries(certificates PRIVATE ${GIO_LIBRARIES})
+add_test(NAME certificates COMMAND certificates)
+
 # --- which coordinate space a touch point arrives in --------------------------
 add_executable(touch-coordinate-spaces touch-coordinate-spaces.cpp)
 target_link_libraries(touch-coordinate-spaces PRIVATE Qt::Core Qt::Gui Qt::Widgets Qt::GuiPrivate)

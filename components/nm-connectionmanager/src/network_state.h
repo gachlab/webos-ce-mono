@@ -136,6 +136,9 @@ struct NetworkState {
     // point, and enyo's wifi library ignores a failure that does not name the
     // network it was joining.
     std::string attemptedSsid;
+    // Whether that join was to an enterprise network: its failures are a user
+    // name or password, not a key.
+    bool attemptedEnterprise = false;
     // The access point the radio is joined to: its hardware address and the
     // frequency it is on, in MHz. The settings card names both.
     std::string wifiBssid;
@@ -375,13 +378,15 @@ enum DeviceStateReason {
 // supplicant disconnecting during the handshake, or asking for secrets again,
 // or timing out, depending on the access point. All three are read as the
 // password, which is what they almost always are on a personal network.
-inline const char* lastConnectError(int reason)
+inline const char* lastConnectError(int reason, bool enterprise = false)
 {
     switch (reason) {
     case kReasonNoSecrets:
     case kReasonSupplicantDisconnect:
     case kReasonSupplicantTimeout:
-        return "IncorrectPasskey";
+        // The library words the two differently: "the password you entered"
+        // for a key, "the username or password" for an enterprise login.
+        return enterprise ? "IncorrectPassword" : "IncorrectPasskey";
     case kReasonSsidNotFound:
         return "ApNotFound";
     default:
@@ -476,7 +481,7 @@ inline std::string wifiStatusPayload(const NetworkState& state, bool subscribed)
         out += ",\"profileId\":" + std::to_string(state.wifiProfileId);
     if (failed) {
         out += ",\"lastConnectError\":\"";
-        out += lastConnectError(state.wifiStateReason);
+        out += lastConnectError(state.wifiStateReason, state.attemptedEnterprise);
         out += "\"";
     }
     if (state.wifi.activated()) {
@@ -621,6 +626,7 @@ inline const char* keyManagement(Security security)
     case kSecurityWep:    return "none";
     case kSecurityWpaPsk: return "wpa-psk";
     case kSecuritySae:    return "sae";
+    case kSecurityEnterprise: return "wpa-eap";
     default:              return nullptr;
     }
 }
@@ -715,7 +721,7 @@ inline std::string foundNetworksPayload(const std::vector<AccessPoint>& networks
             out += std::string(",\"connectState\":\"") + wifiConnectState(state.wifi) + "\"";
             if (joinFailed(state))
                 out += std::string(",\"lastConnectError\":\"")
-                       + lastConnectError(state.wifiStateReason) + "\"";
+                       + lastConnectError(state.wifiStateReason, state.attemptedEnterprise) + "\"";
         }
         out += "}}";
     }
@@ -819,8 +825,77 @@ struct ConnectRequest {
     int keyIndex = 0;           // WEP only, 0..3
     bool isInHex = false;
     bool hidden = false;        // wasCreatedWithJoinOther
-    bool staticIp = false;      // useStaticIp or ipInfo was sent
+
+    // Enterprise, from security.enterpriseSecurity.
+    std::string userId;
+    std::string password;
+    std::string eapType;        // eapAuto, eapPeap, eapTls, eapTtls, eapFast
+    bool verifyServerCert = true;
+    std::string clientCertificatePath;
+
+    // The address settings screen: sent with a profileId, useStaticIp and, when
+    // it is true, the addresses.
+    bool addressChange = false;
+    bool staticIp = false;
+    std::string ip, subnet, gateway, dns1, dns2;
 };
+
+// A dotted IPv4 address, in host order.
+inline bool parseIpv4(const std::string& text, unsigned long& out)
+{
+    unsigned long value = 0;
+    int parts = 0;
+    size_t i = 0;
+    while (i <= text.size()) {
+        size_t j = text.find('.', i);
+        if (j == std::string::npos)
+            j = text.size();
+        const std::string part = text.substr(i, j - i);
+        if (part.empty() || part.size() > 3 || part.find_first_not_of("0123456789") != std::string::npos)
+            return false;
+        const int octet = std::stoi(part);
+        if (octet > 255)
+            return false;
+        value = (value << 8) | static_cast<unsigned long>(octet);
+        ++parts;
+        i = j + 1;
+        if (j == text.size())
+            break;
+    }
+    if (parts != 4)
+        return false;
+    out = value;
+    return true;
+}
+
+// The prefix length of a subnet mask, or -1 when it is not one: the ones have to
+// come first, and a mask of nothing is not a network.
+inline int prefixOfMask(const std::string& mask)
+{
+    unsigned long value = 0;
+    if (!parseIpv4(mask, value) || value == 0)
+        return -1;
+    int prefix = 0;
+    while (prefix < 32 && (value & (0x80000000UL >> prefix)))
+        ++prefix;
+    const unsigned long expected = prefix == 32 ? 0xffffffffUL : (0xffffffffUL << (32 - prefix)) & 0xffffffffUL;
+    return value == expected ? prefix : -1;
+}
+
+inline std::vector<std::string> eapMethods(const std::string& eapType)
+{
+    if (eapType == "eapPeap")
+        return {"peap"};
+    if (eapType == "eapTtls")
+        return {"ttls"};
+    if (eapType == "eapTls")
+        return {"tls"};
+    if (eapType == "eapFast")
+        return {"fast"};
+    if (eapType == "eapAuto" || eapType.empty())
+        return {"peap", "ttls"};
+    return {};
+}
 
 inline bool allHex(const std::string& s)
 {
@@ -833,8 +908,24 @@ inline bool allHex(const std::string& s)
 // the field they typed it in.
 inline std::string validateConnect(const ConnectRequest& req)
 {
-    if (req.staticIp)
-        return "static IP settings are not supported yet";
+    if (req.addressChange) {
+        if (req.profileId <= 0)
+            return "address settings apply to a saved network";
+        if (!req.staticIp)
+            return std::string();
+        unsigned long value = 0;
+        if (!parseIpv4(req.ip, value))
+            return "not an IP address: " + req.ip;
+        if (prefixOfMask(req.subnet) < 0)
+            return "not a subnet mask: " + req.subnet;
+        if (!req.gateway.empty() && !parseIpv4(req.gateway, value))
+            return "not a gateway address: " + req.gateway;
+        if (!req.dns1.empty() && !parseIpv4(req.dns1, value))
+            return "not a DNS server address: " + req.dns1;
+        if (!req.dns2.empty() && !parseIpv4(req.dns2, value))
+            return "not a DNS server address: " + req.dns2;
+        return std::string();
+    }
     if (req.profileId > 0)
         return std::string();
     if (req.profileId < 0)
@@ -864,8 +955,19 @@ inline std::string validateConnect(const ConnectRequest& req)
             return std::string();
         return "a WEP key is 5 or 13 characters, or 10 or 26 hex digits";
     }
-    if (type == "enterprise")
-        return "enterprise networks are not supported yet";
+    if (type == "enterprise") {
+        if (eapMethods(req.eapType).empty())
+            return "unsupported EAP type: " + req.eapType;
+        if (req.userId.empty())
+            return "an enterprise network needs a user name";
+        if (req.eapType == "eapTls") {
+            if (req.clientCertificatePath.empty())
+                return "TLS needs a certificate";
+        } else if (req.password.empty()) {
+            return "an enterprise network needs a password";
+        }
+        return std::string();
+    }
     return "unsupported security type: " + type;
 }
 
@@ -878,9 +980,72 @@ inline Security requestedSecurity(const ConnectRequest& req, Security advertised
         return kSecurityWep;
     if (req.securityType == "wpa-personal")
         return advertised == kSecuritySae ? kSecuritySae : kSecurityWpaPsk;
+    if (req.securityType == "enterprise")
+        return kSecurityEnterprise;
     return kSecurityNone;
 }
 
+
+// --- com.palm.certificatemanager/listcertificates -----------------------------
+//
+// The certificates an enterprise network can use for TLS: enyo's wifi library
+// lists them by "commonname" (or "organization") and hands "certificateFilename"
+// back in the join request.
+
+struct Certificate {
+    int certificateId = 0;
+    std::string commonName;
+    std::string organization;
+    std::string path;
+};
+
+// One attribute of a distinguished name such as "CN=Laptop,O=Example Corp",
+// empty when it is not there. Escaped commas are not split on.
+inline std::string dnField(const std::string& dn, const std::string& key)
+{
+    size_t i = 0;
+    while (i < dn.size()) {
+        size_t end = i;
+        while (end < dn.size() && dn[end] != ',') {
+            if (dn[end] == '\\' && end + 1 < dn.size())
+                ++end;
+            ++end;
+        }
+        std::string part = dn.substr(i, end - i);
+        const size_t start = part.find_first_not_of(' ');
+        part = start == std::string::npos ? std::string() : part.substr(start);
+        const size_t eq = part.find('=');
+        if (eq != std::string::npos && part.substr(0, eq) == key) {
+            std::string value;
+            for (size_t k = eq + 1; k < part.size(); ++k) {
+                if (part[k] == '\\' && k + 1 < part.size())
+                    ++k;
+                value += part[k];
+            }
+            return value;
+        }
+        i = end + 1;
+    }
+    return std::string();
+}
+
+inline std::string certificateListPayload(const std::vector<Certificate>& certificates)
+{
+    std::string out = "{\"returnValue\":true,\"userCertificateStore\":[";
+    for (size_t i = 0; i < certificates.size(); ++i) {
+        const Certificate& c = certificates[i];
+        if (i)
+            out += ',';
+        out += "{\"certificateId\":" + std::to_string(c.certificateId);
+        if (!c.commonName.empty())
+            out += ",\"commonname\":\"" + jsonEscape(c.commonName) + "\"";
+        if (!c.organization.empty())
+            out += ",\"organization\":\"" + jsonEscape(c.organization) + "\"";
+        out += ",\"certificateFilename\":\"" + jsonEscape(c.path) + "\"}";
+    }
+    out += "]}";
+    return out;
+}
 
 // --- When Device Sleeps -------------------------------------------------------
 //

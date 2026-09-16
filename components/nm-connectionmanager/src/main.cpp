@@ -54,6 +54,7 @@
 //
 
 #include "network_state.h"
+#include "certificates.h"
 #include "nm_client.h"
 #include "sleep_watch.h"
 
@@ -85,6 +86,10 @@ const char* const kStatusMethods[] = { "getStatus", "getstatus", nullptr };
 // keeps them from ever disagreeing about what the radio is doing.
 const char kWifiServiceName[] = "com.palm.wifi";
 
+// The third name: the certificates an enterprise network logs in with. Nothing
+// else in the tree answers it, and the Wi-Fi card is its only caller.
+const char kCertificateServiceName[] = "com.palm.certificatemanager";
+
 // For the signal subscriptions only; the calls themselves are in nm_client.cpp.
 const char kNmService[] = "org.freedesktop.NetworkManager";
 const char kNmIface[] = "org.freedesktop.NetworkManager";
@@ -92,6 +97,7 @@ const char kNmIface[] = "org.freedesktop.NetworkManager";
 GMainLoop* g_loop = nullptr;
 LSPalmService* g_service = nullptr;
 LSPalmService* g_wifiService = nullptr;
+LSPalmService* g_certificateService = nullptr;
 GDBusConnection* g_system = nullptr;
 NmNet::NetworkState g_state;
 std::string g_lastPayload;
@@ -99,6 +105,7 @@ std::string g_lastWifiKey;
 guint g_refreshPending = 0;
 // The network the last connect asked for; see NetworkState::attemptedSsid.
 std::string g_attemptedSsid;
+bool g_attemptedEnterprise = false;
 // The network com.palm.wifi last reported as joined; see leftNetworkPayload.
 std::string g_joinedSsid;
 
@@ -147,6 +154,7 @@ NmNet::NetworkState currentState()
     if (state.wifi.activated())
         g_attemptedSsid.clear();
     state.attemptedSsid = g_attemptedSsid;
+    state.attemptedEnterprise = g_attemptedEnterprise;
     return state;
 }
 
@@ -474,6 +482,14 @@ bool connectWifi(LSHandle* sh, LSMessage* message, void*)
         const std::string type = stringMember(security, "securityType");
         if (!type.empty())
             request.securityType = type;
+        if (json_object* enterprise = member(security, "enterpriseSecurity", json_type_object)) {
+            request.userId = stringMember(enterprise, "userId");
+            request.password = stringMember(enterprise, "password");
+            request.eapType = stringMember(enterprise, "eapType");
+            request.clientCertificatePath = stringMember(enterprise, "clientCertificatePath");
+            if (json_object* verify = member(enterprise, "verifyServerCert", json_type_boolean))
+                request.verifyServerCert = json_object_get_boolean(verify);
+        }
         if (json_object* simple = member(security, "simpleSecurity", json_type_object)) {
             request.passKey = stringMember(simple, "passKey");
             if (json_object* index = member(simple, "keyIndex", json_type_int))
@@ -484,9 +500,19 @@ bool connectWifi(LSHandle* sh, LSMessage* message, void*)
     }
     if (json_object* hidden = member(root, "wasCreatedWithJoinOther", json_type_boolean))
         request.hidden = json_object_get_boolean(hidden);
-    json_object* useStatic = member(root, "useStaticIp", json_type_boolean);
-    request.staticIp = (useStatic && json_object_get_boolean(useStatic))
-                       || member(root, "ipInfo", json_type_object);
+    // The address settings screen sends the profile back with useStaticIp set,
+    // and the addresses under ipInfo when it is true.
+    if (json_object* useStatic = member(root, "useStaticIp", json_type_boolean)) {
+        request.addressChange = true;
+        request.staticIp = json_object_get_boolean(useStatic);
+        if (json_object* ip = member(root, "ipInfo", json_type_object)) {
+            request.ip = stringMember(ip, "ip");
+            request.subnet = stringMember(ip, "subnet");
+            request.gateway = stringMember(ip, "gateway");
+            request.dns1 = stringMember(ip, "dns1");
+            request.dns2 = stringMember(ip, "dns2");
+        }
+    }
     json_object_put(root);
 
     std::string error = NmNet::validateConnect(request);
@@ -507,11 +533,14 @@ bool connectWifi(LSHandle* sh, LSMessage* message, void*)
             attempted = profile.ssid;
     }
     const std::string previous = g_attemptedSsid;
+    const bool previousEnterprise = g_attemptedEnterprise;
     g_attemptedSsid = attempted;
+    g_attemptedEnterprise = request.securityType == "enterprise";
 
     int profileId = 0;
     if (!NmClient::connectWifi(g_system, request, profileId, error)) {
         g_attemptedSsid = previous;
+        g_attemptedEnterprise = previousEnterprise;
         reply(sh, message, NmNet::errorPayload(error));
         return true;
     }
@@ -591,6 +620,18 @@ bool getWifiInfo(LSHandle* sh, LSMessage* message, void*)
     reply(sh, message, NmNet::infoPayload(mac));
     return true;
 }
+
+// com.palm.certificatemanager/listcertificates; see certificates.h.
+bool listCertificates(LSHandle* sh, LSMessage* message, void*)
+{
+    reply(sh, message, NmNet::certificateListPayload(Certificates::list(Certificates::directory())));
+    return true;
+}
+
+LSMethod kCertificateMethods[] = {
+    { "listcertificates", listCertificates },
+    { },
+};
 
 LSMethod kWifiMethods[] = {
     { "getStatus", getWifiStatus },
@@ -677,6 +718,21 @@ int main()
         }
     }
 
+    // Not fatal either: without it, only the TLS login lacks its list.
+    LSErrorInit(&error);
+    if (!LSRegisterPalmService(kCertificateServiceName, &g_certificateService, &error)) {
+        logAndFree("LSRegisterPalmService(com.palm.certificatemanager)", error);
+        g_certificateService = nullptr;
+    } else {
+        LSErrorInit(&error);
+        if (!LSPalmServiceRegisterCategory(g_certificateService, kCategory, kCertificateMethods,
+                                           kCertificateMethods, nullptr, nullptr, &error)
+            || !LSGmainAttachPalmService(g_certificateService, g_loop, &error)) {
+            logAndFree("com.palm.certificatemanager", error);
+            g_certificateService = nullptr;
+        }
+    }
+
     if (g_system) {
         // Everything NetworkManager says about itself and its objects. The
         // property signal carries the interface it belongs to, but filtering on
@@ -721,6 +777,11 @@ int main()
         LSErrorInit(&error);
         if (!LSUnregisterPalmService(g_wifiService, &error))
             logAndFree("LSUnregisterPalmService(com.palm.wifi)", error);
+    }
+    if (g_certificateService) {
+        LSErrorInit(&error);
+        if (!LSUnregisterPalmService(g_certificateService, &error))
+            logAndFree("LSUnregisterPalmService(com.palm.certificatemanager)", error);
     }
     g_sleepWatch.reset();
     if (g_system)

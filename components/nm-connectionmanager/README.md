@@ -97,8 +97,21 @@ has a profile reuses it — with a new key, only its security is replaced, so
 settings made in GNOME survive.
 
 Supported: open networks, WPA/WPA2 personal, WPA3 personal (SAE, chosen from what
-the access point advertises, since the user only ever types a password) and WEP.
-Refused with an error, for now: enterprise networks and static IP settings.
+the access point advertises, since the user only ever types a password), WEP, and
+enterprise (802.1X): PEAP, TTLS and FAST with a user name and password checked
+with MSCHAPv2 ("Auto" offers PEAP and TTLS), and TLS with a certificate. Checking
+the server's certificate checks it against the system's CAs. A rejected
+enterprise login is reported as `IncorrectPassword`, a rejected key as
+`IncorrectPasskey`.
+
+The settings card's address screen sends a saved profile back with
+`useStaticIp`: the profile's `ipv4` is replaced — DHCP, or the address, mask,
+gateway and DNS servers given — and the profile brought up again.
+
+`com.palm.certificatemanager/listcertificates` — a third name owned by the same
+process — lists the certificates a TLS login can use: the PEM files, each with
+its unencrypted key, in `$WEBOS_CERTIFICATE_DIR` or
+`~/.local/share/webos-ce/certificates`.
 
 Three guards that are deliberate:
 

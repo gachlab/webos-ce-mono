@@ -554,6 +554,101 @@ int main()
         check(NmNet::profileListPayload({}) == "{\"returnValue\":true,\"profileList\":[]}", "none saved is an empty list");
     }
 
+
+    std::printf("\nenterprise\n");
+    {
+        NmNet::ConnectRequest r;
+        r.ssid = "Corp"; r.securityType = "enterprise"; r.eapType = "eapPeap";
+        r.userId = "gach"; r.password = "secret";
+        check(NmNet::validateConnect(r).empty(), "PEAP with a user and a password is accepted");
+        r.password.clear();
+        check(!NmNet::validateConnect(r).empty(), "without the password it is not");
+        r.password = "secret"; r.userId.clear();
+        check(!NmNet::validateConnect(r).empty(), "nor without the user");
+        r = NmNet::ConnectRequest(); r.ssid = "Corp"; r.securityType = "enterprise";
+        r.eapType = "eapTls"; r.userId = "gach";
+        check(!NmNet::validateConnect(r).empty(), "TLS without a certificate is refused");
+        r.clientCertificatePath = "/certs/me.pem";
+        check(NmNet::validateConnect(r).empty(), "TLS with one needs no password");
+        r.eapType = "eapLeap";
+        check(!NmNet::validateConnect(r).empty(), "an EAP type the card does not offer is refused");
+        r.eapType = "";
+        r.password = "x";
+        check(NmNet::validateConnect(r).empty(), "no EAP type is Auto");
+
+        check(NmNet::eapMethods("eapAuto") == std::vector<std::string>({"peap", "ttls"}), "Auto offers PEAP and TTLS");
+        check(NmNet::eapMethods("eapPeap") == std::vector<std::string>({"peap"}), "PEAP");
+        check(NmNet::eapMethods("eapTtls") == std::vector<std::string>({"ttls"}), "TTLS");
+        check(NmNet::eapMethods("eapTls") == std::vector<std::string>({"tls"}), "TLS");
+        check(NmNet::eapMethods("eapFast") == std::vector<std::string>({"fast"}), "FAST");
+        check(NmNet::eapMethods("eapLeap").empty(), "and nothing else");
+
+        NmNet::ConnectRequest e; e.securityType = "enterprise";
+        check(NmNet::requestedSecurity(e, NmNet::kSecurityNone) == NmNet::kSecurityEnterprise,
+              "an enterprise request is joined as enterprise");
+        check(std::string(NmNet::keyManagement(NmNet::kSecurityEnterprise)) == "wpa-eap", "with wpa-eap");
+        check(std::string(NmNet::lastConnectError(NmNet::kReasonSupplicantDisconnect, true)) == "IncorrectPassword",
+              "a rejected enterprise login is the user name or password");
+
+        NmNet::NetworkState failed;
+        failed.wifi = wifiDevice(NmNet::kDeviceFailed, 0, "");
+        failed.wifiStateReason = NmNet::kReasonNoSecrets;
+        failed.attemptedSsid = "Corp";
+        failed.attemptedEnterprise = true;
+        check(has(NmNet::wifiStatusPayload(failed, true), "\"lastConnectError\":\"IncorrectPassword\""),
+              "and is reported so");
+    }
+
+    std::printf("\naddress settings\n");
+    {
+        unsigned long v = 0;
+        check(NmNet::parseIpv4("192.168.1.20", v) && v == 0xC0A80114UL, "an address is read");
+        check(!NmNet::parseIpv4("192.168.1", v), "three parts are not an address");
+        check(!NmNet::parseIpv4("192.168.1.256", v), "nor is an octet past 255");
+        check(!NmNet::parseIpv4("192.168..1", v) && !NmNet::parseIpv4("a.b.c.d", v)
+                  && !NmNet::parseIpv4("1.2.3.4.5", v) && !NmNet::parseIpv4("", v),
+              "nor anything else");
+        check(NmNet::prefixOfMask("255.255.255.0") == 24 && NmNet::prefixOfMask("255.255.240.0") == 20
+                  && NmNet::prefixOfMask("255.255.255.255") == 32 && NmNet::prefixOfMask("128.0.0.0") == 1,
+              "masks are prefix lengths");
+        check(NmNet::prefixOfMask("255.0.255.0") == -1, "a mask with a hole is not one");
+        check(NmNet::prefixOfMask("0.0.0.0") == -1, "and neither is no mask");
+
+        NmNet::ConnectRequest r;
+        r.addressChange = true;
+        check(!NmNet::validateConnect(r).empty(), "address settings need a saved network");
+        r.profileId = 3;
+        check(NmNet::validateConnect(r).empty(), "going back to DHCP needs nothing else");
+        r.staticIp = true; r.ip = "192.168.1.20"; r.subnet = "255.255.255.0";
+        check(NmNet::validateConnect(r).empty(), "an address and a mask are enough");
+        r.gateway = "192.168.1.1"; r.dns1 = "1.1.1.1"; r.dns2 = "9.9.9.9";
+        check(NmNet::validateConnect(r).empty(), "with a gateway and two DNS servers");
+        r.ip = "192.168.1";
+        check(has(NmNet::validateConnect(r), "IP address"), "a bad address is named");
+        r.ip = "192.168.1.20"; r.subnet = "255.0.255.0";
+        check(has(NmNet::validateConnect(r), "subnet"), "so is a bad mask");
+        r.subnet = "255.255.255.0"; r.gateway = "x";
+        check(has(NmNet::validateConnect(r), "gateway"), "and a bad gateway");
+        r.gateway = ""; r.dns2 = "300.1.1.1";
+        check(has(NmNet::validateConnect(r), "DNS"), "and a bad DNS server");
+    }
+
+    std::printf("\ncertificates\n");
+    {
+        check(NmNet::dnField("CN=Laptop,O=Example Corp,C=US", "CN") == "Laptop", "the common name");
+        check(NmNet::dnField("CN=Laptop, O=Example Corp", "O") == "Example Corp", "the organization, after a space");
+        check(NmNet::dnField("O=Acme\\, Inc.,CN=Me", "O") == "Acme, Inc.", "an escaped comma is part of the value");
+        check(NmNet::dnField("O=Acme", "CN").empty(), "a missing field is empty");
+        std::vector<NmNet::Certificate> list(2);
+        list[0].certificateId = 1; list[0].commonName = "Me"; list[0].path = "/c/me.pem";
+        list[1].certificateId = 2; list[1].organization = "Acme \"Corp\""; list[1].path = "/c/acme.pem";
+        check(NmNet::certificateListPayload(list)
+                  == "{\"returnValue\":true,\"userCertificateStore\":["
+                     "{\"certificateId\":1,\"commonname\":\"Me\",\"certificateFilename\":\"/c/me.pem\"},"
+                     "{\"certificateId\":2,\"organization\":\"Acme \\\"Corp\\\"\",\"certificateFilename\":\"/c/acme.pem\"}]}",
+              "the store in the shape the library reads");
+    }
+
     std::printf("\nwhen the device sleeps\n");
     {
         bool turnedOff = false;
@@ -616,12 +711,8 @@ int main()
         check(!NmNet::validateConnect(r).empty(), "a 6-character WEP key is refused");
         r.passKey = "abcde"; r.keyIndex = 4;
         check(!NmNet::validateConnect(r).empty(), "and a key index past 3");
-        r = NmNet::ConnectRequest(); r.ssid = "Corp"; r.securityType = "enterprise";
-        check(!NmNet::validateConnect(r).empty(), "enterprise is refused for now");
-        r.securityType = "wapi-psk";
+        r = NmNet::ConnectRequest(); r.ssid = "Corp"; r.securityType = "wapi-psk";
         check(!NmNet::validateConnect(r).empty(), "WAPI is refused");
-        r = NmNet::ConnectRequest(); r.profileId = 3; r.staticIp = true;
-        check(!NmNet::validateConnect(r).empty(), "static IP is refused for now");
 
         NmNet::ConnectRequest wpa; wpa.securityType = "wpa-personal";
         check(NmNet::requestedSecurity(wpa, NmNet::kSecuritySae) == NmNet::kSecuritySae,
