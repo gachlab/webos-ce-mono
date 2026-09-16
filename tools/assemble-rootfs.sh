@@ -164,6 +164,10 @@ mkdir -p "$ROOTFS"/usr/palm/{applications,services,frameworks} "$ROOTFS"/etc/pal
 mkdir -p "$ROOTFS/usr/palm/frameworks/enyo/0.10/framework"
 cp -rf "$C"/enyo-1.0/framework/* "$ROOTFS/usr/palm/frameworks/enyo/0.10/framework/" 2>/dev/null
 ln -sfn 0.10 "$ROOTFS/usr/palm/frameworks/enyo/version" 2>/dev/null
+# lib/networkproxy, which HP's lib/wifi loads and HP never released; ours, beside
+# the framework rather than inside it. See components/enyo-lib-networkproxy.
+mkdir -p "$ROOTFS/usr/palm/frameworks/enyo/0.10/framework/lib/networkproxy"
+cp -f "$C"/enyo-lib-networkproxy/*.js "$ROOTFS/usr/palm/frameworks/enyo/0.10/framework/lib/networkproxy/"
 
 # HP's apps. Each ships its own db8 kinds and permissions.
 for APP in "$C"/core-apps/*/; do
@@ -181,6 +185,15 @@ done
 if [ -f "$C/isis-browser/appinfo.json" ]; then
     rm -rf "$ROOTFS/usr/palm/applications/com.palm.app.browser"
     cp -rf "$C/isis-browser" "$ROOTFS/usr/palm/applications/com.palm.app.browser"
+fi
+
+# The Wi-Fi settings card. Ours: HP's was never released as source. Installed
+# under the id the system menu launches.
+if [ -f "$C/wifi-app/appinfo.json" ]; then
+    rm -rf "$ROOTFS/usr/palm/applications/com.palm.app.wifi"
+    mkdir -p "$ROOTFS/usr/palm/applications/com.palm.app.wifi"
+    cp -rf "$C"/wifi-app/{appinfo.json,index.html,depends.js,icon.png,icon-256x256.png,source,stylesheets,images} \
+        "$ROOTFS/usr/palm/applications/com.palm.app.wifi/"
 fi
 
 # Servicios de aplicacion (JS, corren sobre node)

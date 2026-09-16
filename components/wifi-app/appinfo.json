@@ -1,0 +1,13 @@
+{
+	"id": "com.palm.app.wifi",
+	"title": "Wi-Fi",
+	"type": "web",
+	"main": "index.html",
+	"icon": "icon.png",
+	"splashicon": "icon-256x256.png",
+	"uiRevision": 2,
+	"keywords": ["Settings", "Preferences", "Wireless", "Wifi", "Networking", "wlan", "wi-fi", "wifi"],
+	"version": "1.0.0",
+	"hardwareFeaturesNeeded": ["wifi"],
+	"vendor": "webOS CE"
+}

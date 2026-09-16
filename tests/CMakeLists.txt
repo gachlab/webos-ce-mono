@@ -243,6 +243,15 @@ add_test(NAME number-inputs COMMAND number-inputs)
 set_tests_properties(number-inputs PROPERTIES
     ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
 
+# The Wi-Fi settings card, run as WebAppMgr runs it: its own index.html on the
+# real enyo framework, through the compat layer, with the services stood in for.
+add_executable(wifi-card wifi-card.cpp)
+target_link_libraries(wifi-card PRIVATE qtwebkit-compat-lib)
+add_test(NAME wifi-card COMMAND wifi-card)
+set_tests_properties(wifi-card PROPERTIES
+    ENVIRONMENT "QT_QPA_PLATFORM=offscreen;WEBOS_SOURCE_DIR=${CMAKE_CURRENT_SOURCE_DIR}/.."
+    TIMEOUT 240)
+
 # The prefixed transition events enyo listens for. Without them a Pane's
 # transition never ends and the outgoing view is never hidden: two views paint
 # at once, which looked like transparency in the mail card.
