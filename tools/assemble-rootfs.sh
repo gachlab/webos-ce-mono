@@ -230,6 +230,15 @@ cp -f "$C"/mojoloader/mojoloader.js "$ROOTFS/usr/palm/frameworks/" 2>/dev/null
 # Some components keep them in desktop-support/ and others in service/.
 for DS in "$C"/*/desktop-support "$C"/*/service; do
     [ -d "$DS" ] || continue
+    # pmnetconfigmanager-stub is vendored but never installed -- see where
+    # com.palm.location's stub is installed, below, for why. It has to be skipped
+    # here by name: it ships a plain com.palm.connectionmanager.service, these
+    # directories are globbed in alphabetical order, and "pmnetconfigmanager-stub"
+    # sorts after "nm-connectionmanager", so the stub's file landed on top of the
+    # real service's and pointed the hub back at the JavaScript. The symptom was
+    # indirect: the binary copy below reads Exec= out of these files, so the
+    # service's binary was never copied either.
+    case "$DS" in */pmnetconfigmanager-stub/*) continue ;; esac
     for f in "$DS"/com.palm.*.json.prv;    do [ -e "$f" ] && cp -f "$f" "$ROOTFS/usr/share/ls2/roles/prv/$(basename "$f" .json.prv).json"; done
     for f in "$DS"/com.palm.*.json.pub;    do [ -e "$f" ] && cp -f "$f" "$ROOTFS/usr/share/ls2/roles/pub/$(basename "$f" .json.pub).json"; done
     for f in "$DS"/com.palm.*.service.prv; do [ -e "$f" ] && cp -f "$f" "$ROOTFS/usr/share/ls2/system-services/$(basename "$f" .service.prv).service"; done
@@ -267,12 +276,18 @@ sed -i -E "s|^Exec=[^ ]*/([^ /]+)|Exec=$WEBOS_PREFIX/usr/lib/luna/\\1|" \
     "$ROOTFS"/usr/share/ls2/services/*.service \
     "$ROOTFS"/usr/share/ls2/system-services/*.service 2>/dev/null
 
-# The two JS service stubs. HP places them one by one in its script; they are
-# what answers com.palm.location and com.palm.connectionmanager, and without
-# them the calendar fails with "getCalendars call failed" and the log fills up
-# with "com.palm.connectionmanager is not running".
-for par in "mojolocation-stub:com.palm.location" \
-           "pmnetconfigmanager-stub:com.palm.connectionmanager"; do
+# HP's JS service stub for com.palm.location. Without it the calendar fails with
+# "getCalendars call failed" and the log fills up with "com.palm.location is not
+# running".
+#
+# pmnetconfigmanager-stub used to be installed here too, for
+# com.palm.connectionmanager. It is not any more: components/nm-connectionmanager
+# answers that name from NetworkManager, and the stub's role and .service files
+# are copied later in this script than the real service's, so leaving it in place
+# would silently overwrite them. The component stays in the tree -- it is HP's,
+# and MANIFEST.tsv is an inventory of what HP released -- it is simply not
+# installed, the same way components/luna-sysmgr-ce is kept but never built.
+for par in "mojolocation-stub:com.palm.location"; do
     comp=${par%%:*}; svc=${par##*:}
     [ -d "$C/$comp" ] || continue
     mkdir -p "$ROOTFS/usr/palm/services/$svc"
@@ -280,6 +295,12 @@ for par in "mojolocation-stub:com.palm.location" \
     cp -rf "$C/$comp"/files/sysbus/*.json "$ROOTFS/usr/share/ls2/roles/prv/" 2>/dev/null
     cp -rf "$C/$comp"/files/sysbus/*.json "$ROOTFS/usr/share/ls2/roles/pub/" 2>/dev/null
 done
+
+# A tree assembled before com.palm.connectionmanager became a real service still
+# has the stub's JavaScript in it, and this script never wipes the rootfs. The
+# .service file now names the binary, so the stub is unreachable either way --
+# removing it keeps a stale tree from looking like it has two implementations.
+rm -rf "$ROOTFS/usr/palm/services/com.palm.connectionmanager"
 
 # The JS service launcher, which is what actually starts them.
 if [ -d "$S/usr/palm/services/jsservicelauncher" ]; then
@@ -403,7 +424,9 @@ fi
 cp -f "$R/components/mojoloader/mojoloader.js" "$ROOTFS/usr/palm/frameworks/" 2>/dev/null || true
 
 # The services. Only the ones that are pure JavaScript are useful yet.
-for svc in "$R"/components/mojolocation-stub "$R"/components/pmnetconfigmanager-stub \
+# pmnetconfigmanager-stub is deliberately absent from this list; see the note
+# above, where com.palm.location's stub is installed.
+for svc in "$R"/components/mojolocation-stub \
            "$R"/components/app-services/com.palm.service.*; do
     [ -f "$svc/services.json" ] || continue
     id="$(python3 -c "import json,sys; print(json.load(open(sys.argv[1])).get('id', ''))" "$svc/services.json" 2>/dev/null || true)"

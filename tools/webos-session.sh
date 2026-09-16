@@ -65,7 +65,7 @@ teardown() {
         esac
     done
 
-    for s in mojodb-luna LunaSysService sysfs-powerd filecache activitymanager LunaUniversalSearchMgr; do
+    for s in mojodb-luna LunaSysService sysfs-powerd nm-connectionmanager filecache activitymanager LunaUniversalSearchMgr; do
         for d in /proc/[0-9]*; do
             [ "$(readlink "$d/exe" 2>/dev/null)" = "$ROOTFS/usr/lib/luna/$s" ] \
                 && kill "${d#/proc/}" 2>/dev/null

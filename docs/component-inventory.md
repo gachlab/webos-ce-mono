@@ -58,8 +58,15 @@ Deleting those directories breaks the build. They are not spare.
 Fifteen are installed into the rootfs by `tools/assemble-rootfs.sh`:
 `luna-applauncher`, `luna-systemui`, `enyo-1.0`, `core-apps`, `isis-browser`,
 `isis-fonts`, `foundation-frameworks`, `mojoservice-frameworks`,
-`loadable-frameworks`, `app-services`, `mojolocation-stub`,
-`pmnetconfigmanager-stub`, `underscore`, `mojoloader`.
+`loadable-frameworks`, `app-services`, `mojolocation-stub`, `underscore`,
+`mojoloader`.
+
+`pmnetconfigmanager-stub` used to be on that list and no longer is. It answers
+`com.palm.connectionmanager/getStatus` with a constant -- connected, over wifi,
+on "Open webOS", always -- and `components/nm-connectionmanager` now answers that
+name from NetworkManager instead. The component stays vendored, because
+MANIFEST.tsv is an inventory of what HP released, but nothing copies it into the
+rootfs.
 
 The other two are used at build time rather than install time, which is why a
 grep of `assemble-rootfs.sh` makes them look unused:

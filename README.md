@@ -205,6 +205,16 @@ Restart end or restart the session without touching the machine. On a device
 that was powerd; nothing in the CE drop provides `com.palm.power`, so
 `components/sysfs-powerd` answers it.
 
+**The network state is real**, from NetworkManager over D-Bus. What the CE drop
+ships is `pmnetconfigmanager-stub`, which answers `com.palm.connectionmanager`
+with a constant -- connected, over wifi, on "Open webOS", always -- so every app
+believed it was online whatever the machine was doing. `components/nm-connectionmanager`
+answers that name for real: the wifi's name, address and signal, whether the
+cable is in, and a captive portal reported as one rather than as the internet.
+The four subscribers HP wrote -- the status bar, luna-sysservice, BrowserServer
+and activitymanager -- get pushed an update within a second of the network
+changing.
+
 Not working, with the reasons measured in `KNOWN_BUGS.md`: the on-screen
 keyboard (it draws, but every touch is consumed upstream before it arrives), the
 browser's padlock dialog, and the back gesture's effect inside an app — it

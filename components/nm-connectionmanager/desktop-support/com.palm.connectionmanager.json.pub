@@ -1,0 +1,14 @@
+{
+    "role": {
+        "exeName": "/usr/lib/luna/nm-connectionmanager",
+        "type": "regular",
+        "allowedNames": ["com.palm.connectionmanager"]
+    },
+    "permissions": [
+        {
+            "service": "com.palm.connectionmanager",
+            "inbound": ["*"],
+            "outbound": ["*"]
+        }
+    ]
+}

@@ -106,6 +106,17 @@ target_include_directories(power-state PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/../components/sysfs-powerd/src")
 add_test(NAME power-state COMMAND power-state)
 
+# --- what com.palm.connectionmanager reports, from a fake NetworkManager -------
+# HP's stub answered "connected, over wifi, always". The mapping is header-only
+# and free of both buses so it can be checked without a D-Bus daemon: what is
+# under test is the payload the status bar, luna-sysservice, BrowserServer and
+# activitymanager each read named fields out of -- including the one field whose
+# absence segfaults the shell instead of showing a wrong icon.
+add_executable(network-state network-state.cpp)
+target_include_directories(network-state PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/../components/nm-connectionmanager/src")
+add_test(NAME network-state COMMAND network-state)
+
 # --- which coordinate space a touch point arrives in --------------------------
 add_executable(touch-coordinate-spaces touch-coordinate-spaces.cpp)
 target_link_libraries(touch-coordinate-spaces PRIVATE Qt::Core Qt::Gui Qt::Widgets Qt::GuiPrivate)
