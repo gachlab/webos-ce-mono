@@ -64,6 +64,7 @@
 #include <glib-unix.h>
 
 #include <string>
+#include <vector>
 
 namespace {
 
@@ -93,6 +94,8 @@ NmNet::NetworkState g_state;
 std::string g_lastPayload;
 std::string g_lastWifiKey;
 guint g_refreshPending = 0;
+// The network the last connect asked for; see NetworkState::attemptedSsid.
+std::string g_attemptedSsid;
 
 void logAndFree(const char* where, LSError& error)
 {
@@ -123,9 +126,21 @@ void post(LSPalmService* service, const std::string& payload)
     }
 }
 
+// The state, with what only this process knows added to what NM says.
+NmNet::NetworkState currentState()
+{
+    NmNet::NetworkState state = NmClient::readState(g_system);
+    // A join is over once the device is up; a failure stays reported until the
+    // next join, which is what lets the settings app show why.
+    if (state.wifi.activated())
+        g_attemptedSsid.clear();
+    state.attemptedSsid = g_attemptedSsid;
+    return state;
+}
+
 void refresh()
 {
-    g_state = NmClient::readState(g_system);
+    g_state = currentState();
     // Compared as the payload rather than field by field: if what the
     // subscribers would read has not changed, there is nothing to tell them.
     // NetworkManager emits PropertiesChanged for things webOS has no notion of
@@ -264,9 +279,213 @@ bool getWifiStatus(LSHandle* sh, LSMessage* message, void*)
     return true;
 }
 
+
+// --- com.palm.wifi, phase 3 -------------------------------------------------
+
+void reply(LSHandle* sh, LSMessage* message, const std::string& payload)
+{
+    LSError error;
+    LSErrorInit(&error);
+    if (!LSMessageReply(sh, message, payload.c_str(), &error))
+        logAndFree("LSMessageReply", error);
+}
+
+// The request's JSON object, or nullptr; the caller frees it.
+json_object* requestOf(LSMessage* message)
+{
+    const char* payload = LSMessageGetPayload(message);
+    if (!payload)
+        return nullptr;
+    json_object* root = json_tokener_parse(payload);
+    if (!root || is_error(root) || !json_object_is_type(root, json_type_object)) {
+        if (root && !is_error(root))
+            json_object_put(root);
+        return nullptr;
+    }
+    return root;
+}
+
+json_object* member(json_object* object, const char* name, json_type type)
+{
+    if (!object)
+        return nullptr;
+    json_object* value = json_object_object_get(object, name);
+    return (value && !is_error(value) && json_object_is_type(value, type)) ? value : nullptr;
+}
+
+std::string stringMember(json_object* object, const char* name)
+{
+    json_object* value = member(object, name, json_type_string);
+    return value ? json_object_get_string(value) : std::string();
+}
+
+// {"state": "enabled" | "disabled"}, from the menu's switch and the library.
+bool setWifiState(LSHandle* sh, LSMessage* message, void*)
+{
+    json_object* root = requestOf(message);
+    const std::string state = stringMember(root, "state");
+    if (root)
+        json_object_put(root);
+    if (state != "enabled" && state != "disabled") {
+        reply(sh, message, NmNet::errorPayload("expected {\"state\": \"enabled\" | \"disabled\"}"));
+        return true;
+    }
+    std::string error;
+    if (!NmClient::setWifiEnabled(g_system, state == "enabled", error)) {
+        reply(sh, message, NmNet::errorPayload(error));
+        return true;
+    }
+    reply(sh, message, "{\"returnValue\":true}");
+    scheduleRefresh();
+    return true;
+}
+
+bool findNetworks(LSHandle* sh, LSMessage* message, void*)
+{
+    std::vector<NmNet::AccessPoint> networks;
+    std::string error;
+    if (!NmClient::scan(g_system, networks, error)) {
+        reply(sh, message, NmNet::errorPayload(error));
+        return true;
+    }
+    reply(sh, message, NmNet::foundNetworksPayload(networks, g_state));
+    return true;
+}
+
+// Two shapes arrive. The system menu sends {"profileId": n}, or {"ssid": s}
+// with a top-level "securityType"; enyo's library sends the security inside
+// "security", with the key under "simpleSecurity".
+bool connectWifi(LSHandle* sh, LSMessage* message, void*)
+{
+    json_object* root = requestOf(message);
+    if (!root) {
+        reply(sh, message, NmNet::errorPayload("expected a JSON object"));
+        return true;
+    }
+    NmNet::ConnectRequest request;
+    if (json_object* id = member(root, "profileId", json_type_int))
+        request.profileId = json_object_get_int(id);
+    request.ssid = stringMember(root, "ssid");
+    request.securityType = stringMember(root, "securityType");
+    if (json_object* security = member(root, "security", json_type_object)) {
+        const std::string type = stringMember(security, "securityType");
+        if (!type.empty())
+            request.securityType = type;
+        if (json_object* simple = member(security, "simpleSecurity", json_type_object)) {
+            request.passKey = stringMember(simple, "passKey");
+            if (json_object* index = member(simple, "keyIndex", json_type_int))
+                request.keyIndex = json_object_get_int(index);
+            if (json_object* hex = member(simple, "isInHex", json_type_boolean))
+                request.isInHex = json_object_get_boolean(hex);
+        }
+    }
+    if (json_object* hidden = member(root, "wasCreatedWithJoinOther", json_type_boolean))
+        request.hidden = json_object_get_boolean(hidden);
+    json_object* useStatic = member(root, "useStaticIp", json_type_boolean);
+    request.staticIp = (useStatic && json_object_get_boolean(useStatic))
+                       || member(root, "ipInfo", json_type_object);
+    json_object_put(root);
+
+    std::string error = NmNet::validateConnect(request);
+    if (!error.empty()) {
+        reply(sh, message, NmNet::errorPayload(error));
+        return true;
+    }
+
+    // Named before the call, so a failure reported by NM's signals while the
+    // call is still returning already carries it.
+    std::string attempted = request.ssid;
+    if (attempted.empty()) {
+        NmNet::Profile profile;
+        NmNet::IpInfo ip;
+        bool active = false;
+        std::string ignored;
+        if (NmClient::getProfile(g_system, request.profileId, profile, ip, active, ignored))
+            attempted = profile.ssid;
+    }
+    const std::string previous = g_attemptedSsid;
+    g_attemptedSsid = attempted;
+
+    int profileId = 0;
+    if (!NmClient::connectWifi(g_system, request, profileId, error)) {
+        g_attemptedSsid = previous;
+        reply(sh, message, NmNet::errorPayload(error));
+        return true;
+    }
+    reply(sh, message, "{\"returnValue\":true,\"profileId\":" + std::to_string(profileId) + "}");
+    scheduleRefresh();
+    return true;
+}
+
+int profileIdOf(LSMessage* message)
+{
+    json_object* root = requestOf(message);
+    json_object* id = member(root, "profileId", json_type_int);
+    const int out = id ? json_object_get_int(id) : 0;
+    if (root)
+        json_object_put(root);
+    return out;
+}
+
+bool getWifiProfile(LSHandle* sh, LSMessage* message, void*)
+{
+    const int id = profileIdOf(message);
+    if (id <= 0) {
+        reply(sh, message, NmNet::errorPayload("expected {\"profileId\": number}"));
+        return true;
+    }
+    NmNet::Profile profile;
+    NmNet::IpInfo ip;
+    bool active = false;
+    std::string error;
+    if (!NmClient::getProfile(g_system, id, profile, ip, active, error)) {
+        reply(sh, message, NmNet::errorPayload(error));
+        return true;
+    }
+    reply(sh, message, NmNet::profilePayload(profile, active ? &ip : nullptr));
+    return true;
+}
+
+// A profileId is required. enyo's library also calls this with no arguments,
+// which on the phone meant "every saved network"; here that would delete the
+// user's NetworkManager profiles, so it is refused.
+bool deleteWifiProfile(LSHandle* sh, LSMessage* message, void*)
+{
+    const int id = profileIdOf(message);
+    if (id <= 0) {
+        reply(sh, message, NmNet::errorPayload("expected {\"profileId\": number}"));
+        return true;
+    }
+    std::string error;
+    if (!NmClient::deleteProfile(g_system, id, error)) {
+        reply(sh, message, NmNet::errorPayload(error));
+        return true;
+    }
+    reply(sh, message, "{\"returnValue\":true}");
+    scheduleRefresh();
+    return true;
+}
+
+bool getWifiInfo(LSHandle* sh, LSMessage* message, void*)
+{
+    std::string mac, error;
+    if (!NmClient::wifiMacAddress(g_system, mac, error)) {
+        reply(sh, message, NmNet::errorPayload(error));
+        return true;
+    }
+    reply(sh, message, NmNet::infoPayload(mac));
+    return true;
+}
+
 LSMethod kWifiMethods[] = {
     { "getStatus", getWifiStatus },
     { "getstatus", getWifiStatus },
+    { "setstate", setWifiState },
+    { "findnetworks", findNetworks },
+    { "connect", connectWifi },
+    { "getprofile", getWifiProfile },
+    { "deleteprofile", deleteWifiProfile },
+    { "getinfo", getWifiInfo },
     { },
 };
 
@@ -362,7 +581,7 @@ int main()
 
     // The state before anyone can ask for it, and g_lastPayload with it, so the
     // first real change is what gets posted rather than a duplicate of this.
-    g_state = NmClient::readState(g_system);
+    g_state = currentState();
     g_lastPayload = NmNet::statusPayload(g_state, true);
     g_lastWifiKey = NmNet::wifiChangeKey(g_state);
     g_message("nm-connectionmanager: com.palm.connectionmanager up, wifi=%s wired=%s internet=%s",

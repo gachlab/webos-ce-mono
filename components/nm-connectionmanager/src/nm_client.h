@@ -35,6 +35,7 @@
 #include <gio/gio.h>
 
 #include <string>
+#include <vector>
 
 namespace NmClient {
 
@@ -46,6 +47,35 @@ NmNet::NetworkState readState(GDBusConnection* bus);
 // Connects or disconnects the cable. On failure, error holds NetworkManager's
 // own message, or "no wired device" when the machine has no ethernet socket.
 bool setWired(GDBusConnection* bus, bool connected, std::string& error);
+
+// --- wifi -------------------------------------------------------------------
+// Every call below fails with "no wifi device" on a machine without one, and
+// otherwise with NetworkManager's own message.
+
+// Switches the radio: NetworkManager's WirelessEnabled.
+bool setWifiEnabled(GDBusConnection* bus, bool enabled, std::string& error);
+
+// The networks in range, one entry per name, with any saved profile for each.
+// Asks NetworkManager to scan again as well; the list returned is the one it
+// already has, and the fresh scan reaches the next call.
+bool scan(GDBusConnection* bus, std::vector<NmNet::AccessPoint>& networks, std::string& error);
+
+// Joins a network: a saved profile by id, or a network by name, creating its
+// profile -- or replacing the security of the one that exists -- when a key is
+// given. profileId is the profile used. The request is expected to have passed
+// NmNet::validateConnect.
+bool connectWifi(GDBusConnection* bus, const NmNet::ConnectRequest& request,
+                 int& profileId, std::string& error);
+
+// A saved wifi profile, and the address in use when it is the active one
+// (active says which). Profiles that are not wifi -- the cable, a VPN -- are
+// refused: this is com.palm.wifi, and it must not hand out or delete those.
+bool getProfile(GDBusConnection* bus, int profileId, NmNet::Profile& profile,
+                NmNet::IpInfo& ip, bool& active, std::string& error);
+bool deleteProfile(GDBusConnection* bus, int profileId, std::string& error);
+
+// The wifi adapter's hardware address.
+bool wifiMacAddress(GDBusConnection* bus, std::string& mac, std::string& error);
 
 } // namespace NmClient
 

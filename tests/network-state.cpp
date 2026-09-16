@@ -24,6 +24,7 @@
 
 #include <cstdio>
 #include <string>
+#include <vector>
 
 static int g_failures = 0;
 
@@ -346,6 +347,201 @@ int main()
         NmNet::NetworkState dropped = a;
         dropped.wifi.state = NmNet::kDeviceDisconnected;
         check(NmNet::wifiChangeKey(a) != NmNet::wifiChangeKey(dropped), "so is dropping the network");
+    }
+
+
+    std::printf("\ncom.palm.wifi: the radio switched off\n");
+    {
+        NmNet::NetworkState off;
+        off.wifi = wifiDevice(20, 0, "");
+        off.wifiEnabled = false;
+        check(has(NmNet::wifiStatusPayload(off, true), "\"status\":\"serviceDisabled\""),
+              "a radio switched off reads serviceDisabled, not notAssociated");
+        NmNet::NetworkState on = off;
+        on.wifiEnabled = true;
+        check(NmNet::wifiChangeKey(off) != NmNet::wifiChangeKey(on), "and switching it is a change");
+    }
+
+    std::printf("\ncom.palm.wifi: a failed join\n");
+    {
+        NmNet::NetworkState failed;
+        failed.wifi = wifiDevice(NmNet::kDeviceFailed, 0, "");
+        failed.wifiStateReason = NmNet::kReasonSupplicantDisconnect;
+        failed.attemptedSsid = "Cafe";
+        std::string p = NmNet::wifiStatusPayload(failed, true);
+        check(has(p, "\"connectState\":\"associationFailed\""), "FAILED is associationFailed");
+        check(has(p, "\"lastConnectError\":\"IncorrectPasskey\""), "a supplicant disconnect is a wrong password");
+        check(has(p, "\"ssid\":\"Cafe\""), "naming the network that was being joined");
+
+        NmNet::NetworkState settled = failed;
+        settled.wifi.state = NmNet::kDeviceDisconnected;
+        p = NmNet::wifiStatusPayload(settled, true);
+        check(has(p, "\"connectState\":\"associationFailed\""),
+              "still a failure once NM has settled on DISCONNECTED");
+        check(NmNet::wifiChangeKey(settled) != NmNet::wifiChangeKey(NmNet::NetworkState()),
+              "and a change worth pushing");
+
+        NmNet::NetworkState userDisconnect = settled;
+        userDisconnect.wifiStateReason = 39;   // USER_REQUESTED
+        check(has(NmNet::wifiStatusPayload(userDisconnect, true), "\"status\":\"serviceEnabled\""),
+              "a disconnect the user asked for is not a failure");
+
+        NmNet::NetworkState nothingAttempted = settled;
+        nothingAttempted.attemptedSsid.clear();
+        check(has(NmNet::wifiStatusPayload(nothingAttempted, true), "\"status\":\"serviceEnabled\""),
+              "nor is an old failure when nothing is being joined");
+
+        check(std::string(NmNet::lastConnectError(NmNet::kReasonNoSecrets)) == "IncorrectPasskey",
+              "NM asking for secrets again is a wrong password");
+        check(std::string(NmNet::lastConnectError(NmNet::kReasonSupplicantTimeout)) == "IncorrectPasskey",
+              "so is a handshake that timed out");
+        check(std::string(NmNet::lastConnectError(NmNet::kReasonSsidNotFound)) == "ApNotFound",
+              "a network that is not there is ApNotFound");
+        check(std::string(NmNet::lastConnectError(1)) == "AssociationFailed", "anything else is generic");
+    }
+
+    std::printf("\ncom.palm.wifi: joining\n");
+    {
+        NmNet::NetworkState joining;
+        joining.wifi = wifiDevice(NmNet::kDeviceConfig, 0, "");
+        joining.attemptedSsid = "Cafe";
+        joining.wifiProfileId = 12;
+        const std::string p = NmNet::wifiStatusPayload(joining, true);
+        check(has(p, "\"connectState\":\"associating\"") && has(p, "\"ssid\":\"Cafe\""),
+              "associating names the network before NM knows the access point");
+        check(has(p, "\"profileId\":12"), "and carries the profile being used");
+    }
+
+    std::printf("\nsecurity an access point advertises\n");
+    {
+        check(NmNet::apSecurity(0, 0, 0) == NmNet::kSecurityNone, "no flags is open");
+        check(NmNet::apSecurity(NmNet::kApPrivacy, 0, 0) == NmNet::kSecurityWep, "privacy alone is WEP");
+        check(NmNet::apSecurity(NmNet::kApPrivacy, 0, NmNet::kApKeyMgmtPsk) == NmNet::kSecurityWpaPsk,
+              "RSN with PSK is WPA personal");
+        check(NmNet::apSecurity(NmNet::kApPrivacy, NmNet::kApKeyMgmtPsk, 0) == NmNet::kSecurityWpaPsk,
+              "and so is WPA1 with PSK");
+        check(NmNet::apSecurity(NmNet::kApPrivacy, 0, NmNet::kApKeyMgmtSae) == NmNet::kSecuritySae,
+              "SAE alone is WPA3");
+        check(NmNet::apSecurity(NmNet::kApPrivacy, 0, NmNet::kApKeyMgmtSae | NmNet::kApKeyMgmtPsk)
+                  == NmNet::kSecurityWpaPsk,
+              "transition mode is joined with PSK");
+        check(NmNet::apSecurity(NmNet::kApPrivacy, 0, NmNet::kApKeyMgmt8021x | NmNet::kApKeyMgmtPsk)
+                  == NmNet::kSecurityEnterprise,
+              "802.1X is enterprise whatever else is offered");
+        check(NmNet::securityType(NmNet::kSecurityNone) == nullptr, "an open network has no securityType");
+        check(std::string(NmNet::securityType(NmNet::kSecuritySae)) == "wpa-personal",
+              "WPA3 is wpa-personal to webOS");
+        check(std::string(NmNet::keyManagement(NmNet::kSecuritySae)) == "sae", "but sae to NetworkManager");
+        check(std::string(NmNet::keyManagement(NmNet::kSecurityWep)) == "none", "WEP is key-mgmt none");
+    }
+
+    std::printf("\nprofile ids\n");
+    {
+        check(NmNet::profileIdOf("/org/freedesktop/NetworkManager/Settings/12") == 12, "the number ends the path");
+        check(NmNet::profileIdOf("/org/freedesktop/NetworkManager/Devices/12") == 0, "only a settings path");
+        check(NmNet::profileIdOf("/org/freedesktop/NetworkManager/Settings/") == 0, "with a number");
+        check(NmNet::profileIdOf("/org/freedesktop/NetworkManager/Settings/1x") == 0, "and nothing else");
+        check(NmNet::profileIdOf("/org/freedesktop/NetworkManager/Settings/99999999999") == 0,
+              "that fits in an int");
+        check(NmNet::settingsPathOf(7) == "/org/freedesktop/NetworkManager/Settings/7", "and back");
+    }
+
+    std::printf("\nthe scan list\n");
+    {
+        std::vector<NmNet::AccessPoint> raw(5);
+        raw[0].ssid = "Office"; raw[0].strength = 40;
+        raw[1].ssid = "Office"; raw[1].strength = 90; raw[1].security = NmNet::kSecurityWpaPsk;
+        raw[2].ssid = "";       raw[2].strength = 99;
+        raw[3].ssid = "Home";   raw[3].strength = 30; raw[3].active = true; raw[3].profileId = 4;
+        raw[4].ssid = "Office"; raw[4].strength = 10; raw[4].profileId = 9;
+        raw[0].security = NmNet::kSecurityWpaPsk;
+        const std::vector<NmNet::AccessPoint> merged = NmNet::mergeScan(raw);
+        check(merged.size() == 2, "one entry per name, hidden networks left out");
+        check(merged.size() == 2 && merged[0].ssid == "Home", "the joined network first, however weak");
+        check(merged.size() == 2 && merged[1].strength == 90, "the strongest access point speaks for the name");
+        check(merged.size() == 2 && merged[1].profileId == 9, "keeping a profile any of them had");
+
+        NmNet::NetworkState joined;
+        joined.wifi = wifiDevice(NmNet::kDeviceActivated, 30, "Home");
+        const std::string p = NmNet::foundNetworksPayload(merged, joined);
+        check(has(p, "{\"networkInfo\":{\"ssid\":\"Home\",\"signalBars\":1,\"signalLevel\":30,\"profileId\":4,\"connectState\":\"ipConfigured\"}}"),
+              "the joined network: no securityType, its profile and its state");
+        check(has(p, "{\"networkInfo\":{\"ssid\":\"Office\",\"signalBars\":3,\"signalLevel\":90,\"securityType\":\"wpa-personal\",\"profileId\":9}}"),
+              "another: its security, no connectState");
+        check(NmNet::foundNetworksPayload({}, joined) == "{\"returnValue\":true,\"foundNetworks\":[]}",
+              "an empty scan is an empty list, not an error");
+    }
+
+    std::printf("\nprofile, info and errors\n");
+    {
+        NmNet::Profile profile;
+        profile.profileId = 4;
+        profile.ssid = "Ho\"me";
+        profile.security = NmNet::kSecurityWep;
+        NmNet::IpInfo ip;
+        ip.ip = "192.168.1.66"; ip.subnet = NmNet::subnetMask(24); ip.gateway = "192.168.1.1";
+        ip.dns1 = "1.1.1.1";
+        const std::string p = NmNet::profilePayload(profile, &ip);
+        check(has(p, "\"wifiProfile\":{\"profileId\":4,\"ssid\":\"Ho\\\"me\",\"securityType\":\"wep\",\"useStaticIp\":false}"),
+              "the profile, its name escaped");
+        check(has(p, "\"ipInfo\":{\"ip\":\"192.168.1.66\",\"subnet\":\"255.255.255.0\",\"gateway\":\"192.168.1.1\",\"dns1\":\"1.1.1.1\"}"),
+              "the address at the top level, where the library reads it");
+        check(!has(NmNet::profilePayload(profile, nullptr), "ipInfo"), "no address for a profile not in use");
+        check(NmNet::subnetMask(0) == "0.0.0.0" && NmNet::subnetMask(32) == "255.255.255.255"
+                  && NmNet::subnetMask(20) == "255.255.240.0" && NmNet::subnetMask(33).empty(),
+              "prefix lengths as masks");
+        check(NmNet::infoPayload("AA:BB") == "{\"returnValue\":true,\"wifiInfo\":{\"macAddress\":\"AA:BB\",\"wapi\":\"disabled\"}}",
+              "getinfo, with WAPI off");
+        check(NmNet::errorPayload("bad \"x\"") == "{\"returnValue\":false,\"errorText\":\"bad \\\"x\\\"\"}",
+              "errors are JSON too");
+    }
+
+    std::printf("\nwhat connect accepts\n");
+    {
+        NmNet::ConnectRequest r;
+        check(!NmNet::validateConnect(r).empty(), "nothing to connect to is refused");
+        r.profileId = 3;
+        check(NmNet::validateConnect(r).empty(), "a profile is enough");
+        r.profileId = -1;
+        check(!NmNet::validateConnect(r).empty(), "a negative profile is not");
+        r = NmNet::ConnectRequest(); r.ssid = "Cafe";
+        check(NmNet::validateConnect(r).empty(), "an open network needs only its name");
+        r.ssid = std::string(33, 'x');
+        check(!NmNet::validateConnect(r).empty(), "a name longer than 32 bytes is refused");
+        r = NmNet::ConnectRequest(); r.ssid = "Home"; r.securityType = "wpa-personal";
+        r.passKey = "1234567";
+        check(!NmNet::validateConnect(r).empty(), "a 7-character WPA password is refused");
+        r.passKey = "12345678";
+        check(NmNet::validateConnect(r).empty(), "8 is accepted");
+        r.passKey = std::string(63, 'a');
+        check(NmNet::validateConnect(r).empty(), "63 is accepted");
+        r.passKey = std::string(64, 'a');
+        check(NmNet::validateConnect(r).empty(), "64 hex digits are a raw key");
+        r.passKey = std::string(64, 'z');
+        check(!NmNet::validateConnect(r).empty(), "64 characters that are not hex are not");
+        r = NmNet::ConnectRequest(); r.ssid = "Old"; r.securityType = "wep";
+        r.passKey = "abcde";
+        check(NmNet::validateConnect(r).empty(), "a 5-character WEP key");
+        r.passKey = "0123456789";
+        check(NmNet::validateConnect(r).empty(), "a 10-digit hex WEP key");
+        r.passKey = "abcdef";
+        check(!NmNet::validateConnect(r).empty(), "a 6-character WEP key is refused");
+        r.passKey = "abcde"; r.keyIndex = 4;
+        check(!NmNet::validateConnect(r).empty(), "and a key index past 3");
+        r = NmNet::ConnectRequest(); r.ssid = "Corp"; r.securityType = "enterprise";
+        check(!NmNet::validateConnect(r).empty(), "enterprise is refused for now");
+        r.securityType = "wapi-psk";
+        check(!NmNet::validateConnect(r).empty(), "WAPI is refused");
+        r = NmNet::ConnectRequest(); r.profileId = 3; r.staticIp = true;
+        check(!NmNet::validateConnect(r).empty(), "static IP is refused for now");
+
+        NmNet::ConnectRequest wpa; wpa.securityType = "wpa-personal";
+        check(NmNet::requestedSecurity(wpa, NmNet::kSecuritySae) == NmNet::kSecuritySae,
+              "a password for a WPA3-only network is joined with SAE");
+        check(NmNet::requestedSecurity(wpa, NmNet::kSecurityWpaPsk) == NmNet::kSecurityWpaPsk,
+              "otherwise with PSK");
+        check(NmNet::requestedSecurity(wpa, NmNet::kSecurityNone) == NmNet::kSecurityWpaPsk,
+              "including when the network was not in the scan");
     }
 
     std::printf("\n%s\n", g_failures == 0 ? "OK" : "FAILED");

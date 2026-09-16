@@ -73,6 +73,49 @@ Two things are worth knowing, both measured on the machine this was written for:
   `onInternet: "no"` and no internet, which is what stops the email app from
   syncing against a login page.
 
+com.palm.wifi
+-------------
+
+The same process owns `com.palm.wifi`, so the two names can never disagree about
+the radio. Its callers are the system menu's wifi drawer and enyo's wifi library
+(`enyo-1.0/framework/lib/wifi`), and the vocabulary is theirs:
+
+| Method | What it does |
+|---|---|
+| `getstatus` | subscribable; `serviceDisabled`, `serviceEnabled`, or `connectionStateChanged` with `networkInfo` |
+| `setstate` | `{"state": "enabled" \| "disabled"}`, NetworkManager's `WirelessEnabled` |
+| `findnetworks` | the networks in range, one entry per name, strongest access point first after the joined one, with the saved `profileId` of each |
+| `connect` | `{"profileId": n}`, or `{"ssid": s}` with the security either top-level (the menu) or under `security.simpleSecurity` (the library) |
+| `getprofile` | a saved wifi profile, and the address in use when it is the active one |
+| `deleteprofile` | a saved wifi profile, by id |
+| `getinfo` | the radio's MAC address |
+
+A `profileId` is the number that ends NetworkManager's settings path
+(`/org/freedesktop/NetworkManager/Settings/12`). Joining a network that already
+has a profile reuses it — with a new key, only its security is replaced, so
+settings made in GNOME survive.
+
+Supported: open networks, WPA/WPA2 personal, WPA3 personal (SAE, chosen from what
+the access point advertises, since the user only ever types a password) and WEP.
+Refused with an error, for now: enterprise networks and static IP settings.
+
+Three guards that are deliberate:
+
+* **Only wifi profiles.** `getprofile`, `deleteprofile` and `connect` refuse a
+  profile whose type is not `802-11-wireless`: the cable and a VPN live in the
+  same list, and this is not their API.
+* **`deleteprofile` needs an id.** enyo's library also calls it with no
+  arguments, which on the phone meant every saved network. Here that would be
+  the user's NetworkManager profiles.
+* **A failed join is still a failure once NetworkManager has moved on.** NM goes
+  from FAILED to DISCONNECTED within a second, keeping the reason; the service
+  reads the state once per burst, so FAILED is often never seen. A disconnected
+  radio whose reason is a join failure, while a join was requested, is reported
+  as `associationFailed` with `lastConnectError` — `IncorrectPasskey` for the
+  supplicant disconnecting, timing out or asking for secrets again — and named
+  after the network being joined, because the library ignores a failure that
+  does not name it.
+
 The one field that is not a preference
 --------------------------------------
 
