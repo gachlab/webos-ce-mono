@@ -339,6 +339,16 @@ int main(int argc, char** argv)
         check(card.js("enyo.$.wifiApp_caption.getShowing() && enyo.$.wifiApp_caption.getContent() === ''") == "true",
               "and an empty caption line over the list, as on the phone");
         check(card.services.count("com.palm.wifi/getprofile ") == 0, "nothing opened without a target");
+        check(card.js("(function () { var p = enyo.$.wifiApp_pane.hasNode(), s = enyo.$.wifiApp_scroller.hasNode();"
+                      " return p.offsetTop + p.offsetHeight <= s.clientHeight; })()") == "true",
+              "the card fits its scroller, so there is nothing to scroll",
+              card.js("(function () { var p = enyo.$.wifiApp_pane.hasNode();"
+                      " return p.offsetTop + '+' + p.offsetHeight + ' in ' + enyo.$.wifiApp_scroller.hasNode().clientHeight; })()"));
+        check(card.js("enyo.$.wifiApp_config.hasNode().getBoundingClientRect().top"
+                      " - enyo.$.wifiApp_scroller.hasNode().getBoundingClientRect().top") == "29",
+              "with the list where it was: 23px, then the empty caption line",
+              card.js("enyo.$.wifiApp_config.hasNode().getBoundingClientRect().top"
+                      " - enyo.$.wifiApp_scroller.hasNode().getBoundingClientRect().top"));
     }
 
     std::printf("join\n");

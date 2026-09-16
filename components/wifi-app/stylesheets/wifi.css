@@ -6,6 +6,22 @@
 	margin: 23px auto 0;
 }
 
+/*
+ * The same column for the pane inside the scroller, with its 23px gap moved
+ * inside each view. HP's card put the gap on the pane as a margin, and the
+ * pane already fills the scroller, so the content was always 23px taller than
+ * the screen and the whole card moved under a wheel or a drag.
+ */
+.wifi-app-pane {
+	width: 500px;
+	margin: 0 auto;
+}
+
+.wifi-app-pane > * {
+	padding-top: 23px;
+	box-sizing: border-box;
+}
+
 .wifi-app-header .enyo-header-inner {
 	padding-top: 3px;
 	padding-bottom: 3px;

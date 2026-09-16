@@ -73,7 +73,7 @@ enyo.kind({
 		{className: "wifi-app-header-shadow"},
 
 		{kind: "Scroller", flex: 1, components: [
-			{name: "pane", kind: "Pane", className: "wifi-app-column", transitionKind: "enyo.transitions.Simple", components: [
+			{name: "pane", kind: "Pane", className: "wifi-app-pane", transitionKind: "enyo.transitions.Simple", components: [
 				{kind: "VFlexBox", components: [
 					{name: "caption", className: "wifi-app-note wifi-app-caption", showing: false},
 					{name: "config", kind: "WiFiConfig", onViewChange: "configViewChanged", onBssChange: "accessPointChanged"},
