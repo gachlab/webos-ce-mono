@@ -70,7 +70,7 @@ private Q_SLOTS:
 
 	// The cable. Ours: webOS had no wired networking in this menu.
 	void slotWiredToggleTriggered(bool connected);
-	void slotWiredStateChanged(bool connected, std::string interfaceName, std::string ipAddress);
+	void slotWiredStateChanged(bool connected, bool carrier, std::string interfaceName, std::string ipAddress);
 
 	void slotBluetoothMenuOpened();
 	void slotBluetoothMenuClosed();

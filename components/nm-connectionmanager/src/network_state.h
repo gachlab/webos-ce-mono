@@ -104,6 +104,13 @@ struct Device {
     std::string ipAddress;
     std::string ssid;              // wifi only, empty otherwise
     int strength = -1;             // wifi only, 0..100; -1 when not applicable
+    // Ethernet only: whether a cable is physically in the socket, from NM's
+    // Wired.Carrier. It is not the same question as "connected" -- a cable can
+    // be in with the connection taken down -- and the difference is what makes
+    // the system menu's row worth tapping or not. Measured with the cable out:
+    // State 20, Carrier false, and a connect attempt refused by NM itself with
+    // "because device has no carrier".
+    bool carrier = false;
 
     bool activated() const { return present && state == kDeviceActivated; }
 };
@@ -255,6 +262,8 @@ inline std::string statusPayload(const NetworkState& state, bool subscribed)
     if (!state.wired.ipAddress.empty()) {
         out += ",\"ipAddress\":\"" + jsonEscape(state.wired.ipAddress) + "\"";
     }
+    out += ",\"carrier\":";
+    out += state.wired.carrier ? "true" : "false";
     out += "}";
 
     // Always present, always disconnected: ConnectionManagerProxy reads

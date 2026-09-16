@@ -213,7 +213,7 @@ Q_SIGNALS:
 	void signalWanIndexChanged(bool show, StatusBar::IndexWAN index);
 	void signalBluetoothIndexChanged(bool show, StatusBar::IndexBluetooth index);
 	void signalWifiIndexChanged(bool show, StatusBar::IndexWiFi index);
-	void signalWiredStateChanged(bool connected, std::string interfaceName, std::string ipAddress);
+	void signalWiredStateChanged(bool connected, bool carrier, std::string interfaceName, std::string ipAddress);
 	void signalSystemTimeChanged();
 
 

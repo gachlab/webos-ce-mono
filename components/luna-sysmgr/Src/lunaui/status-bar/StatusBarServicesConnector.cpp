@@ -2836,6 +2836,7 @@ bool StatusBarServicesConnector::connMgrEventsCallback(LSHandle* handle, LSMessa
 	// should still show that it is plugged in -- that is the difference between
 	// "no cable" and "cable, no internet", and the second is worth seeing.
 	bool wiredConnected = false;
+	bool wiredCarrier = false;
 	std::string wiredInterface;
 	std::string wiredAddress;
 	struct json_object* wiredObj = json_object_object_get(root, "wired");
@@ -2855,6 +2856,15 @@ bool StatusBarServicesConnector::connMgrEventsCallback(LSHandle* handle, LSMessa
 				wiredInterface = value;
 		}
 
+		// Whether a cable is in the socket, which "disconnected" does not say:
+		// an empty socket and a connection taken down by hand read the same, and
+		// only the second can be connected again. The menu row is tappable or
+		// not from this.
+		wiredField = json_object_object_get(wiredObj, "carrier");
+		if (wiredField && !is_error(wiredField) && json_object_is_type(wiredField, json_type_boolean)) {
+			wiredCarrier = json_object_get_boolean(wiredField);
+		}
+
 		wiredField = json_object_object_get(wiredObj, "ipAddress");
 		if (wiredField && !is_error(wiredField) && json_object_is_type(wiredField, json_type_string)) {
 			const char* value = json_object_get_string(wiredField);
@@ -2862,7 +2872,7 @@ bool StatusBarServicesConnector::connMgrEventsCallback(LSHandle* handle, LSMessa
 				wiredAddress = value;
 		}
 	}
-	Q_EMIT signalWiredStateChanged(wiredConnected, wiredInterface, wiredAddress);
+	Q_EMIT signalWiredStateChanged(wiredConnected, wiredCarrier, wiredInterface, wiredAddress);
 
 	if (root && !is_error(root)) json_object_put(root);
 

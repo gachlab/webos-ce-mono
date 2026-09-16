@@ -136,6 +136,17 @@ guint32 uintProperty(const char* path, const char* iface, const char* name, guin
     return out;
 }
 
+bool boolProperty(const char* path, const char* iface, const char* name)
+{
+    GVariant* v = property(path, iface, name);
+    if (!v)
+        return false;
+    const bool out = g_variant_is_of_type(v, G_VARIANT_TYPE_BOOLEAN)
+                     && g_variant_get_boolean(v);
+    g_variant_unref(v);
+    return out;
+}
+
 std::string stringProperty(const char* path, const char* iface, const char* name)
 {
     GVariant* v = property(path, iface, name);
@@ -333,6 +344,12 @@ void readDevice(const char* path, guint32 type, NmNet::Device& out)
 
     if (device.state == NmNet::kDeviceActivated)
         device.ipAddress = addressOf(path);
+
+    // Whether the cable is in, which is not what State says: an unplugged
+    // socket and a socket whose connection was taken down both read
+    // disconnected, and only one of them can be connected again.
+    if (type == NmNet::kDeviceEthernet)
+        device.carrier = boolProperty(path, "org.freedesktop.NetworkManager.Device.Wired", "Carrier");
 
     if (type == NmNet::kDeviceWifi) {
         device.strength = 0;

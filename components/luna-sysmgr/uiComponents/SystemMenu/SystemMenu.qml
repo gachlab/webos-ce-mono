@@ -70,8 +70,11 @@ Item {
 
     // The cable. "available" is whether this machine has a socket at all: with
     // none, the row is hidden rather than shown permanently empty.
-    function setWiredStatus(newText, isConnected, available) {
+    function setWiredStatus(newText, isConnected, available, tappable) {
         wired.visible = available;
+        // Not selectable means MenuListEntry swallows the tap and draws no
+        // highlight: with no cable there is nothing a tap could achieve.
+        wired.selectable = tappable;
         if(!wired.delayUpdate) {
             wired.statusText = newText;
             wired.connected  = isConnected;

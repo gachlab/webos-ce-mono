@@ -154,7 +154,7 @@ void SystemMenu::init()
 		connect(svcConnector,SIGNAL(signalPowerdConnectionStateChanged(bool)), this, SLOT(slotPowerdConnectionStateChanged(bool)));
 		connect(svcConnector,SIGNAL(signalBatteryLevelUpdated(int)), this, SLOT(slotBatteryLevelUpdated(int)));
 		connect(svcConnector,SIGNAL(signalWifiStateChanged(bool, bool, std::string, std::string)), this, SLOT(slotWifiStateChanged(bool, bool, std::string, std::string)));
-		connect(svcConnector,SIGNAL(signalWiredStateChanged(bool, std::string, std::string)), this, SLOT(slotWiredStateChanged(bool, std::string, std::string)));
+		connect(svcConnector,SIGNAL(signalWiredStateChanged(bool, bool, std::string, std::string)), this, SLOT(slotWiredStateChanged(bool, bool, std::string, std::string)));
 		connect(svcConnector,SIGNAL(signalWifiAvailableNetworksListUpdate(int, t_wifiAccessPoint*)), this, SLOT(slotWifiAvailableNetworksListUpdate(int, t_wifiAccessPoint*)));
 		connect(svcConnector,SIGNAL(signalBluetoothTurnedOn()), this, SLOT(slotBluetoothTurnedOn()));
 		connect(svcConnector,SIGNAL(signalBluetoothPowerStateChanged(t_radioState)), this, SLOT(slotBluetoothPowerStateChanged(t_radioState)));
@@ -389,23 +389,31 @@ void SystemMenu::slotWiredToggleTriggered(bool connected)
 	StatusBarServicesConnector::instance()->setWiredOnState(!connected);
 }
 
-void SystemMenu::slotWiredStateChanged(bool connected, std::string interfaceName, std::string ipAddress)
+void SystemMenu::slotWiredStateChanged(bool connected, bool carrier, std::string interfaceName, std::string ipAddress)
 {
 	if(!m_menuObject)
 		return;
 
-	// The address earns its place: it is the one thing the icon cannot say. With
-	// no socket at all the row is hidden, which is what "available" decides.
+	// Three states, not two. No socket at all hides the row; a socket with no
+	// cable shows it but will not act on a tap, because NetworkManager refuses
+	// with "device has no carrier" and the tap would look lost; a cable in the
+	// socket can be connected or disconnected, and that is worth tapping.
+	//
+	// The address earns its place on the row: it is the one thing the icon
+	// cannot say.
 	std::string text;
 	if(connected)
 		text = ipAddress.empty() ? LOCALIZED("Connected") : ipAddress;
-	else
+	else if(carrier)
 		text = LOCALIZED("Not connected");
+	else
+		text = LOCALIZED("No cable");
 
 	QMetaObject::invokeMethod(m_menuObject, "setWiredStatus",
 							  Q_ARG(QVariant, fromStdUtf8(text)),
 							  Q_ARG(QVariant, connected),
-							  Q_ARG(QVariant, !interfaceName.empty()));
+							  Q_ARG(QVariant, !interfaceName.empty()),
+							  Q_ARG(QVariant, carrier));
 }
 
 void SystemMenu::slotWifiOnOffTriggered()

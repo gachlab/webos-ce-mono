@@ -64,11 +64,12 @@ static NmNet::Device wifiDevice(int state, int strength, const char* ssid)
     return d;
 }
 
-static NmNet::Device wiredDevice(int state)
+static NmNet::Device wiredDevice(int state, bool carrier = true)
 {
     NmNet::Device d;
     d.present = true;
     d.state = state;
+    d.carrier = carrier;
     d.interfaceName = "enp0s31f6";
     if (state == NmNet::kDeviceActivated)
         d.ipAddress = "192.168.1.20";
@@ -183,6 +184,35 @@ int main()
               "no transport means no internet, whatever NM still says");
         check(!has(p, "\"onInternet\":\"yes\""), "and nothing claims to be on it");
         checkNeverCrashesTheStatusBar(p, "transport just dropped");
+    }
+
+    // --- the cable, in or out --------------------------------------------
+    // "disconnected" covers two states that are not the same thing, and only
+    // one of them can be reconnected. Measured with the cable out: State 20,
+    // Carrier false, and NetworkManager refusing a connect attempt with
+    // "because device has no carrier". The system menu makes its row tappable
+    // from this, so getting it wrong is a row that lies about what a tap does.
+    {
+        std::printf("\ncable in the socket, or not\n");
+
+        NmNet::NetworkState out;
+        out.wired = wiredDevice(20, false);
+        check(has(NmNet::statusPayload(out, true), "\"carrier\":false"),
+              "no cable says so");
+
+        NmNet::NetworkState in;
+        in.wired = wiredDevice(NmNet::kDeviceDisconnected, true);
+        check(has(NmNet::statusPayload(in, true), "\"carrier\":true"),
+              "a cable that is in, with the connection down, says so too");
+        check(has(NmNet::statusPayload(in, true), "\"state\":\"disconnected\""),
+              "and is still disconnected");
+
+        NmNet::NetworkState up;
+        up.connectivity = NmNet::kConnectivityFull;
+        up.wired = wiredDevice(NmNet::kDeviceActivated, true);
+        check(has(NmNet::statusPayload(up, true), "\"wired\":{\"state\":\"connected\"") 
+              && has(NmNet::statusPayload(up, true), "\"carrier\":true"),
+              "and a working cable is both");
     }
 
     // --- signal thresholds ---------------------------------------------------
