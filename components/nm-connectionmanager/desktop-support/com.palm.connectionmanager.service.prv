@@ -1,0 +1,4 @@
+[D-BUS Service]
+Name=com.palm.connectionmanager
+Exec=/usr/sbin/nm-connectionmanager
+Type=static

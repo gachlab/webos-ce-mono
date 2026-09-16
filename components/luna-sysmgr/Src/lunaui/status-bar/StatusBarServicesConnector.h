@@ -90,6 +90,7 @@ public:
 	void cancelWifiNetworksListRequest();
 	void connectToWifiNetwork(std::string ssid, int profileId, std::string security);
 	void setWifiOnState(bool on);
+	void setWiredOnState(bool on);
 	void setBluetoothOnState(bool on);
 	void requestTrustedBluetoothDevicesList();
 	void cancelBluetoothDevicesListRequest();
@@ -212,6 +213,7 @@ Q_SIGNALS:
 	void signalWanIndexChanged(bool show, StatusBar::IndexWAN index);
 	void signalBluetoothIndexChanged(bool show, StatusBar::IndexBluetooth index);
 	void signalWifiIndexChanged(bool show, StatusBar::IndexWiFi index);
+	void signalWiredStateChanged(bool connected, bool carrier, std::string interfaceName, std::string ipAddress);
 	void signalSystemTimeChanged();
 
 

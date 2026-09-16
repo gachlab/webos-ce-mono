@@ -271,6 +271,28 @@ stage_powerd() {
       || { echo "  FAILED (see /tmp/webos/sysfs-powerd-build.log)"; return 1; }
 }
 
+stage_connmgr() {
+    echo "== connmgr =="
+    # com.palm.connectionmanager from NetworkManager, ours rather than HP's:
+    # the CE drop answers this call with pmnetconfigmanager-stub, a constant
+    # that says "connected, over wifi, always". Not a MANIFEST component -- the
+    # MANIFEST stays an inventory of what HP released -- so it gets its own
+    # stage, built against staging like sysfs-powerd.
+    export PKG_CONFIG_PATH=$S/lib/pkgconfig:$S/usr/share/pkgconfig:$S/usr/lib/pkgconfig
+    mkdir -p /tmp/webos
+    # -build in the name, as with sysfs-powerd: the services stage writes the
+    # running service's own output to /tmp/webos/nm-connectionmanager.log.
+    cmake -S "$R/components/nm-connectionmanager" -B "$B/nm-connectionmanager" \
+          -DCMAKE_BUILD_TYPE="$BUILD_TYPE" \
+          -DCMAKE_INSTALL_PREFIX="$WEBOS_PREFIX" \
+          -DCMAKE_INSTALL_RPATH='$ORIGIN/../lib:$ORIGIN/..' \
+          -DCMAKE_EXE_LINKER_FLAGS='-Wl,--disable-new-dtags' > /tmp/webos/nm-connectionmanager-build.log 2>&1 \
+      && cmake --build "$B/nm-connectionmanager" -j"$(nproc)" >> /tmp/webos/nm-connectionmanager-build.log 2>&1 \
+      && DESTDIR="$DESTDIR" cmake --install "$B/nm-connectionmanager" >> /tmp/webos/nm-connectionmanager-build.log 2>&1 \
+      && echo "  nm-connectionmanager         OK" \
+      || { echo "  FAILED (see /tmp/webos/nm-connectionmanager-build.log)"; return 1; }
+}
+
 stage_rootfs() {
     echo "== rootfs =="
     # The MANIFEST's "copiar" components are not built: they are JS, themes and
@@ -286,12 +308,14 @@ case "$STAGE" in
     cmake)  stage_cmake ;;
     node)   stage_node_addons ;;
     powerd) stage_powerd ;;
+    connmgr) stage_connmgr ;;
     rootfs) stage_rootfs ;;
     all)   # NOTE the placement: the echoes go INSIDE the if, not loose after
             # the chain. They were outside and the script announced success even
             # when a stage had failed.
             if stage_headers && stage_autotools \
-               && stage_cmake && stage_node_addons && stage_powerd && stage_rootfs; then
+               && stage_cmake && stage_node_addons && stage_powerd \
+               && stage_connmgr && stage_rootfs; then
                 echo
                 echo "Done. To start the shell:  tools/run-lunasysmgr.sh"
             else
@@ -299,5 +323,5 @@ case "$STAGE" in
                 echo "FAILED: a stage did not finish. See the logs in build/." >&2
                 exit 1
             fi ;;
-    *)      echo "unknown stage: $STAGE (headers | autotools | cmake | node | powerd | rootfs | all)"; exit 2 ;;
+    *)      echo "unknown stage: $STAGE (headers | autotools | cmake | node | powerd | connmgr | rootfs | all)"; exit 2 ;;
 esac

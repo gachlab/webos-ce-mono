@@ -68,6 +68,10 @@ private Q_SLOTS:
 	void slotWifiPrefsTriggered();
 	void slotWifiNetworkSelected(int index, QString name, int profileId, QString securityType, QString connStatus);
 
+	// The cable. Ours: webOS had no wired networking in this menu.
+	void slotWiredToggleTriggered(bool connected);
+	void slotWiredStateChanged(bool connected, bool carrier, std::string interfaceName, std::string ipAddress);
+
 	void slotBluetoothMenuOpened();
 	void slotBluetoothMenuClosed();
 	void slotBluetoothOnOffTriggered();

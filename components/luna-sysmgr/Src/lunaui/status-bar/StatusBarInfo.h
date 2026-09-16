@@ -81,6 +81,7 @@ public:
 	void setWAN(bool shown, StatusBar::IndexWAN index);
 	void setBluetooth(bool shown, StatusBar::IndexBluetooth index);
 	void setWifi(bool shown, StatusBar::IndexWiFi index);
+	void setWired(bool connected);
 	void setRotationLock(bool locked);
 	void setMute(bool muteOn);
 	void setAirplaneMode(bool airplaneModeOn);
@@ -104,6 +105,7 @@ private:
 	StatusBarInfoItem *m_wan;
 	StatusBarInfoItem *m_bluetooth;
 	StatusBarInfoItem *m_wifi;
+	StatusBarInfoItem *m_wired;
 	StatusBarInfoItem *m_tty;
 	StatusBarInfoItem *m_hac;
 	StatusBarInfoItem *m_callForward;

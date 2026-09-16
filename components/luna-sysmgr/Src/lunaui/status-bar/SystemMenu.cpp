@@ -154,6 +154,7 @@ void SystemMenu::init()
 		connect(svcConnector,SIGNAL(signalPowerdConnectionStateChanged(bool)), this, SLOT(slotPowerdConnectionStateChanged(bool)));
 		connect(svcConnector,SIGNAL(signalBatteryLevelUpdated(int)), this, SLOT(slotBatteryLevelUpdated(int)));
 		connect(svcConnector,SIGNAL(signalWifiStateChanged(bool, bool, std::string, std::string)), this, SLOT(slotWifiStateChanged(bool, bool, std::string, std::string)));
+		connect(svcConnector,SIGNAL(signalWiredStateChanged(bool, bool, std::string, std::string)), this, SLOT(slotWiredStateChanged(bool, bool, std::string, std::string)));
 		connect(svcConnector,SIGNAL(signalWifiAvailableNetworksListUpdate(int, t_wifiAccessPoint*)), this, SLOT(slotWifiAvailableNetworksListUpdate(int, t_wifiAccessPoint*)));
 		connect(svcConnector,SIGNAL(signalBluetoothTurnedOn()), this, SLOT(slotBluetoothTurnedOn()));
 		connect(svcConnector,SIGNAL(signalBluetoothPowerStateChanged(t_radioState)), this, SLOT(slotBluetoothPowerStateChanged(t_radioState)));
@@ -282,6 +283,7 @@ void SystemMenu::init()
 		 }
 				 connect(m_menuObject,SIGNAL(rotationLockTriggered(bool)), SLOT(slotRotationLockTriggered(bool)));
 				 connect(m_menuObject,SIGNAL(muteToggleTriggered(bool)), SLOT(slotMuteToggleTriggered(bool)));
+				 connect(m_menuObject,SIGNAL(wiredToggleTriggered(bool)), SLOT(slotWiredToggleTriggered(bool)));
 				 connect(m_menuObject,SIGNAL(menuBrightnessChanged(qreal, bool)), SLOT(slotMenuBrightnessChanged(qreal, bool)));
 
                  connect(Preferences::instance(),SIGNAL(signalRotationLockChanged(OrientationEvent::Orientation)), SLOT(slotRotationLockChanged(OrientationEvent::Orientation)));
@@ -377,6 +379,41 @@ void SystemMenu::slotWifiMenuClosed()
 	m_wifiMenuOpened = false;
 	if(m_wifiOn)
 		StatusBarServicesConnector::instance()->cancelWifiNetworksListRequest();
+}
+
+// Tapping the row asks for the opposite of what is shown. The answer comes back
+// the same way the state always does -- from NetworkManager, through
+// com.palm.connectionmanager -- rather than being assumed here.
+void SystemMenu::slotWiredToggleTriggered(bool connected)
+{
+	StatusBarServicesConnector::instance()->setWiredOnState(!connected);
+}
+
+void SystemMenu::slotWiredStateChanged(bool connected, bool carrier, std::string interfaceName, std::string ipAddress)
+{
+	if(!m_menuObject)
+		return;
+
+	// Three states, not two. No socket at all hides the row; a socket with no
+	// cable shows it but will not act on a tap, because NetworkManager refuses
+	// with "device has no carrier" and the tap would look lost; a cable in the
+	// socket can be connected or disconnected, and that is worth tapping.
+	//
+	// The address earns its place on the row: it is the one thing the icon
+	// cannot say.
+	std::string text;
+	if(connected)
+		text = ipAddress.empty() ? LOCALIZED("Connected") : ipAddress;
+	else if(carrier)
+		text = LOCALIZED("Not connected");
+	else
+		text = LOCALIZED("No cable");
+
+	QMetaObject::invokeMethod(m_menuObject, "setWiredStatus",
+							  Q_ARG(QVariant, fromStdUtf8(text)),
+							  Q_ARG(QVariant, connected),
+							  Q_ARG(QVariant, !interfaceName.empty()),
+							  Q_ARG(QVariant, carrier));
 }
 
 void SystemMenu::slotWifiOnOffTriggered()

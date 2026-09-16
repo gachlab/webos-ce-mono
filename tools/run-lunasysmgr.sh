@@ -134,6 +134,30 @@ export QT_QPA_PLATFORM="${QT_QPA_PLATFORM:-wayland}"
 
 mkdir -p /tmp/webos/ls2 /tmp/webos/captures
 
+# Whether this machine has wifi, as the shell asks the question.
+#
+# DeviceInfo decides m_wifiAvailable from whether luna-prefs can resolve
+# "com.palm.properties.WIFIoADDR", and that answer gates everything wifi in the
+# UI: StatusBarServicesConnector only subscribes to com.palm.wifi when it is
+# true, and SystemMenu only shows the wifi entry. With it false the indicator
+# cannot move no matter what answers the bus.
+#
+# lunaprefs.c resolves such a key by stripping "com.palm.properties." and looking
+# for a FILE of that name in three places, in order: /etc/prefs/properties,
+# /dev/tokens, and /tmp/misc-props. The first two are absolute paths on the host
+# -- neither exists, and the namespace binds onto directories that already do, so
+# neither can be created without touching the system this script promises not to
+# touch. The third is in /tmp, which is the host's own /tmp inside the namespace,
+# and is where a running system was always allowed to add properties.
+#
+# DeviceInfo reads the value into a variable it discards: what it tests is
+# whether the key resolves at all. So this is a marker and says so, rather than
+# an address that would go stale the moment the machine changed adapters -- the
+# real name, address and signal come from com.palm.connectionmanager and
+# com.palm.wifi, which read NetworkManager.
+mkdir -p /tmp/misc-props
+[ -e /tmp/misc-props/WIFIoADDR ] || echo "present" > /tmp/misc-props/WIFIoADDR
+
 # ls-hubd and luna-send come from staging, not from a component's build
 # directory. Those are named after the component in the MANIFEST, and the path
 # that used to be here (build/ls2/) stopped existing the moment the project was
@@ -260,12 +284,12 @@ case "${1:-run}" in
     # to read from -- hence the "Service does not exist: com.palm.systemservice /
     # com.palm.preferences" lines in the log.
     L="$ROOTFS/usr/lib/luna"
-    ALL_SERVICES="mojodb-luna LunaSysService sysfs-powerd filecache activitymanager LunaUniversalSearchMgr"
+    ALL_SERVICES="mojodb-luna LunaSysService sysfs-powerd nm-connectionmanager filecache activitymanager LunaUniversalSearchMgr"
     for svc in $ALL_SERVICES; do service_stop "$L/$svc"; done
     sleep 1
     "$L/mojodb-luna" -c /etc/palm/mojodb.conf /var/db > /tmp/webos/mojodb.log 2>&1 &
     sleep 2
-    for svc in LunaSysService sysfs-powerd filecache activitymanager LunaUniversalSearchMgr; do
+    for svc in LunaSysService sysfs-powerd nm-connectionmanager filecache activitymanager LunaUniversalSearchMgr; do
         [ -x "$L/$svc" ] || { echo "$svc: no binary"; continue; }
         "$L/$svc" > "/tmp/webos/$svc.log" 2>&1 &
         sleep 1
@@ -342,7 +366,7 @@ case "${1:-run}" in
     ;;
   stop)
     pkill -x LunaSysMgr; pkill -x WebAppMgr
-    for s in mojodb-luna LunaSysService sysfs-powerd filecache activitymanager LunaUniversalSearchMgr; do
+    for s in mojodb-luna LunaSysService sysfs-powerd nm-connectionmanager filecache activitymanager LunaUniversalSearchMgr; do
         service_stop "$ROOTFS/usr/lib/luna/$s"
     done
     # The JavaScript services too, and they cannot be found the way the C++ ones

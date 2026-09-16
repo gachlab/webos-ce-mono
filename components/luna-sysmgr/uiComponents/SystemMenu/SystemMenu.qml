@@ -24,6 +24,7 @@ Item {
     signal airplaneModeTriggered()
     signal rotationLockTriggered(bool isLocked)
     signal muteToggleTriggered(bool isMuted)
+    signal wiredToggleTriggered(bool isConnected)
     signal menuBrightnessChanged(real value, bool save)
 
     function setHeight(newheight) {
@@ -64,6 +65,22 @@ Item {
         } else {
             muteControl.newText       = newText;
             muteControl.newMuteStatus = showMuteOn;
+        }
+    }
+
+    // The cable. "available" is whether this machine has a socket at all: with
+    // none, the row is hidden rather than shown permanently empty.
+    function setWiredStatus(newText, isConnected, available, tappable) {
+        wired.visible = available;
+        // Not selectable means MenuListEntry swallows the tap and draws no
+        // highlight: with no cable there is nothing a tap could achieve.
+        wired.selectable = tappable;
+        if(!wired.delayUpdate) {
+            wired.statusText = newText;
+            wired.connected  = isConnected;
+        } else {
+            wired.newText            = newText;
+            wired.newConnectedStatus = isConnected;
         }
     }
 
@@ -189,6 +206,22 @@ Item {
                 }
 
                 MenuDivider {visible: wifi.visible; widthOffset: dividerWidthOffset}
+
+                WiredElement {
+                    id: wired
+                    visible: false
+                    ident:   headerIdent;
+
+                    onAction: {
+                        wired.delayUpdate = true;
+                        wiredToggleTriggered(wired.connected)
+
+                        closeMenuTimer.interval = 250;
+                        closeMenuTimer.start();
+                    }
+                }
+
+                MenuDivider {visible: wired.visible; widthOffset: dividerWidthOffset}
 
                 VpnElement {
                     id: vpn

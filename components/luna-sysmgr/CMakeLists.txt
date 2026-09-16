@@ -320,6 +320,18 @@ target_include_directories(LunaSysMgr PRIVATE
 
 target_compile_definitions(LunaSysMgr PRIVATE
     QT_WEBOS
+    # HP's own device.pri and emulator.pri both define this; the CMake build
+    # never did, so every getLunaPrefSystemValue() call compiled to "return
+    # false". That is not cosmetic: DeviceInfo decides m_wifiAvailable from
+    # whether com.palm.properties.WIFIoADDR resolves, and with it false the
+    # status bar never subscribes to com.palm.wifi and SystemMenu hides the wifi
+    # entry -- so the wifi indicator could not move whatever answered the bus.
+    #
+    # The other five sites it switches on are bounded and degrade by design:
+    # AmbientLightSensor only gains an include, and DisplayManager gains a
+    # demo-mode check on buildName and a read of its saved brightness, each
+    # guarded by LP_ERR_NONE.
+    HAS_LUNA_PREF=1
     SHIPPING_VERSION=0
     TARGET_DESKTOP
     HAVE_OPENGL
@@ -350,7 +362,7 @@ target_link_libraries(LunaSysMgr PRIVATE
     OpenSSL::SSL OpenSSL::Crypto Threads::Threads
     -L${WEBOS_STAGING}/lib -L${WEBOS_STAGING}/usr/lib
     cjson LunaSysMgrIpc luna-service2 pbnjson_cpp pbnjson_c
-    LunaSysMgrCommon nyx
+    LunaSysMgrCommon nyx luna-prefs
 )
 
 # No INSTALL_RPATH here any more. It used to name ${WEBOS_STAGING} absolutely,

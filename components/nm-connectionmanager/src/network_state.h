@@ -1,0 +1,424 @@
+/* @@@LICENSE
+ *
+ * Copyright (c) 2026 webOS CE modern build
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ * LICENSE@@@ */
+
+#ifndef NM_CONNECTIONMANAGER_NETWORK_STATE_H
+#define NM_CONNECTIONMANAGER_NETWORK_STATE_H
+
+//
+// What NetworkManager says about the network, and the payload
+// com.palm.connectionmanager/getstatus has to answer with. Header-only and free
+// of both buses on purpose, so every decision here can be tested without a
+// D-Bus daemon and without ls-hubd.
+//
+// The field names are not a choice. Each one is read by a caller that acts on
+// it, and the callers were measured rather than guessed:
+//
+//   isInternetConnectionAvailable   luna-sysservice's NetworkConnectionListener
+//                                   declares it REQUIRED in its schema and drops
+//                                   the whole payload without it;
+//                                   BrowserServer and the status bar read it.
+//   wifi.state, wifi.onInternet     StatusBarServicesConnector.cpp, to decide
+//                                   whether to hide the WAN icon.
+//   wifi/wan .state                 activitymanager's ConnectionManagerProxy,
+//                                   which turns them into the "wifi" and "wan"
+//                                   activity requirements.
+//   networkConfidenceLevel          the same proxy, for the *Confidence
+//                                   requirements. It compares against exactly
+//                                   four strings -- "none", "poor", "fair",
+//                                   "excellent" -- and anything else lands as
+//                                   ConnectionConfidenceUnknown.
+//
+// ONE INVARIANT IS NOT NEGOTIABLE, and it is why `state` and `onInternet` are
+// always written even when there is no wifi at all. StatusBarServicesConnector
+// does this, with no null check:
+//
+//     if(!strcmp(state, "connected") && !strcmp(onInternet, "yes"))
+//
+// `state` and `onInternet` are the raw `const char*` it got out of the "wifi"
+// object. Ship a "wifi" object without either one as a string and the shell
+// dereferences a null pointer. A missing field here is not a wrong icon, it is
+// a segfault, so tests/network-state.cpp asserts both are present in every
+// single case.
+//
+// What is deliberately not answered: "wan" is always disconnected -- nothing
+// here has a modem -- and "bridge", which HP's stub also sent, is left out
+// because no caller in the tree reads it and inventing a value for it would be
+// the stub's habit, not a measurement.
+//
+
+#include <cstdio>
+#include <string>
+
+namespace NmNet {
+
+// org.freedesktop.NetworkManager's own enumerations, only the values read here.
+// NM_DEVICE_TYPE_*: the machine this was written on reports 1 for enp0s31f6,
+// 2 for wlp0s20f3, and also 13 (bridge, docker0), 16 (tun, tailscale0 and
+// tun0), 20 (veth), 30 (wifi-p2p) and 32 (loopback) -- which is the reason the
+// service picks devices by type instead of taking NM's PrimaryConnection: with
+// a VPN up, the primary connection is the tunnel and the transport underneath
+// it is what webOS actually wants to report.
+enum DeviceType {
+    kDeviceUnknown  = 0,
+    kDeviceEthernet = 1,
+    kDeviceWifi     = 2,
+};
+
+// NM_DEVICE_STATE_ACTIVATED. Anything below it is some stage of coming up or
+// going down; measured: 20 (unavailable) is what an ethernet port with the
+// cable out reports, alongside Wired.Carrier = false.
+enum DeviceStateValue {
+    kDeviceActivated = 100,
+};
+
+// NM_CONNECTIVITY_*. FULL is the only one that means the internet is actually
+// reachable; PORTAL is the captive portal the ticket asks to be visible as
+// such, and LIMITED/NONE are a network that carries no traffic out.
+enum ConnectivityValue {
+    kConnectivityUnknown = 0,
+    kConnectivityNone    = 1,
+    kConnectivityPortal  = 2,
+    kConnectivityLimited = 3,
+    kConnectivityFull    = 4,
+};
+
+struct Device {
+    bool present = false;
+    int state = 0;                 // NM_DEVICE_STATE_*
+    std::string interfaceName;
+    std::string ipAddress;
+    std::string ssid;              // wifi only, empty otherwise
+    int strength = -1;             // wifi only, 0..100; -1 when not applicable
+    // Ethernet only: whether a cable is physically in the socket, from NM's
+    // Wired.Carrier. It is not the same question as "connected" -- a cable can
+    // be in with the connection taken down -- and the difference is what makes
+    // the system menu's row worth tapping or not. Measured with the cable out:
+    // State 20, Carrier false, and a connect attempt refused by NM itself with
+    // "because device has no carrier".
+    bool carrier = false;
+
+    bool activated() const { return present && state == kDeviceActivated; }
+};
+
+struct NetworkState {
+    int connectivity = kConnectivityUnknown;
+    Device wifi;
+    Device wired;
+    bool vpnActive = false;
+};
+
+// Whether any transport webOS knows about is carrying traffic.
+inline bool anyTransportUp(const NetworkState& state)
+{
+    return state.wifi.activated() || state.wired.activated();
+}
+
+// Whether anything at all can reach the internet. A captive portal is
+// deliberately NOT internet: the email app would otherwise keep trying to sync
+// against the portal's login page, which is the failure this ticket exists to
+// end.
+//
+// A transport is required on top of NM's own verdict, and that is not belt and
+// braces -- it was measured. Switching wifi off, NetworkManager kept reporting
+// Connectivity FULL for about two seconds after the device was already gone, so
+// the payload said "no wifi, no cable, and the internet is available". That
+// contradiction is not harmless: luna-sysservice acts on this field, and the
+// apps spend those seconds syncing against a network that is no longer there.
+//
+// The cost of the rule is a machine online through something this service does
+// not model -- mobile broadband, a bridge -- reading as offline. webOS has
+// nowhere to put such a connection anyway: its consumers ask about wifi and wan,
+// and answering "online" while every interface it knows reads disconnected is
+// the same contradiction pointing the other way.
+inline bool internetAvailable(const NetworkState& state)
+{
+    return state.connectivity == kConnectivityFull && anyTransportUp(state);
+}
+
+inline const char* deviceState(const Device& device)
+{
+    return device.activated() ? "connected" : "disconnected";
+}
+
+// Per interface, not global: a device that is up on a network with no way out
+// says "no" here while still being "connected" above, which is exactly how the
+// status bar tells a usable wifi from a joined-but-useless one.
+inline const char* onInternet(const Device& device, const NetworkState& state)
+{
+    return (device.activated() && internetAvailable(state)) ? "yes" : "no";
+}
+
+// Only four strings exist as far as activitymanager is concerned; see the note
+// at the top. The thresholds follow NetworkManager's own four-bar convention
+// (nmcli draws its bars at 80/55/30), shifted to leave "none" meaning unusable
+// rather than merely weak. A wired link has no signal to speak of, so it is
+// "excellent" whenever it is up.
+inline const char* confidence(const Device& device)
+{
+    if (!device.activated())
+        return "none";
+    if (device.strength < 0)        // not a wifi device: nothing to measure
+        return "excellent";
+    if (device.strength >= 75)
+        return "excellent";
+    if (device.strength >= 50)
+        return "fair";
+    if (device.strength >= 25)
+        return "poor";
+    return "none";
+}
+
+// An SSID is whatever bytes the access point advertises, and it arrives from NM
+// as a byte array rather than a string. One with a quote or a backslash in it
+// would produce a payload that is not JSON at all, and every consumer drops the
+// whole thing -- the network would read as absent instead of as badly named.
+// Control characters get the \u form because a raw one is invalid inside a JSON
+// string; bytes above 0x7f are passed through, since they are almost always
+// UTF-8 already and mangling them would rename the network.
+inline std::string jsonEscape(const std::string& raw)
+{
+    std::string out;
+    out.reserve(raw.size() + 8);
+    for (unsigned char c : raw) {
+        switch (c) {
+        case '"':  out += "\\\""; break;
+        case '\\': out += "\\\\"; break;
+        case '\b': out += "\\b";  break;
+        case '\f': out += "\\f";  break;
+        case '\n': out += "\\n";  break;
+        case '\r': out += "\\r";  break;
+        case '\t': out += "\\t";  break;
+        default:
+            if (c < 0x20) {
+                char escaped[7];
+                std::snprintf(escaped, sizeof escaped, "\\u%04x", c);
+                out += escaped;
+            } else {
+                out += static_cast<char>(c);
+            }
+            break;
+        }
+    }
+    return out;
+}
+
+// The one object every caller reads. `subscribed` is what the caller asked for
+// and got: LS2 expects it in the first reply to a subscribing call, and HP's
+// stub always claimed true whether or not anyone could ever push an update.
+inline std::string statusPayload(const NetworkState& state, bool subscribed)
+{
+    std::string out = "{\"returnValue\":true,\"subscribed\":";
+    out += subscribed ? "true" : "false";
+    out += ",\"isInternetConnectionAvailable\":";
+    out += internetAvailable(state) ? "true" : "false";
+
+    // wifi: state and onInternet unconditionally -- see the invariant above.
+    out += ",\"wifi\":{\"state\":\"";
+    out += deviceState(state.wifi);
+    out += "\",\"onInternet\":\"";
+    out += onInternet(state.wifi, state);
+    out += "\",\"networkConfidenceLevel\":\"";
+    out += confidence(state.wifi);
+    out += "\"";
+    if (!state.wifi.interfaceName.empty()) {
+        out += ",\"interfaceName\":\"" + jsonEscape(state.wifi.interfaceName) + "\"";
+    }
+    if (!state.wifi.ipAddress.empty()) {
+        out += ",\"ipAddress\":\"" + jsonEscape(state.wifi.ipAddress) + "\"";
+    }
+    if (!state.wifi.ssid.empty()) {
+        out += ",\"ssid\":\"" + jsonEscape(state.wifi.ssid) + "\"";
+    }
+    out += "}";
+
+    // wired: the same shape. HP's stub had no such key, because a phone had no
+    // socket; the apps read "isInternetConnectionAvailable" and are satisfied,
+    // and this is here so a cable is visible to anything that looks.
+    out += ",\"wired\":{\"state\":\"";
+    out += deviceState(state.wired);
+    out += "\",\"onInternet\":\"";
+    out += onInternet(state.wired, state);
+    out += "\",\"networkConfidenceLevel\":\"";
+    out += confidence(state.wired);
+    out += "\"";
+    if (!state.wired.interfaceName.empty()) {
+        out += ",\"interfaceName\":\"" + jsonEscape(state.wired.interfaceName) + "\"";
+    }
+    if (!state.wired.ipAddress.empty()) {
+        out += ",\"ipAddress\":\"" + jsonEscape(state.wired.ipAddress) + "\"";
+    }
+    out += ",\"carrier\":";
+    out += state.wired.carrier ? "true" : "false";
+    out += "}";
+
+    // Always present, always disconnected: ConnectionManagerProxy reads
+    // wan.state directly and a missing "wan" leaves its requirement unset.
+    out += ",\"wan\":{\"state\":\"disconnected\"}";
+
+    out += ",\"vpn\":{\"state\":\"";
+    out += state.vpnActive ? "connected" : "disconnected";
+    out += "\"}}";
+    return out;
+}
+
+// --- com.palm.wifi ----------------------------------------------------------
+//
+// The status bar's wifi indicator is driven entirely by this service, not by
+// com.palm.connectionmanager above: StatusBarServicesConnector subscribes to
+// com.palm.wifi/getstatus and switches on a top-level "status" string. Nothing
+// in the CE drop provides the name at all, which is why the indicator has never
+// moved in this port.
+//
+// The vocabulary is HP's and is matched with strcmp, so these strings are not a
+// choice either:
+//
+//   status "serviceDisabled"          radio off: the icon goes out
+//          "serviceEnabled"           radio on, nothing joined
+//          "connectionStateChanged"   with networkInfo below
+//   networkInfo.connectState
+//          "associating"/"associated" the connecting icon
+//          "ipConfigured"             connected, and the bars are drawn
+//          "notAssociated", "ipFailed", "associationFailed"
+//                                     joined nothing, plain wifi icon
+//
+// TWO TRAPS IN THAT HANDLER, both of which shape what is sent here.
+//
+// It does `m_wifiSSID = std::string(ssid)` on the raw pointer for the
+// associating, associated and ipConfigured branches, with no null check -- the
+// same class of crash as the connectionmanager payload's. So "ssid" is always
+// written as a string for those states, empty if the network has no name yet.
+//
+// And it indexes the icon enum out of range. For connectionStateChanged it
+// computes WIFI_BAR_1 + clamp(signalBars - 1, 1, 3), and StatusBar.h ends at
+// WIFI_BAR_3 = WIFI_BAR_1 + 2, so any signalBars of 4 or more selects an icon
+// that does not exist. signalBars is therefore capped at 3 here. (Its
+// "signalStrengthChanged" branch has the same arithmetic without the -1, so
+// even a 3 overruns there; that status is deliberately never sent -- the
+// connectionStateChanged path already draws the bars.)
+
+// NM_DEVICE_STATE_*, the rest of the values a wifi device passes through.
+enum WifiDeviceState {
+    kDeviceDisconnected = 30,
+    kDevicePrepare      = 40,
+    kDeviceConfig       = 50,
+    kDeviceNeedAuth     = 60,
+    kDeviceIpConfig     = 70,
+    kDeviceIpCheck      = 80,
+    kDeviceSecondaries  = 90,
+    kDeviceDeactivating = 110,
+    kDeviceFailed       = 120,
+};
+
+inline const char* wifiConnectState(const Device& device)
+{
+    if (device.state == kDeviceActivated)
+        return "ipConfigured";
+    if (device.state >= kDevicePrepare && device.state <= kDeviceNeedAuth)
+        return "associating";
+    // Associated with the access point, still settling the address. HP draws
+    // the same connecting icon for both.
+    if (device.state >= kDeviceIpConfig && device.state <= kDeviceSecondaries)
+        return "associated";
+    if (device.state == kDeviceFailed)
+        return "associationFailed";
+    return "notAssociated";
+}
+
+// 1..3, capped for the reason above. The thresholds are the same ones
+// confidence() uses, so the bars and the confidence level never disagree.
+inline int signalBars(int strength)
+{
+    if (strength >= 75)
+        return 3;
+    if (strength >= 50)
+        return 2;
+    return 1;
+}
+
+// What com.palm.wifi/getstatus answers. Three shapes, because the status bar
+// acts on three different top-level statuses.
+inline std::string wifiStatusPayload(const NetworkState& state, bool subscribed)
+{
+    std::string out = "{\"returnValue\":true,\"subscribed\":";
+    out += subscribed ? "true" : "false";
+
+    // No wifi hardware at all is the same thing, as far as the indicator is
+    // concerned, as a radio that has been switched off.
+    if (!state.wifi.present) {
+        out += ",\"status\":\"serviceDisabled\"}";
+        return out;
+    }
+
+    // Up but joined to nothing, and not on the way to joining anything: the
+    // icon is on and empty. Sent as serviceEnabled rather than as a
+    // notAssociated connectionStateChanged because that is the status HP uses
+    // to mean exactly this, and it also clears the remembered ssid.
+    if (state.wifi.state == kDeviceDisconnected) {
+        out += ",\"status\":\"serviceEnabled\"}";
+        return out;
+    }
+
+    out += ",\"status\":\"connectionStateChanged\",\"networkInfo\":{\"connectState\":\"";
+    out += wifiConnectState(state.wifi);
+    // Unconditional, and a string even when empty: the handler assigns it
+    // without a null check on three of its branches.
+    out += "\",\"ssid\":\"";
+    out += jsonEscape(state.wifi.ssid);
+    out += "\"";
+    if (state.wifi.activated()) {
+        char bars[64];
+        std::snprintf(bars, sizeof bars, ",\"signalBars\":%d,\"signalLevel\":%d",
+                      signalBars(state.wifi.strength), state.wifi.strength);
+        out += bars;
+        if (!state.wifi.ipAddress.empty())
+            out += ",\"ipAddress\":\"" + jsonEscape(state.wifi.ipAddress) + "\"";
+    }
+    out += "}}";
+    return out;
+}
+
+// What a wifi update is actually about.
+//
+// The payload carries signalLevel because enyo's wifi library reads it, and a
+// laptop's signal wanders a percent at a time: measured in a running session,
+// 84, then 80, then 79 within fifteen seconds, each one a different payload and
+// so each one an update pushed to every subscriber. The status bar redraws the
+// indicator for all of them, and with signalBars capped at 3 it cannot even
+// show the difference.
+//
+// So what counts as a change is decided here rather than by comparing payloads:
+// the state the device is in, the network's name and address, and the bars that
+// are actually drawn. The level still goes out with every update -- it is simply
+// not a reason to send one.
+inline std::string wifiChangeKey(const NetworkState& state)
+{
+    if (!state.wifi.present)
+        return "absent";
+    std::string key = std::to_string(state.wifi.state);
+    key += '|';
+    key += state.wifi.ssid;
+    key += '|';
+    key += state.wifi.ipAddress;
+    key += '|';
+    key += std::to_string(state.wifi.activated() ? signalBars(state.wifi.strength) : 0);
+    return key;
+}
+
+}  // namespace NmNet
+
+#endif  // NM_CONNECTIONMANAGER_NETWORK_STATE_H
