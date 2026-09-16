@@ -33,9 +33,13 @@ trap 'rm -rf "$TMP"' EXIT
 
 NAME=ThisNameIsWayTooLongForComm   # 27 characters
 BIN="$TMP/$NAME"
-cp "$(command -v sleep)" "$BIN"
+# A copy of bash, not of sleep: where coreutils is one multi-call binary (the
+# Rust coreutils Ubuntu 26.04 ships), a renamed sleep answers "unknown program"
+# and exits. bash waits on a fifo instead, so it stays the process being named.
+cp "$(command -v bash)" "$BIN"
+mkfifo "$TMP/wait"
 
-"$BIN" 60 &
+"$BIN" -c 'read -t 60 <> "$1"' "$NAME" "$TMP/wait" &
 PID=$!
 sleep 0.3
 
