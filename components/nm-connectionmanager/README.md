@@ -82,12 +82,13 @@ the radio. Its callers are the system menu's wifi drawer and enyo's wifi library
 
 | Method | What it does |
 |---|---|
-| `getstatus` | subscribable; `serviceDisabled`, `serviceEnabled`, or `connectionStateChanged` with `networkInfo` |
+| `getstatus` | subscribable; `serviceDisabled`, `serviceEnabled`, or `connectionStateChanged` with `networkInfo`, plus `apInfo` (BSSID and channel) once joined |
 | `setstate` | `{"state": "enabled" \| "disabled"}`, NetworkManager's `WirelessEnabled` |
 | `findnetworks` | the networks in range, one entry per name, strongest access point first after the joined one, with the saved `profileId` of each |
 | `connect` | `{"profileId": n}`, or `{"ssid": s}` with the security either top-level (the menu) or under `security.simpleSecurity` (the library) |
 | `getprofile` | a saved wifi profile, and the address in use when it is the active one |
 | `deleteprofile` | a saved wifi profile, by id |
+| `getprofilelist` | every saved wifi profile, for the settings card's known networks |
 | `getinfo` | the radio's MAC address |
 
 A `profileId` is the number that ends NetworkManager's settings path

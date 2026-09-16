@@ -466,6 +466,18 @@ bool deleteWifiProfile(LSHandle* sh, LSMessage* message, void*)
     return true;
 }
 
+bool getWifiProfileList(LSHandle* sh, LSMessage* message, void*)
+{
+    std::vector<NmNet::Profile> profiles;
+    std::string error;
+    if (!NmClient::listProfiles(g_system, profiles, error)) {
+        reply(sh, message, NmNet::errorPayload(error));
+        return true;
+    }
+    reply(sh, message, NmNet::profileListPayload(profiles));
+    return true;
+}
+
 bool getWifiInfo(LSHandle* sh, LSMessage* message, void*)
 {
     std::string mac, error;
@@ -485,6 +497,7 @@ LSMethod kWifiMethods[] = {
     { "connect", connectWifi },
     { "getprofile", getWifiProfile },
     { "deleteprofile", deleteWifiProfile },
+    { "getprofilelist", getWifiProfileList },
     { "getinfo", getWifiInfo },
     { },
 };

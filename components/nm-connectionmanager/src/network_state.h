@@ -136,6 +136,10 @@ struct NetworkState {
     // point, and enyo's wifi library ignores a failure that does not name the
     // network it was joining.
     std::string attemptedSsid;
+    // The access point the radio is joined to: its hardware address and the
+    // frequency it is on, in MHz. The settings card names both.
+    std::string wifiBssid;
+    int wifiFrequency = 0;
 };
 
 // Whether any transport webOS knows about is carrying traffic.
@@ -385,6 +389,20 @@ inline const char* lastConnectError(int reason)
     }
 }
 
+// The 802.11 channel of a frequency in MHz, 0 when it is none of the bands.
+inline int channelOf(int mhz)
+{
+    if (mhz == 2484)
+        return 14;
+    if (mhz >= 2412 && mhz <= 2472)
+        return (mhz - 2407) / 5;
+    if (mhz >= 5955 && mhz <= 7115)
+        return (mhz - 5950) / 5;
+    if (mhz >= 5000 && mhz <= 5900)
+        return (mhz - 5000) / 5;
+    return 0;
+}
+
 // Whether the device's last join failed. NetworkManager passes through FAILED
 // and settles on DISCONNECTED within the same second, keeping the reason, and
 // the service reads the state once per burst of signals -- so FAILED is often
@@ -469,7 +487,14 @@ inline std::string wifiStatusPayload(const NetworkState& state, bool subscribed)
         if (!state.wifi.ipAddress.empty())
             out += ",\"ipAddress\":\"" + jsonEscape(state.wifi.ipAddress) + "\"";
     }
-    out += "}}";
+    out += "}";
+    // Beside networkInfo, where enyo's wifi library looks for it: the settings
+    // card's connected view reads "BSSID ..., Channel ..." out of it.
+    if (state.wifi.activated() && !state.wifiBssid.empty()) {
+        out += ",\"apInfo\":{\"bssid\":\"" + jsonEscape(state.wifiBssid) + "\",\"channel\":"
+               + std::to_string(channelOf(state.wifiFrequency)) + "}";
+    }
+    out += "}";
     return out;
 }
 
@@ -496,6 +521,8 @@ inline std::string wifiChangeKey(const NetworkState& state)
     key += joinFailed(state) ? "|failed:" + state.attemptedSsid : "|";
     key += '|';
     key += std::to_string(state.wifiProfileId);
+    key += '|';
+    key += state.wifiBssid;
     key += '|';
     key += state.wifi.ssid;
     key += '|';
@@ -723,6 +750,25 @@ inline std::string profilePayload(const Profile& profile, const IpInfo* ip)
         out += "}";
     }
     out += "}";
+    return out;
+}
+
+// com.palm.wifi/getprofilelist: every saved wifi profile, in HP's shape --
+// the security nested under "security", absent for an open network.
+inline std::string profileListPayload(const std::vector<Profile>& profiles)
+{
+    std::string out = "{\"returnValue\":true,\"profileList\":[";
+    for (size_t i = 0; i < profiles.size(); ++i) {
+        const Profile& p = profiles[i];
+        if (i)
+            out += ',';
+        out += "{\"wifiProfile\":{\"profileId\":" + std::to_string(p.profileId);
+        out += ",\"ssid\":\"" + jsonEscape(p.ssid) + "\"";
+        if (const char* type = securityType(p.security))
+            out += std::string(",\"security\":{\"securityType\":\"") + type + "\"}";
+        out += "}}";
+    }
+    out += "]}";
     return out;
 }
 

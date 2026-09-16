@@ -93,6 +93,8 @@ static const char kIntrospection[] = R"XML(
     <property name="Flags" type="u" access="read"/>
     <property name="WpaFlags" type="u" access="read"/>
     <property name="RsnFlags" type="u" access="read"/>
+    <property name="HwAddress" type="s" access="read"/>
+    <property name="Frequency" type="u" access="read"/>
   </interface>
   <interface name="org.freedesktop.NetworkManager.IP4Config">
     <property name="AddressData" type="aa{sv}" access="read"/>
@@ -665,6 +667,11 @@ static void run(const std::string& address)
         nm.set(WIFI, I_DEV, "StateReason", g_variant_new("(uu)", 120, 8));
         s = NmClient::readState(bus);
         check(s.wifiStateReason == 8, "the reason, not the state, out of StateReason");
+        nm.set(AP, I_AP, "HwAddress", g_variant_new_string("AA:BB:CC:DD:EE:FF"));
+        nm.set(AP, I_AP, "Frequency", g_variant_new_uint32(2437));
+        s = NmClient::readState(bus);
+        check(s.wifiBssid == "AA:BB:CC:DD:EE:FF" && s.wifiFrequency == 2437,
+              "the joined access point's address and frequency");
 
         nm.takeCalls();
         std::string why;
@@ -832,6 +839,11 @@ static void run(const std::string& address)
         check(NmClient::deleteProfile(bus, 3, why), "a wifi profile is deleted");
         const std::vector<std::string> calls = writes(nm);
         check(calls.size() == 1 && calls[0] == SAVED_WIFI " Delete ()", "on its own object");
+
+        std::vector<NmNet::Profile> saved;
+        check(NmClient::listProfiles(bus, saved, why) && saved.size() == 1 && saved[0].ssid == "Home"
+                  && saved[0].profileId == 3 && saved[0].security == NmNet::kSecuritySae,
+              "only the wifi profiles are listed, with their security");
 
         std::string mac;
         check(NmClient::wifiMacAddress(bus, mac, why) && mac == "7C:21:4A:00:11:22", "the radio's address");

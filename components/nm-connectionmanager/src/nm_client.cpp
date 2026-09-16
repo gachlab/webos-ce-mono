@@ -371,6 +371,14 @@ NmNet::NetworkState readState(GDBusConnection* bus)
     if (!wifiPath.empty()) {
         state.wifiStateReason = static_cast<int>(stateReasonOf(bus, wifiPath.c_str()));
         state.wifiProfileId = activeProfileId(bus, wifiPath.c_str());
+        const std::string ap = stringProperty(bus, wifiPath.c_str(),
+                                              "org.freedesktop.NetworkManager.Device.Wireless",
+                                              "ActiveAccessPoint");
+        if (!ap.empty() && ap != "/") {
+            const char* apIface = "org.freedesktop.NetworkManager.AccessPoint";
+            state.wifiBssid = stringProperty(bus, ap.c_str(), apIface, "HwAddress");
+            state.wifiFrequency = static_cast<int>(uintProperty(bus, ap.c_str(), apIface, "Frequency", 0));
+        }
     }
     return state;
 }
@@ -885,6 +893,28 @@ bool deleteProfile(GDBusConnection* bus, int profileId, std::string& error)
     if (!reply)
         return false;
     g_variant_unref(reply);
+    return true;
+}
+
+bool listProfiles(GDBusConnection* bus, std::vector<NmNet::Profile>& profiles, std::string& error)
+{
+    if (!bus) {
+        error = "no system bus";
+        return false;
+    }
+    profiles.clear();
+    for (const SavedWifi& saved : savedWifiProfiles(bus)) {
+        GVariant* settings = settingsOf(bus, saved.path, error);
+        if (!settings)
+            continue;
+        NmNet::Profile profile;
+        profile.profileId = NmNet::profileIdOf(saved.path);
+        profile.ssid = saved.ssid;
+        profile.security = securityOfSettings(settings);
+        profile.staticIp = stringSettingOf(settings, "ipv4", "method") == "manual";
+        profiles.push_back(profile);
+        g_variant_unref(settings);
+    }
     return true;
 }
 

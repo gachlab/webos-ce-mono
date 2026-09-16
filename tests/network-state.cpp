@@ -496,6 +496,40 @@ int main()
               "errors are JSON too");
     }
 
+    std::printf("\nthe access point, for the settings card\n");
+    {
+        NmNet::NetworkState joined;
+        joined.wifi = wifiDevice(NmNet::kDeviceActivated, 80, "Casa");
+        joined.wifiBssid = "AA:BB:CC:DD:EE:FF";
+        joined.wifiFrequency = 5180;
+        const std::string p = NmNet::wifiStatusPayload(joined, true);
+        check(has(p, "},\"apInfo\":{\"bssid\":\"AA:BB:CC:DD:EE:FF\",\"channel\":36}}"),
+              "apInfo beside networkInfo, with the channel");
+        NmNet::NetworkState roamed = joined;
+        roamed.wifiBssid = "AA:BB:CC:DD:EE:00";
+        check(NmNet::wifiChangeKey(joined) != NmNet::wifiChangeKey(roamed), "roaming is a change");
+        NmNet::NetworkState joining = joined;
+        joining.wifi.state = NmNet::kDeviceConfig;
+        check(!has(NmNet::wifiStatusPayload(joining, true), "apInfo"), "no apInfo before the network is up");
+        check(NmNet::channelOf(2412) == 1 && NmNet::channelOf(2472) == 13 && NmNet::channelOf(2484) == 14,
+              "2.4 GHz channels");
+        check(NmNet::channelOf(5180) == 36 && NmNet::channelOf(5825) == 165, "5 GHz channels");
+        check(NmNet::channelOf(5955) == 1 && NmNet::channelOf(6115) == 33, "6 GHz channels");
+        check(NmNet::channelOf(900) == 0, "anything else is 0");
+    }
+
+    std::printf("\nthe saved networks\n");
+    {
+        std::vector<NmNet::Profile> list(2);
+        list[0].profileId = 3; list[0].ssid = "Casa";
+        list[1].profileId = 11; list[1].ssid = "Ofi\"cina"; list[1].security = NmNet::kSecuritySae;
+        check(NmNet::profileListPayload(list)
+                  == "{\"returnValue\":true,\"profileList\":[{\"wifiProfile\":{\"profileId\":3,\"ssid\":\"Casa\"}},"
+                     "{\"wifiProfile\":{\"profileId\":11,\"ssid\":\"Ofi\\\"cina\",\"security\":{\"securityType\":\"wpa-personal\"}}}]}",
+              "HP's shape: security nested, absent for an open network");
+        check(NmNet::profileListPayload({}) == "{\"returnValue\":true,\"profileList\":[]}", "none saved is an empty list");
+    }
+
     std::printf("\nwhat connect accepts\n");
     {
         NmNet::ConnectRequest r;

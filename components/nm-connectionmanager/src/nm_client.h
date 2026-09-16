@@ -74,6 +74,9 @@ bool getProfile(GDBusConnection* bus, int profileId, NmNet::Profile& profile,
                 NmNet::IpInfo& ip, bool& active, std::string& error);
 bool deleteProfile(GDBusConnection* bus, int profileId, std::string& error);
 
+// Every saved wifi profile, in NetworkManager's order.
+bool listProfiles(GDBusConnection* bus, std::vector<NmNet::Profile>& profiles, std::string& error);
+
 // The wifi adapter's hardware address.
 bool wifiMacAddress(GDBusConnection* bus, std::string& mac, std::string& error);
 
