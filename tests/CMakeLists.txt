@@ -182,6 +182,12 @@ add_test(NAME system-menu-wired
          COMMAND system-menu-wired -platform offscreen
                  ${SYSMGR}/uiComponents/SystemMenu/SystemMenu.qml)
 
+# --- what the system menu opens the Wi-Fi card with ---------------------------
+add_executable(wifi-launch-params wifi-launch-params.cpp)
+target_include_directories(wifi-launch-params PRIVATE ${SYSMGR}/Src/lunaui/status-bar)
+target_link_libraries(wifi-launch-params PRIVATE Qt::Core)
+add_test(NAME wifi-launch-params COMMAND wifi-launch-params)
+
 # --- QmlSceneItem's contract -------------------------------------------------
 # Compiles the adapter straight out of the shell's tree: it is the thing under
 # test, and a copy here would drift.

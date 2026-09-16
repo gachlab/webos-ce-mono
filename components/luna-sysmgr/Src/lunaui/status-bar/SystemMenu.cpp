@@ -55,6 +55,7 @@
 #include "DisplayManager.h"
 #include "WindowServer.h"
 #include "SystemUiController.h"
+#include "WifiLaunchParams.h"
 
 #define SYS_UI_APP_ID      "com.palm.systemui"
 #define WIFI_PREFS_APP_ID  "com.palm.app.wifi"
@@ -441,10 +442,7 @@ void SystemMenu::slotWifiNetworkSelected(int index, QString name, int profileId,
 	} else if(!connStatus.isEmpty() && ((connStatus == "ipConfigured") || (connStatus == "associated") ||
 			                            (connStatus == "ipFailed") || (connStatus == "associationFailed"))  ) {
 		//Launch WiFi Panel with Target Parameter.
-		char params[255];
-        sprintf(params,"{\"target\": {\"ssid\": \"%s\", \"securityType\": \"%s\", \"profileId\": %d, \"connectState\": \"%s\"},}",
-                       name.toLatin1().data(), securityType.toLatin1().data(), profileId, connStatus.toLatin1().data());
-		launchApp(WIFI_PREFS_APP_ID, params);
+		launchApp(WIFI_PREFS_APP_ID, wifiLaunchParams(name, securityType, profileId, connStatus));
 	} else {
 		if(profileId) {
 			// Network already has a profile
@@ -453,10 +451,7 @@ void SystemMenu::slotWifiNetworkSelected(int index, QString name, int profileId,
 		} else {
 			if(!securityType.isEmpty()) {
 				//Launch WiFi Panel with Target Parameter.
-				char params[255];
-                sprintf(params,"{\"target\": {\"ssid\": \"%s\", \"securityType\": \"%s\"},}",
-                               name.toLatin1().data(), securityType.toLatin1().data());
-				launchApp(WIFI_PREFS_APP_ID, params);
+				launchApp(WIFI_PREFS_APP_ID, wifiLaunchParams(name, securityType, 0, QString()));
 			} else {
 				StatusBarServicesConnector::instance()->connectToWifiNetwork(name.toStdString(), profileId, securityType.toStdString());
 				QMetaObject::invokeMethod(m_wifiMenu, "wifiConnectStateUpdate", Q_ARG(QVariant, false), Q_ARG(QVariant, name), Q_ARG(QVariant, "userSelected"));
