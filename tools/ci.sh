@@ -73,15 +73,19 @@ build_image() {                 # build_image <release>
     ctx="$(mktemp -d)"
     mkdir -p "$ctx/tools"
     if ! git -C "$R" show HEAD:tools/node-version > "$ctx/tools/node-version" \
-       || ! git -C "$R" show HEAD:tools/fetch-node.sh > "$ctx/tools/fetch-node.sh"; then
-        echo "  FAILED to take tools/node-version and tools/fetch-node.sh from HEAD"
+       || ! git -C "$R" show HEAD:tools/fetch-node.sh > "$ctx/tools/fetch-node.sh" \
+       || ! git -C "$R" show HEAD:package.json > "$ctx/package.json" \
+       || ! git -C "$R" show HEAD:package-lock.json > "$ctx/package-lock.json"; then
+        echo "  FAILED to take the node pin and package files from HEAD"
         rm -rf "$ctx"
         return 1
     fi
     chmod +x "$ctx/tools/fetch-node.sh"
     # node too, for the same reason: the pinned one, fetched and hash-checked
     # while the network is still on. The build then uses it, not Debian's.
-    printf 'FROM debian:%s\nENV DEBIAN_FRONTEND=noninteractive\nRUN apt-get update && apt-get install -y --no-install-recommends %s && rm -rf /var/lib/apt/lists/*\nCOPY tools/node-version tools/fetch-node.sh /tmp/node/tools/\nRUN /tmp/node/tools/fetch-node.sh /opt/node-dist && rm -rf /tmp/node\n' \
+    # TypeScript as well, from package-lock.json, into /opt/node-tools: the
+    # tests type-check components/node-services with it.
+    printf 'FROM debian:%s\nENV DEBIAN_FRONTEND=noninteractive\nRUN apt-get update && apt-get install -y --no-install-recommends %s && rm -rf /var/lib/apt/lists/*\nCOPY tools/node-version tools/fetch-node.sh /tmp/node/tools/\nRUN /tmp/node/tools/fetch-node.sh /opt/node-dist && rm -rf /tmp/node\nCOPY package.json package-lock.json /opt/node-tools/\nRUN cd /opt/node-tools && PATH=/opt/node-dist/current/bin:$PATH npm ci --ignore-scripts --no-audit --no-fund\n' \
         "$rel" "$(echo "$PACKAGES" | tr '\n' ' ')" \
         | "$RUNNER" build -t "$tag" -f - "$ctx" > "/tmp/webos-ci-image-$rel.log" 2>&1
     status=$?
@@ -143,6 +147,7 @@ run_target() {                  # run_target <release>
             -e WEBOS_NODE_HOME=/opt/node-dist/current \
             -w /src "$tag" \
             sh -c 'mkdir -p /src && tar -x -C /src && \
+                   ln -s /opt/node-tools/node_modules node_modules && \
                    { echo "--- build.sh ---" && tools/build.sh \
                      && echo "--- tests ---" \
                      && cmake -S tests -B build/tests > /tmp/t.log 2>&1 \
