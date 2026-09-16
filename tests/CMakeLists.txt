@@ -166,6 +166,22 @@ file(GLOB_RECURSE QML_WITH_FUNCTIONS "${SYSMGR}/uiComponents/*.qml")
 add_test(NAME qml-functions
          COMMAND qml-functions -platform offscreen ${QML_WITH_FUNCTIONS})
 
+# --- the cable's row in the system menu, tapped twice -------------------------
+# Hosted in QmlSceneItem, as the shell hosts it, because the second bug was in
+# the hosting.
+add_executable(system-menu-wired
+    system-menu-wired.cpp
+    ${SYSMGR}/Src/base/QmlSceneItem.cpp
+)
+target_include_directories(system-menu-wired PRIVATE
+    ${SYSMGR}/Src ${SYSMGR}/Src/base ${GLIB_INCLUDE_DIRS}
+    "${WEBOS_STAGING}/include/luna-sysmgr-common")
+target_link_libraries(system-menu-wired PRIVATE
+    Qt::Core Qt::Gui Qt::Widgets Qt::Qml Qt::Quick Qt::GuiPrivate ${GLIB_LIBRARIES})
+add_test(NAME system-menu-wired
+         COMMAND system-menu-wired -platform offscreen
+                 ${SYSMGR}/uiComponents/SystemMenu/SystemMenu.qml)
+
 # --- QmlSceneItem's contract -------------------------------------------------
 # Compiles the adapter straight out of the shell's tree: it is the thing under
 # test, and a copy here would drift.
