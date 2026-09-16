@@ -74,8 +74,18 @@ list_of() {  # list_of <build-system> -> names in MANIFEST order
     # The four components the MANIFEST marks as qmake have a CMakeLists.txt of
     # their own now, so they are built with everything else. Their position in
     # the MANIFEST already puts them after what they depend on.
+    #
+    # One change to HP's order: luna-prefs goes before luna-sysmgr. Our shell
+    # links it (DeviceInfo asks it whether the machine has wifi), which HP's
+    # did not, and HP's order builds it four components later. Every build from
+    # a clean tree failed on lunaprefs.h. luna-prefs itself needs only cjson,
+    # glib, luna-service2 and sqlite, all earlier.
     if [ "$1" = cmake ]; then
-        awk -F'\t' 'NR>1 && ($5=="cmake" || $5=="qmake") {print $2}' "$R/MANIFEST.tsv"
+        awk -F'\t' 'NR>1 && ($5=="cmake" || $5=="qmake") {
+            if ($2 == "luna-prefs") next
+            if ($2 == "luna-sysmgr") print "luna-prefs"
+            print $2
+        }' "$R/MANIFEST.tsv"
     else
         awk -F'\t' -v s="$1" 'NR>1 && $5==s {print $2}' "$R/MANIFEST.tsv"
     fi
