@@ -122,7 +122,7 @@ add_test(NAME network-state COMMAND network-state)
 # started by GTestDBus -- so it needs dbus-daemon, and not the host's network.
 pkg_check_modules(GIO REQUIRED gio-2.0)
 set(CONNMGR "${CMAKE_CURRENT_SOURCE_DIR}/../components/nm-connectionmanager/src")
-add_executable(nm-client nm-client.cpp ${CONNMGR}/nm_client.cpp)
+add_executable(nm-client nm-client.cpp ${CONNMGR}/nm_client.cpp ${CONNMGR}/sleep_watch.cpp)
 target_include_directories(nm-client PRIVATE ${CONNMGR} ${GIO_INCLUDE_DIRS})
 target_link_libraries(nm-client PRIVATE ${GIO_LIBRARIES})
 add_test(NAME nm-client COMMAND nm-client)

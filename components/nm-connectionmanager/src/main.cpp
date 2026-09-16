@@ -55,6 +55,7 @@
 
 #include "network_state.h"
 #include "nm_client.h"
+#include "sleep_watch.h"
 
 #include <luna-service2/lunaservice.h>
 
@@ -63,6 +64,8 @@
 #include <glib.h>
 #include <glib-unix.h>
 
+#include <fstream>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -98,6 +101,13 @@ guint g_refreshPending = 0;
 std::string g_attemptedSsid;
 // The network com.palm.wifi last reported as joined; see leftNetworkPayload.
 std::string g_joinedSsid;
+
+// When Device Sleeps; see NmNet::sleepRadioAction. Kept across restarts in the
+// session's preferences, beside the system preferences database.
+const char kWakeOnWifiFile[] = "/var/luna/preferences/com.palm.connectionmanager.wakeonwifi";
+bool g_keepWifiOnWhileAsleep = true;
+bool g_radioOffForSleep = false;
+std::unique_ptr<SleepWatch> g_sleepWatch;
 
 void logAndFree(const char* where, LSError& error)
 {
@@ -261,10 +271,97 @@ bool setWiredState(LSHandle* sh, LSMessage* message, void*)
     return true;
 }
 
+
+// --- When Device Sleeps -----------------------------------------------------
+
+void loadWakeOnWifi()
+{
+    std::ifstream in(kWakeOnWifiFile);
+    std::string mode;
+    if (in >> mode)
+        NmNet::parseWakeOnWifiMode(mode, g_keepWifiOnWhileAsleep);
+}
+
+bool saveWakeOnWifi()
+{
+    std::ofstream out(kWakeOnWifiFile, std::ios::trunc);
+    out << NmNet::wakeOnWifiMode(g_keepWifiOnWhileAsleep) << '\n';
+    return static_cast<bool>(out);
+}
+
+void onPrepareForSleep(bool goingToSleep)
+{
+    const NmNet::NetworkState now = NmClient::readState(g_system);
+    const NmNet::SleepRadio action = NmNet::sleepRadioAction(
+        g_keepWifiOnWhileAsleep, goingToSleep, now.wifi.present && now.wifiEnabled, g_radioOffForSleep);
+    std::string error;
+    if (action == NmNet::SleepRadio::TurnOff) {
+        g_message("nm-connectionmanager: going to sleep, switching wifi off");
+        if (!NmClient::setWifiEnabled(g_system, false, error))
+            g_warning("nm-connectionmanager: wifi stayed on: %s", error.c_str());
+    } else if (action == NmNet::SleepRadio::TurnOn) {
+        g_message("nm-connectionmanager: awake, switching wifi back on");
+        if (!NmClient::setWifiEnabled(g_system, true, error))
+            g_warning("nm-connectionmanager: wifi stayed off: %s", error.c_str());
+    }
+    if (!g_sleepWatch)
+        return;
+    // Released once the radio is dealt with, which is what lets the machine
+    // sleep; taken again on waking, for the next time.
+    if (goingToSleep)
+        g_sleepWatch->hold(false);
+    else
+        g_sleepWatch->hold(!g_keepWifiOnWhileAsleep);
+}
+
+bool getWakeOnWifiMode(LSHandle* sh, LSMessage* message, void*)
+{
+    LSError error;
+    LSErrorInit(&error);
+    if (!LSMessageReply(sh, message, NmNet::wakeOnWifiPayload(g_keepWifiOnWhileAsleep).c_str(), &error))
+        logAndFree("LSMessageReply", error);
+    return true;
+}
+
+// {"mode": "enable" | "disable"}, answered with the mode now in force, which
+// is what HP's card reads back to set its list.
+bool setWakeOnWifiMode(LSHandle* sh, LSMessage* message, void*)
+{
+    std::string mode;
+    if (const char* payload = LSMessageGetPayload(message)) {
+        json_object* root = json_tokener_parse(payload);
+        if (root && !is_error(root)) {
+            json_object* value = json_object_object_get(root, "mode");
+            if (value && !is_error(value) && json_object_is_type(value, json_type_string))
+                mode = json_object_get_string(value);
+            json_object_put(root);
+        }
+    }
+    std::string reply;
+    bool keepOn = g_keepWifiOnWhileAsleep;
+    if (!NmNet::parseWakeOnWifiMode(mode, keepOn)) {
+        reply = NmNet::errorPayload("expected {\"mode\": \"enable\" | \"disable\"}");
+    } else {
+        g_keepWifiOnWhileAsleep = keepOn;
+        if (!saveWakeOnWifi())
+            g_warning("nm-connectionmanager: could not save %s", kWakeOnWifiFile);
+        if (g_sleepWatch)
+            g_sleepWatch->hold(!g_keepWifiOnWhileAsleep);
+        reply = NmNet::wakeOnWifiPayload(g_keepWifiOnWhileAsleep);
+    }
+    LSError error;
+    LSErrorInit(&error);
+    if (!LSMessageReply(sh, message, reply.c_str(), &error))
+        logAndFree("LSMessageReply", error);
+    return true;
+}
+
 LSMethod kMethods[] = {
     { "getStatus", getStatus },
     { "getstatus", getStatus },
     { "setWiredState", setWiredState },
+    { "getWakeOnWiFiMode", getWakeOnWifiMode },
+    { "setWakeOnWiFiMode", setWakeOnWifiMode },
     { },
 };
 
@@ -598,6 +695,10 @@ int main()
         }
     }
 
+    loadWakeOnWifi();
+    g_sleepWatch = std::make_unique<SleepWatch>(g_system, onPrepareForSleep);
+    g_sleepWatch->hold(!g_keepWifiOnWhileAsleep);
+
     // The state before anyone can ask for it, and g_lastPayload with it, so the
     // first real change is what gets posted rather than a duplicate of this.
     g_state = currentState();
@@ -621,6 +722,7 @@ int main()
         if (!LSUnregisterPalmService(g_wifiService, &error))
             logAndFree("LSUnregisterPalmService(com.palm.wifi)", error);
     }
+    g_sleepWatch.reset();
     if (g_system)
         g_object_unref(g_system);
     g_main_loop_unref(g_loop);

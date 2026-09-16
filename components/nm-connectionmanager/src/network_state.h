@@ -881,6 +881,60 @@ inline Security requestedSecurity(const ConnectRequest& req, Security advertised
     return kSecurityNone;
 }
 
+
+// --- When Device Sleeps -------------------------------------------------------
+//
+// The settings card's "When Device Sleeps: Keep Wi-Fi On / Turn Wi-Fi Off",
+// which HP's card read and wrote through com.palm.connectionmanager's
+// getWakeOnWiFiMode and setWakeOnWiFiMode, with "enable" and "disable". On the
+// phone it was the radio's own sleep mode. Here it is what a laptop can do with
+// it: with "disable", the radio is switched off as the machine suspends and on
+// again as it resumes -- and only if it was on, so a radio the user had
+// switched off stays off.
+
+enum class SleepRadio { Nothing, TurnOff, TurnOn };
+
+// What to do with the radio at logind's PrepareForSleep. turnedOff remembers,
+// between the two, whether the radio was switched off for this sleep.
+inline SleepRadio sleepRadioAction(bool keepOnWhileAsleep, bool goingToSleep, bool radioOn,
+                                   bool& turnedOff)
+{
+    if (goingToSleep) {
+        if (keepOnWhileAsleep || !radioOn)
+            return SleepRadio::Nothing;
+        turnedOff = true;
+        return SleepRadio::TurnOff;
+    }
+    if (!turnedOff)
+        return SleepRadio::Nothing;
+    turnedOff = false;
+    return SleepRadio::TurnOn;
+}
+
+inline const char* wakeOnWifiMode(bool keepOnWhileAsleep)
+{
+    return keepOnWhileAsleep ? "enable" : "disable";
+}
+
+// "enable" or "disable" into keepOnWhileAsleep; false for anything else.
+inline bool parseWakeOnWifiMode(const std::string& mode, bool& keepOnWhileAsleep)
+{
+    if (mode == "enable") {
+        keepOnWhileAsleep = true;
+        return true;
+    }
+    if (mode == "disable") {
+        keepOnWhileAsleep = false;
+        return true;
+    }
+    return false;
+}
+
+inline std::string wakeOnWifiPayload(bool keepOnWhileAsleep)
+{
+    return std::string("{\"returnValue\":true,\"mode\":\"") + wakeOnWifiMode(keepOnWhileAsleep) + "\"}";
+}
+
 }  // namespace NmNet
 
 #endif  // NM_CONNECTIONMANAGER_NETWORK_STATE_H

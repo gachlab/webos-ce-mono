@@ -117,6 +117,20 @@ Three guards that are deliberate:
   after the network being joined, because the library ignores a failure that
   does not name it.
 
+When Device Sleeps
+------------------
+
+`com.palm.connectionmanager/getWakeOnWiFiMode` and `setWakeOnWiFiMode`, with
+`"enable"` or `"disable"`, are what the settings card's **When Device Sleeps**
+reads and writes. The mode is kept in
+`/var/luna/preferences/com.palm.connectionmanager.wakeonwifi`.
+
+With `"disable"` (*Turn Wi-Fi Off*), `src/sleep_watch.cpp` holds a logind
+`delay` inhibitor. On `PrepareForSleep(true)` the radio is switched off — only
+if it was on — and the lock released, which is what lets the machine sleep; on
+`PrepareForSleep(false)` the radio comes back and the lock is taken again. A
+radio the user had switched off stays off.
+
 The one field that is not a preference
 --------------------------------------
 

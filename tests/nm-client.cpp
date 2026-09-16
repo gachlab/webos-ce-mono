@@ -20,9 +20,15 @@
 //     tun0       type=16 state=100  (the VPN, and NM's PrimaryConnection)
 //     br0        type=13 state=100  (a bridge webOS has no notion of)
 #include "nm_client.h"
+#include "sleep_watch.h"
+
+#include <gio/gunixfdlist.h>
+#include <fcntl.h>
+#include <unistd.h>
 
 #include <gio/gio.h>
 
+#include <cerrno>
 #include <condition_variable>
 #include <cstdio>
 #include <map>
@@ -104,6 +110,18 @@ static const char kIntrospection[] = R"XML(
   <interface name="org.freedesktop.NetworkManager.Connection.Active">
     <property name="Vpn" type="b" access="read"/>
     <property name="Connection" type="o" access="read"/>
+  </interface>
+  <interface name="org.freedesktop.login1.Manager">
+    <method name="Inhibit">
+      <arg name="what" type="s" direction="in"/>
+      <arg name="who" type="s" direction="in"/>
+      <arg name="why" type="s" direction="in"/>
+      <arg name="mode" type="s" direction="in"/>
+      <arg name="fd" type="h" direction="out"/>
+    </method>
+    <signal name="PrepareForSleep">
+      <arg name="start" type="b"/>
+    </signal>
   </interface>
   <interface name="org.freedesktop.NetworkManager.Settings">
     <method name="ListConnections">
@@ -202,6 +220,35 @@ public:
     // Each call as "path method args", in the order they arrived; cleared on read.
     // The arguments are printed without their types: GDBus has already refused
     // any call whose signature differs from the one declared above.
+    // Whether logind would still be waiting: every lock handed out whose holder
+    // has not closed it.
+    int heldInhibitors()
+    {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        int held = 0;
+        for (int fd : m_inhibitReadEnds) {
+            char byte;
+            const int flags = fcntl(fd, F_GETFL);
+            fcntl(fd, F_SETFL, flags | O_NONBLOCK);
+            if (read(fd, &byte, 1) < 0 && errno == EAGAIN)
+                ++held;    // no EOF: the other end is still open
+        }
+        return held;
+    }
+
+    void emitPrepareForSleep(bool sleeping)
+    {
+        GDBusConnection* bus = nullptr;
+        {
+            std::lock_guard<std::mutex> lock(m_mutex);
+            bus = m_bus;
+        }
+        g_dbus_connection_emit_signal(bus, nullptr, "/org/freedesktop/login1",
+                                      "org.freedesktop.login1.Manager", "PrepareForSleep",
+                                      g_variant_new("(b)", sleeping), nullptr);
+        g_dbus_connection_flush_sync(bus, nullptr, nullptr);
+    }
+
     std::vector<std::string> takeCalls()
     {
         std::lock_guard<std::mutex> lock(m_mutex);
@@ -290,6 +337,23 @@ private:
                 invocation, "org.freedesktop.NetworkManager.Device.NotActive", failWith.c_str());
             return;
         }
+        if (name == "Inhibit") {
+            int ends[2];
+            if (pipe2(ends, O_CLOEXEC) != 0) {
+                g_dbus_method_invocation_return_dbus_error(invocation, "org.test.Error", "pipe");
+                return;
+            }
+            GUnixFDList* fds = g_unix_fd_list_new();
+            g_unix_fd_list_append(fds, ends[1], nullptr);
+            close(ends[1]);
+            {
+                std::lock_guard<std::mutex> lock(fake->m_mutex);
+                fake->m_inhibitReadEnds.push_back(ends[0]);
+            }
+            g_dbus_method_invocation_return_value_with_unix_fd_list(invocation, g_variant_new("(h)", 0), fds);
+            g_object_unref(fds);
+            return;
+        }
         if (name == "ActivateConnection")
             g_dbus_method_invocation_return_value(invocation,
                                                   g_variant_new("(o)", NM "/ActiveConnection/9"));
@@ -329,6 +393,7 @@ private:
             { AP3, { I_AP } },
             { AP4, { I_AP } },
             { SETTINGS, { I_SETTINGS } },
+            { "/org/freedesktop/login1", { "org.freedesktop.login1.Manager" } },
             { SAVED, { I_CONN } },
             { SAVED_WIFI, { I_CONN } },
             { SAVED_VPN, { I_CONN } },
@@ -347,16 +412,19 @@ private:
             }
         }
 
-        GVariant* reply = g_dbus_connection_call_sync(
-            bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
-            "RequestName", g_variant_new("(su)", I_NM, 4 /* DO_NOT_QUEUE */),
-            G_VARIANT_TYPE("(u)"), G_DBUS_CALL_FLAGS_NONE, -1, nullptr, &error);
-        g_assert_no_error(error);
-        g_variant_unref(reply);
+        for (const char* name : { I_NM, "org.freedesktop.login1" }) {
+            GVariant* reply = g_dbus_connection_call_sync(
+                bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
+                "RequestName", g_variant_new("(su)", name, 4 /* DO_NOT_QUEUE */),
+                G_VARIANT_TYPE("(u)"), G_DBUS_CALL_FLAGS_NONE, -1, nullptr, &error);
+            g_assert_no_error(error);
+            g_variant_unref(reply);
+        }
 
         {
             std::lock_guard<std::mutex> lock(m_mutex);
             m_ready = true;
+            m_bus = bus;
         }
         m_cv.notify_one();
 
@@ -378,6 +446,8 @@ private:
     std::map<std::string, GVariant*> m_props;
     std::vector<std::string> m_calls;
     std::string m_failWith;
+    std::vector<int> m_inhibitReadEnds;
+    GDBusConnection* m_bus = nullptr;
 };
 
 static GVariant* paths(std::initializer_list<const char*> list)
@@ -848,6 +918,47 @@ static void run(const std::string& address)
         std::string mac;
         check(NmClient::wifiMacAddress(bus, mac, why) && mac == "7C:21:4A:00:11:22", "the radio's address");
         measuredLaptop(nm);
+    }
+
+    std::printf("the machine going to sleep\n");
+    {
+        std::vector<bool> heard;
+        bool heldWhenHeard = false;
+        SleepWatch* watchPtr = nullptr;
+        SleepWatch watch(bus, [&](bool sleeping) {
+            heard.push_back(sleeping);
+            heldWhenHeard = watchPtr->holding();
+        });
+        watchPtr = &watch;
+        check(!watch.holding() && nm.heldInhibitors() == 0, "nothing is held until asked");
+        check(watch.hold(true) && watch.holding(), "a delay lock is taken");
+        std::vector<std::string> calls = nm.takeCalls();
+        check(calls.size() == 1
+                  && calls[0] == "/org/freedesktop/login1 Inhibit ('sleep', 'webOS', 'Switching Wi-Fi off before sleep', 'delay')",
+              "as a sleep delay inhibitor");
+        check(nm.heldInhibitors() == 1, "and logind sees it held");
+        check(watch.hold(true) && nm.takeCalls().empty() && nm.heldInhibitors() == 1,
+              "taking it again keeps the one");
+
+        nm.emitPrepareForSleep(true);
+        const auto pump = [&](size_t n) {
+            for (int i = 0; i < 200 && heard.size() < n; ++i)
+                g_main_context_iteration(nullptr, TRUE);
+        };
+        pump(1);
+        check(heard.size() == 1 && heard[0], "going to sleep is heard");
+        check(heldWhenHeard, "while the lock is still held, so there is time to act");
+        watch.hold(false);
+        check(!watch.holding() && nm.heldInhibitors() == 0, "releasing it lets the machine sleep");
+
+        nm.emitPrepareForSleep(false);
+        pump(2);
+        check(heard.size() == 2 && !heard[1], "waking up is heard");
+    }
+    std::printf("a watch without a bus\n");
+    {
+        SleepWatch idle(nullptr, [](bool) {});
+        check(!idle.hold(true) && !idle.holding(), "holds nothing");
     }
     g_object_unref(bus);
 }

@@ -554,6 +554,36 @@ int main()
         check(NmNet::profileListPayload({}) == "{\"returnValue\":true,\"profileList\":[]}", "none saved is an empty list");
     }
 
+    std::printf("\nwhen the device sleeps\n");
+    {
+        bool turnedOff = false;
+        check(NmNet::sleepRadioAction(true, true, true, turnedOff) == NmNet::SleepRadio::Nothing && !turnedOff,
+              "Keep Wi-Fi On leaves the radio alone going to sleep");
+        check(NmNet::sleepRadioAction(true, false, true, turnedOff) == NmNet::SleepRadio::Nothing,
+              "and waking up");
+        check(NmNet::sleepRadioAction(false, true, true, turnedOff) == NmNet::SleepRadio::TurnOff && turnedOff,
+              "Turn Wi-Fi Off switches it off going to sleep");
+        check(NmNet::sleepRadioAction(false, false, false, turnedOff) == NmNet::SleepRadio::TurnOn && !turnedOff,
+              "and back on waking up");
+        check(NmNet::sleepRadioAction(false, false, false, turnedOff) == NmNet::SleepRadio::Nothing,
+              "only once");
+        check(NmNet::sleepRadioAction(false, true, false, turnedOff) == NmNet::SleepRadio::Nothing && !turnedOff,
+              "a radio already off is not touched going to sleep");
+        check(NmNet::sleepRadioAction(false, false, false, turnedOff) == NmNet::SleepRadio::Nothing,
+              "so it stays off on waking up");
+        turnedOff = false;
+        NmNet::sleepRadioAction(false, true, true, turnedOff);
+        check(NmNet::sleepRadioAction(true, false, false, turnedOff) == NmNet::SleepRadio::TurnOn,
+              "switching to Keep Wi-Fi On while asleep still restores the radio");
+
+        bool keep = true;
+        check(NmNet::parseWakeOnWifiMode("disable", keep) && !keep, "disable is read");
+        check(NmNet::parseWakeOnWifiMode("enable", keep) && keep, "enable is read");
+        check(!NmNet::parseWakeOnWifiMode("off", keep) && keep, "anything else is refused, leaving the mode");
+        check(NmNet::wakeOnWifiPayload(false) == "{\"returnValue\":true,\"mode\":\"disable\"}",
+              "the mode is answered as HP's card reads it");
+    }
+
     std::printf("\nwhat connect accepts\n");
     {
         NmNet::ConnectRequest r;
