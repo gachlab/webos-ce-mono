@@ -51,11 +51,11 @@ That last sentence is checked rather than asserted, and by something stronger
 than a careful run on the machine it was written on:
 
 ```sh
-tools/ci.sh sid        # or trixie, or both
+tools/ci.sh            # ubuntu:26.04, what the release is built on
 ```
 
 builds the committed tree — `git archive HEAD`, so not the working copy — inside
-a container for that Debian release, with dependencies installed first and then
+a container for that distribution, with dependencies installed first and then
 **the build itself run with no network at all**, so a component reaching for a
 download fails instead of quietly succeeding. It ends green: five stages, 26
 components, the node addons, an assembled rootfs, and 29 of 29 tests.
