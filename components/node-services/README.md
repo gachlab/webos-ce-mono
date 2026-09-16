@@ -50,6 +50,8 @@ bus.exitWhenIdle(5000);
   handlers get `signal`, and why `subscribe` takes one.
 * `exitWhenIdle(ms)` is how HP's services quit a few seconds after their last
   command. An open request or subscription keeps the service up.
+* `close()` ends what is still waiting: calls fail with "The bus is closed",
+  subscriptions end, and a closed bus refuses new ones the same way.
 
 `kit/db8.ts` — db8, on top of the bus: `find`, `findAll` (every page, as the
 loop asks), `get`, `put`, `merge`, `mergeWhere`, `del`, `delWhere`, `batch`,
@@ -93,9 +95,14 @@ on later node releases without a rebuild), installed next to HP's addons in
   luna-service2's callbacks (microtasks drain at the end of each), and a handle
   closed there is unregistered only once glib's dispatch returns. Doing it on
   the spot freed what luna-service2 was still using.
-* **Polls are dropped before an unregister.** The next handle may get the same
-  descriptor numbers, and a poll left on a closed descriptor never hears the
-  new socket.
+* **Polls follow files, not numbers.** They are dropped before an unregister,
+  and a poll whose descriptor now names another file (luna-service2 may close a
+  peer and accept a new one under the same number in one dispatch) is started
+  again: epoll forgets a closed descriptor, and libuv does not know. The
+  unregister case is tested; the same-dispatch case could not be forced from a
+  test (`lunabus.hub.test.ts` runs many clients at once instead).
+* **Main thread only.** The addon refuses to load in a worker thread, whose
+  loop is not the one it pumps.
 * **Not covered by a test:** the timer that follows glib's timeout. It is
   glib's contract for a foreign loop, but luna-service2's client side adds no
   timed or idle sources, so nothing on the bus exercises it.

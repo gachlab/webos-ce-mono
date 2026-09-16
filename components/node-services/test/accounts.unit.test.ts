@@ -67,6 +67,19 @@ describe("json-schema", () => {
         assert.equal(validate({ a: "1" }, { type: "object", additionalProperties: { type: "string" } }).valid, true);
     });
 
+    test("as in Foundations, null and arrays pass as objects", () => {
+        assert.equal(validate(null, { type: "object" }).valid, true);
+        assert.equal(validate([1], { type: "object" }).valid, true);
+        assert.equal(validate(1, { type: "object" }).valid, false);
+    });
+
+    test("only a property of the object's own counts", () => {
+        assert.deepEqual(validate({}, { type: "object", properties: { constructor: { type: "any" } } }).errors
+            .map((e) => e.property), ["constructor"]);
+        assert.deepEqual(validate({ toString: 1 }, { type: "object", properties: {}, additionalProperties: false }).errors
+            .map((e) => e.property), ["toString"]);
+    });
+
     test("a keyword it does not know is refused", () => {
         assert.throws(() => validate(1, { minimum: 0 } as never), /unsupported schema keyword "minimum"/);
     });
@@ -171,6 +184,21 @@ describe("accounts", () => {
             assert.throws(() => requirePermission("writePermissions", { ...template, writePermissions: undefined },
                 caller("com.example.app")));
         });
+    });
+
+    test("a missing template: the accounts app may, anyone else fails", () => {
+        assert.doesNotThrow(() => requirePermission("writePermissions", undefined,
+            { applicationId: "com.palm.app.accounts", senderServiceName: undefined }));
+        assert.throws(() => requirePermission("writePermissions", undefined,
+            { applicationId: "com.example.app", senderServiceName: undefined }), TypeError);
+    });
+
+    test("a caller with no name is refused, even by a template that allows everyone", () => {
+        const open = { ...template, readPermissions: ["*"] };
+        assert.doesNotThrow(() => requirePermission("readPermissions", open,
+            { applicationId: undefined, senderServiceName: "com.anyone" }));
+        assert.throws(() => requirePermission("readPermissions", open,
+            { applicationId: undefined, senderServiceName: undefined }), /Permission denied! An unnamed caller/);
     });
 
     test("the public whitelist", () => {

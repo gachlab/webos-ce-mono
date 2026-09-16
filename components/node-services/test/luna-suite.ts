@@ -2,6 +2,7 @@
 // bus (luna.fake.test.ts) and against a real ls-hubd (luna.hub.test.ts).
 
 import assert from "node:assert/strict";
+import { getEventListeners } from "node:events";
 import { after, before, describe, test } from "node:test";
 import { setTimeout as sleep } from "node:timers/promises";
 
@@ -102,6 +103,16 @@ export const lunaSuite = (setUp: () => Promise<Setup>) => {
                 }
             } finally {
                 cleanedUp.push("wait");
+            }
+        });
+        // Its cleanup fails after a subscriber leaves.
+        service.method("badCleanup", async function* ({ signal }) {
+            try {
+                yield {};
+                await new Promise((resolve) => signal.addEventListener("abort", resolve, { once: true }));
+            } finally {
+                cleanedUp.push("badCleanup");
+                throw new Error("cleanup failed");
             }
         });
         service.method("failsFirst", async function* () {
@@ -280,6 +291,32 @@ export const lunaSuite = (setUp: () => Promise<Setup>) => {
             assert.deepEqual(await pending, { value: undefined, done: true });
         });
 
+        test("a finished subscription leaves nothing listening on the caller's signal", async () => {
+            const abort = new AbortController();
+            const replies = client().subscribe(`${URI}/count`, {}, { signal: abort.signal });
+            await replies.next();
+            assert.equal(getEventListeners(abort.signal, "abort").length, 1);
+            await replies.return!();
+            assert.equal(getEventListeners(abort.signal, "abort").length, 0);
+        });
+
+        test("a handler whose cleanup fails does not take the service down", async () => {
+            const unhandled: unknown[] = [];
+            const record = (reason: unknown) => unhandled.push(reason);
+            process.on("unhandledRejection", record);
+            try {
+                cleanedUp.length = 0;
+                const replies = client().subscribe(`${URI}/badCleanup`);
+                await replies.next();
+                await replies.return!();
+                await until(() => cleanedUp.includes("badCleanup"), "the cleanup");
+                await sleep(100);
+                assert.deepEqual(unhandled, []);
+            } finally {
+                process.off("unhandledRejection", record);
+            }
+        });
+
         test("an already aborted signal yields nothing", async () => {
             const abort = new AbortController();
             abort.abort();
@@ -380,6 +417,30 @@ export const lunaSuite = (setUp: () => Promise<Setup>) => {
                 quiet.close();
                 busy.close();
                 activity.stop();
+            }
+        });
+
+        test("closing a bus fails its waiting calls and ends its subscriptions", async () => {
+            const closing = env.openBus!(null);
+            const uncaught: unknown[] = [];
+            const record = (error: unknown) => uncaught.push(error);
+            process.on("uncaughtException", record);
+            try {
+                const hanging = closing.call(`${URI}/hang`, {}, { timeout: 0.2 });
+                const replies = closing.subscribe(`${URI}/wait`);
+                await replies.next();
+                const waiting = replies.next();
+                closing.close();
+                await assert.rejects(hanging, isLunaErrorWith({ errorText: "The bus is closed" }));
+                assert.deepEqual(await waiting, { value: undefined, done: true });
+                assert.deepEqual(await replies.return!(), { value: undefined, done: true });
+                await assert.rejects(closing.call(`${URI}/add`, { a: 1, b: 1 }), isLunaErrorWith({ errorText: "The bus is closed" }));
+                assert.equal((await closing.subscribe(`${URI}/count`).next()).done, true);
+                // Past the call's own timeout, which must not touch the closed handle.
+                await sleep(400);
+                assert.deepEqual(uncaught, []);
+            } finally {
+                process.off("uncaughtException", record);
             }
         });
 

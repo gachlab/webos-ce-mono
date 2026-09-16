@@ -22,6 +22,7 @@ const TRANSPORT = "com.webosce.test.transport";
 const APP = "com.webosce.test.app";
 const STRANGER = "com.webosce.test.stranger";
 const SYSTEM = "com.palm.systemservice";
+const ACCOUNTS_APP = "com.palm.app.accounts";
 const T = `luna://${TRANSPORT}`;
 const MAIL = "com.webosce.test.mail";
 
@@ -54,6 +55,8 @@ interface Env {
     service: RunningService;
     exits: number;
     flagged: number;
+    flagFails: boolean;
+    accountsApp: Bus;
     calls: { method: string; payload: Payload }[];
     failing: Set<string>;
     // Methods that wait for the test to release them.
@@ -91,7 +94,7 @@ const failsWith = (fields: Payload) => (error: unknown) => {
 };
 
 before(async () => {
-    env.hub = await startTestBus({ services: [SERVICE_NAME, TRANSPORT, APP, STRANGER, SYSTEM], db8: true });
+    env.hub = await startTestBus({ services: [SERVICE_NAME, TRANSPORT, APP, STRANGER, SYSTEM, ACCOUNTS_APP], db8: true });
     env.admin = openBus(CONFIGURATOR);
     await env.hub.startDb8(async () => {
         try {
@@ -160,6 +163,8 @@ before(async () => {
     env.stranger = openBus(STRANGER);
     env.exits = 0;
     env.flagged = 0;
+    env.flagFails = false;
+    env.accountsApp = openBus(ACCOUNTS_APP);
     env.service = await createAccountsService({
         openBus,
         createActivity: () => createActivity({
@@ -177,7 +182,12 @@ before(async () => {
         sleep: (ms) => sleep(Math.min(ms, 50)),
         delays: { beforeNotifyCreated: 0, afterMarkDeleted: 0, beforeNotifyDeleted: 0 },
         idleMs: 60_000,
-        markProfileCreated: () => { env.flagged++; },
+        markProfileCreated: () => {
+            if (env.flagFails) {
+                throw new Error("EACCES: permission denied");
+            }
+            env.flagged++;
+        },
         exit: () => { env.exits++; },
         log: process.env.WEBOS_TEST_LOGS ? (message) => console.log(`[accounts] ${message}`) : () => {},
     })();
@@ -185,7 +195,7 @@ before(async () => {
 
 after(() => {
     env.service?.close();
-    for (const bus of [env.app, env.stranger, env.admin, ...(env.fakes ?? [])]) {
+    for (const bus of [env.app, env.stranger, env.admin, env.accountsApp, ...(env.fakes ?? [])]) {
         bus?.close();
     }
     env.hub?.stop();
@@ -361,6 +371,15 @@ describe("reading accounts", () => {
         assert.deepEqual(all.results, []);
     });
 
+    test("empty filters are no filters, as in HP's service", async () => {
+        const { result } = await create();
+        const all = await env.app.call<{ results: Payload[] }>(`${SERVICE}/listAccounts`, { templateId: "" });
+        assert.deepEqual(all.results.map((a) => a._id), [result._id]);
+        const unfiltered = await env.app.call<{ results: Payload[] }>(`${SERVICE}/listAccountTemplates`);
+        const templates = await env.app.call<{ results: Payload[] }>(`${SERVICE}/listAccountTemplates`, { capability: null });
+        assert.deepEqual(templates.results, unfiltered.results);
+    });
+
     test("the public variants are for whitelisted apps only", async () => {
         await assert.rejects(env.app.call(`${SERVICE}/listAccountsPublic`, { capability: "documents" }),
             failsWith({ errorCode: "", errorText: "Permission denied." }));
@@ -463,6 +482,23 @@ describe("modifyAccount", () => {
         assert.deepEqual((stored!.capabilityProviders as Payload[]).map((p) => p.id), [`${MAIL}.mail`, `${MAIL}.contacts`]);
     });
 
+    test("new credentials alone, with a transport down, leave the providers as they were", async () => {
+        const { result } = await created();
+        env.failing.add("credentialsChanged");
+        await assert.rejects(modify(result._id, { credentials: { fresh: "yes" } }),
+            failsWith({ errorCode: "TRANSPORT_FAILURE" }));
+        const stored = await accountIn(String(result._id));
+        assert.deepEqual((stored!.capabilityProviders as Payload[]).map((p) => p.id), [`${MAIL}.mail`, `${MAIL}.contacts`]);
+    });
+
+    test("an account whose template is gone: the accounts app may still rename it, others may not", async () => {
+        const [orphan] = await env.db.put([{ _kind: "com.palm.account:1", templateId: "com.webosce.test.gone",
+            username: "left", beingDeleted: false, capabilityProviders: [] }]);
+        await modify(orphan!.id, { alias: "Kept" }, env.accountsApp);
+        assert.equal((await accountIn(orphan!.id))!.alias, "Kept");
+        await assert.rejects(modify(orphan!.id, { alias: "No" }, env.app), failsWith({ errorCode: -9999 }));
+    });
+
     test("a stranger may not modify", async () => {
         const { result } = await created();
         await assert.rejects(modify(result._id, { alias: "x" }, env.stranger), failsWith({ errorText: /Permission denied/ }));
@@ -554,6 +590,24 @@ describe("restore and upkeep", () => {
         await until(async () => (await env.app.call<{ results: Payload[] }>(`${SERVICE}/listAccounts`,
             { templateId: "com.palm.palmprofile" })).results.length === 1, "the profile account");
         assert.equal((await env.app.call(`${SERVICE}/createLocalAccount`)).accountCreated, false);
+    });
+
+    test("a flag that cannot be written is only logged", async () => {
+        const unhandled: unknown[] = [];
+        const record = (reason: unknown) => unhandled.push(reason);
+        process.on("unhandledRejection", record);
+        env.flagFails = true;
+        try {
+            assert.equal((await env.app.call(`${SERVICE}/createLocalAccount`)).accountCreated, true);
+            await until(async () => (await env.app.call<{ results: Payload[] }>(`${SERVICE}/listAccounts`,
+                { templateId: "com.palm.palmprofile" })).results.length === 1, "the profile account");
+            await sleep(100);
+            assert.deepEqual(unhandled, []);
+            assert.deepEqual((await env.app.call(`${SERVICE}/listAccountTemplates`)).returnValue, true);
+        } finally {
+            env.flagFails = false;
+            process.off("unhandledRejection", record);
+        }
     });
 
     test("setPrefs saves the device name on the profile account", async () => {

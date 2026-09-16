@@ -6,6 +6,7 @@ import { spawn } from "node:child_process";
 import { after, before, test } from "node:test";
 import { setTimeout as sleep } from "node:timers/promises";
 import { setFlagsFromString } from "node:v8";
+import { Worker } from "node:worker_threads";
 import { runInNewContext } from "node:vm";
 
 import type { BusMessage } from "#kit/handle.ts";
@@ -19,12 +20,13 @@ const SECOND = "com.webosce.test.second";
 const ECHO = "com.webosce.test.echo";
 const CLOSER = "com.webosce.test.closer";
 const PINGER = "com.webosce.test.pinger";
+const BUSY = "com.webosce.test.busy";
 
 const env: { hub?: TestBus } = {};
 const ignore = { onRequest: (_: BusMessage) => {}, onCancel: (_: BusMessage) => {} };
 
 before(async () => {
-    env.hub = await startTestBus({ services: [EXITS, STAYS, FIRST, SECOND, ECHO, CLOSER, PINGER] });
+    env.hub = await startTestBus({ services: [EXITS, STAYS, FIRST, SECOND, ECHO, CLOSER, PINGER, BUSY] });
 });
 
 after(() => env.hub?.stop());
@@ -180,4 +182,50 @@ test("a handle closed while answering sends nothing", async () => {
     closer.registerMethod("/", "ping");
     await assert.rejects(ask(`luna://${CLOSER}/ping`, 500), /no reply/);
     assert.deepEqual(results, [false]);
+});
+
+test("many clients coming and going are all answered", async () => {
+    // Peers that disconnect and connect in the same dispatch hand the service
+    // the same descriptor numbers; a poll kept on a reused number never hears
+    // the new peer.
+    const busy = answering(BUSY);
+    handles.set(BUSY, busy);
+    busy.registerMethod("/", "ping");
+    const client = (rounds: number) => runScript(`
+        import { openHandle } from "#kit/lunabus.ts";
+        const handle = openHandle(null, false, { onRequest() {}, onCancel() {} });
+        const ask = () => new Promise((resolve, reject) => {
+            const timer = setTimeout(() => reject(new Error("no reply")), 3000);
+            handle.call("luna://${BUSY}/ping", "{}", true, () => { clearTimeout(timer); resolve(); });
+        });
+        for (let i = 0; i < ${rounds}; i++) {
+            await ask();
+            await new Promise((resolve) => setTimeout(resolve, Math.random() * 20));
+        }
+        handle.close();
+    `, 20000);
+    try {
+        for (let wave = 0; wave < 4; wave++) {
+            const codes = await Promise.all(Array.from({ length: 12 }, (_, i) => client(1 + (i % 4))));
+            assert.deepEqual(codes, codes.map(() => 0), `wave ${wave}: ${JSON.stringify(codes)}`);
+        }
+    } finally {
+        busy.close();
+    }
+});
+
+test("a worker thread may not load the addon", async () => {
+    const worker = new Worker(`
+        const { createRequire } = require("node:module");
+        const { parentPort } = require("node:worker_threads");
+        try {
+            createRequire(process.env.WEBOS_LUNABUS)(process.env.WEBOS_LUNABUS);
+            parentPort.postMessage("loaded");
+        } catch (error) {
+            parentPort.postMessage(String(error.message));
+        }
+    `, { eval: true });
+    const outcome = await new Promise<string>((resolve) => worker.once("message", resolve));
+    await worker.terminate();
+    assert.equal(outcome, "lunabus.node runs on the main thread only");
 });

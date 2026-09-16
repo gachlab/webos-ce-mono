@@ -115,12 +115,21 @@ export interface Caller {
 
 const ALWAYS_ALLOWED = ["com.palm.app.accounts", "com.palm.service.accounts"];
 
-// Throws unless the caller may use the account (or template) this way.
-export const requirePermission = (kind: "readPermissions" | "writePermissions", subject: Account | Template,
-                                  caller: Caller): void => {
+// Throws unless the caller may use the account (or template) this way. The
+// accounts app and service may always, even when the template is gone, as in
+// HP's Utils.hasPermission; for anyone else a missing template fails, and so
+// does a caller with no name at all.
+export const requirePermission = (kind: "readPermissions" | "writePermissions",
+                                  subject: Account | Template | undefined, caller: Caller): void => {
     const callerId = stripProcessNumber(caller.applicationId || caller.senderServiceName || "");
     if (ALWAYS_ALLOWED.includes(callerId)) {
         return;
+    }
+    if (!subject) {
+        throw new TypeError(`Cannot read properties of undefined (reading '${kind}')`);
+    }
+    if (callerId === "") {
+        throw mojoError("", `Permission denied! An unnamed caller is not specified in template ${String(subject.templateId)} ${kind}`);
     }
     const permitted = subject[kind] as string[] | undefined;
     if (permitted?.some((glob) => globToRegex(glob).test(callerId))) {

@@ -7,18 +7,19 @@
 # So the run needs a /tmp of its own: a namespace from bwrap when there is one,
 # or the container's own /tmp in CI (root, no user namespaces, nothing else on
 # the bus). Anywhere else it skips rather than touch a running session's hub.
+# A skip exits 77, which ctest reports as skipped rather than passed.
 set -u
 HERE="$(cd "$(dirname "$0")" && pwd)"
 COMPONENT="$(cd "$HERE/.." && pwd)"
 ROOT="$(cd "$COMPONENT/../.." && pwd)"
 
 . "$ROOT/tools/node-home.sh" \
-    || { echo "SKIP: the pinned node is not unpacked (run tools/fetch-node.sh)"; exit 0; }
+    || { echo "SKIP: the pinned node is not unpacked (run tools/fetch-node.sh)"; exit 77; }
 
 STAGING="$ROOT/build/staging"
 LUNABUS="$ROOT/build/staging/usr/palm/nodejs/lunabus.node"
-[ -x "$STAGING/usr/sbin/ls-hubd" ] || { echo "SKIP: ls-hubd is not staged"; exit 0; }
-[ -f "$LUNABUS" ] || { echo "SKIP: lunabus.node is not built"; exit 0; }
+[ -x "$STAGING/usr/sbin/ls-hubd" ] || { echo "SKIP: ls-hubd is not staged"; exit 77; }
+[ -f "$LUNABUS" ] || { echo "SKIP: lunabus.node is not built"; exit 77; }
 
 TSC="$ROOT/node_modules/.bin/tsc"
 if [ -x "$TSC" ]; then
@@ -49,4 +50,4 @@ elif [ "$(id -u)" = 0 ] && [ ! -e /tmp/com.palm.private_hub ]; then
     exec "${RUN[@]}"
 fi
 echo "SKIP: no private /tmp for a test hub (bwrap unavailable, and not a throwaway container)"
-exit 0
+exit 77

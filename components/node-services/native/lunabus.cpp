@@ -33,6 +33,8 @@
 #include <node_api.h>
 #include <uv.h>
 
+#include <sys/stat.h>
+
 #include <glib.h>
 #include <lunaservice.h>
 
@@ -170,7 +172,17 @@ struct Watch {
     uv_poll_t poll{};
     int events = 0;      // uv events asked for
     gushort ready = 0;   // glib events seen since the last prepare
+    // What the descriptor was when the poll started. luna-service2 may close
+    // a socket and accept another under the same number within one dispatch;
+    // epoll dropped the old one on close and libuv does not know, so a number
+    // that now names another file needs a new poll.
+    dev_t device = 0;
+    ino_t inode = 0;
 };
+
+bool sameFile(const Watch& watch, const struct stat& now) {
+    return watch.device == now.st_dev && watch.inode == now.st_ino;
+}
 
 struct Handle;
 
@@ -266,11 +278,26 @@ void onPrepare(uv_prepare_t* handle) {
     }
     for (const auto& [fd, events] : wanted) {
         const int uv = uvEventsFor(events);
+        struct stat now {};
         auto found = pump->watches.find(fd);
+        if (fstat(fd, &now) != 0) {
+            if (found != pump->watches.end()) {
+                closeWatch(found->second);
+                pump->watches.erase(found);
+            }
+            continue;
+        }
         Watch* watch = found == pump->watches.end() ? nullptr : found->second;
+        if (watch && !sameFile(*watch, now)) {
+            closeWatch(watch);
+            pump->watches.erase(found);
+            watch = nullptr;
+        }
         if (!watch) {
             watch = new Watch;
             watch->poll.data = watch;
+            watch->device = now.st_dev;
+            watch->inode = now.st_ino;
             if (uv_poll_init(uv_default_loop(), &watch->poll, fd) != 0) {
                 delete watch;
                 continue;
@@ -398,6 +425,9 @@ void dropWatches(Pump* pump) {
     pump->watches.clear();
 }
 
+// The async context goes here, not in closeHandle: a handle closed from
+// JavaScript inside its own callback is still inside napi_make_callback on
+// that context.
 void unregister(Handle& handle) {
     if (thePump) {
         dropWatches(thePump);
@@ -406,6 +436,10 @@ void unregister(Handle& handle) {
     LSUnregister(handle.sh, &error.error);
     handle.sh = nullptr;
     handle.calls.clear();
+    if (handle.async) {
+        napi_async_destroy(handle.env, handle.async);
+        handle.async = nullptr;
+    }
 }
 
 void unregisterClosed(Pump* pump) {
@@ -425,10 +459,6 @@ void closeHandle(const std::shared_ptr<Handle>& handle) {
     handle->closed = true;
     for (auto& [token, call] : handle->calls) {
         call->finished = true;
-    }
-    if (handle->async) {
-        napi_async_destroy(handle->env, handle->async);
-        handle->async = nullptr;
     }
     if (thePump && thePump->dispatching) {
         thePump->toUnregister.push_back(handle);
@@ -585,29 +615,37 @@ napi_value open(napi_env env, napi_callback_info info) {
 
         auto handle = std::make_shared<Handle>(env, argv[2], argv[3]);
         handle->self = handle;
-        LsError error;
-        if (!LSRegisterPubPriv(type == napi_null ? nullptr : name.c_str(), &handle->sh, publicBus, &error.error)) {
-            error.raise("LSRegister");
-        }
-        if (!LSGmainAttach(handle->sh, thePump->loop, &error.error)) {
-            LSUnregister(handle->sh, nullptr);
-            error.raise("LSGmainAttach");
-        }
-        if (!LSSubscriptionSetCancelFunction(handle->sh, onSubscriptionCancel, handle.get(), &error.error)) {
-            LSUnregister(handle->sh, nullptr);
-            error.raise("LSSubscriptionSetCancelFunction");
-        }
         napi_value resourceName = stringValue(env, "lunabus");
         check(env, napi_async_init(env, nullptr, resourceName, &handle->async));
+        LsError error;
+        if (!LSRegisterPubPriv(type == napi_null ? nullptr : name.c_str(), &handle->sh, publicBus, &error.error)) {
+            napi_async_destroy(env, handle->async);
+            handle->async = nullptr;
+            error.raise("LSRegister");
+        }
+        // From here on the handle is registered: any failure closes it again,
+        // so luna-service2 keeps no pointer to a Handle that is about to go.
         holdAlive(thePump, +1);
-
-        napi_value external;
-        check(env, napi_create_external(env, new HandleBox{handle}, [](napi_env, void* data, void*) {
-            auto* box = static_cast<HandleBox*>(data);
-            closeHandle(box->handle);
-            delete box;
-        }, nullptr, &external));
-        return external;
+        try {
+            if (!LSGmainAttach(handle->sh, thePump->loop, &error.error)) {
+                error.raise("LSGmainAttach");
+            }
+            if (!LSSubscriptionSetCancelFunction(handle->sh, onSubscriptionCancel, handle.get(), &error.error)) {
+                error.raise("LSSubscriptionSetCancelFunction");
+            }
+            napi_value external;
+            auto box = std::make_unique<HandleBox>(HandleBox{handle});
+            check(env, napi_create_external(env, box.get(), [](napi_env, void* data, void*) {
+                auto* owned = static_cast<HandleBox*>(data);
+                closeHandle(owned->handle);
+                delete owned;
+            }, nullptr, &external));
+            box.release();
+            return external;
+        } catch (...) {
+            closeHandle(handle);
+            throw;
+        }
     });
 }
 
@@ -730,6 +768,14 @@ napi_value close(napi_env env, napi_callback_info info) {
 
 napi_value init(napi_env env, napi_value exports) {
     return guarded(env, [&] {
+        // One glib pump, on node's main loop. A worker thread has a loop of its
+        // own, and pumping its handles from the main thread would call into its
+        // JavaScript from the wrong thread.
+        uv_loop_t* loop = nullptr;
+        check(env, napi_get_uv_event_loop(env, &loop));
+        if (loop != uv_default_loop()) {
+            throw JsThrow{"lunabus.node runs on the main thread only"};
+        }
         if (!thePump) {
             thePump = startPump();
         }

@@ -173,12 +173,35 @@ const methodKey = (category: string, method: string): string =>
 
 // ---- calling ----------------------------------------------------------------
 
-const callWith = (deps: BusDeps, handle: BusHandle) =>
+// What a bus's calls and subscriptions need to know about the bus itself: once
+// it is closed its handle refuses everything, and whatever is still waiting is
+// ended through `onClose`.
+interface Life {
+    closed: boolean;
+    readonly onClose: Set<() => void>;
+}
+
+export const busClosed = () => lunaError(-1, "The bus is closed");
+
+const callWith = (deps: BusDeps, handle: BusHandle, life: Life) =>
     <R extends Payload>(uri: string, payload: Payload = {}, options: CallOptions = {}): Promise<R> =>
         new Promise<R>((resolve, reject) => {
+            if (life.closed) {
+                reject(busClosed());
+                return;
+            }
             const timing: { timer: Timer } = { timer: undefined };
-            const token = handle.call(uri, JSON.stringify(payload), true, (message) => {
+            const settle = () => {
                 deps.clearTimer(timing.timer);
+                life.onClose.delete(abandon);
+            };
+            const abandon = () => {
+                settle();
+                reject(busClosed());
+            };
+            life.onClose.add(abandon);
+            const token = handle.call(uri, JSON.stringify(payload), true, (message) => {
+                settle();
                 try {
                     resolve(readReply(message) as R);
                 } catch (error) {
@@ -187,13 +210,14 @@ const callWith = (deps: BusDeps, handle: BusHandle) =>
             });
             if (options.timeout !== undefined) {
                 timing.timer = deps.setTimer(() => {
+                    settle();
                     handle.cancel(token);
                     reject(lunaError(-1, `Timed out after ${options.timeout} s calling ${uri}`));
                 }, options.timeout * 1000);
             }
         });
 
-const subscribeWith = (handle: BusHandle) =>
+const subscribeWith = (handle: BusHandle, life: Life) =>
     <R extends Payload>(uri: string, payload: Payload = {}, options: SubscribeOptions = {}): AsyncIterableIterator<R> => {
         const queue: R[] = [];
         const state: { failure?: unknown; done: boolean; wake?: (() => void) | undefined } = { done: false };
@@ -206,7 +230,7 @@ const subscribeWith = (handle: BusHandle) =>
         };
 
         const start = () => {
-            if (signal?.aborted) {
+            if (signal?.aborted || life.closed) {
                 state.done = true;
                 return undefined;
             }
@@ -227,13 +251,20 @@ const subscribeWith = (handle: BusHandle) =>
         const finish = () => {
             if (!state.done) {
                 state.done = true;
-                if (token !== undefined) {
+                // A closed bus has cancelled everything already, and its
+                // handle refuses to be used.
+                if (token !== undefined && !life.closed) {
                     handle.cancel(token);
                 }
+                signal?.removeEventListener("abort", finish);
+                life.onClose.delete(finish);
             }
             wake();
         };
-        signal?.addEventListener("abort", finish, { once: true });
+        if (!state.done) {
+            signal?.addEventListener("abort", finish, { once: true });
+            life.onClose.add(finish);
+        }
 
         const next = async (): Promise<IteratorResult<R>> => {
             while (queue.length === 0 && state.failure === undefined && !state.done) {
@@ -318,7 +349,7 @@ export const createBus = (deps: BusDeps) => (name: string | null, options: BusOp
     const live = new Map<string, Live>();
     const ownActivity = options.activity === undefined;
     const activity = options.activity ?? createActivity(deps);
-    const state = { closed: false };
+    const state: Life = { closed: false, onClose: new Set() };
 
     // A request counts from its arrival until it is fully done, a subscribed
     // one for as long as the subscription lasts; a live subscription counts on
@@ -346,7 +377,7 @@ export const createBus = (deps: BusDeps) => (name: string | null, options: BusOp
         }
         removeLive(token);
         entry.abort.abort();
-        void entry.iterator.return?.();
+        void entry.iterator.return?.()?.catch(() => undefined);
         return true;
     };
 
@@ -434,8 +465,8 @@ export const createBus = (deps: BusDeps) => (name: string | null, options: BusOp
     };
 
     return {
-        call: callWith(deps, handle),
-        subscribe: subscribeWith(handle),
+        call: callWith(deps, handle, state),
+        subscribe: subscribeWith(handle, state),
         method: (method, handler, methodOptions = {}) => {
             const category = methodOptions.category ?? "/";
             handle.registerMethod(category, method);
@@ -454,6 +485,10 @@ export const createBus = (deps: BusDeps) => (name: string | null, options: BusOp
                 endLive(token);
             }
             handle.close();
+            // Calls still waiting fail, and subscriptions end.
+            for (const end of [...state.onClose]) {
+                end();
+            }
         },
     };
 };

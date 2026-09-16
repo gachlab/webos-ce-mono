@@ -90,7 +90,7 @@ teardown() {
         # from the rootfs directory; their script path gives them away. Read with
         # mapfile, a builtin, so the sweep stays free of forks.
         if [ "$exe" = /usr/palm/nodejs/node ] || [ "$exe" = "$ROOTFS/usr/palm/nodejs/node" ]; then
-            mapfile -d '' -t args < "$d/cmdline" 2>/dev/null || args=()
+            { mapfile -d '' -t args < "$d/cmdline"; } 2>/dev/null || args=()
             case " ${args[*]} " in
                 *" /usr/palm/node-services/"*) kill "$pid" 2>/dev/null ;;
             esac

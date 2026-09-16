@@ -8,7 +8,8 @@
 //     luna-service2's URI parser does;
 //   * cancelling a call makes the service's handle report the cancel, but only
 //     for a request the service added with subscriptionAdd;
-//   * everything is delivered asynchronously, never inside the call.
+//   * everything is delivered asynchronously, never inside the call;
+//   * a closed handle refuses every use, with the addon's message.
 // The same suite runs against the real hub (luna.hub.test.ts), which is what
 // keeps this copy honest.
 
@@ -129,11 +130,18 @@ export const createFakeBus = (): { openHandle: OpenHandle } => {
             return token;
         };
 
+        const open = <A extends unknown[], R>(use: (...args: A) => R) => (...args: A): R => {
+            if (endpoint.state.closed) {
+                throw new Error("the bus handle is closed");
+            }
+            return use(...args);
+        };
+
         return {
-            call,
-            cancel: (token) => calls.get(token)?.cancel(),
-            registerMethod: (category, method) => void endpoint.methods.add(methodPath(category, method)),
-            subscriptionAdd: (_key, request) => void endpoint.subscriptions.add(request.uniqueToken ?? ""),
+            call: open(call),
+            cancel: open((token: Token) => calls.get(token)?.cancel()),
+            registerMethod: open((category: string, method: string) => void endpoint.methods.add(methodPath(category, method))),
+            subscriptionAdd: open((_key: string, request: BusMessage) => void endpoint.subscriptions.add(request.uniqueToken ?? "")),
             respond: (request, payload) => {
                 const ref = request.ref as FakeRef;
                 if (ref.answerer?.state.closed) {

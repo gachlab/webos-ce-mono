@@ -95,9 +95,9 @@ export const createCommands = (deps: CommandDeps): Command[] => {
         });
 
     const listAccounts = async (args: Args, applicationId: string | undefined) => {
-        const conditions = args.templateId !== undefined
+        const conditions = args.templateId
             ? [where("templateId", args.templateId)]
-            : args.capability !== undefined
+            : args.capability
                 ? [where("capabilityProviders.capability", args.capability)]
                 : [];
         log(`ListAccounts: ${JSON.stringify(conditions)} by ${applicationId ?? ""}`);
@@ -220,11 +220,12 @@ export const createCommands = (deps: CommandDeps): Command[] => {
         }
 
         const account = await getAccount(accountId);
+        // The template may be gone (its app was removed). The accounts app may
+        // still change the account; what needs the template is skipped, as in
+        // HP's code.
         const template = findTemplate(deps.templates(), account.templateId);
-        if (!template) {
-            throw new TypeError("Cannot read properties of undefined (reading 'writePermissions')");
-        }
         requirePermission("writePermissions", template, request);
+        const templateProviders = template?.capabilityProviders ?? [];
 
         const hadCredentials = (await keys.has(account._id!)).value;
         if (hadCredentials && changes.credentials) {
@@ -238,7 +239,7 @@ export const createCommands = (deps: CommandDeps): Command[] => {
             : { add: [], remove: [] };
 
         const disablesAlwaysOn = diff.remove.some((id) =>
-            template.capabilityProviders.find((provider) => provider.id === id)?.alwaysOn);
+            templateProviders.find((provider) => provider.id === id)?.alwaysOn);
         if (disablesAlwaysOn) {
             throw mojoError("400_BAD_REQUEST", "can't disable 'alwaysOn' capabilities");
         }
@@ -247,11 +248,11 @@ export const createCommands = (deps: CommandDeps): Command[] => {
             _id: accountId,
             username: changes.username,
             alias: changes.alias,
-            capabilityProviders: Array.isArray(newProviders) ? storedProviders(template, newProviders) : undefined,
+            capabilityProviders: template && Array.isArray(newProviders) ? storedProviders(template, newProviders) : undefined,
         }]);
 
         const changed = diff.add.length + diff.remove.length > 0;
-        if (changed && template.onCapabilitiesChanged) {
+        if (changed && template?.onCapabilitiesChanged) {
             await bus.call(template.onCapabilitiesChanged, {
                 accountId, capabilityProviders: providerStates(template, newProviders ?? []),
             });
@@ -264,9 +265,9 @@ export const createCommands = (deps: CommandDeps): Command[] => {
             // so all of them were called; that is kept.)
             const params = { accountId };
             const calls = [
-                ...(template.onCredentialsChanged ? [{ uri: template.onCredentialsChanged, params }] : []),
+                ...(template?.onCredentialsChanged ? [{ uri: template.onCredentialsChanged, params }] : []),
                 ...(newProviders ?? account.capabilityProviders).flatMap((wanted) => {
-                    const provider = template.capabilityProviders.find((candidate) => candidate.id === wanted.id);
+                    const provider = templateProviders.find((candidate) => candidate.id === wanted.id);
                     return provider?.onCredentialsChanged
                         ? [{ uri: provider.onCredentialsChanged, params, providerId: provider.id }] : [];
                 }),
@@ -276,7 +277,7 @@ export const createCommands = (deps: CommandDeps): Command[] => {
 
         if (failed.length === 0 && changed) {
             const onEnabled = (enabled: boolean) => (id: string) => {
-                const provider = template.capabilityProviders.find((candidate) => candidate.id === id);
+                const provider = templateProviders.find((candidate) => candidate.id === id);
                 return provider?.onEnabled
                     ? [{ uri: provider.onEnabled, params: { accountId, enabled, capabilityProviderId: id }, providerId: id }]
                     : [];
@@ -284,9 +285,10 @@ export const createCommands = (deps: CommandDeps): Command[] => {
             failed.push(...await callAll([...diff.add.flatMap(onEnabled(true)), ...diff.remove.flatMap(onEnabled(false))]));
         }
 
-        if (failed.length > 0) {
-            // Undo the change for the providers whose transports failed.
-            const ids = (newProviders ?? []).map((provider) => provider.id);
+        if (failed.length > 0 && template && newProviders) {
+            // Undo the change for the providers whose transports failed. When
+            // the request changed no providers there is nothing to undo.
+            const ids = newProviders.map((provider) => provider.id);
             for (const { providerId } of failed) {
                 if (providerId === undefined) {
                     continue;
@@ -299,6 +301,8 @@ export const createCommands = (deps: CommandDeps): Command[] => {
                 }
             }
             await db.merge([{ _id: accountId, capabilityProviders: storedProviders(template, ids.map((id) => ({ id }))) }]);
+        }
+        if (failed.length > 0) {
             throw mojoError("TRANSPORT_FAILURE", `Failed to notify transports: ${failed.map((f) => f.uri).join(",")}`);
         }
         return {};
@@ -334,11 +338,7 @@ export const createCommands = (deps: CommandDeps): Command[] => {
 
     const readCredentials = withTemplates(async (args, request) => {
         const account = await getAccount(args.accountId);
-        const template = findTemplate(deps.templates(), account.templateId);
-        if (!template) {
-            throw new TypeError("Cannot read properties of undefined (reading 'readPermissions')");
-        }
-        requirePermission("readPermissions", template, request);
+        requirePermission("readPermissions", findTemplate(deps.templates(), account.templateId), request);
         return keys.get(String(args.accountId), String(args.name));
     });
 
@@ -517,7 +517,8 @@ export const createCommands = (deps: CommandDeps): Command[] => {
                 .map((name) => ({ id: `${PROFILE_TEMPLATE}.${name}` })),
             username,
             credentials: {},
-        }).then(() => deps.markProfileCreated(), (error: unknown) => log(`local account creation failed: ${String(error)}`));
+        }).then(() => deps.markProfileCreated())
+            .catch((error: unknown) => log(`local account creation, or its flag, failed: ${String(error)}`));
         return { accountCreated: true };
     });
 
@@ -525,7 +526,7 @@ export const createCommands = (deps: CommandDeps): Command[] => {
         {
             name: "listAccountTemplates", public: true,
             handler: withTemplates((args) => ({
-                results: args.capability === undefined ? [...deps.templates()] : deps.templates().filter((template) =>
+                results: !args.capability ? [...deps.templates()] : deps.templates().filter((template) =>
                     template.capabilityProviders.some((provider) => Array.isArray(args.capability)
                         ? (args.capability as unknown[]).includes(provider.capability)
                         : provider.capability === args.capability)),

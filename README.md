@@ -58,7 +58,7 @@ builds the committed tree — `git archive HEAD`, so not the working copy — in
 a container for that distribution, with dependencies installed first and then
 **the build itself run with no network at all**, so a component reaching for a
 download fails instead of quietly succeeding. It ends green: five stages, 26
-components, the node addons, an assembled rootfs, and 29 of 29 tests.
+components, the node addons, an assembled rootfs, and every test.
 
 It was not green to begin with, and that is the point of having it. A clean tree
 on a clean system turned up eight things this repository was quietly taking from

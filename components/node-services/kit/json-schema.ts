@@ -46,6 +46,10 @@ const matchesType = (value: unknown, type: string): boolean => {
             return Number.isInteger(value);
         case "number":
             return typeof value === "number";
+        // Foundations' validator compared typeof, so null and arrays were
+        // objects too, and HP's files may rely on it.
+        case "object":
+            return typeof value === "object";
         default:
             return typeOf(value) === type;
     }
@@ -75,7 +79,7 @@ const check = (value: unknown, schema: Schema, path: string, errors: SchemaError
         const properties = schema.properties ?? {};
         for (const [name, property] of Object.entries(properties)) {
             const at = path ? `${path}.${name}` : name;
-            if (object[name] === undefined) {
+            if (!Object.hasOwn(object, name) || object[name] === undefined) {
                 if (!property.optional) {
                     errors.push({ property: at, message: "is missing and it is not optional" });
                 }
@@ -85,7 +89,7 @@ const check = (value: unknown, schema: Schema, path: string, errors: SchemaError
         }
         const extra = schema.additionalProperties;
         if (extra !== undefined && extra !== true) {
-            for (const name of Object.keys(object).filter((key) => !(key in properties))) {
+            for (const name of Object.keys(object).filter((key) => !Object.hasOwn(properties, key))) {
                 const at = path ? `${path}.${name}` : name;
                 if (extra === false) {
                     errors.push({ property: at, message: "is not defined in the schema and the schema does not allow additional properties" });
