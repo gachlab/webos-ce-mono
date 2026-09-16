@@ -322,7 +322,8 @@ int main(int argc, char** argv)
         check(card.js("enyo.$.wifiApp_radioSwitch.getShowing() && enyo.$.wifiApp_radioSwitch.getState()") == "true",
               "the radio switch is shown, on");
         check(card.js("enyo.$.wifiApp_autoJoinNote.getShowing()") == "true", "with the note about known networks");
-        check(card.js("enyo.$.wifiApp_caption.getShowing()") == "false", "and no caption over the list");
+        check(card.js("enyo.$.wifiApp_caption.getShowing() && enyo.$.wifiApp_caption.getContent() === ''") == "true",
+              "and an empty caption line over the list, as on the phone");
         check(card.services.count("com.palm.wifi/getprofile ") == 0, "nothing opened without a target");
     }
 
@@ -391,7 +392,8 @@ int main(int argc, char** argv)
         check(card.until("enyo.$.wifiApp_config.isInOffView()"), "the radio off shows the off view");
         check(card.js("enyo.$.wifiApp_radioSwitch.getDisabled() || enyo.$.wifiApp_radioSwitch.getState()") == "false",
               "with the switch usable again, off");
-        check(card.js("enyo.$.wifiApp_autoJoinNote.getShowing()") == "false", "and no note about known networks");
+        check(card.js("enyo.$.wifiApp_autoJoinNote.getShowing() || enyo.$.wifiApp_caption.getShowing()") == "false",
+              "and neither the note nor the caption line");
     }
 
     std::printf("known networks\n");
@@ -419,8 +421,15 @@ int main(int argc, char** argv)
               "without it");
 
         card.js("enyo.$.wifiApp.forgetKnown(null, 0)");
+        check(waitFor([&]() { return card.services.count("com.palm.wifi/getprofilelist") == 3; }, 5000)
+                  && card.until("enyo.$.wifiApp.known.length === 0"),
+              "with none left, the list is empty");
+        check(card.js("enyo.$.wifiApp_knownGroup.getShowing() && !enyo.$.wifiApp_noKnown.getShowing()") == "true",
+              "and shown as an empty group, as on the phone");
+        card.services.profileList = QStringLiteral("{\"returnValue\":false,\"errorText\":\"no\"}");
+        card.js("enyo.$.wifiApp.showKnown()");
         check(card.until("enyo.$.wifiApp_noKnown.getShowing() && !enyo.$.wifiApp_knownGroup.getShowing()"),
-              "with none left, it says so");
+              "a list that cannot be read says there are no known networks");
 
         card.js("enyo.$.wifiApp_backButton.hasNode().click()");
         check(card.until("enyo.$.wifiApp_radioSwitch.getShowing() && !enyo.$.wifiApp_backButton.getShowing()"),

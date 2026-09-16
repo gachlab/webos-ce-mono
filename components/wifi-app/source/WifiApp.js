@@ -51,7 +51,7 @@ enyo.kind({
 		{kind: "ApplicationEvents", onApplicationRelaunch: "applyTarget"},
 
 		{kind: "Toolbar", className: "enyo-toolbar-light wifi-app-header", pack: "center", components: [
-			{flex: 1},
+			{kind: "Spacer", flex: 1},
 			{kind: "HFlexBox", align: "center", components: [
 				{className: "wifi-app-header-icon"},
 				{name: "title", className: "wifi-app-title", content: $L("Wi-Fi")}
@@ -76,8 +76,8 @@ enyo.kind({
 						{name: "knownList", kind: "VirtualRepeater", onSetupRow: "knownRow", components: [
 							{name: "knownItem", kind: "SwipeableItem", layoutKind: "HFlexLayout", confirmRequired: true,
 								confirmCaption: $L("Delete"), onConfirm: "forgetKnown", components: [
-								{name: "knownName", flex: 1, className: "wifi-app-known-name"},
-								{name: "knownSecurity", className: "wifi-app-known-security"}
+								{name: "knownName", flex: 1},
+								{name: "knownSecurity"}
 							]}
 						]}
 					]},
@@ -156,8 +156,10 @@ enyo.kind({
 			caption = $L("Join Other Network");
 			break;
 		}
+		// Shown while the radio is on even when it has nothing to say: the empty
+		// line is part of the layout the list sits under.
 		this.$.caption.setContent(caption);
-		this.$.caption.setShowing(radioOn && caption !== "");
+		this.$.caption.setShowing(radioOn);
 
 		if (this.radioWanted === radioOn)
 			this.$.radioSwitch.setDisabled(false);
@@ -208,13 +210,14 @@ enyo.kind({
 		this.$.backButton.hide();
 	},
 
+	// "No known networks." is for a list that could not be read; an empty one
+	// is an empty group, as on the phone.
 	profileListReceived(inSender, inResponse) {
 		const ok = inResponse && inResponse.returnValue === true && Array.isArray(inResponse.profileList);
 		this.known = ok ? inResponse.profileList : [];
-		const any = this.known.length > 0;
-		this.$.knownGroup.setShowing(any);
-		this.$.noKnown.setShowing(!any);
-		if (any)
+		this.$.knownGroup.setShowing(ok);
+		this.$.noKnown.setShowing(!ok);
+		if (ok)
 			this.$.knownList.render();
 	},
 
