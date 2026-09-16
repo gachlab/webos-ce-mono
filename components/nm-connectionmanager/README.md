@@ -54,8 +54,11 @@ How it reads the network
 
 `src/network_state.h` holds the mapping, free of both buses, so
 `tests/network-state.cpp` can check every decision without a D-Bus daemon and
-without ls-hubd. `src/main.cpp` fills it in from NetworkManager and answers the
-bus.
+without ls-hubd. `src/nm_client.cpp` is everything said to NetworkManager —
+what is read, and the calls that connect and disconnect the cable — and takes the
+D-Bus connection as an argument, so `tests/nm-client.cpp` runs it against a fake
+NetworkManager on a private bus. `src/main.cpp` hands it the system bus and
+answers the webOS bus.
 
 Two things are worth knowing, both measured on the machine this was written for:
 
@@ -88,8 +91,11 @@ Testing it
 ----------
 
 ```sh
-ctest --test-dir build/tests -R network-state --output-on-failure
+ctest --test-dir build/tests -R 'network-state|nm-client' --output-on-failure
 ```
+
+`nm-client` needs `dbus-daemon`: GLib's `GTestDBus` starts a private one for the
+fake NetworkManager, so the host's network is never touched.
 
 The mapping is verified by mutation: removing the escape for a quote in an SSID,
 moving a confidence threshold, letting a captive portal count as internet,

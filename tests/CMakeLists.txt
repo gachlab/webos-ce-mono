@@ -117,6 +117,16 @@ target_include_directories(network-state PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/../components/nm-connectionmanager/src")
 add_test(NAME network-state COMMAND network-state)
 
+# --- what is read from NetworkManager, and what is asked of it ----------------
+# The other half: nm_client.cpp against a fake NetworkManager on a private bus,
+# started by GTestDBus -- so it needs dbus-daemon, and not the host's network.
+pkg_check_modules(GIO REQUIRED gio-2.0)
+set(CONNMGR "${CMAKE_CURRENT_SOURCE_DIR}/../components/nm-connectionmanager/src")
+add_executable(nm-client nm-client.cpp ${CONNMGR}/nm_client.cpp)
+target_include_directories(nm-client PRIVATE ${CONNMGR} ${GIO_INCLUDE_DIRS})
+target_link_libraries(nm-client PRIVATE ${GIO_LIBRARIES})
+add_test(NAME nm-client COMMAND nm-client)
+
 # --- which coordinate space a touch point arrives in --------------------------
 add_executable(touch-coordinate-spaces touch-coordinate-spaces.cpp)
 target_link_libraries(touch-coordinate-spaces PRIVATE Qt::Core Qt::Gui Qt::Widgets Qt::GuiPrivate)

@@ -48,10 +48,13 @@
 //
 // The mapping from NetworkManager's state to webOS's payload is in
 // network_state.h, free of both buses, so tests/network-state.cpp can check it
-// without a D-Bus daemon and without ls-hubd.
+// without a D-Bus daemon and without ls-hubd. What is read from NetworkManager
+// and asked of it is in nm_client.cpp, which tests/nm-client.cpp runs against a
+// fake NetworkManager on a private bus.
 //
 
 #include "network_state.h"
+#include "nm_client.h"
 
 #include <luna-service2/lunaservice.h>
 
@@ -78,8 +81,8 @@ const char* const kStatusMethods[] = { "getStatus", "getstatus", nullptr };
 // keeps them from ever disagreeing about what the radio is doing.
 const char kWifiServiceName[] = "com.palm.wifi";
 
+// For the signal subscriptions only; the calls themselves are in nm_client.cpp.
 const char kNmService[] = "org.freedesktop.NetworkManager";
-const char kNmPath[] = "/org/freedesktop/NetworkManager";
 const char kNmIface[] = "org.freedesktop.NetworkManager";
 
 GMainLoop* g_loop = nullptr;
@@ -96,306 +99,6 @@ void logAndFree(const char* where, LSError& error)
     g_warning("nm-connectionmanager: %s: %s", where,
               error.message ? error.message : "(no message)");
     LSErrorFree(&error);
-}
-
-// --- reading NetworkManager -------------------------------------------------
-
-// One property, or nullptr. A device can disappear between being listed and
-// being read -- unplugging a USB adapter, a container going away -- and that is
-// ordinary, so a failure here is silent rather than a warning on every change.
-GVariant* property(const char* path, const char* iface, const char* name)
-{
-    if (!g_system)
-        return nullptr;
-    GError* error = nullptr;
-    GVariant* reply = g_dbus_connection_call_sync(
-        g_system, kNmService, path, "org.freedesktop.DBus.Properties", "Get",
-        g_variant_new("(ss)", iface, name), G_VARIANT_TYPE("(v)"),
-        G_DBUS_CALL_FLAGS_NONE, 2000, nullptr, &error);
-    if (!reply) {
-        g_clear_error(&error);
-        return nullptr;
-    }
-    GVariant* boxed = nullptr;
-    g_variant_get(reply, "(v)", &boxed);
-    g_variant_unref(reply);
-    return boxed;
-}
-
-guint32 uintProperty(const char* path, const char* iface, const char* name, guint32 fallback)
-{
-    GVariant* v = property(path, iface, name);
-    if (!v)
-        return fallback;
-    guint32 out = fallback;
-    if (g_variant_is_of_type(v, G_VARIANT_TYPE_UINT32))
-        out = g_variant_get_uint32(v);
-    else if (g_variant_is_of_type(v, G_VARIANT_TYPE_BYTE))
-        out = g_variant_get_byte(v);
-    g_variant_unref(v);
-    return out;
-}
-
-bool boolProperty(const char* path, const char* iface, const char* name)
-{
-    GVariant* v = property(path, iface, name);
-    if (!v)
-        return false;
-    const bool out = g_variant_is_of_type(v, G_VARIANT_TYPE_BOOLEAN)
-                     && g_variant_get_boolean(v);
-    g_variant_unref(v);
-    return out;
-}
-
-std::string stringProperty(const char* path, const char* iface, const char* name)
-{
-    GVariant* v = property(path, iface, name);
-    if (!v)
-        return std::string();
-    std::string out;
-    if (g_variant_is_of_type(v, G_VARIANT_TYPE_STRING)
-        || g_variant_is_of_type(v, G_VARIANT_TYPE_OBJECT_PATH)) {
-        const char* s = g_variant_get_string(v, nullptr);
-        if (s)
-            out = s;
-    }
-    g_variant_unref(v);
-    return out;
-}
-
-// An SSID is a byte array, not a string: it is whatever the access point
-// advertises. It is carried through as bytes and escaped when the payload is
-// built; network_state.h says why that matters.
-std::string ssidOf(const std::string& apPath)
-{
-    if (apPath.empty() || apPath == "/")
-        return std::string();
-    GVariant* v = property(apPath.c_str(), "org.freedesktop.NetworkManager.AccessPoint", "Ssid");
-    if (!v)
-        return std::string();
-    std::string out;
-    if (g_variant_is_of_type(v, G_VARIANT_TYPE_BYTESTRING)) {
-        gsize length = 0;
-        const guchar* bytes = static_cast<const guchar*>(
-            g_variant_get_fixed_array(v, &length, sizeof(guchar)));
-        if (bytes && length)
-            out.assign(reinterpret_cast<const char*>(bytes), length);
-    }
-    g_variant_unref(v);
-    return out;
-}
-
-// The first IPv4 address of a device, from its Ip4Config. Without this the
-// status bar has a network with no address, which is what HP's stub invented
-// (192.168.0.0, a network number that is nobody's address).
-std::string addressOf(const char* devicePath)
-{
-    const std::string configPath =
-        stringProperty(devicePath, "org.freedesktop.NetworkManager.Device", "Ip4Config");
-    if (configPath.empty() || configPath == "/")
-        return std::string();
-
-    GVariant* data = property(configPath.c_str(),
-                              "org.freedesktop.NetworkManager.IP4Config", "AddressData");
-    if (!data)
-        return std::string();
-
-    std::string out;
-    GVariantIter iter;
-    GVariant* entry = nullptr;
-    g_variant_iter_init(&iter, data);
-    while (out.empty() && (entry = g_variant_iter_next_value(&iter))) {
-        GVariant* address = g_variant_lookup_value(entry, "address", G_VARIANT_TYPE_STRING);
-        if (address) {
-            const char* s = g_variant_get_string(address, nullptr);
-            if (s)
-                out = s;
-            g_variant_unref(address);
-        }
-        g_variant_unref(entry);
-    }
-    g_variant_unref(data);
-    return out;
-}
-
-// Whether any active connection is a VPN. NM's PrimaryConnection is the tunnel
-// itself while one is up -- measured, with the primary connection reading
-// type "vpn" over a wifi that was carrying it -- which is why the transport is
-// found by walking the devices instead of trusting the primary connection.
-bool anyVpnActive()
-{
-    GVariant* active = property(kNmPath, kNmIface, "ActiveConnections");
-    if (!active)
-        return false;
-
-    bool found = false;
-    GVariantIter iter;
-    const char* path = nullptr;
-    g_variant_iter_init(&iter, active);
-    while (!found && g_variant_iter_next(&iter, "&o", &path)) {
-        GVariant* isVpn = property(path, "org.freedesktop.NetworkManager.Connection.Active", "Vpn");
-        if (isVpn) {
-            found = g_variant_is_of_type(isVpn, G_VARIANT_TYPE_BOOLEAN)
-                    && g_variant_get_boolean(isVpn);
-            g_variant_unref(isVpn);
-        }
-    }
-    g_variant_unref(active);
-    return found;
-}
-
-// The ethernet device's object path, for the calls that change its state. The
-// first one found: a machine with two sockets is a machine where either will do
-// as "the cable", and nothing in webOS can express a choice between them anyway.
-std::string wiredDevicePath()
-{
-    if (!g_system)
-        return std::string();
-    GVariant* devices = property(kNmPath, kNmIface, "Devices");
-    if (!devices)
-        return std::string();
-    std::string found;
-    GVariantIter iter;
-    const char* path = nullptr;
-    g_variant_iter_init(&iter, devices);
-    while (found.empty() && g_variant_iter_next(&iter, "&o", &path)) {
-        if (uintProperty(path, "org.freedesktop.NetworkManager.Device", "DeviceType",
-                         NmNet::kDeviceUnknown) == NmNet::kDeviceEthernet)
-            found = path;
-    }
-    g_variant_unref(devices);
-    return found;
-}
-
-// Bringing the cable up is not the mirror image of taking it down.
-//
-// Down is Device.Disconnect, which also tells NetworkManager not to bring it
-// back by itself. Up has two cases: normally there is a saved connection for the
-// device and ActivateConnection uses it, but a socket that has never been
-// configured has none -- measured, AvailableConnections was empty -- and then
-// AddAndActivateConnection with empty settings makes NM build the default DHCP
-// profile, which is what it would have done unprompted.
-bool activateWired(const std::string& device, std::string& error)
-{
-    GVariant* available = property(device.c_str(),
-                                   "org.freedesktop.NetworkManager.Device",
-                                   "AvailableConnections");
-    std::string connection;
-    if (available) {
-        GVariantIter iter;
-        const char* path = nullptr;
-        g_variant_iter_init(&iter, available);
-        if (g_variant_iter_next(&iter, "&o", &path))
-            connection = path;
-        g_variant_unref(available);
-    }
-
-    GError* gerror = nullptr;
-    GVariant* reply = nullptr;
-    if (!connection.empty()) {
-        reply = g_dbus_connection_call_sync(
-            g_system, kNmService, kNmPath, kNmIface, "ActivateConnection",
-            g_variant_new("(ooo)", connection.c_str(), device.c_str(), "/"),
-            nullptr, G_DBUS_CALL_FLAGS_NONE, 8000, nullptr, &gerror);
-    } else {
-        GVariantBuilder settings;
-        g_variant_builder_init(&settings, G_VARIANT_TYPE("a{sa{sv}}"));
-        reply = g_dbus_connection_call_sync(
-            g_system, kNmService, kNmPath, kNmIface, "AddAndActivateConnection",
-            g_variant_new("(a{sa{sv}}oo)", &settings, device.c_str(), "/"),
-            nullptr, G_DBUS_CALL_FLAGS_NONE, 8000, nullptr, &gerror);
-    }
-    if (!reply) {
-        error = gerror && gerror->message ? gerror->message : "no reply";
-        g_clear_error(&gerror);
-        return false;
-    }
-    g_variant_unref(reply);
-    return true;
-}
-
-bool deactivateWired(const std::string& device, std::string& error)
-{
-    GError* gerror = nullptr;
-    GVariant* reply = g_dbus_connection_call_sync(
-        g_system, kNmService, device.c_str(), "org.freedesktop.NetworkManager.Device",
-        "Disconnect", nullptr, nullptr, G_DBUS_CALL_FLAGS_NONE, 8000, nullptr, &gerror);
-    if (!reply) {
-        error = gerror && gerror->message ? gerror->message : "no reply";
-        g_clear_error(&gerror);
-        return false;
-    }
-    g_variant_unref(reply);
-    return true;
-}
-
-void readDevice(const char* path, guint32 type, NmNet::Device& out)
-{
-    // Several devices can share a type -- two wifi adapters, or a laptop dock's
-    // ethernet beside the built-in one. An activated one always wins; otherwise
-    // the first seen is kept, so the state is "disconnected" with a real
-    // interface name rather than empty.
-    NmNet::Device device;
-    device.present = true;
-    device.state = static_cast<int>(
-        uintProperty(path, "org.freedesktop.NetworkManager.Device", "State", 0));
-    device.interfaceName =
-        stringProperty(path, "org.freedesktop.NetworkManager.Device", "Interface");
-
-    if (device.state == NmNet::kDeviceActivated)
-        device.ipAddress = addressOf(path);
-
-    // Whether the cable is in, which is not what State says: an unplugged
-    // socket and a socket whose connection was taken down both read
-    // disconnected, and only one of them can be connected again.
-    if (type == NmNet::kDeviceEthernet)
-        device.carrier = boolProperty(path, "org.freedesktop.NetworkManager.Device.Wired", "Carrier");
-
-    if (type == NmNet::kDeviceWifi) {
-        device.strength = 0;
-        const std::string ap = stringProperty(
-            path, "org.freedesktop.NetworkManager.Device.Wireless", "ActiveAccessPoint");
-        if (!ap.empty() && ap != "/") {
-            device.ssid = ssidOf(ap);
-            device.strength = static_cast<int>(uintProperty(
-                ap.c_str(), "org.freedesktop.NetworkManager.AccessPoint", "Strength", 0));
-        }
-    }
-
-    if (!out.present || (device.activated() && !out.activated()))
-        out = device;
-}
-
-NmNet::NetworkState readState()
-{
-    NmNet::NetworkState state;
-    if (!g_system)
-        return state;   // no bus: everything disconnected, which is the truth
-
-    state.connectivity = static_cast<int>(
-        uintProperty(kNmPath, kNmIface, "Connectivity", NmNet::kConnectivityUnknown));
-
-    GVariant* devices = property(kNmPath, kNmIface, "Devices");
-    if (devices) {
-        GVariantIter iter;
-        const char* path = nullptr;
-        g_variant_iter_init(&iter, devices);
-        while (g_variant_iter_next(&iter, "&o", &path)) {
-            const guint32 type =
-                uintProperty(path, "org.freedesktop.NetworkManager.Device", "DeviceType",
-                             NmNet::kDeviceUnknown);
-            // Everything else this machine reports -- bridge, tun, veth,
-            // wifi-p2p, loopback -- is not a transport webOS has any notion of.
-            if (type == NmNet::kDeviceWifi)
-                readDevice(path, type, state.wifi);
-            else if (type == NmNet::kDeviceEthernet)
-                readDevice(path, type, state.wired);
-        }
-        g_variant_unref(devices);
-    }
-
-    state.vpnActive = anyVpnActive();
-    return state;
 }
 
 // --- telling webOS ----------------------------------------------------------
@@ -422,7 +125,7 @@ void post(LSPalmService* service, const std::string& payload)
 
 void refresh()
 {
-    g_state = readState();
+    g_state = NmClient::readState(g_system);
     // Compared as the payload rather than field by field: if what the
     // subscribers would read has not changed, there is nothing to tell them.
     // NetworkManager emits PropertiesChanged for things webOS has no notion of
@@ -518,22 +221,15 @@ bool setWiredState(LSHandle* sh, LSMessage* message, void*)
     if (!parsed) {
         reply = "{\"returnValue\":false,\"errorText\":\"expected {\\\"connected\\\": boolean}\"}";
     } else {
-        const std::string device = wiredDevicePath();
-        if (device.empty()) {
-            reply = "{\"returnValue\":false,\"errorText\":\"no wired device\"}";
+        std::string error;
+        if (NmClient::setWired(g_system, wanted, error)) {
+            reply = "{\"returnValue\":true}";
+            // NetworkManager's own signals will carry the new state to every
+            // subscriber; this only shortens the wait for the first change.
+            scheduleRefresh();
         } else {
-            std::string error;
-            const bool ok = wanted ? activateWired(device, error)
-                                   : deactivateWired(device, error);
-            if (ok) {
-                reply = "{\"returnValue\":true}";
-                // NetworkManager's own signals will carry the new state to every
-                // subscriber; this only shortens the wait for the first change.
-                scheduleRefresh();
-            } else {
-                reply = std::string("{\"returnValue\":false,\"errorText\":\"")
-                        + NmNet::jsonEscape(error) + "\"}";
-            }
+            reply = std::string("{\"returnValue\":false,\"errorText\":\"")
+                    + NmNet::jsonEscape(error) + "\"}";
         }
     }
 
@@ -666,7 +362,7 @@ int main()
 
     // The state before anyone can ask for it, and g_lastPayload with it, so the
     // first real change is what gets posted rather than a duplicate of this.
-    g_state = readState();
+    g_state = NmClient::readState(g_system);
     g_lastPayload = NmNet::statusPayload(g_state, true);
     g_lastWifiKey = NmNet::wifiChangeKey(g_state);
     g_message("nm-connectionmanager: com.palm.connectionmanager up, wifi=%s wired=%s internet=%s",
