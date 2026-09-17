@@ -22,6 +22,10 @@ export interface AppEvents {
     keyboard(shown: boolean): void;
     // The back gesture, or Escape.
     back(): void;
+    // The card's own menu was asked for: the shell sends it as a relaunch
+    // carrying {"palm-command": "open-app-menu"}, which is how HP's cards
+    // hear it too (enyo's onOpenAppMenu).
+    menu(): void;
 }
 
 export type AppEvent = keyof AppEvents;

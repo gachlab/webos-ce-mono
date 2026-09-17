@@ -23,6 +23,12 @@ interface Shown {
     readonly dialog: boolean;
     readonly answered: string;
     readonly life: string[];
+    readonly swiped: boolean;
+    readonly forgotten: string;
+    readonly menu: boolean;
+    readonly chose: string;
+    readonly busy: boolean;
+    readonly sleeps: string;
 }
 
 interface ShowcaseService extends CardService<Shown> {
@@ -42,6 +48,7 @@ const createShowcase = (): ShowcaseService => {
         data: {
             toggled: true, pressed: "", checked: true, typed: "", when: "ask",
             choosing: false, dialog: false, answered: "", life: [],
+            swiped: false, forgotten: "", menu: false, chose: "", busy: false, sleeps: "off",
         },
     });
     return {
@@ -53,9 +60,9 @@ const createShowcase = (): ShowcaseService => {
         onBack: () => {
             // A card that has something open closes that first, and only then
             // lets the back gesture close the card.
-            const { dialog, choosing } = state.get().data;
-            if (dialog || choosing) {
-                state.patch({ dialog: false, choosing: false });
+            const { dialog, choosing, menu, swiped } = state.get().data;
+            if (dialog || choosing || menu || swiped) {
+                state.patch({ dialog: false, choosing: false, menu: false, swiped: false });
                 return true;
             }
             return false;
@@ -138,6 +145,36 @@ const view = (state: State<Shown>, service: ShowcaseService) => {
                     </hp-selector>
                 </div>`)}
 
+            ${section("Swipe to delete", html`
+                <div class="hp-list">
+                    <hp-swipe-row title="Swipe this one to the left" detail=${shown.forgotten || "Then confirm, as HP's lists do"}
+                                  ?open=${shown.swiped}
+                                  @open=${(e: CustomEvent<{ open: boolean }>) => service.change({ swiped: e.detail.open })}
+                                  @remove=${() => service.change({ swiped: false, forgotten: "Deleted, and put back for the next swipe" })}>
+                    </hp-swipe-row>
+                    <hp-swipe-row title="This one deletes on the swipe itself" detail="No confirmation" instant
+                                  @remove=${() => service.change({ forgotten: "Deleted without asking" })}>
+                    </hp-swipe-row>
+                </div>`)}
+
+            ${section("One of a few", html`
+                <div class="hp-list">
+                    <hp-choice label="When device sleeps" value=${shown.sleeps}
+                               .choices=${[{ value: "on", label: "Stay on" }, { value: "off", label: "Turn off" }]}
+                               @choose=${(e: CustomEvent<{ value: string }>) => service.change({ sleeps: e.detail.value })}>
+                    </hp-choice>
+                </div>`)}
+
+            ${section("A button that is working", html`
+                <div class="hp-list">
+                    <hp-row>
+                        <hp-activity-button label=${shown.busy ? "Joining..." : "Join"} kind="affirmative"
+                                            ?busy=${shown.busy}
+                                            @press=${() => service.change({ busy: true })}></hp-activity-button>
+                    </hp-row>
+                </div>
+                ${shown.busy ? note("Tap the card's menu to stop it.") : ""}`)}
+
             ${section("Waiting and failing", html`
                 <div class="hp-list">
                     <hp-spinner label="Always with words beside it"></hp-spinner>
@@ -158,6 +195,17 @@ const view = (state: State<Shown>, service: ShowcaseService) => {
                         ? html`<hp-row title="Nothing yet" detail="Send the card away and bring it back"></hp-row>`
                         : shown.life.map((line) => html`<hp-row title=${line}></hp-row>`)}
                 </div>`)}
+
+            <hp-app-menu ?open=${shown.menu}
+                         .items=${[
+                             { value: "stop", label: "Stop the busy button" },
+                             { value: "help", label: "Help" },
+                             { value: "nothing", label: "Disabled", disabled: true },
+                         ]}
+                         @close=${() => service.change({ menu: false })}
+                         @choose=${(e: CustomEvent<{ value: string }>) =>
+                             service.change({ menu: false, busy: false, chose: e.detail.value })}>
+            </hp-app-menu>
 
             ${shown.dialog
                 ? html`<hp-dialog title="Forget this network?"
@@ -186,3 +234,7 @@ app.on("deactivated", () => service.heard("Sent away"));
 app.on("relaunched", (params) => service.heard(`Relaunched with ${JSON.stringify(params)}`));
 app.on("keyboard", (up) => service.heard(up ? "Keyboard came up" : "Keyboard went away"));
 app.on("back", () => service.heard("Back"));
+app.on("menu", () => {
+    service.heard("The app menu was asked for");
+    service.change({ menu: true });
+});

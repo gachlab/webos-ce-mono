@@ -49,7 +49,10 @@ src/cards/    one directory per app: index.html, appinfo.json, main.ts.
   root, adopting the one stylesheet. The only class in the tree is in here.
 * `ui/kit/kit.ts` — HP's controls: `hp-header`, `hp-button`, `hp-toggle`,
   `hp-row`, `hp-group`, `hp-spinner`, `hp-field`, `hp-check`, `hp-selector`
-  (the row that opens a drawer of choices), `hp-dialog` and `hp-progress`.
+  (the row that opens a drawer of choices), `hp-choice` (one of a few, in the
+  row itself), `hp-dialog`, `hp-progress`, `hp-swipe-row` (swipe to delete,
+  with HP's inline confirmation), `hp-app-menu` and `hp-activity-button`
+  (the one that shows it is working). What is still missing is #58.
 * `ui/start-card.ts` — how a card starts: the stylesheet, the first frame,
   telling WebAppMgr the card is ready, and giving the service the card's own
   life (shown, hidden, relaunched, back).

@@ -185,3 +185,109 @@ defineElement<{ value: number; label: string }>(
                   style="width: ${Math.max(0, Math.min(100, Number(value) || 0))}%"></span></span>
         </div>`,
 );
+
+// §12 A row that is swiped aside to delete what it holds, with HP's inline
+// confirmation behind it: the swipe uncovers "Delete", and only that deletes.
+// enyo's SwipeableItem, whose `confirmRequired` is the same switch: without it
+// the swipe itself deletes, which is how HP's lists that cannot be undone
+// behaved.
+defineElement<{ title: string; detail: string; confirm: string; instant: boolean; open: boolean }>(
+    "hp-swipe-row",
+    { title: String, detail: String, confirm: String, instant: Boolean, open: Boolean },
+    ({ title, detail, confirm, instant, open }, { emit }) => {
+        // A swipe is a drag that got far enough to mean it: the card is told
+        // what the user asked for, and decides.
+        let from = 0;
+        const start = (event: PointerEvent) => {
+            from = event.clientX;
+        };
+        const end = (event: PointerEvent) => {
+            const moved = from - event.clientX;
+            from = 0;
+            if (moved < 40) {
+                return;
+            }
+            if (instant) {
+                emit("remove");
+            } else {
+                emit("open", { open: true });
+            }
+        };
+        return html`
+            <div class="hp-swipe-row ${open ? "open" : ""}"
+                 @pointerdown=${start} @pointerup=${end}>
+                <div class="hp-row">
+                    <div class="hp-row-text" @click=${() => emit("select")}>
+                        <div class="hp-row-title">${title}</div>
+                        ${detail ? html`<div class="hp-row-detail">${detail}</div>` : ""}
+                    </div>
+                    <slot></slot>
+                </div>
+                ${open
+                    ? html`
+                        <div class="hp-swipe-confirm">
+                            <button class="hp-button negative"
+                                    @click=${() => emit("remove")}>${confirm || "Delete"}</button>
+                            <button class="hp-button"
+                                    @click=${() => emit("open", { open: false })}>Cancel</button>
+                        </div>`
+                    : ""}
+            </div>`;
+    },
+);
+
+// §13 The app menu: what is behind the card's name in the top-left corner, and
+// what the system opens with the menu key. WebAppMgr says when it was asked
+// for (Mojo's openAppMenu, which AppService reports), so the card decides
+// whether it is open, as with every other control here.
+defineElement<{ open: boolean; items: { value: string; label: string; disabled?: boolean }[] }>(
+    "hp-app-menu",
+    { open: Boolean, items: Object },
+    ({ open, items }, { emit }) => {
+        if (!open) {
+            return html``;
+        }
+        const list = Array.isArray(items) ? items : [];
+        return html`
+            <div class="hp-menu-shade" @click=${() => emit("close")}>
+                <div class="hp-menu" @click=${(event: Event) => event.stopPropagation()}>
+                    ${list.map((item) => html`
+                        <button class="hp-menu-item" ?disabled=${item.disabled}
+                                @click=${() => emit("choose", { value: item.value })}>${item.label}</button>`)}
+                </div>
+            </div>`;
+    },
+);
+
+// §14 A button that shows it is working: enyo's ActivityButton, which is what
+// HP put on "Join" so a network that takes ten seconds does not look ignored.
+defineElement<{ label: string; kind: string; busy: boolean; disabled: boolean }>(
+    "hp-activity-button",
+    { label: String, kind: String, busy: Boolean, disabled: Boolean },
+    ({ label, kind, busy, disabled }, { emit }) => html`
+        <button class="hp-button ${kind}" ?disabled=${disabled || busy}
+                @click=${() => emit("press")}>
+            ${busy ? html`<span class="hp-button-spinner"></span>` : ""}
+            <span>${label}</span>
+        </button>`,
+);
+
+// §15 One of a few, chosen in the row itself: enyo's ListSelector, which is
+// what HP used for "When Device Sleeps" and for most settings with two or
+// three answers. The drawer of hp-selector is for longer lists.
+defineElement<{ label: string; value: string; choices: { value: string; label: string }[] }>(
+    "hp-choice",
+    { label: String, value: String, choices: Object },
+    ({ label, value, choices }, { emit }) => {
+        const list = Array.isArray(choices) ? choices : [];
+        return html`
+            <div class="hp-row">
+                ${label ? html`<div class="hp-row-text"><div class="hp-row-title">${label}</div></div>` : ""}
+                <div class="hp-choice">
+                    ${list.map((choice) => html`
+                        <button class="hp-choice-one ${choice.value === value ? "chosen" : ""}"
+                                @click=${() => emit("choose", { value: choice.value })}>${choice.label}</button>`)}
+                </div>
+            </div>`;
+    },
+);

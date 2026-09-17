@@ -85,7 +85,14 @@ export const createPalmSystemApp = (deps: PalmSystemDeps): AppService => {
         },
         relaunch: () => {
             previous.relaunch?.();
-            tell("relaunched", parseParams(system().launchParams));
+            const params = parseParams(system().launchParams);
+            // The shell asks for a card's menu by relaunching it with this,
+            // rather than with anything of its own.
+            if (params["palm-command"] === "open-app-menu") {
+                tell("menu");
+                return;
+            }
+            tell("relaunched", params);
         },
         keyboardShown: (shown: boolean) => {
             previous.keyboardShown?.(shown);

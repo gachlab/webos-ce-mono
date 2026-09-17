@@ -114,6 +114,18 @@ describe("the card's life", () => {
         assert.equal(page.Mojo, before, "the hooks that were there are back");
     });
 
+    test("the shell asks for the card's menu by relaunching it with palm-command", () => {
+        const page = fakePage();
+        const app = createPalmSystemApp({ window: page as never });
+        const heard: string[] = [];
+        app.on("menu", () => heard.push("menu"));
+        app.on("relaunched", () => heard.push("relaunched"));
+        (page.PalmSystem as { launchParams: string }).launchParams =
+            JSON.stringify({ "palm-command": "open-app-menu" });
+        (page.Mojo as Hooks).relaunch?.();
+        assert.deepEqual(heard, ["menu"], "it is the menu, not a relaunch with parameters");
+    });
+
     test("a relaunch carries the parameters it was relaunched with", () => {
         const page = fakePage();
         const app = createPalmSystemApp({ window: page as never });
