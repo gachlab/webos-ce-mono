@@ -397,6 +397,12 @@ set_tests_properties(node-services PROPERTIES SKIP_RETURN_CODE 77)
 # cases that let a start through skip themselves while a real session is up.
 add_test(NAME session-lock COMMAND "${CMAKE_CURRENT_SOURCE_DIR}/session-lock/run.sh")
 
+# --- the bus leaves when it is told to ------------------------------------------
+# ls-hubd's SIGTERM handler called g_main_loop_quit() inside the signal and could
+# wait forever on the main loop's lock; it hung a CI run (#48).
+add_test(NAME hub-shutdown COMMAND "${CMAKE_CURRENT_SOURCE_DIR}/hub-shutdown/run.sh")
+set_tests_properties(hub-shutdown PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 300)
+
 # --- static sweeps over the tree ---------------------------------------------
 # Both grew out of a real bug in HP's Qt 5 desktop branch, which never ran on a
 # device: a scene position handed to mapFromParent, and an else-if that repeated

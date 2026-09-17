@@ -29,6 +29,7 @@
 #include <sys/stat.h>
 #include <libgen.h>
 #include <glib.h>
+#include <glib-unix.h>
 
 #include "hub.h"
 #include "conf.h"
@@ -3980,13 +3981,20 @@ _HubIsRunning(bool public)
  * @brief Callback to handle SIGINT and SIGTERM. Quits the mainloop so we can
  * do cleanup before exiting.
  * 
- * @param  signal 
+ * @param  user_data    unused
+ *
+ * @retval G_SOURCE_CONTINUE, so a later signal is still handled
  *******************************************************************************
  */
-static void
-_HandleShutdown(int signal)
+static gboolean
+_HandleShutdown(gpointer user_data)
 {
+    /* Runs from the main loop (g_unix_signal_add), not in the signal handler:
+     * g_main_loop_quit() is not async-signal-safe, and called from a handler
+     * that interrupted the loop while it held its context lock it waited on
+     * that lock forever (webOS CE #48). */
     g_main_loop_quit(mainloop);
+    return G_SOURCE_CONTINUE;
 }
 
 /** 
@@ -4103,8 +4111,8 @@ main(int argc, char *argv[])
 
     /* ignore SIGPIPE -- we'll handle the synchronous return val (EPIPE) */
     _LSTransportSetupSignalHandler(SIGPIPE, SIG_IGN);
-    _LSTransportSetupSignalHandler(SIGTERM, _HandleShutdown);
-    _LSTransportSetupSignalHandler(SIGINT, _HandleShutdown);
+    g_unix_signal_add(SIGTERM, _HandleShutdown, NULL);
+    g_unix_signal_add(SIGINT, _HandleShutdown, NULL);
 
     _ls_verbose("hub starting\n");
 

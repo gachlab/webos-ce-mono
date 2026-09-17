@@ -184,6 +184,9 @@ WEBOS_TEST_LOGS=build/node-services-logs components/node-services/test/run.sh
   `/tmp` of its own with bwrap, or uses a throwaway container's; anywhere else
   it skips rather than touch a running session. The bwrap run has its own pid
   namespace as well, so a run that dies takes its hubs and db8 with it.
+* The test bus stops its daemons with SIGTERM and kills the ones still there
+  two seconds later (`hub.unit.test.ts`): a daemon that hangs on SIGTERM would
+  otherwise keep the test file, and CI, running (#48).
 * No `--test-force-exit`: a test file that does not end on its own has left
   something open.
 * Every test was checked by mutation: each behavior above was broken on purpose
