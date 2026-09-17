@@ -291,3 +291,70 @@ defineElement<{ label: string; value: string; choices: { value: string; label: s
             </div>`;
     },
 );
+
+// §16 A slider: volume, brightness, where a video is. enyo's Slider, whose two
+// events this keeps -- "changing" while the finger is down, "change" when it
+// lifts -- because that is the difference between showing the new brightness
+// as it is dragged and writing it to the service on every pixel.
+//
+// Tapping the bar moves it there, as enyo's tapPosition did.
+defineElement<{ value: number; min: number; max: number; disabled: boolean }>(
+    "hp-slider",
+    { value: Number, min: Number, max: Number, disabled: Boolean },
+    ({ value, min, max, disabled }, { emit, element }) => {
+        const low = Number.isFinite(min) ? min : 0;
+        const high = Number.isFinite(max) && max > low ? max : 100;
+        const at = Math.min(high, Math.max(low, Number(value) || 0));
+        const part = (at - low) / (high - low);
+
+        const valueAt = (clientX: number): number => {
+            const bar = element.shadowRoot?.querySelector(".hp-slider-bar");
+            const box = bar?.getBoundingClientRect();
+            if (!box || box.width === 0) {
+                return at;
+            }
+            const along = Math.min(1, Math.max(0, (clientX - box.left) / box.width));
+            return Math.round(low + along * (high - low));
+        };
+
+        let dragging = false;
+        const down = (event: PointerEvent) => {
+            if (disabled) {
+                return;
+            }
+            dragging = true;
+            // Keeping the finger's events coming even if it leaves the bar is
+            // worth having and not worth failing over: a pointer id that is
+            // not being tracked -- a synthetic event, another engine --
+            // refuses, and that must not swallow the drag itself.
+            try {
+                (event.target as Element).setPointerCapture?.(event.pointerId);
+            } catch {
+                // Then the events stop at the bar's edge, which is still a drag.
+            }
+            emit("changing", { value: valueAt(event.clientX) });
+        };
+        const move = (event: PointerEvent) => {
+            if (dragging) {
+                emit("changing", { value: valueAt(event.clientX) });
+            }
+        };
+        const up = (event: PointerEvent) => {
+            if (!dragging) {
+                return;
+            }
+            dragging = false;
+            emit("change", { value: valueAt(event.clientX) });
+        };
+
+        return html`
+            <div class="hp-slider ${disabled ? "disabled" : ""}"
+                 role="slider" aria-valuenow=${at} aria-valuemin=${low} aria-valuemax=${high}
+                 @pointerdown=${down} @pointermove=${move} @pointerup=${up} @pointercancel=${up}>
+                <div class="hp-slider-bar">
+                    <div class="hp-slider-filled" style="width: ${Math.round(part * 100)}%"></div>
+                    <div class="hp-slider-knob" style="left: ${Math.round(part * 100)}%"></div>
+                </div>
+            </div>`;
+    },
+);

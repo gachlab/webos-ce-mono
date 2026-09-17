@@ -25,6 +25,7 @@
  *   §13 The app menu
  *   §14 A button that is working
  *   §15 One of a few
+ *   §16 Sliders
  */
 
 :host {
@@ -527,4 +528,45 @@
 
 .hp-choice-one.chosen {
     background: linear-gradient(to bottom, #2b8fe0, #2071bb);
+}
+
+/* §16 Sliders -------------------------------------------------------------- */
+
+:host(hp-slider) {
+    display: block;
+    flex: 1;
+}
+
+.hp-slider {
+    padding: 14px 12px;
+    touch-action: none;
+}
+
+.hp-slider.disabled {
+    opacity: 0.4;
+}
+
+.hp-slider-bar {
+    position: relative;
+    height: 10px;
+    border-radius: 5px;
+    background: #d8d8d8;
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+.hp-slider-filled {
+    height: 100%;
+    border-radius: 5px 0 0 5px;
+    background: linear-gradient(to bottom, #2b8fe0, #2071bb);
+}
+
+.hp-slider-knob {
+    position: absolute;
+    top: 50%;
+    width: 26px;
+    height: 26px;
+    margin: -13px 0 0 -13px;
+    border-radius: 50%;
+    background: linear-gradient(to bottom, #fdfdfd, #d8d8d8);
+    border: 1px solid rgba(0, 0, 0, 0.4);
 }

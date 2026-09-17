@@ -29,6 +29,8 @@ interface Shown {
     readonly chose: string;
     readonly busy: boolean;
     readonly sleeps: string;
+    readonly level: number;
+    readonly dragging: number;
 }
 
 interface ShowcaseService extends CardService<Shown> {
@@ -49,6 +51,7 @@ const createShowcase = (): ShowcaseService => {
             toggled: true, pressed: "", checked: true, typed: "", when: "ask",
             choosing: false, dialog: false, answered: "", life: [],
             swiped: false, forgotten: "", menu: false, chose: "", busy: false, sleeps: "off",
+            level: 60, dragging: 0,
         },
     });
     return {
@@ -174,6 +177,20 @@ const view = (state: State<Shown>, service: ShowcaseService) => {
                     </hp-row>
                 </div>
                 ${shown.busy ? note("Tap the card's menu to stop it.") : ""}`)}
+
+            ${section("Sliders", html`
+                <div class="hp-list">
+                    <hp-row title="Brightness" detail=${`${shown.level}%`}>
+                        <hp-slider value=${shown.level}
+                                   @changing=${(e: CustomEvent<{ value: number }>) =>
+                                       service.change({ level: e.detail.value, dragging: shown.dragging + 1 })}
+                                   @change=${(e: CustomEvent<{ value: number }>) =>
+                                       service.change({ level: e.detail.value })}>
+                        </hp-slider>
+                    </hp-row>
+                    <hp-row title="Disabled"><hp-slider value="30" disabled></hp-slider></hp-row>
+                </div>
+                ${note(`While the finger is down it says "changing" (${shown.dragging} so far); when it lifts, "change" -- which is what a card writes to a service.`)}`)}
 
             ${section("Waiting and failing", html`
                 <div class="hp-list">

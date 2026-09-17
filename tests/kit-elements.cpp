@@ -96,6 +96,15 @@ busy.id = "busy";
 busy.setAttribute("label", "Join");
 probe.appendChild(busy);
 
+window.__changing = [];
+window.__changed = [];
+var slider = document.createElement("hp-slider");
+slider.id = "slider";
+slider.setAttribute("value", "50");
+slider.addEventListener("changing", function (e) { window.__changing.push(e.detail.value); });
+slider.addEventListener("change", function (e) { window.__changed.push(e.detail.value); });
+probe.appendChild(slider);
+
 var list = document.createElement("div");
 list.className = "hp-list";
 list.innerHTML = "<hp-row id='first' title='One'><hp-toggle id='inside'></hp-toggle></hp-row>" +
@@ -235,6 +244,29 @@ int main(int argc, char** argv)
           js("var b = document.getElementById('busy').shadowRoot.querySelector('button');"
              "String(b.disabled) + ':' + String(b.querySelectorAll('.hp-button-spinner').length)"),
           QStringLiteral("true:1"));
+
+    // A slider: what it shows, and the two events a card writes to a service
+    // with. The bar is 200 px wide in the probe, so a quarter along is 25.
+    js("document.getElementById('slider').style.width = '200px'; 1");
+    check("it fills to where its value is",
+          js("document.getElementById('slider').shadowRoot.querySelector('.hp-slider-filled').style.width"),
+          QStringLiteral("50%"));
+    js("(function () { var s = document.getElementById('slider');"
+       "var bar = s.shadowRoot.querySelector('.hp-slider-bar');"
+       "var box = bar.getBoundingClientRect();"
+       "var el = s.shadowRoot.querySelector('.hp-slider');"
+       "el.dispatchEvent(new PointerEvent('pointerdown', { clientX: box.left + box.width * 0.25, bubbles: true }));"
+       "el.dispatchEvent(new PointerEvent('pointermove', { clientX: box.left + box.width * 0.75, bubbles: true }));"
+       "el.dispatchEvent(new PointerEvent('pointerup', { clientX: box.left + box.width * 0.75, bubbles: true }));"
+       "return 1; })()");
+    check("a finger dragging it says so as it goes", js("window.__changing.join(',')"), QStringLiteral("25,75"));
+    check("and says what it settled on when it lifts", js("window.__changed.join(',')"), QStringLiteral("75"));
+    js("(function () { var s = document.getElementById('slider');"
+       "var el = s.shadowRoot.querySelector('.hp-slider');"
+       "el.dispatchEvent(new PointerEvent('pointermove', { clientX: 0, bubbles: true }));"
+       "return 1; })()");
+    check("and a finger that is not down moves nothing", js("window.__changing.join(',')"),
+          QStringLiteral("25,75"));
 
     // And the showcase itself is drawn by all of this.
     check("the showcase card drew its controls",

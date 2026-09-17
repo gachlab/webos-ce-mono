@@ -73,7 +73,7 @@ components/cards/
                         fake, and one file per webOS service, typed
   src/ui/element.ts     defineElement: functions in, custom elements out
   src/ui/start-card.ts  how a card starts: styles, first frame, its own life
-  src/ui/kit/           HP's controls (15 of them; the rest is #58)
+  src/ui/kit/           HP's controls (16 of them; the rest is #58)
   src/ui/kit.css        the controls' look; every element adopts this one sheet
   src/ui/page.css       the page a card lives on, and the text it writes
   src/cards/<app id>/   index.html, appinfo.json, main.ts -- where it is wired up
