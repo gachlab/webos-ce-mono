@@ -24,13 +24,13 @@ set(WEBOS_STAGING "${CMAKE_INSTALL_PREFIX}")
 #
 # There is no QtWebKit here: the API WebAppMgr is written against comes from
 # components/qtwebkit-compat, on QtWebEngine.
-find_package(Qt6 REQUIRED COMPONENTS Core Gui Network Widgets Quick OpenGL OpenGLWidgets)
+find_package(Qt6 REQUIRED COMPONENTS Core Gui Network Widgets Quick OpenGL OpenGLWidgets Positioning)
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../qt6-compat ${CMAKE_CURRENT_BINARY_DIR}/qt6-compat)
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../qtwebkit-compat ${CMAKE_CURRENT_BINARY_DIR}/qtwebkit-compat)
 # The other end of the scroll the shell packs; see components/input-compat.
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../input-compat ${CMAKE_CURRENT_BINARY_DIR}/input-compat)
 set(WEBOS_WAM_QT_LIBS Qt::Core Qt::Gui Qt::Network Qt::Widgets Qt::Quick Qt::OpenGL
-    Qt::OpenGLWidgets qt6compat-gl qtwebkit-compat-lib input-compat)
+    Qt::OpenGLWidgets Qt::Positioning qt6compat-gl qtwebkit-compat-lib input-compat)
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(GLIB REQUIRED glib-2.0 gthread-2.0)
 pkg_check_modules(SQLITE REQUIRED sqlite3)
@@ -55,6 +55,8 @@ add_executable(WebAppMgr
     Src/lunaui/notifications/DashboardWebApp.cpp
     Src/minimalui/WebAppFactoryMinimal.cpp
     Src/webbase/BrowserViewAdapter.cpp
+    Src/webbase/GeolocationAdapter.cpp
+    Src/webbase/GeolocationBus.cpp
     Src/webbase/MemoryWatcher.cpp
     Src/webbase/PalmServiceBridgeAdapter.cpp
     Src/webbase/PalmSystem.cpp
@@ -72,6 +74,9 @@ add_executable(WebAppMgr
     Src/webbase/HoverDelivery.cpp
     Src/webbase/WindowedWebApp.cpp
 )
+
+# A Qt Positioning plugin built into the executable (see the file).
+set_source_files_properties(Src/webbase/GeolocationAdapter.cpp PROPERTIES COMPILE_DEFINITIONS QT_STATICPLUGIN)
 
 # qmake's VPATH, which doubles as INCLUDEPATH ("INCLUDEPATH = $$VPATH").
 target_include_directories(WebAppMgr PRIVATE

@@ -34,6 +34,8 @@
 #ifndef QTWEBKIT_COMPAT_H
 #define QTWEBKIT_COMPAT_H
 
+#include <functional>
+
 #include <QGraphicsWidget>
 #include <QHash>
 #include <QMap>
@@ -232,6 +234,16 @@ public:
     // Only the caller knows which of the two a key is, so it says so by
     // choosing this instead of event().
     void sendKeyToHostPage(QKeyEvent* event);
+
+    // NOT QtWebKit API: who decides whether a website may have the location.
+    //
+    // QtWebKit on the device asked com.palm.location itself, which put the
+    // system UI's "Location Services" alert up. QtWebEngine asks its embedder
+    // instead, and this layer has no bus: WebAppMgr sets the policy, which gets
+    // the page's origin and calls `decide` once, whenever it knows. Without one,
+    // every request is refused.
+    using GeolocationPolicy = std::function<void(const QUrl& origin, std::function<void(bool)> decide)>;
+    static void setGeolocationPolicy(GeolocationPolicy policy);
 
     // Palm's QtWebKit API: the "attributes=" part of the window.open() call
     // that created this page, which is JSON, or empty.

@@ -289,31 +289,21 @@ sed -i -E "s|^Exec=[^ ]*/([^ /]+)|Exec=$WEBOS_PREFIX/usr/lib/luna/\\1|" \
     "$ROOTFS"/usr/share/ls2/services/*.service \
     "$ROOTFS"/usr/share/ls2/system-services/*.service 2>/dev/null
 
-# HP's JS service stub for com.palm.location. Without it the calendar fails with
-# "getCalendars call failed" and the log fills up with "com.palm.location is not
-# running".
-#
-# pmnetconfigmanager-stub used to be installed here too, for
-# com.palm.connectionmanager. It is not any more: components/nm-connectionmanager
-# answers that name from NetworkManager, and the stub's role and .service files
-# are copied later in this script than the real service's, so leaving it in place
-# would silently overwrite them. The component stays in the tree -- it is HP's,
-# and MANIFEST.tsv is an inventory of what HP released -- it is simply not
-# installed, the same way components/luna-sysmgr-ce is kept but never built.
-for par in "mojolocation-stub:com.palm.location"; do
-    comp=${par%%:*}; svc=${par##*:}
-    [ -d "$C/$comp" ] || continue
-    mkdir -p "$ROOTFS/usr/palm/services/$svc"
-    cp -rf "$C/$comp"/*.json "$C/$comp"/*.js "$ROOTFS/usr/palm/services/$svc/" 2>/dev/null
-    cp -rf "$C/$comp"/files/sysbus/*.json "$ROOTFS/usr/share/ls2/roles/prv/" 2>/dev/null
-    cp -rf "$C/$comp"/files/sysbus/*.json "$ROOTFS/usr/share/ls2/roles/pub/" 2>/dev/null
-done
+# pmnetconfigmanager-stub and mojolocation-stub used to be installed here, for
+# com.palm.connectionmanager and com.palm.location. They are not any more:
+# components/nm-connectionmanager answers the first from NetworkManager, and
+# components/node-services the second (#10) -- HP's stub answered every request
+# with Palm's headquarters. The stubs' role and .service files would silently
+# overwrite the real services' ones. The components stay in the tree -- they are
+# HP's, and MANIFEST.tsv is an inventory of what HP released -- they are simply
+# not installed, the same way components/luna-sysmgr-ce is kept but never built.
 
-# A tree assembled before com.palm.connectionmanager became a real service still
-# has the stub's JavaScript in it, and this script never wipes the rootfs. The
-# .service file now names the binary, so the stub is unreachable either way --
-# removing it keeps a stale tree from looking like it has two implementations.
-rm -rf "$ROOTFS/usr/palm/services/com.palm.connectionmanager"
+# A tree assembled before com.palm.connectionmanager and com.palm.location
+# became real services still has the stubs' JavaScript in it, and this script
+# never wipes the rootfs. The .service files now name the real services, so the
+# stubs are unreachable either way -- removing them keeps a stale tree from
+# looking like it has two implementations.
+rm -rf "$ROOTFS/usr/palm/services/com.palm.connectionmanager" "$ROOTFS/usr/palm/services/com.palm.location"
 
 # The JS service launcher, which is what actually starts them.
 if [ -d "$S/usr/palm/services/jsservicelauncher" ]; then
@@ -481,10 +471,9 @@ fi
 cp -f "$R/components/mojoloader/mojoloader.js" "$ROOTFS/usr/palm/frameworks/" 2>/dev/null || true
 
 # The services. Only the ones that are pure JavaScript are useful yet.
-# pmnetconfigmanager-stub is deliberately absent from this list; see the note
-# above, where com.palm.location's stub is installed.
-for svc in "$R"/components/mojolocation-stub \
-           "$R"/components/app-services/com.palm.service.*; do
+# pmnetconfigmanager-stub and mojolocation-stub are deliberately absent from
+# this list; see the note above.
+for svc in "$R"/components/app-services/com.palm.service.*; do
     [ -f "$svc/services.json" ] || continue
     id="$(python3 -c "import json,sys; print(json.load(open(sys.argv[1])).get('id', ''))" "$svc/services.json" 2>/dev/null || true)"
     # HP's stubs name themselves with "id"; the app-services do not have one, and

@@ -352,7 +352,8 @@ case "${1:-run}" in
     # their HP counterparts did: LunaSysMgr and the system UI subscribe to
     # com.palm.downloadmanager and com.palm.appInstallService only once the bus
     # reports them up, so on demand they would never be asked for.
-    NODE_STATIC="com.palm.downloadmanager"
+    # com.palm.location keeps the answers to its location alert for the session.
+    NODE_STATIC="com.palm.downloadmanager com.palm.location"
     for name in $NODE_STATIC; do
         main="/usr/palm/node-services/services/$name/main.ts"
         [ -f "$main" ] || { echo "$name: not installed"; continue; }
