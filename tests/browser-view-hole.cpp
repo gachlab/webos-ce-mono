@@ -10,13 +10,16 @@
 // A page here plays the browser app: an enyo.BasicWebView of its own, and a
 // BrowserViewFactory that records every rect the box sends.
 //
-// Verified by mutation: without the ResizeObserver, without the cutouts, or
-// without measuring a covered box again, this turns red.
+// Verified by mutation: without the ResizeObserver, without the cutouts,
+// without measuring a covered box again, or cutting out a menu's shadow, this
+// turns red.
 
 #include <QApplication>
 #include <QElapsedTimer>
 #include <QEventLoop>
+#include <QColor>
 #include <QFile>
+#include <QImage>
 #include <QRect>
 #include <QStringList>
 #include <QVariantList>
@@ -108,11 +111,23 @@ int main(int argc, char** argv)
     if (!dir.isValid())
         return 1;
     {
+        // A menu's border image: 4 px of see-through shadow around an opaque
+        // panel, 10 px slices.
+        QImage frame(30, 30, QImage::Format_ARGB32);
+        frame.fill(QColor(0, 0, 0, 20));
+        for (int y = 4; y < 26; ++y)
+            for (int x = 4; x < 26; ++x)
+                frame.setPixelColor(x, y, QColor(200, 200, 200, 255));
+        frame.save(dir.filePath("menu.png"));
+    }
+    {
         QFile file(dir.filePath("browser.html"));
         file.open(QIODevice::WriteOnly | QIODevice::Text);
         QTextStream(&file) << R"HTML(<html><body style="margin:0">
 <div id="pane"><div id="hole" style="position:relative;left:10px;top:20px;width:300px;height:200px"></div></div>
 <div id="prefs" style="position:absolute;left:0;top:0;width:200px;height:100px;display:none"></div>
+<div id="menu" style="position:absolute;left:100px;top:100px;width:80px;height:60px;display:none;
+     border:20px solid transparent;border-image:url(menu.png) 10 fill;box-sizing:border-box"></div>
 <script>
   // As enyo does: the kind is complete before it is assigned.
   var BasicWebView = function () {};
@@ -124,6 +139,10 @@ int main(int argc, char** argv)
   control.rendered();
   window.hide = function () { document.getElementById("pane").style.display = "none"; };
   window.show = function () { document.getElementById("pane").style.display = ""; };
+  // A menu is an enyo.Popup, which tells the view when it shows; here the
+  // view's resize stands for that.
+  window.openMenu = function () { document.getElementById("menu").style.display = "block"; control.resize(); };
+  window.closeMenu = function () { document.getElementById("menu").style.display = "none"; control.resize(); };
   // enyo's Pane going back: the view shows while the other still covers it.
   window.showUnderPrefs = function () {
     document.getElementById("prefs").style.display = "block";
@@ -173,6 +192,15 @@ int main(int argc, char** argv)
     check("and once it goes away, nothing is cut out",
           !factory.view->cutouts.isEmpty() && factory.view->cutouts.last().isEmpty(),
           factory.view->cutouts.join(" | "));
+
+    // A menu with a shadow: only its opaque part is cut out. 4 of the image's
+    // 10 px are shadow, at 20 px borders that is 8 px on each side.
+    factory.view->cutouts.clear();
+    page.mainFrame()->evaluateJavaScript("openMenu(); 1");
+    waitFor([&]() { return factory.view->cutouts.contains("108,108,64,44"); }, 5000);
+    check("a menu's shadow is not cut out, its panel is", factory.view->cutouts.contains("108,108,64,44"),
+          factory.view->cutouts.join(" | "));
+    page.mainFrame()->evaluateJavaScript("closeMenu(); 1");
 
     return failures == 0 ? 0 : 1;
 }

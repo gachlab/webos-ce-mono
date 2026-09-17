@@ -757,6 +757,74 @@ const char kBrowserView[] = R"JS(
     //
     // Full-page containers are not overlays: the hole's own ancestors are
     // absolute and as large as the view.
+    // How far into a border image its opaque part starts, per image, in the
+    // image's pixels. enyo's menus draw their panel and their shadow with one
+    // (Onyx's menu-background.png: the panel starts 6 px in at the sides and
+    // 9 px up from the bottom), and cutting the shadow out too left a white
+    // band around the menu where the page should have shown.
+    var opaque = {};
+    var OPAQUE_ALPHA = 200;
+
+    function measureImage(image) {
+        var canvas = document.createElement("canvas");
+        canvas.width = image.width;
+        canvas.height = image.height;
+        var context = canvas.getContext("2d");
+        context.drawImage(image, 0, 0);
+        var data = context.getImageData(0, 0, image.width, image.height).data;
+        var alpha = function (x, y) { return data[(y * image.width + x) * 4 + 3]; };
+        var row = Math.floor(image.height / 2);
+        var column = Math.floor(image.width / 2);
+        var edge = function (length, at) {
+            for (var i = 0; i < length; i++)
+                if (at(i) >= OPAQUE_ALPHA)
+                    return i;
+            return 0;
+        };
+        return {
+            left: edge(image.width, function (i) { return alpha(i, row); }),
+            right: edge(image.width, function (i) { return alpha(image.width - 1 - i, row); }),
+            top: edge(image.height, function (i) { return alpha(column, i); }),
+            bottom: edge(image.height, function (i) { return alpha(column, image.height - 1 - i); })
+        };
+    }
+
+    // The element's rect less its border image's see-through margin, or the
+    // rect itself when there is none (or it is not known yet).
+    function opaqueRect(style, r) {
+        var match = /^url\("?(.*?)"?\)$/.exec(style.borderImageSource || "");
+        var slice = parseFloat(style.borderImageSlice);
+        if (!match || !(slice > 0))
+            return r;
+        var src = match[1];
+        if (!(src in opaque)) {
+            opaque[src] = null;
+            var image = new Image();
+            image.onload = function () {
+                try {
+                    opaque[src] = measureImage(image);
+                } catch (e) {
+                    opaque[src] = false;
+                }
+                remeasureAll();
+            };
+            image.onerror = function () { opaque[src] = false; };
+            image.src = src;
+        }
+        var inset = opaque[src];
+        if (!inset)
+            return r;
+        var side = function (name, pixels) {
+            return Math.min(pixels, slice) * (parseFloat(style["border" + name + "Width"]) || 0) / slice;
+        };
+        return {
+            left: r.left + side("Left", inset.left),
+            top: r.top + side("Top", inset.top),
+            right: r.right - side("Right", inset.right),
+            bottom: r.bottom - side("Bottom", inset.bottom)
+        };
+    }
+
     function coverings(node, b) {
         var found = [];
         var sx = window.pageXOffset || 0;
@@ -776,10 +844,11 @@ const char kBrowserView[] = R"JS(
                 continue;
             if (r.width >= b.w && r.height >= b.h)
                 continue;
-            var left = Math.max(Math.floor(r.left + sx), b.x);
-            var top = Math.max(Math.floor(r.top + sy), b.y);
-            var right = Math.min(Math.ceil(r.right + sx), b.x + b.w);
-            var bottom = Math.min(Math.ceil(r.bottom + sy), b.y + b.h);
+            var seen = opaqueRect(style, r);
+            var left = Math.max(Math.floor(seen.left + sx), b.x);
+            var top = Math.max(Math.floor(seen.top + sy), b.y);
+            var right = Math.min(Math.ceil(seen.right + sx), b.x + b.w);
+            var bottom = Math.min(Math.ceil(seen.bottom + sy), b.y + b.h);
             if (right <= left || bottom <= top)
                 continue;
             found.push([left, top, right - left, bottom - top]);
