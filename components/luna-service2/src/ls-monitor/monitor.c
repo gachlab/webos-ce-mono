@@ -20,6 +20,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <glib.h>
+#include <glib-unix.h>
 #ifdef __APPLE__
 #include <mach/mach_time.h>
 #endif
@@ -508,10 +509,15 @@ Done:
     return LSMessageHandlerResultHandled;
 }
 
-static void
-_HandleShutdown(int signal)
+static gboolean
+_HandleShutdown(gpointer user_data)
 {
+    /* Runs from the main loop (g_unix_signal_add), not in the signal handler:
+     * g_main_loop_quit() is not async-signal-safe, and called from a handler
+     * that interrupted the loop while it held its context lock it waited on
+     * that lock forever (webOS CE #48). */
     g_main_loop_quit(mainloop);
+    return G_SOURCE_CONTINUE;
 }
 
 static void
@@ -588,8 +594,8 @@ main(int argc, char *argv[])
         .message_failure_context = NULL
     };
 
-    _LSTransportSetupSignalHandler(SIGTERM, _HandleShutdown);
-    _LSTransportSetupSignalHandler(SIGINT, _HandleShutdown);
+    g_unix_signal_add(SIGTERM, _HandleShutdown, NULL);
+    g_unix_signal_add(SIGINT, _HandleShutdown, NULL);
 
     _HandleCommandline(argc, argv);
 

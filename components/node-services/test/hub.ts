@@ -50,6 +50,24 @@ const waitFor = async (what: string, ready: () => boolean | Promise<boolean>, ch
     throw new Error(`${what} was not ready after 5 s`);
 };
 
+// How long a daemon gets to leave after SIGTERM before it is killed.
+export const KILL_AFTER_MS = 2000;
+
+// Asks each child to leave, and kills the ones that do not. A daemon that hangs
+// on SIGTERM keeps this process alive, and --test-timeout does not end a test
+// file whose tests are done: ls-hubd did exactly that, asleep in its own signal
+// handler (#48), and a CI run sat for twenty minutes.
+export const stopChildren = (children: readonly ChildProcess[], killAfterMs = KILL_AFTER_MS): void => {
+    for (const child of children) {
+        child.kill("SIGTERM");
+        setTimeout(() => {
+            if (child.exitCode === null && child.signalCode === null) {
+                child.kill("SIGKILL");
+            }
+        }, killAfterMs).unref();
+    }
+};
+
 // The hub only routes to names some .service file lists, even when the service
 // is already up; a name nobody lists "does not exist". The Exec never runs for
 // the tests' own services, which are up before anything calls them.
@@ -112,11 +130,7 @@ export const createTestBus = (deps: TestBusDeps) => async (options: TestBusOptio
         return child;
     };
 
-    const stop = () => {
-        for (const child of children.reverse()) {
-            child.kill("SIGTERM");
-        }
-    };
+    const stop = () => stopChildren([...children].reverse());
 
     try {
         const roles = writeRoles(dir, [process.execPath, join(deps.staging, DB8)]);
