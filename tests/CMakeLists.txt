@@ -268,6 +268,25 @@ add_test(NAME download-request COMMAND download-request)
 set_tests_properties(download-request PROPERTIES
     ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
 
+# The browser's content area stops being painted while its app hides it.
+add_executable(browser-view-hole browser-view-hole.cpp)
+target_link_libraries(browser-view-hole PRIVATE qtwebkit-compat-lib)
+add_test(NAME browser-view-hole COMMAND browser-view-hole)
+set_tests_properties(browser-view-hole PROPERTIES
+    ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
+# The browser's Preferences reach the engine through WebAppMgr's view adapter.
+add_executable(browser-preferences browser-preferences.cpp
+    "${CMAKE_CURRENT_SOURCE_DIR}/../components/webappmanager/Src/webbase/BrowserViewAdapter.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../components/webappmanager/Src/webbase/BrowserViewAdapter.h")
+target_include_directories(browser-preferences PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/../components/webappmanager/Src/webbase")
+find_package(Qt6 REQUIRED COMPONENTS Network)
+target_link_libraries(browser-preferences PRIVATE qtwebkit-compat-lib Qt::Network)
+add_test(NAME browser-preferences COMMAND browser-preferences)
+set_tests_properties(browser-preferences PROPERTIES
+    ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
 # The WebView methods the mail app calls on a plain view. Without them its
 # rendered() threw on setRedirects and the card never switched views.
 add_executable(app-view-shims app-view-shims.cpp)

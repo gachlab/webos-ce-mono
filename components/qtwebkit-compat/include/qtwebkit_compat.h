@@ -211,6 +211,11 @@ public:
     // each of its frames asks the host to repaint that rect.
     void embedPage(QWebPage* page, const QRect& rect);
     void removeEmbeddedPage(QWebPage* page);
+    // NOT QtWebKit API: where the host's own content lies over an embedded
+    // page -- a menu the app opened across it -- in the host's coordinates.
+    // The embedded page is not painted there and gets no input there, so the
+    // host's content shows on top, as it did over the browser plugin.
+    void setEmbeddedCutouts(QWebPage* page, const QRegion& cutouts);
 
     // NOT QtWebKit API: a key addressed to the app rather than to the cursor.
     //
@@ -281,6 +286,7 @@ private:
     struct EmbeddedPage {
         QPointer<QWebPage> page;
         QRect rect;
+        QRegion cutouts;
         QMetaObject::Connection repaintLink;
     };
     QList<EmbeddedPage> m_embedded;

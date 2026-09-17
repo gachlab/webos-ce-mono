@@ -131,5 +131,18 @@ int main(int argc, char** argv)
     check("and the embedded page did not see it",
           innerSays("String(window.__clicks)"), "1");
 
+    // A menu the app opened over the hole takes the presses that land on it.
+    const QRect menu(hole.left() + 10, hole.top() + 10, 40, 30);
+    host.setEmbeddedCutouts(&inner, QRegion(menu));
+    const QPointF onMenu(menu.center());
+    QMouseEvent pressMenu(QEvent::MouseButtonPress, onMenu, onMenu,
+                          Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
+    host.event(&pressMenu);
+    waitFor([&]() { return hostSays("String(window.__hostClicks)") != "1"; }, 5000);
+    check("a press on a cutout goes to the host",
+          hostSays("String(window.__hostClicks)"), "2");
+    check("and not to the page under it",
+          innerSays("String(window.__clicks)"), "1");
+
     return failures == 0 ? 0 : 1;
 }

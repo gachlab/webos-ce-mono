@@ -35,6 +35,7 @@
 #include <QPointer>
 #include <QRect>
 #include <QString>
+#include <QVariantList>
 
 class QWebPage;
 
@@ -48,6 +49,9 @@ public:
     // Where the app's hole is, in the host page's coordinates. Called again
     // whenever it moves or resizes: the hole travels with the page that owns it.
     Q_INVOKABLE void setGeometry(int x, int y, int width, int height);
+    // What the app has over the view, as [x, y, width, height] rects in the
+    // host page's coordinates: the page is not painted there.
+    Q_INVOKABLE void setCutouts(const QVariantList& rects);
 
     Q_INVOKABLE void setUrl(const QString& url);
     Q_INVOKABLE QString url() const;
@@ -61,6 +65,16 @@ public:
 
     Q_INVOKABLE bool canGoBack() const;
     Q_INVOKABLE bool canGoForward() const;
+
+    // The browser's preferences, which BasicWebView sends when the view
+    // connects and whenever the user changes one.
+    Q_INVOKABLE void setEnableJavaScript(bool enable);
+    Q_INVOKABLE void setBlockPopups(bool block);
+    Q_INVOKABLE bool blocksPopups() const;
+    // For every web page the browser shows: cookies belong to the profile all
+    // pages share, so this is not per view (see the .cpp).
+    Q_INVOKABLE void setAcceptCookies(bool accept);
+    Q_INVOKABLE bool acceptsCookies() const;
 
     Q_INVOKABLE void setZoom(double factor);
     Q_INVOKABLE double zoom() const;

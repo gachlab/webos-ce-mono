@@ -744,18 +744,91 @@ const char kBrowserView[] = R"JS(
             setRect(control, {x: 0, y: 0, w: 0, h: 0});
     }
 
-    // Anything the app draws over the hole.
+    // Anything the app draws over the hole, as rects in the page's
+    // coordinates, clipped to the hole.
     //
     // The blit goes on top of everything the page painted, so whatever the app
-    // opens across the content area ends up underneath it. Measured on the
-    // running browser: its action bar menu is an absolutely positioned
+    // opens across the content area would end up underneath it. Measured on
+    // the running browser: its action bar menu is an absolutely positioned
     // "enyo-popup enyo-popup-menu launch-popup" at [727, 30, 153, 164], z-index
-    // 123, over a hole starting at y 54 -- so its lower 140 pixels were painted
-    // over and it looked like it had opened behind the page.
+    // 123, over a hole starting at y 54. The host leaves these rects out of the
+    // blit, so the menu shows over the page -- rather than the whole page
+    // going blank while a menu is open, as it first did.
     //
     // Full-page containers are not overlays: the hole's own ancestors are
     // absolute and as large as the view.
-    function covered(node, b) {
+    // How far into a border image its opaque part starts, per image, in the
+    // image's pixels. enyo's menus draw their panel and their shadow with one
+    // (Onyx's menu-background.png: the panel starts 6 px in at the sides and
+    // 9 px up from the bottom), and cutting the shadow out too left a white
+    // band around the menu where the page should have shown.
+    var opaque = {};
+    var OPAQUE_ALPHA = 200;
+
+    function measureImage(image) {
+        var canvas = document.createElement("canvas");
+        canvas.width = image.width;
+        canvas.height = image.height;
+        var context = canvas.getContext("2d");
+        context.drawImage(image, 0, 0);
+        var data = context.getImageData(0, 0, image.width, image.height).data;
+        var alpha = function (x, y) { return data[(y * image.width + x) * 4 + 3]; };
+        var row = Math.floor(image.height / 2);
+        var column = Math.floor(image.width / 2);
+        var edge = function (length, at) {
+            for (var i = 0; i < length; i++)
+                if (at(i) >= OPAQUE_ALPHA)
+                    return i;
+            return 0;
+        };
+        return {
+            left: edge(image.width, function (i) { return alpha(i, row); }),
+            right: edge(image.width, function (i) { return alpha(image.width - 1 - i, row); }),
+            top: edge(image.height, function (i) { return alpha(column, i); }),
+            bottom: edge(image.height, function (i) { return alpha(column, image.height - 1 - i); })
+        };
+    }
+
+    // The element's rect less its border image's see-through margin, or the
+    // rect itself when there is none (or it is not known yet).
+    function opaqueRect(style, r) {
+        var match = /^url\("?(.*?)"?\)$/.exec(style.borderImageSource || "");
+        var slice = parseFloat(style.borderImageSlice);
+        if (!match || !(slice > 0))
+            return r;
+        var src = match[1];
+        if (!(src in opaque)) {
+            opaque[src] = null;
+            var image = new Image();
+            image.onload = function () {
+                try {
+                    opaque[src] = measureImage(image);
+                } catch (e) {
+                    opaque[src] = false;
+                }
+                remeasureAll();
+            };
+            image.onerror = function () { opaque[src] = false; };
+            image.src = src;
+        }
+        var inset = opaque[src];
+        if (!inset)
+            return r;
+        var side = function (name, pixels) {
+            return Math.min(pixels, slice) * (parseFloat(style["border" + name + "Width"]) || 0) / slice;
+        };
+        return {
+            left: r.left + side("Left", inset.left),
+            top: r.top + side("Top", inset.top),
+            right: r.right - side("Right", inset.right),
+            bottom: r.bottom - side("Bottom", inset.bottom)
+        };
+    }
+
+    function coverings(node, b) {
+        var found = [];
+        var sx = window.pageXOffset || 0;
+        var sy = window.pageYOffset || 0;
         var all = document.querySelectorAll("*");
         for (var i = 0; i < all.length; i++) {
             var e = all[i];
@@ -771,18 +844,43 @@ const char kBrowserView[] = R"JS(
                 continue;
             if (r.width >= b.w && r.height >= b.h)
                 continue;
-            if (r.right <= b.x || r.left >= b.x + b.w ||
-                r.bottom <= b.y || r.top >= b.y + b.h)
+            var seen = opaqueRect(style, r);
+            var left = Math.max(Math.floor(seen.left + sx), b.x);
+            var top = Math.max(Math.floor(seen.top + sy), b.y);
+            var right = Math.min(Math.ceil(seen.right + sx), b.x + b.w);
+            var bottom = Math.min(Math.ceil(seen.bottom + sy), b.y + b.h);
+            if (right <= left || bottom <= top)
                 continue;
-            return true;
+            found.push([left, top, right - left, bottom - top]);
         }
-        return false;
+        return found;
+    }
+
+    function setCutouts(control, rects) {
+        var key = JSON.stringify(rects);
+        if (control.__webosCutouts === key)
+            return;
+        control.__webosCutouts = key;
+        if (control.__webosView.setCutouts)
+            control.__webosView.setCutouts(rects);
+    }
+
+    // While a hole cannot be painted, measure it again for a while: the
+    // change that frees it may come with no event of its own.
+    var RETRY_MS = 100;
+    var RETRIES = 40;
+
+    function retry(control, attempt) {
+        clearTimeout(control.__webosRetry);
+        if (attempt < RETRIES)
+            control.__webosRetry = setTimeout(function () { sendGeometry(control, attempt + 1); }, RETRY_MS);
     }
 
     function sendGeometry(control, attempt) {
         var node = control.hasNode && control.hasNode();
         if (!node || !control.__webosView)
             return;
+        attempt = attempt || 0;
         var b = boundsOf(node);
         if (b.w <= 0 || b.h <= 0) {
             // Nothing to paint into. Either the pane that owns this view has
@@ -792,16 +890,21 @@ const char kBrowserView[] = R"JS(
             // which is also what keeps a backgrounded tab from painting over
             // the one in front, and measure again for a moment.
             suspend(control);
-            attempt = attempt || 0;
-            if (attempt < 12)
-                setTimeout(function () { sendGeometry(control, attempt + 1); }, 50);
+            retry(control, attempt);
             return;
         }
-        if (covered(node, b)) {
-            suspend(control);
-            return;
-        }
+        var over = coverings(node, b);
+        setCutouts(control, over);
         setRect(control, b);
+        if (over.length > 0) {
+            // What covers it may go away with no event of its own. Found live:
+            // back from the Preferences, the browser's view is shown while
+            // they still cover it, and they leave without the view changing
+            // size -- so nothing measured it again.
+            retry(control, attempt);
+        } else {
+            clearTimeout(control.__webosRetry);
+        }
     }
 
     function remeasureAll() {
@@ -810,9 +913,9 @@ const char kBrowserView[] = R"JS(
     }
 
     // The verbs isis-browser actually sends. Everything else the control emits
-    // on its way up -- pageFocused, setEnableJavaScript, addUrlRedirect,
-    // handleFlick and the rest -- is taken and dropped: either the engine
-    // already does it, or nothing depends on it yet.
+    // on its way up -- pageFocused, addUrlRedirect, handleFlick and the rest --
+    // is taken and dropped: either the engine already does it, or nothing
+    // depends on it yet.
     function command(control, name, args) {
         var view = control.__webosView;
         if (!view)
@@ -826,6 +929,10 @@ const char kBrowserView[] = R"JS(
         case "stopLoad":       view.stop(); break;
         case "findInPage":     view.findInPage(String(args[0] || "")); break;
         case "setVisibleSize": sendGeometry(control); break;
+        // The browser's preferences.
+        case "setEnableJavaScript": view.setEnableJavaScript(args[0] !== false); break;
+        case "setBlockPopups":      view.setBlockPopups(args[0] !== false); break;
+        case "setAcceptCookies":    view.setAcceptCookies(args[0] !== false); break;
         default: break;
         }
     }
@@ -852,6 +959,15 @@ const char kBrowserView[] = R"JS(
             return;
         control.__webosView = view;
         holes.push(control);
+
+        // A hole hidden by its app says nothing: enyo's Pane shows another
+        // view by setting display:none on the browser's, and nothing calls
+        // back. Found live: the Preferences opened over a loaded page and the
+        // page went on being painted over them. The box's own size changes,
+        // though, to nothing and back, and that is what this watches.
+        if (window.ResizeObserver) {
+            new ResizeObserver(function () { sendGeometry(control); }).observe(node);
+        }
 
         // What the control probes for before it will talk to a plugin.
         node.openURL = function () {};
@@ -1667,6 +1783,19 @@ void QWebPage::embedPage(QWebPage* page, const QRect& rect)
     m_embedded.append(entry);
 }
 
+void QWebPage::setEmbeddedCutouts(QWebPage* page, const QRegion& cutouts)
+{
+    for (EmbeddedPage& embedded : m_embedded) {
+        if (embedded.page != page)
+            continue;
+        if (embedded.cutouts == cutouts)
+            return;
+        embedded.cutouts = cutouts;
+        Q_EMIT repaintRequested(embedded.rect);
+        return;
+    }
+}
+
 void QWebPage::removeEmbeddedPage(QWebPage* page)
 {
     for (int i = m_embedded.size() - 1; i >= 0; --i) {
@@ -1759,7 +1888,7 @@ bool QWebPage::deliverToEmbedded(QEvent* event)
         const EmbeddedPage& embedded = m_embedded[i];
         if (embedded.page.isNull() || embedded.rect.isEmpty())
             continue;
-        if (!embedded.rect.contains(where.toPoint()))
+        if (!embedded.rect.contains(where.toPoint()) || embedded.cutouts.contains(where.toPoint()))
             continue;
 
         const QPointF local = where - QPointF(embedded.rect.topLeft());
@@ -1962,7 +2091,8 @@ void QWebFrame::render(QPainter* painter, RenderLayer, const QRegion& clip)
         if (content.isNull())
             continue;
         painter->save();
-        painter->setClipRect(embedded.rect, Qt::IntersectClip);
+        // Whatever the host has over the hole stays on top.
+        painter->setClipRegion(QRegion(embedded.rect).subtracted(embedded.cutouts), Qt::IntersectClip);
         painter->drawPixmap(embedded.rect.topLeft(), content);
         painter->restore();
     }

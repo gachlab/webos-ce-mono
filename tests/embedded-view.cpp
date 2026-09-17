@@ -132,5 +132,18 @@ int main(int argc, char** argv)
     check("just outside the hole's bottom edge",
           colourAt(surface, hole.center().x(), hole.bottom() + 4), "white");
 
+    // What the host has over the hole -- a menu the app opened -- stays on top.
+    const QRect menu(120, 60, 40, 30);
+    host.setEmbeddedCutouts(&inner, QRegion(menu));
+    surface.fill(Qt::black);
+    QPainter again(&surface);
+    again.setCompositionMode(QPainter::CompositionMode_Source);
+    host.mainFrame()->render(&again, QWebFrame::ContentsLayer, QRect(QPoint(0, 0), hostSize));
+    again.end();
+    check("under a cutout, the host's own pixels",
+          colourAt(surface, menu.center().x(), menu.center().y()), "white");
+    check("and the rest of the hole is still the embedded page",
+          colourAt(surface, hole.center().x() + 40, hole.center().y() + 40), "red");
+
     return failures == 0 ? 0 : 1;
 }
