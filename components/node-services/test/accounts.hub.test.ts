@@ -79,7 +79,11 @@ const until = async (condition: () => boolean | Promise<boolean>, what: string, 
     assert.fail(`timed out waiting for ${what}`);
 };
 
-const calledWith = (method: string) => env.calls.filter((call) => call.method === method).map((call) => call.payload);
+// A test's own calls: a transport hears of an account after createAccount has
+// answered, so an earlier test's account can still be heard of in this one.
+const calledWith = (method: string, accountId?: unknown) => env.calls
+    .filter((call) => call.method === method && (accountId === undefined || call.payload.accountId === accountId))
+    .map((call) => call.payload);
 
 const failsWith = (fields: Payload) => (error: unknown) => {
     assert.ok(isLunaError(error), String(error));
@@ -287,8 +291,8 @@ describe("createAccount", () => {
 
     test("then tells the transports, with the validator's config", async () => {
         const { result } = await create();
-        await until(() => calledWith("created").length === 1, "onCreate");
-        assert.deepEqual(calledWith("created"), [{ accountId: result._id, config: { server: "mail.test" } }]);
+        await until(() => calledWith("created", result._id).length === 1, "onCreate");
+        assert.deepEqual(calledWith("created", result._id), [{ accountId: result._id, config: { server: "mail.test" } }]);
         await until(() => calledWith("capabilitiesChanged").some((p) => p.accountId === result._id), "onCapabilitiesChanged");
         assert.deepEqual(calledWith("capabilitiesChanged").find((p) => p.accountId === result._id), {
             accountId: result._id,
@@ -399,8 +403,8 @@ describe("credentials", () => {
         assert.deepEqual(read.credentials, { t: 2 });
         const stored = await env.db.find({ from: "com.palm.account.credentials:1" });
         assert.equal(stored.results.length, 1, "a rewrite replaces the stored object");
-        await until(() => calledWith("credentialsChanged").length === 2, "onCredentialsChanged");
-        assert.deepEqual(calledWith("credentialsChanged")[0], { accountId: result._id });
+        await until(() => calledWith("credentialsChanged", result._id).length === 2, "onCredentialsChanged");
+        assert.deepEqual(calledWith("credentialsChanged", result._id)[0], { accountId: result._id });
     });
 
     test("reading a credential that is not there fails", async () => {
@@ -437,11 +441,11 @@ describe("modifyAccount", () => {
         await modify(result._id, { capabilityProviders: [{ id: `${MAIL}.contacts` }, { id: `${MAIL}.calendar` }] });
         const stored = await accountIn(String(result._id));
         assert.deepEqual((stored!.capabilityProviders as Payload[]).map((p) => p.id), [`${MAIL}.contacts`, `${MAIL}.calendar`]);
-        assert.deepEqual(calledWith("capabilitiesChanged")[0]!.capabilityProviders, [
+        assert.deepEqual(calledWith("capabilitiesChanged", result._id)[0]!.capabilityProviders, [
             { id: `${MAIL}.mail`, enabled: false }, { id: `${MAIL}.contacts`, enabled: true },
             { id: `${MAIL}.calendar`, enabled: true },
         ]);
-        const enabled = calledWith("enabled").map((p) => [p.capabilityProviderId, p.enabled]).sort();
+        const enabled = calledWith("enabled", result._id).map((p) => [p.capabilityProviderId, p.enabled]).sort();
         assert.deepEqual(enabled, [[`${MAIL}.calendar`, true], [`${MAIL}.mail`, false]]);
     });
 
@@ -461,15 +465,15 @@ describe("modifyAccount", () => {
         await assert.rejects(env.app.call(`${SERVICE}/readCredentials`, { accountId: result._id, name: "token" }));
         assert.equal((await env.app.call(`${SERVICE}/readCredentials`, { accountId: result._id, name: "fresh" })).credentials, "yes");
         assert.deepEqual((await env.tempdb.find({ from: "com.palm.account.syncstate:1" })).results, []);
-        assert.deepEqual(calledWith("credentialsChanged"), [{ accountId: result._id }]);
-        assert.deepEqual(calledWith("mailCredentialsChanged"), [{ accountId: result._id }]);
+        assert.deepEqual(calledWith("credentialsChanged", result._id), [{ accountId: result._id }]);
+        assert.deepEqual(calledWith("mailCredentialsChanged", result._id), [{ accountId: result._id }]);
     });
 
     test("suppressNotifications keeps the transports out of it", async () => {
         const { result } = await created();
         env.calls.length = 0;
         await modify(result._id, { credentials: { fresh: "yes" } }, env.app, { suppressNotifications: true });
-        assert.deepEqual(calledWith("credentialsChanged"), []);
+        assert.deepEqual(calledWith("credentialsChanged", result._id), []);
     });
 
     test("a transport that fails undoes its provider's change", async () => {
@@ -517,11 +521,11 @@ describe("deleting", () => {
         const status = await env.tempdb.find({ from: "com.palm.account.syncstate:1" });
         assert.deepEqual(status.results.map((s) => [s.accountId, s.syncState, s.capabilityProvider]),
             [[accountId, "DELETE", "com.palm.service.accounts"]]);
-        await until(() => calledWith("deleted").length === 1, "onDelete");
+        await until(() => calledWith("deleted", accountId).length === 1, "onDelete");
         release.go!();
         await until(async () => (await env.db.get([accountId]))[0] === undefined
             || (await env.db.get([accountId]))[0]!._del === true, "the account to be deleted");
-        assert.deepEqual(calledWith("deleted"), [{ accountId }]);
+        assert.deepEqual(calledWith("deleted", accountId), [{ accountId }]);
         assert.equal((await env.app.call(`${SERVICE}/hasCredentials`, { accountId })).value, false);
         assert.deepEqual((await env.tempdb.find({ from: "com.palm.account.syncstate:1" })).results, []);
     });
@@ -552,13 +556,13 @@ describe("deleting", () => {
         await env.db.merge([{ _id: accountId, beingDeleted: true, retries: 3 }]);
         await env.app.call(`${SERVICE}/stayRunning`, { seconds: "0.05" });
         await until(async () => (await accountIn(accountId))!.retries === 4, "a retry");
-        await until(() => calledWith("deleted").length === 1, "the retried deletion");
+        await until(() => calledWith("deleted", accountId).length === 1, "the retried deletion");
         await env.db.merge([{ _id: accountId, retries: 5 }]);
         env.calls.length = 0;
         await env.app.call(`${SERVICE}/stayRunning`, { seconds: "0.05" });
         await sleep(200);
         assert.equal((await accountIn(accountId))!.retries, 5);
-        assert.deepEqual(calledWith("deleted"), []);
+        assert.deepEqual(calledWith("deleted", accountId), []);
     });
 });
 
