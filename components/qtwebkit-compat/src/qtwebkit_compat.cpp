@@ -28,6 +28,9 @@
 #include <QWebEngineUrlRequestJob>
 #include <QWebEngineUrlScheme>
 #include <QWebEngineUrlSchemeHandler>
+#include <QNetworkAccessManager>
+#include <QNetworkReply>
+#include <QNetworkRequest>
 #include <QWebEngineDownloadRequest>
 #include <QWebEngineView>
 
@@ -45,6 +48,7 @@ const char kFlexWidthScriptName[] = "webos-flex-width";
 const char kEnyoWheelScriptName[] = "webos-enyo-wheel";
 const char kNumberInputScriptName[] = "webos-number-inputs";
 const char kWindowOpenScriptName[] = "webos-window-open";
+const char kRemoteRequestScriptName[] = "webos-remote-requests";
 
 // Before QApplication exists: a URL scheme can only be registered then, and
 // QtWebEngine wants shared GL contexts decided before the first one is made.
@@ -1139,6 +1143,57 @@ const char kWindowOpen[] = R"JS(
 })(%1);
 )JS";
 
+// Requests from an app's own documents to the network.
+//
+// HP's apps are file:// documents that call web services with XMLHttpRequest
+// -- Just Type asks the default search engine for suggestions that way -- and
+// Palm's QtWebKit let them (LocalContentCanAccessRemoteUrls, which WebAppMgr
+// still sets). Chromium does not: it applies CORS to a file:// origin whatever
+// that setting says, and a service that sends no CORS headers is refused.
+// MEASURED in the running launcher: "Access to XMLHttpRequest at
+// 'https://suggestqueries.google.com/...' from origin 'file://' has been
+// blocked by CORS policy", with or without a preflight.
+//
+// Turning web security off is not an option: the same process shows the
+// browser's pages. So only file:// documents are changed, and only their
+// requests to http(s): those go through webos-bridge, whose handler makes the
+// request itself (see proxyRequest). Web pages keep the web's rules.
+const char kRemoteRequests[] = R"JS(
+(function () {
+    if (window.__webosRemoteRequests || location.protocol !== "file:")
+        return;
+    window.__webosRemoteRequests = true;
+
+    function proxied(url) {
+        var absolute;
+        try {
+            absolute = new URL(String(url), location.href);
+        } catch (e) {
+            return url;
+        }
+        if (absolute.protocol !== "http:" && absolute.protocol !== "https:")
+            return url;
+        return "webos-bridge:///fetch?u=" + encodeURIComponent(absolute.href);
+    }
+
+    var open = XMLHttpRequest.prototype.open;
+    XMLHttpRequest.prototype.open = function (method, url) {
+        var args = Array.prototype.slice.call(arguments);
+        args[1] = proxied(url);
+        return open.apply(this, args);
+    };
+
+    if (window.fetch) {
+        var fetch = window.fetch;
+        window.fetch = function (input, init) {
+            if (typeof input === "string" || input instanceof URL)
+                return fetch.call(this, proxied(input), init);
+            return fetch.call(this, input, init);
+        };
+    }
+})();
+)JS";
+
 // The last features string each page announced, by page number, until the
 // window it was meant for is created.
 QHash<int, QString>& pendingWindowFeatures()
@@ -1359,6 +1414,65 @@ QByteArray invoke(QObject* object, QWebEnginePage* page, const QString& name, co
                           .arg(QString::fromLatin1(meta->className()), name).arg(args.size()));
 }
 
+QNetworkAccessManager* network()
+{
+    static QNetworkAccessManager* manager = new QNetworkAccessManager(qApp);
+    return manager;
+}
+
+// webos-bridge:///fetch?u=<url>: the request a file:// document made, made
+// here, and its answer handed back (see kRemoteRequests). The job is answered
+// later, when the network is done; a request the page abandons is aborted.
+//
+// A job cannot carry an HTTP status, so an error status fails the request:
+// the page sees status 0, as for a network error.
+void proxyRequest(QWebEngineUrlRequestJob* job)
+{
+    const QUrl target(QUrlQuery(job->requestUrl()).queryItemValue("u", QUrl::FullyDecoded));
+    if (!target.isValid() || (target.scheme() != QLatin1String("http") && target.scheme() != QLatin1String("https"))) {
+        job->fail(QWebEngineUrlRequestJob::UrlInvalid);
+        return;
+    }
+
+    QNetworkRequest request(target);
+    request.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::NoLessSafeRedirectPolicy);
+    const QMap<QByteArray, QByteArray> headers = job->requestHeaders();
+    for (auto it = headers.constBegin(); it != headers.constEnd(); ++it) {
+        // Chromium's own, about the file:// document; the network stack sets
+        // the rest.
+        const QByteArray name = it.key().toLower();
+        if (name == "origin" || name == "referer" || name == "host" || name.startsWith("sec-"))
+            continue;
+        request.setRawHeader(it.key(), it.value());
+    }
+    QByteArray body;
+    if (QIODevice* device = job->requestBody()) {
+        if (!device->isOpen())
+            device->open(QIODevice::ReadOnly);
+        body = device->readAll();
+    }
+
+    QNetworkReply* reply = network()->sendCustomRequest(request, job->requestMethod(), body);
+    QPointer<QWebEngineUrlRequestJob> pending(job);
+    QObject::connect(job, &QObject::destroyed, reply, &QNetworkReply::abort);
+    QObject::connect(reply, &QNetworkReply::finished, reply, [pending, reply]() {
+        reply->deleteLater();
+        if (!pending)
+            return;
+        const int status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+        if (status == 0 || status >= 400) {
+            pending->fail(QWebEngineUrlRequestJob::RequestFailed);
+            return;
+        }
+        QByteArray type = reply->header(QNetworkRequest::ContentTypeHeader).toByteArray();
+        if (type.isEmpty())
+            type = "application/octet-stream";
+        auto* device = new QBuffer(pending.data());
+        device->setData(reply->readAll());
+        pending->reply(type, device);
+    });
+}
+
 class BridgeHandler : public QWebEngineUrlSchemeHandler
 {
 public:
@@ -1366,9 +1480,15 @@ public:
     {
         // webos-bridge:///<id>/<get|set|call>/<name>?a=<JSON array>
         // webos-bridge:///window/<page>?a=[<features>]
+        // webos-bridge:///fetch?u=<url>
         const QStringList parts = job->requestUrl().path().split('/', Qt::SkipEmptyParts);
         const QJsonArray args = QJsonDocument::fromJson(
             QUrlQuery(job->requestUrl()).queryItemValue("a", QUrl::FullyDecoded).toUtf8()).array();
+
+        if (parts.size() == 1 && parts[0] == QLatin1String("fetch")) {
+            proxyRequest(job);
+            return;
+        }
 
         QByteArray body;
         if (parts.size() == 2 && parts[0] == QLatin1String("window")) {
@@ -1719,6 +1839,15 @@ QWebPage::QWebPage(QObject* parent)
     browserView.setSourceCode(QString::fromLatin1(kBrowserView));
     m_engine->scripts().insert(browserView);
 
+    // An app's requests to the network; see kRemoteRequests.
+    QWebEngineScript remoteRequests;
+    remoteRequests.setName(kRemoteRequestScriptName);
+    remoteRequests.setInjectionPoint(QWebEngineScript::DocumentCreation);
+    remoteRequests.setWorldId(QWebEngineScript::MainWorld);
+    remoteRequests.setRunsOnSubFrames(true);
+    remoteRequests.setSourceCode(QString::fromLatin1(kRemoteRequests));
+    m_engine->scripts().insert(remoteRequests);
+
     // What a window opened from here is; see kWindowOpen.
     QWebEngineScript windowOpen;
     windowOpen.setName(kWindowOpenScriptName);
@@ -1991,15 +2120,37 @@ bool QWebPage::event(QEvent* event)
     }
 
     switch (event->type()) {
+    // WebAppMgr's "your window was activated" (WindowedWebApp::focusedEvent).
+    // Dropped, no page ever had the focus: document.hasFocus() was false in
+    // every card, and a field focused by script never heard its focus event --
+    // which is where Just Type clears its "Just type..." hint.
+    case QEvent::FocusIn:
+    case QEvent::FocusOut: {
+        QWidget* target = m_view->focusProxy() ? m_view->focusProxy() : m_view;
+        m_focusedWidget = event->type() == QEvent::FocusIn ? target : nullptr;
+        return QCoreApplication::sendEvent(target, event);
+    }
+    // Input goes to a window that has the focus, and the page may not have it:
+    // the window was never told it was activated, or was told before its page
+    // loaded -- the launcher is, at startup -- and the widget that heard it is
+    // not the one rendering now. Just Type's field went on showing its hint
+    // with the typing in front of it ("ASDASDAJust type..."). So a page that is
+    // typed into, pressed or touched takes the focus first, as a real window
+    // would.
     case QEvent::MouseButtonPress:
+    case QEvent::KeyPress:
+    case QEvent::InputMethod:
+    case QEvent::TouchBegin:
+        if (m_focusedWidget != (m_view->focusProxy() ? m_view->focusProxy() : m_view)) {
+            QFocusEvent in(QEvent::FocusIn, Qt::OtherFocusReason);
+            QWebPage::event(&in);
+        }
+        Q_FALLTHROUGH();
     case QEvent::MouseButtonRelease:
     case QEvent::MouseButtonDblClick:
     case QEvent::MouseMove:
     case QEvent::Wheel:
-    case QEvent::KeyPress:
     case QEvent::KeyRelease:
-    case QEvent::InputMethod:
-    case QEvent::TouchBegin:
     case QEvent::TouchUpdate:
     case QEvent::TouchEnd:
     case QEvent::TouchCancel: {

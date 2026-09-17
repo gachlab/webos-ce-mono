@@ -170,9 +170,12 @@ bool OpenSearchHandler::parseXml (const std::string& xmlFile, bool scanningDir)
 
 	    xmlChar* rel = xmlGetProp (cur, (const xmlChar*) "rel");
 	    if (rel) {
-		if (xmlStrcmp (rel, (const xmlChar*) "results"))
+		// webOS CE: xmlStrcmp returns 0 on a match. HP's tests read it the
+		// other way round, so rel="suggestions" became the search URL and
+		// rel="results" was refused.
+		if (!xmlStrcmp (rel, (const xmlChar*) "results"))
 		    isSearchUrl = true;
-		else if (xmlStrcmp (rel, (const xmlChar*) "suggestions"))
+		else if (!xmlStrcmp (rel, (const xmlChar*) "suggestions"))
 		    isSuggestionUrl = true;
 		else {
 		    g_warning ("unsupported rel value, ignoring this url");
@@ -288,7 +291,7 @@ bool OpenSearchHandler::parseXml (const std::string& xmlFile, bool scanningDir)
    		 	info.imageData = parseImage(info.id, info.imageData);
    		 }    	
     }
-    else if(uriScheme != NULL && strcmp(uriScheme, "http") == 0) {
+    else if(uriScheme != NULL && (strcmp(uriScheme, "http") == 0 || strcmp(uriScheme, "https") == 0)) {
     	//It's a url to icon. Download the image. But we don't wait for the download to complete.
     	//So, the assumption here is that download will complete and file will be created in the specified path. If there is a problem then it will default to generic icon.
     	info.imageData = downloadIcon(info.imageData);
@@ -368,7 +371,9 @@ const char* OpenSearchHandler::parseImage(const std::string& id, const std::stri
 	
 	imgData = NULL;
 
-	return fileName.c_str();
+	// webOS CE: a pointer into this function's own string outlived it, and the
+	// icon path came out as garbage. An interned copy lives on.
+	return g_intern_string(fileName.c_str());
 }
 
 gchar* OpenSearchHandler::unescapeString (const gchar *escaped, gsize& size)
@@ -561,6 +566,10 @@ bool OpenSearchHandler::cbDownloadManagerUpdate(LSHandle* lshandle, LSMessage *m
     newFilePath += '/';
     newFilePath += xmlFile.substr (xmlFile.find_last_of ('/')+1, xmlFile.size() - 1);
 	
+	// webOS CE: the download was asked for in the plugin directory already
+	// (downloadXml's targetDir), so the file is usually where it belongs.
+	// Copying it onto itself truncated it and the unlink then removed it.
+	if (xmlFile != newFilePath) {
 	if(USUtils::fileCopy(xmlFile.c_str(), newFilePath.c_str()) == -1)
 	{
 		g_warning("File Copy error" );
@@ -570,6 +579,7 @@ bool OpenSearchHandler::cbDownloadManagerUpdate(LSHandle* lshandle, LSMessage *m
 	g_debug ("Removing file %s", xmlFile.c_str());
 	unlink (xmlFile.c_str());
     xmlFile = newFilePath;
+	}
 #endif
 
     success = OpenSearchHandler::instance()->parseXml (xmlFile, false);
@@ -601,7 +611,7 @@ const char* OpenSearchHandler::downloadIcon (const std::string& imageUrl)
     if(USUtils::doesExistOnFilesystem(fileAndPath.c_str())) {
     	//It exist. skip the download.
     	g_debug ("Icon File exist. adding info to m_osItems");
-    	return fileAndPath.c_str();
+    	return g_intern_string(fileAndPath.c_str());
     }
     
     json_object*  downloadReq = json_object_new_object();
@@ -622,7 +632,7 @@ const char* OpenSearchHandler::downloadIcon (const std::string& imageUrl)
 	return GENRIC_ICON;
     }
     
-    return fileAndPath.c_str();
+    return g_intern_string(fileAndPath.c_str());
 }
 
 bool OpenSearchHandler::cbDownloadManagerIconUpdate(LSHandle* lshandle, LSMessage *message, void *user_data) 

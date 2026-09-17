@@ -5,19 +5,22 @@
 				 					"category": "search",
 				 					"displayName": "Google",
 				 					"iconFilePath":"/usr/lib/luna/system/luna-applauncher/images/search-icon-google.png",
-				 					"loc_url":"http://www.google.com/search?q=#{searchTerms}",
+				 					"loc_url":"https://www.google.com/search?q=#{searchTerms}",
+				 					"suggestURL":"https://suggestqueries.google.com/complete/search?client=firefox&q=#{searchTerms}",
 				 					"type":"web",
 				 					"enabled":true,
-				 					"version":2
+				 					"version":3
 				 				},
 				 				{ 
 				 					"id": "wikipedia", 
 				 					"category": "search",
 				 					"displayName": "Wikipedia",
 				 					"iconFilePath":"/usr/lib/luna/system/luna-applauncher/images/search-icon-wikipedia.png",
-				 					"url":"http://en.wikipedia.org/wiki/Special:Search?search=#{searchTerms}",
+				 					"url":"https://en.wikipedia.org/wiki/Special:Search?search=#{searchTerms}",
+				 					"suggestURL":"https://en.wikipedia.org/w/api.php?action=opensearch&format=json&search=#{searchTerms}",
 				 					"type":"web",
-				 					"enabled":true
+				 					"enabled":true,
+				 					"version":2
 				 				},
 				 				{ 
 				 					"id": "duckduckgo",
@@ -25,8 +28,10 @@
 				 					"displayName": "DuckDuckGo",
 				 					"iconFilePath":"/usr/lib/luna/system/luna-applauncher/images/search-icon-duckduckgo.png",
 				 					"url":"https://duckduckgo.com/?q=#{searchTerms}",
+				 					"suggestURL":"https://duckduckgo.com/ac/?type=list&q=#{searchTerms}",
 				 					"type":"web",
-				 					"enabled":true
+				 					"enabled":true,
+				 					"version":2
 				 				},
 				 				{
 									"category": "search",
@@ -35,7 +40,8 @@
 									"iconFilePath": "/usr/lib/luna/system/luna-applauncher/images/search-icon-cnn.png",
 									"id": "cnn",
 									"type": "web",
-									"url": "http://www.cnn.com/search/?query=#{searchTerms}"
+									"url": "https://www.cnn.com/search?q=#{searchTerms}",
+									"version":2
 								},
 								{
 									"category": "search",
@@ -44,8 +50,8 @@
 									"iconFilePath": "/usr/lib/luna/system/luna-applauncher/images/search-icon-amazon.png",
 									"id": "amazon",
 									"type": "web",
-									"url": "http://www.amazon.com/s/?k=#{searchTerms}",
-									"version":2
+									"url": "https://www.amazon.com/s?k=#{searchTerms}",
+									"version":3
 								},
 								{
 									"category": "search",
@@ -54,8 +60,8 @@
 									"iconFilePath": "/usr/lib/luna/system/luna-applauncher/images/search-icon-imdb.png",
 									"id": "imdb",
 									"type": "web",
-									"url": "http://www.imdb.com/find?q=#{searchTerms}",
-									"version":2
+									"url": "https://www.imdb.com/find/?q=#{searchTerms}",
+									"version":3
 								}
                			],
     "SearchPreference": {

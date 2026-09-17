@@ -278,6 +278,7 @@ private:
     QPointer<QObject> m_renderSurface;
     QString m_attributes;
     bool m_transparent = false;   // the palette asked for no background
+    QPointer<QWidget> m_focusedWidget; // the widget last told it has the focus
     int m_number = 0;   // names this page to the scripts it runs
 
     // Held by pointer, never owned: a page embedded in this one, and where it
