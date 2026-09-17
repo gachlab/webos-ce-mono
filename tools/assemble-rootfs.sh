@@ -196,6 +196,22 @@ if [ -f "$C/wifi-app/appinfo.json" ]; then
         "$ROOTFS/usr/palm/applications/com.palm.app.wifi/"
 fi
 
+# The cards built from components/cards: our own, on the modern web platform
+# (#37). Each one is already a plain web app -- index.html, one bundle, HP's
+# stylesheet -- in build/cards, where tools/build-cards.sh put it; nothing here
+# builds, so a tree assembled without that step simply has no new cards.
+if [ -d "$R/build/cards" ]; then
+    for CARD in "$R"/build/cards/*/; do
+        [ -f "$CARD/appinfo.json" ] || continue
+        id="$(basename "$CARD")"
+        rm -rf "$ROOTFS/usr/palm/applications/$id"
+        cp -rf "${CARD%/}" "$ROOTFS/usr/palm/applications/"
+        # The source map is for a developer with DevTools open, not for the
+        # device: it is three times the size of what it explains.
+        rm -f "$ROOTFS/usr/palm/applications/$id/main.js.map"
+    done
+fi
+
 # Servicios de aplicacion (JS, corren sobre node)
 for SVC in "$C"/app-services/*/; do
     [ -f "$SVC/services.json" ] || [ -f "$SVC/package.json" ] || continue

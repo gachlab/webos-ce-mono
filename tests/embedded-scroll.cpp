@@ -122,7 +122,30 @@ int main(int argc, char** argv)
 
     // And a drag outside the hole must not scroll it, or every touch anywhere
     // on the card would move the browser's content.
-    const QString before = innerSays("String(Math.round(window.scrollY))");
+    //
+    // The drag above is still settling when it ends -- Chromium finishes a
+    // scroll smoothly, over several frames -- so the reading to compare
+    // against is taken once it has stopped moving. Without this the test was
+    // comparing against a number that was still changing and failed about one
+    // run in seven, always here.
+    const auto scrollY = [&]() { return innerSays("String(Math.round(window.scrollY))"); };
+    // Quiet for the better part of a second, not merely twice the same: the
+    // scrolling from a drag lands in pieces, with gaps between them. MEASURED:
+    // sampling as soon as two readings agreed gave 1 while the rest of the
+    // drag was still on its way, and the reading after the second drag was 4 --
+    // which is what failed this test about one run in seven, always here.
+    const auto settled = [&]() {
+        QString last = scrollY();
+        int quiet = 0;
+        for (int tries = 0; tries < 60 && quiet < 8; ++tries) {
+            QCoreApplication::processEvents(QEventLoop::AllEvents, 100);
+            const QString now = scrollY();
+            quiet = now == last ? quiet + 1 : 0;
+            last = now;
+        }
+        return last;
+    };
+    const QString before = settled();
     QPointF out(20, 20);
     QMouseEvent pressOut(QEvent::MouseButtonPress, out, out,
                          Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
@@ -137,10 +160,8 @@ int main(int argc, char** argv)
     QMouseEvent releaseOut(QEvent::MouseButtonRelease, out, out,
                            Qt::LeftButton, Qt::NoButton, Qt::NoModifier);
     host.event(&releaseOut);
-    QCoreApplication::processEvents(QEventLoop::AllEvents, 200);
 
-    check("a drag outside the hole left it where it was",
-          innerSays("String(Math.round(window.scrollY))"), before);
+    check("a drag outside the hole left it where it was", settled(), before);
 
     return failures == 0 ? 0 : 1;
 }
