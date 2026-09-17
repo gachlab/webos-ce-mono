@@ -181,6 +181,7 @@ WEBOS_PREFIX="$PREFIX" \
 WEBOS_LAUNCHER="$PREFIX/bin/webos-ce" \
 WEBOS_BINDIR="$PREFIX/usr/lib/luna" \
 WEBOS_SBINDIR="$PREFIX/usr/lib/luna" \
+WEBOS_VERSION="$VERSION" \
     tools/assemble-rootfs.sh "$ROOT"
 
 # The launcher itself, plus a wrapper that tells it where it lives.

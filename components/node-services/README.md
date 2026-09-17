@@ -186,6 +186,29 @@ Decisions HP's code does not settle:
   (2 GB, 1 GB, 500 MB): a desktop disk 98% full can still have gigabytes free.
 * `upload`, `allow1x` and `swapToInterface` are left out: nothing calls them.
 
+### com.palm.deviceprofile, com.palm.accountservices, com.palm.service.customization, com.palm.devicewipe
+
+Four small services HP never released, each started on demand on the private
+bus through the kit's `serveOnDemand` (the commands, `__quit`, and an exit
+when idle). Each ships its role and `.service` file in `ls2/`.
+
+* `com.palm.deviceprofile`: `getDeviceProfile` answers every field of HP's
+  `deviceInfo`: the host's DMI model, this build (from
+  `/etc/palm/palm-build-info`, which `tools/assemble-rootfs.sh` writes), and an
+  `nduId` made once per install and kept. The modem's and the ROM's fields are
+  empty, as HP's were when a query failed. `getDeviceId` is the `nduId`.
+* `com.palm.accountservices`: the HP webOS account. Its servers are gone, so
+  there is no account: the token fails with `NO_TOKEN`, the account with
+  `ACCOUNT_NOT_DEFINED_ERROR` (HP's text), what only the servers could do with
+  `SERVER_UNAVAILABLE`. `updateDeviceProperties` is real and, as HP's did,
+  hands its arguments to `com.palm.systemservice/setPreferences`; LunaSysMgr
+  calls it at startup. The Accounts app keeps its "HP WEBOS ACCOUNT" row
+  disabled, as the released app did, so its palmID screens are not reached.
+* `com.palm.service.customization`: every command answers, with no carrier
+  defaults to copy.
+* `com.palm.devicewipe`: a remote wipe cannot be verified without the account
+  servers, so `deviceWipe` refuses it. The local erase is `com.palm.storage`'s.
+
 What luna-service2 needs, found the hard way
 --------------------------------------------
 
@@ -218,6 +241,9 @@ WEBOS_TEST_LOGS=build/node-services-logs components/node-services/test/run.sh
   alerts and the transfers against a local HTTP server;
   `downloadmanager.hub.test.ts` runs both services on a real hub, called as the
   browser and LunaSysMgr call them, with `com.palm.appinstaller` faked.
+* `device-services.unit.test.ts` and `device-services.hub.test.ts` cover the
+  four small services and `serveOnDemand`; the latter also starts
+  `com.palm.deviceprofile`'s `main.ts` twice to see its `nduId` kept.
 * `accounts.unit.test.ts` covers the accounts service's pure parts and the
   schema validator; `accounts.hub.test.ts` runs HP's own test cases
   (`tests/accounts-test.js`) and the rest of the commands against a real hub and

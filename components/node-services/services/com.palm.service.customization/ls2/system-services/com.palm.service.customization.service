@@ -1,0 +1,3 @@
+[D-BUS Service]
+Name=com.palm.service.customization
+Exec=/usr/palm/nodejs/node /usr/palm/node-services/services/com.palm.service.customization/main.ts

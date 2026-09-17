@@ -379,6 +379,22 @@ cp -rf "$A"/tempdb/kinds/*                       "$ROOTFS/etc/palm/tempdb/kinds/
 # "Loading Accounts..." for good.
 cp -rf "$A"/tempdb/permissions/*                 "$ROOTFS/etc/palm/tempdb/permissions/" 2>/dev/null
 
+# What build this is, in the form HP's /etc/palm-build-info had: services
+# report it as the device's software version (com.palm.deviceprofile). The
+# package passes its own version; a development tree takes it from git, in the
+# same form. Under /etc/palm rather than HP's /etc: that is the part of /etc the
+# session's namespace shows.
+if [ -z "${WEBOS_VERSION:-}" ]; then
+    WEBOS_VERSION="3.0.5-0+$(git -C "$R" rev-list --count HEAD 2>/dev/null || echo 0).$(git -C "$R" rev-parse --short HEAD 2>/dev/null || echo unknown)"
+fi
+mkdir -p "$ROOTFS/etc/palm"
+cat > "$ROOTFS/etc/palm/palm-build-info" <<BUILDINFO
+PRODUCT_VERSION_STRING=webOS Community Edition $WEBOS_VERSION
+BUILDNAME=webOS-CE
+BUILDNUMBER=$WEBOS_VERSION
+BUILDTIME=$(date -u +%Y%m%d%H%M%S)
+BUILDINFO
+
 mkdir -p "$ROOTFS"/var/palm/data/universalsearchmgr/searchplugins
 # The search providers the browser and Just Type offer, read from
 # /usr/palm/universalsearchmgr/resources/<locale>/ with en_us as the fallback.

@@ -12,7 +12,7 @@
 // * `__quit` answers and exits 100 ms later, as controller_service.js's did:
 //   exiting at once loses the answer, which is still on its way out.
 
-import { isLunaError, lunaError, type Bus, type Handler, type LunaError, type MethodOptions, type Payload } from "./luna.ts";
+import { isLunaError, lunaError, type Activity, type Bus, type BusOptions, type Handler, type LunaError, type MethodOptions, type Payload } from "./luna.ts";
 
 export const DEFAULT_COMMAND_TIMEOUT = 60;
 export const DEFAULT_IDLE_MS = 5000;
@@ -78,4 +78,40 @@ export const registerCommands = (buses: Buses, commands: readonly Command[], qui
     };
     buses.private.method("__quit", quitHandler);
     buses.public.method("__quit", quitHandler);
+};
+
+export interface OnDemandDeps {
+    readonly openBus: (name: string, options: BusOptions) => Bus;
+    readonly createActivity: () => Activity;
+    readonly exit: () => void;
+    readonly idleMs?: number;
+    readonly later?: (callback: () => void, ms: number) => void;
+}
+
+export interface OnDemandService {
+    readonly bus: Bus;
+    readonly close: () => void;
+}
+
+// A service the hub starts when it is called, on the private bus only, as most
+// of HP's were: the commands with mojoservice's timeout, `__quit`, and an exit
+// once idle.
+export const serveOnDemand = (deps: OnDemandDeps) => (name: string, commands: readonly Command[]): OnDemandService => {
+    const activity = deps.createActivity();
+    const bus = deps.openBus(name, { activity });
+    for (const command of commands) {
+        bus.method(command.name, command.handler, { timeout: command.timeout ?? DEFAULT_COMMAND_TIMEOUT });
+    }
+    bus.method("__quit", () => {
+        (deps.later ?? setTimeout)(deps.exit, QUIT_DELAY_MS);
+        return {};
+    });
+    activity.exitWhenIdle(deps.idleMs ?? DEFAULT_IDLE_MS, deps.exit);
+    return {
+        bus,
+        close: () => {
+            bus.close();
+            activity.stop();
+        },
+    };
 };
