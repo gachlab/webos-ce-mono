@@ -2,6 +2,7 @@
 
 #include "BrowserViewAdapter.h"
 
+#include <QRegion>
 #include <QUrl>
 #include <QWebFrame>
 #include <QWebPage>
@@ -80,6 +81,18 @@ void BrowserViewAdapter::setGeometry(int x, int y, int width, int height)
     // the hole is hidden or the app has opened something over it. It goes
     // through, so the host stops blitting until a real rect arrives.
     m_host->embedPage(m_view, m_rect);
+}
+
+void BrowserViewAdapter::setCutouts(const QVariantList& rects)
+{
+    QRegion region;
+    for (const QVariant& value : rects) {
+        const QVariantList r = value.toList();
+        if (r.size() == 4)
+            region += QRect(r[0].toInt(), r[1].toInt(), r[2].toInt(), r[3].toInt());
+    }
+    if (m_host && m_view)
+        m_host->setEmbeddedCutouts(m_view, region);
 }
 
 void BrowserViewAdapter::setUrl(const QString& url)

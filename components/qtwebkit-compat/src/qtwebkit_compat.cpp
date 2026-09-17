@@ -744,18 +744,23 @@ const char kBrowserView[] = R"JS(
             setRect(control, {x: 0, y: 0, w: 0, h: 0});
     }
 
-    // Anything the app draws over the hole.
+    // Anything the app draws over the hole, as rects in the page's
+    // coordinates, clipped to the hole.
     //
     // The blit goes on top of everything the page painted, so whatever the app
-    // opens across the content area ends up underneath it. Measured on the
-    // running browser: its action bar menu is an absolutely positioned
+    // opens across the content area would end up underneath it. Measured on
+    // the running browser: its action bar menu is an absolutely positioned
     // "enyo-popup enyo-popup-menu launch-popup" at [727, 30, 153, 164], z-index
-    // 123, over a hole starting at y 54 -- so its lower 140 pixels were painted
-    // over and it looked like it had opened behind the page.
+    // 123, over a hole starting at y 54. The host leaves these rects out of the
+    // blit, so the menu shows over the page -- rather than the whole page
+    // going blank while a menu is open, as it first did.
     //
     // Full-page containers are not overlays: the hole's own ancestors are
     // absolute and as large as the view.
-    function covered(node, b) {
+    function coverings(node, b) {
+        var found = [];
+        var sx = window.pageXOffset || 0;
+        var sy = window.pageYOffset || 0;
         var all = document.querySelectorAll("*");
         for (var i = 0; i < all.length; i++) {
             var e = all[i];
@@ -771,12 +776,24 @@ const char kBrowserView[] = R"JS(
                 continue;
             if (r.width >= b.w && r.height >= b.h)
                 continue;
-            if (r.right <= b.x || r.left >= b.x + b.w ||
-                r.bottom <= b.y || r.top >= b.y + b.h)
+            var left = Math.max(Math.floor(r.left + sx), b.x);
+            var top = Math.max(Math.floor(r.top + sy), b.y);
+            var right = Math.min(Math.ceil(r.right + sx), b.x + b.w);
+            var bottom = Math.min(Math.ceil(r.bottom + sy), b.y + b.h);
+            if (right <= left || bottom <= top)
                 continue;
-            return true;
+            found.push([left, top, right - left, bottom - top]);
         }
-        return false;
+        return found;
+    }
+
+    function setCutouts(control, rects) {
+        var key = JSON.stringify(rects);
+        if (control.__webosCutouts === key)
+            return;
+        control.__webosCutouts = key;
+        if (control.__webosView.setCutouts)
+            control.__webosView.setCutouts(rects);
     }
 
     // While a hole cannot be painted, measure it again for a while: the
@@ -807,17 +824,18 @@ const char kBrowserView[] = R"JS(
             retry(control, attempt);
             return;
         }
-        if (covered(node, b)) {
-            // Found live: back from the Preferences, the browser's view is
-            // shown while the Preferences still cover it, and they go away
-            // without the view changing size -- so nothing measured it again
-            // and a white panel stayed where the page should be.
-            suspend(control);
-            retry(control, attempt);
-            return;
-        }
-        clearTimeout(control.__webosRetry);
+        var over = coverings(node, b);
+        setCutouts(control, over);
         setRect(control, b);
+        if (over.length > 0) {
+            // What covers it may go away with no event of its own. Found live:
+            // back from the Preferences, the browser's view is shown while
+            // they still cover it, and they leave without the view changing
+            // size -- so nothing measured it again.
+            retry(control, attempt);
+        } else {
+            clearTimeout(control.__webosRetry);
+        }
     }
 
     function remeasureAll() {
@@ -1696,6 +1714,19 @@ void QWebPage::embedPage(QWebPage* page, const QRect& rect)
     m_embedded.append(entry);
 }
 
+void QWebPage::setEmbeddedCutouts(QWebPage* page, const QRegion& cutouts)
+{
+    for (EmbeddedPage& embedded : m_embedded) {
+        if (embedded.page != page)
+            continue;
+        if (embedded.cutouts == cutouts)
+            return;
+        embedded.cutouts = cutouts;
+        Q_EMIT repaintRequested(embedded.rect);
+        return;
+    }
+}
+
 void QWebPage::removeEmbeddedPage(QWebPage* page)
 {
     for (int i = m_embedded.size() - 1; i >= 0; --i) {
@@ -1788,7 +1819,7 @@ bool QWebPage::deliverToEmbedded(QEvent* event)
         const EmbeddedPage& embedded = m_embedded[i];
         if (embedded.page.isNull() || embedded.rect.isEmpty())
             continue;
-        if (!embedded.rect.contains(where.toPoint()))
+        if (!embedded.rect.contains(where.toPoint()) || embedded.cutouts.contains(where.toPoint()))
             continue;
 
         const QPointF local = where - QPointF(embedded.rect.topLeft());
@@ -1991,7 +2022,8 @@ void QWebFrame::render(QPainter* painter, RenderLayer, const QRegion& clip)
         if (content.isNull())
             continue;
         painter->save();
-        painter->setClipRect(embedded.rect, Qt::IntersectClip);
+        // Whatever the host has over the hole stays on top.
+        painter->setClipRegion(QRegion(embedded.rect).subtracted(embedded.cutouts), Qt::IntersectClip);
         painter->drawPixmap(embedded.rect.topLeft(), content);
         painter->restore();
     }

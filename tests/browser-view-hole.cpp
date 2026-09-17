@@ -10,14 +10,16 @@
 // A page here plays the browser app: an enyo.BasicWebView of its own, and a
 // BrowserViewFactory that records every rect the box sends.
 //
-// Verified by mutation: without the ResizeObserver, or without measuring a
-// covered box again, this turns red.
+// Verified by mutation: without the ResizeObserver, without the cutouts, or
+// without measuring a covered box again, this turns red.
 
 #include <QApplication>
 #include <QElapsedTimer>
 #include <QEventLoop>
 #include <QFile>
 #include <QRect>
+#include <QStringList>
+#include <QVariantList>
 #include <QTemporaryDir>
 #include <QTextStream>
 
@@ -45,7 +47,19 @@ class View : public QObject
     Q_OBJECT
 public:
     QList<QRect> rects;
+    QStringList cutouts;
     Q_INVOKABLE void setGeometry(int x, int y, int width, int height) { rects.append(QRect(x, y, width, height)); }
+    Q_INVOKABLE void setCutouts(const QVariantList& list)
+    {
+        QStringList parts;
+        for (const QVariant& r : list) {
+            QStringList n;
+            for (const QVariant& v : r.toList())
+                n << QString::number(v.toInt());
+            parts << n.join(",");
+        }
+        cutouts << parts.join(" ");
+    }
     Q_INVOKABLE QString url() const { return QString(); }
     Q_INVOKABLE bool canGoBack() const { return false; }
     Q_INVOKABLE bool canGoForward() const { return false; }
@@ -145,12 +159,20 @@ int main(int argc, char** argv)
     waitFor([&]() { return last(factory.view) == "10,20 300x200"; }, 5000);
     check("showing it again puts the page back", last(factory.view) == "10,20 300x200", last(factory.view));
 
+    // Something of the app's over part of the box: that part is cut out, and
+    // the rest of the page is still painted.
     page.mainFrame()->evaluateJavaScript("hide(); 1");
     waitFor([&]() { return last(factory.view) == "0,0 0x0"; }, 5000);
+    factory.view->cutouts.clear();
     page.mainFrame()->evaluateJavaScript("showUnderPrefs(); 1");
-    waitFor([&]() { return last(factory.view) == "10,20 300x200"; }, 5000);
-    check("shown while still covered, it comes back once uncovered", last(factory.view) == "10,20 300x200",
-          last(factory.view));
+    waitFor([&]() { return factory.view->cutouts.contains("10,20,190,80") && last(factory.view) == "10,20 300x200"; }, 5000);
+    check("what covers the box is cut out of it", factory.view->cutouts.contains("10,20,190,80"),
+          factory.view->cutouts.join(" | "));
+    check("while the page stays painted", last(factory.view) == "10,20 300x200", last(factory.view));
+    waitFor([&]() { return !factory.view->cutouts.isEmpty() && factory.view->cutouts.last().isEmpty(); }, 5000);
+    check("and once it goes away, nothing is cut out",
+          !factory.view->cutouts.isEmpty() && factory.view->cutouts.last().isEmpty(),
+          factory.view->cutouts.join(" | "));
 
     return failures == 0 ? 0 : 1;
 }

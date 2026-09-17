@@ -35,6 +35,7 @@
 #include <QPointer>
 #include <QRect>
 #include <QString>
+#include <QVariantList>
 
 class QWebPage;
 
@@ -48,6 +49,9 @@ public:
     // Where the app's hole is, in the host page's coordinates. Called again
     // whenever it moves or resizes: the hole travels with the page that owns it.
     Q_INVOKABLE void setGeometry(int x, int y, int width, int height);
+    // What the app has over the view, as [x, y, width, height] rects in the
+    // host page's coordinates: the page is not painted there.
+    Q_INVOKABLE void setCutouts(const QVariantList& rects);
 
     Q_INVOKABLE void setUrl(const QString& url);
     Q_INVOKABLE QString url() const;
