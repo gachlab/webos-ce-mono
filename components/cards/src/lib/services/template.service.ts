@@ -27,7 +27,7 @@ export type TemplateStateName = "template:loading" | "template:ready" | "templat
 export interface TemplateService {
     getState(): State<TemplateData>;
     onStateChange(listener: (state: State<TemplateData>) => void): Unsubscribe;
-    // The card is on screen.
+    // The card is on screen, or has come back to it.
     onShown(): void;
     // The user asked again after a failure.
     onRetry(): void;
@@ -56,17 +56,26 @@ export interface TemplateDeps {
 export const createTemplateService = (deps: TemplateDeps): TemplateService => {
     const state: StateHolder<TemplateData> = createState<TemplateData>({ name: "template:loading", data: {} });
     let asking = false;
+    let gone = false;
 
     const ask = async () => {
-        if (asking) {
+        if (asking || gone) {
             return;
         }
         asking = true;
         state.set({ name: "template:loading", data: state.get().data });
         try {
             const reply = await deps.luna.call(DEVICE_PROFILE);
+            // The card may have closed while the bus was answering; a reply
+            // that arrives then has nowhere to go.
+            if (gone) {
+                return;
+            }
             state.set({ name: "template:ready", data: { device: factsOf(reply) } });
         } catch (error) {
+            if (gone) {
+                return;
+            }
             // What the user reads is what the service said; the uri and the
             // rest go to the log, where they are of some use.
             const text = error instanceof LunaCallError ? errorTextOf(error.reply)
@@ -84,7 +93,9 @@ export const createTemplateService = (deps: TemplateDeps): TemplateService => {
         onShown: () => void ask(),
         onRetry: () => void ask(),
         dispose: () => {
+            gone = true;
             asking = false;
+            state.clear();
         },
     };
 };

@@ -19,11 +19,9 @@ src/cards/    one directory per app: index.html, appinfo.json, main.ts.
 
 * `lib/helpers/create-state.ts` — every service's state: `{name, data, error}`,
   and a subscribe that hands the current state over at once, so a card paints
-  its first frame without waiting.
-* `lib/helpers/event-bus.ts` — what one service says to another. Services never
-  import each other.
-* `lib/helpers/with-deadline.ts` — every wait is bounded, and the bound covers
-  the whole operation.
+  its first frame without waiting. An error belongs to the state it happened
+  in: a new name leaves it behind.
+* `lib/helpers/timers.ts` — the clock, as something a test can hand over.
 * `lib/infra/luna/service.ts` — the bus as a card sees it: `call` and
   `subscribe`, `LunaCallError`, `LunaTimeout`. `bridge.service.ts` is
   WebAppMgr's `PalmServiceBridge`; `fake.service.ts` is what tests and a plain
@@ -43,8 +41,12 @@ src/cards/    one directory per app: index.html, appinfo.json, main.ts.
 * `ui/kit/kit.ts` — HP's controls: `hp-header`, `hp-button`, `hp-toggle`,
   `hp-row`, `hp-group`, `hp-spinner`, `hp-field`, `hp-check`, `hp-selector`
   (the row that opens a drawer of choices), `hp-dialog` and `hp-progress`.
-* `ui/hp.css` — the look, in numbered sections. A new class goes in its section
-  and nowhere else.
+* `ui/start-card.ts` — how a card starts: the stylesheet, the first frame,
+  telling WebAppMgr the card is ready, and giving the service the card's own
+  life (shown, hidden, relaunched, back).
+* `ui/kit.css` — the controls' look, in numbered sections; every element adopts
+  this one sheet. `ui/page.css` is the page around them. A new class goes in
+  its section and nowhere else.
 
 Writing a card
 --------------
@@ -54,8 +56,10 @@ Writing a card
 export const createWifiService = (deps: { luna: LunaService }): WifiService => { ... };
 
 // cards/com.palm.app.wifi/main.ts -- where it is wired up
-const service = createWifiService({ luna: openBus() });
-service.onStateChange((state) => render(view(state, service), root));
+startCard({
+    service: createWifiService({ luna: openBus() }),
+    view: (state, service) => html`...`,
+});
 ```
 
 The view is a function of the state, and the controls answer with events:
@@ -64,8 +68,9 @@ The view is a function of the state, and the controls answer with events:
 html`<hp-toggle ?on=${state.data.on} @toggle=${(e) => service.onToggle(e.detail.on)}></hp-toggle>`
 ```
 
-Anything an attribute cannot carry (a list, an object) is set as a property,
-with `setProperties`.
+Anything an attribute cannot carry is set as a property -- `.choices=${list}`
+from a template, `element.choices = list` from anywhere else. A property set
+before the element's definition arrived is taken when it does.
 
 Building and running
 --------------------
@@ -86,7 +91,7 @@ The two cards that come with it
 
 `src/cards/com.palm.app.kit` is the showcase: every control, in each state it
 can be in, and a list of what WebAppMgr has said to the card so far. It is the
-kit itself, so it cannot go stale, and it is where a change to `hp.css` is
+kit itself, so it cannot go stale, and it is where a change to `kit.css` is
 looked at before it reaches a card.
 
 `src/cards/com.palm.app.template` is the one the others are copied from. It asks

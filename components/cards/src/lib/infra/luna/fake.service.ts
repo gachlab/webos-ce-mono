@@ -25,7 +25,7 @@ export interface FakeSubscriber {
 export interface FakeLuna extends LunaService {
     // Every call and subscription, in order.
     readonly calls: FakeCall[];
-    // The subscriptions still open.
+    // The subscriptions still open; a cancelled one is gone from here.
     readonly subscribers: FakeSubscriber[];
     // What answers `uri`. A function may return a payload or a promise, or
     // throw to fail the call.
@@ -70,7 +70,9 @@ export const createFakeLuna = (): FakeLuna => {
         subscribe: <Reply extends Payload>(uri: string, payload: Payload,
                                            onReply: (reply: Reply) => void,
                                            onError?: (error: LunaCallError) => void): Subscription => {
-            calls.push({ uri, payload, subscribed: true });
+            // As the bridge sends it: a subscription asks to subscribe, and a
+            // test that reads `calls` sees what the service would have seen.
+            calls.push({ uri, payload: { ...payload, subscribe: true }, subscribed: true });
             let cancelled = false;
             const subscriber: FakeSubscriber = {
                 uri,
@@ -95,6 +97,10 @@ export const createFakeLuna = (): FakeLuna => {
             return {
                 cancel: () => {
                     cancelled = true;
+                    const at = subscribers.indexOf(subscriber);
+                    if (at >= 0) {
+                        subscribers.splice(at, 1);
+                    }
                 },
             };
         },

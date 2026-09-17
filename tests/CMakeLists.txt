@@ -236,6 +236,13 @@ add_test(NAME qml-graphics-slot COMMAND qml-graphics-slot -platform offscreen)
 add_test(NAME cards-lib COMMAND "${CMAKE_CURRENT_SOURCE_DIR}/../components/cards/test/run.sh")
 set_tests_properties(cards-lib PROPERTIES SKIP_RETURN_CODE 77)
 
+add_executable(kit-elements kit-elements.cpp)
+target_link_libraries(kit-elements PRIVATE qtwebkit-compat-lib)
+add_test(NAME kit-elements COMMAND kit-elements)
+set_tests_properties(kit-elements PROPERTIES
+    SKIP_RETURN_CODE 77
+    ENVIRONMENT "QT_QPA_PLATFORM=offscreen;WEBOS_CARDS_BUILD=${CMAKE_CURRENT_SOURCE_DIR}/../build/cards")
+
 add_executable(template-card template-card.cpp)
 target_link_libraries(template-card PRIVATE qtwebkit-compat-lib)
 add_test(NAME template-card COMMAND template-card)

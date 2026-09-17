@@ -50,11 +50,17 @@ const parseParams = (text: string | undefined): LaunchParams => {
 
 export interface PalmSystemDeps {
     // The page. Taken as an argument so a test can hand over its own.
-    readonly window: Record<string, unknown> & { addEventListener?: Window["addEventListener"] };
+    readonly window: Record<string, unknown> & {
+        addEventListener?: Window["addEventListener"];
+        removeEventListener?: Window["removeEventListener"];
+    };
+    // The clock, for the one thing that needs it: telling one back from two.
+    readonly now?: () => number;
 }
 
 export const createPalmSystemApp = (deps: PalmSystemDeps): AppService => {
     const page = deps.window;
+    const now = deps.now ?? (() => Date.now());
     const system = () => (page.PalmSystem ?? {}) as PalmSystem;
     const listeners = new Map<AppEvent, Set<(...args: never[]) => void>>();
 
@@ -88,18 +94,30 @@ export const createPalmSystemApp = (deps: PalmSystemDeps): AppService => {
         handleGesture: (name: string, detail?: unknown) => {
             previous.handleGesture?.(name, detail);
             if (name === "back") {
-                tell("back");
+                back(now());
             }
         },
     };
     page.Mojo = hooks;
 
-    // The back key, which is Escape here and on the device's keyboard both.
-    page.addEventListener?.("keydown", ((event: KeyboardEvent) => {
-        if (event.key === "Escape") {
-            tell("back");
+    // Back arrives twice on a device with a keyboard: as the gesture and as
+    // the key. One back is one back.
+    let lastBack = -1;
+    const back = (at: number) => {
+        if (at - lastBack < 300) {
+            return;
         }
-    }) as EventListener);
+        lastBack = at;
+        tell("back");
+    };
+
+    // The back key, which is Escape here and on the device's keyboard both.
+    const onKey = ((event: KeyboardEvent) => {
+        if (event.key === "Escape") {
+            back(now());
+        }
+    }) as EventListener;
+    page.addEventListener?.("keydown", onKey);
 
     return {
         launchParams: () => parseParams(system().launchParams),
@@ -113,6 +131,11 @@ export const createPalmSystemApp = (deps: PalmSystemDeps): AppService => {
         },
         banner: (message: string) => {
             system().addBannerMessage?.(message, "{}");
+        },
+        dispose: () => {
+            page.removeEventListener?.("keydown", onKey);
+            page.Mojo = previous;
+            listeners.clear();
         },
         on: (event, listener) => {
             const forEvent = listeners.get(event) ?? new Set();

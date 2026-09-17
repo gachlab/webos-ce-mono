@@ -20,6 +20,12 @@ interface Hooks {
 const fakePage = (system: Record<string, unknown> = {}, mojo: Record<string, unknown> = {}) => {
     const keys: ((event: { key: string }) => void)[] = [];
     const page = {
+        removeEventListener: (_type: string, listener: (event: { key: string }) => void) => {
+            const at = keys.indexOf(listener);
+            if (at >= 0) {
+                keys.splice(at, 1);
+            }
+        },
         PalmSystem: {
             launchParams: JSON.stringify({ target: "wifi" }),
             identifier: "com.palm.app.kit 1234",
@@ -60,7 +66,8 @@ describe("the card's life", () => {
 
     test("what WebAppMgr calls reaches whoever is listening", () => {
         const page = fakePage();
-        const app = createPalmSystemApp({ window: page as never });
+        let clock = 0;
+        const app = createPalmSystemApp({ window: page as never, now: () => (clock += 1000) });
         const heard: string[] = [];
         app.on("activated", () => heard.push("activated"));
         app.on("deactivated", () => heard.push("deactivated"));
@@ -78,6 +85,33 @@ describe("the card's life", () => {
         page.press("Escape");
         page.press("a");
         assert.deepEqual(heard, ["activated", "deactivated", "keyboard:true", "back", "twice", "back"]);
+    });
+
+    test("back is one back, however it arrives", () => {
+        const page = fakePage();
+        // The gesture and the key, in the same moment: a device with a
+        // keyboard sends both, and a card that pops two screens for one
+        // gesture is a card that cannot be navigated.
+        const app = createPalmSystemApp({ window: page as never, now: () => 1000 });
+        const heard: string[] = [];
+        app.on("back", () => heard.push("back"));
+        (page.Mojo as Hooks).handleGesture?.("back");
+        page.press("Escape");
+        assert.deepEqual(heard, ["back"]);
+    });
+
+    test("disposing lets go of the page", () => {
+        const page = fakePage();
+        const before = page.Mojo;
+        const app = createPalmSystemApp({ window: page as never });
+        const heard: string[] = [];
+        app.on("activated", () => heard.push("activated"));
+        const installed = page.Mojo as Hooks;
+        app.dispose();
+        installed.stageActivated?.();
+        page.press("Escape");
+        assert.deepEqual(heard, []);
+        assert.equal(page.Mojo, before, "the hooks that were there are back");
     });
 
     test("a relaunch carries the parameters it was relaunched with", () => {
@@ -116,7 +150,7 @@ describe("the card's life", () => {
     });
 
     test("a page with no PalmSystem still answers, so a card opens in a browser", () => {
-        const page = { Mojo: {}, addEventListener: () => {} };
+        const page = { Mojo: {}, addEventListener: () => {}, removeEventListener: () => {} };
         const app = createPalmSystemApp({ window: page as never });
         assert.deepEqual(app.launchParams(), {});
         assert.equal(app.locale(), "en_US");
@@ -132,6 +166,9 @@ describe("what the user reads", () => {
         useTranslations({ "Turn on Wi-Fi": "Encender el Wi-Fi" });
         assert.equal(t("Turn on Wi-Fi"), "Encender el Wi-Fi");
         assert.equal(t("Not translated yet"), "Not translated yet");
+        // Not through Object's own: t("constructor") is the word, not a function.
+        assert.equal(t("constructor"), "constructor");
+        assert.equal(t("toString"), "toString");
     });
 
     test("HP's placeholders are filled, and an unknown one is left alone", () => {

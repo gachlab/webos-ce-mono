@@ -1,6 +1,6 @@
-// hp.css arrives as text: esbuild is told to load .css that way, so the same
-// stylesheet the page links is also the one every element's shadow root
-// adopts (see src/ui/element.ts).
+// A stylesheet arrives as text: esbuild is told to load .css that way, so
+// kit.css is what every element adopts into its shadow root (see
+// src/ui/element.ts) while page.css is linked by the page.
 declare module "*.css" {
     const css: string;
     export default css;

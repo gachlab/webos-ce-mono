@@ -40,4 +40,6 @@ export interface AppService {
     // HP's banner, the one-line message across the top of the screen.
     banner(message: string): void;
     on<E extends AppEvent>(event: E, listener: AppEvents[E]): () => void;
+    // Lets go of the page: the hooks it installed and the keys it listens for.
+    dispose(): void;
 }

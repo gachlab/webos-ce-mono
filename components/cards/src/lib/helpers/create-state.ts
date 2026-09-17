@@ -19,17 +19,24 @@ export type Unsubscribe = () => void;
 export interface StateHolder<Data> {
     get(): State<Data>;
     set(next: State<Data>): void;
-    // Same name, more data.
+    // Same state, more data. A new name means a new state, so an error from
+    // the one before is not carried into it.
     patch(data: Partial<Data>, name?: string): void;
     subscribe(listener: Listener<Data>): Unsubscribe;
+    // Lets every subscriber go: what a service does when it is disposed of, so
+    // a late answer cannot repaint a card that has closed.
+    clear(): void;
 }
 
 export const createState = <Data>(initial: State<Data>): StateHolder<Data> => {
     let state = initial;
     const listeners = new Set<Listener<Data>>();
+    // The state as it was when the round began: a listener that reacts with a
+    // change of its own must not make the listeners after it skip this one.
     const tell = () => {
+        const shown = state;
         for (const listener of [...listeners]) {
-            listener(state);
+            listener(shown);
         }
     };
     return {
@@ -39,7 +46,15 @@ export const createState = <Data>(initial: State<Data>): StateHolder<Data> => {
             tell();
         },
         patch: (data, name) => {
-            state = { ...state, ...(name === undefined ? {} : { name }), data: { ...state.data, ...data } };
+            const renamed = name !== undefined && name !== state.name;
+            state = {
+                name: name ?? state.name,
+                data: { ...state.data, ...data },
+                // An error belongs to the state it happened in. Kept while the
+                // name is the same, gone with it -- otherwise "Wrong password"
+                // is still on screen after the card has joined the network.
+                ...(renamed || state.error === undefined ? {} : { error: state.error }),
+            };
             tell();
         },
         subscribe: (listener) => {
@@ -47,5 +62,6 @@ export const createState = <Data>(initial: State<Data>): StateHolder<Data> => {
             listener(state);
             return () => listeners.delete(listener);
         },
+        clear: () => listeners.clear(),
     };
 };

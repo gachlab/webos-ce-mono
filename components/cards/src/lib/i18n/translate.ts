@@ -9,10 +9,11 @@
 
 export type Translations = Record<string, string>;
 
-let table: Translations = {};
+// Without a prototype: t("constructor") must be the word, not a function.
+let table: Translations = Object.create(null) as Translations;
 
 export const useTranslations = (translations: Translations): void => {
-    table = translations;
+    table = Object.assign(Object.create(null) as Translations, translations);
 };
 
 // HP's own placeholder syntax, the one its strings are written in.

@@ -6,7 +6,7 @@
 //     <hp-header title="Wi-Fi"></hp-header>
 //     <hp-toggle on label-on="On" label-off="Off"></hp-toggle>
 //
-// What they look like is hp.css, section by section. What they do is here, and
+// What they look like is kit.css, section by section. What they do is here, and
 // it is always the same shape: read the properties, draw, and say what
 // happened with an event.
 
@@ -19,7 +19,7 @@ defineElement<{ title: string; back: boolean }>(
     ({ title, back }, { emit }) => html`
         <header class="hp-header">
             ${back ? html`<button class="hp-header-back" @click=${() => emit("back")}>&#9664;</button>` : ""}
-            <span>${title ?? ""}</span>
+            <span>${title}</span>
         </header>`,
 );
 
@@ -29,7 +29,7 @@ defineElement<{ label: string; kind: string; disabled: boolean }>(
     { label: String, kind: String, disabled: Boolean },
     ({ label, kind, disabled }, { emit }) => html`
         <button class="hp-button ${kind ?? ""}" ?disabled=${disabled}
-                @click=${() => emit("press")}>${label ?? ""}</button>`,
+                @click=${() => emit("press")}>${label}</button>`,
 );
 
 // §4 Toggle. The card is told what the user asked for; it decides whether that
@@ -42,7 +42,7 @@ defineElement<{ on: boolean; labelOn: string; labelOff: string; disabled: boolea
                 role="switch" aria-checked=${on ? "true" : "false"}
                 @click=${() => emit("toggle", { on: !on })}>
             <span class="hp-toggle-knob"></span>
-            <span class="hp-toggle-label">${on ? labelOn ?? "On" : labelOff ?? "Off"}</span>
+            <span class="hp-toggle-label">${on ? labelOn || "On" : labelOff || "Off"}</span>
         </button>`,
 );
 
@@ -54,7 +54,7 @@ defineElement<{ label: string }>(
     ({ label }) => html`
         <div class="hp-spinner-row">
             <span class="hp-spinner"></span>
-            <span>${label ?? ""}</span>
+            <span>${label}</span>
         </div>`,
 );
 
@@ -68,16 +68,21 @@ defineElement<{ title: string }>(
 );
 
 // A row. `title` and `detail` are the two lines HP's lists have; whatever the
-// card puts inside goes to the right of them.
+// card puts inside goes to the right of them. Only the row's own part of it
+// selects the row: a toggle in a Wi-Fi row would otherwise turn the radio on
+// and open the network at the same time.
 defineElement<{ title: string; detail: string }>(
     "hp-row",
     { title: String, detail: String },
     ({ title, detail }, { emit }) => html`
-        <div class="hp-row" @click=${() => emit("select")}>
-            <div class="hp-row-text">
-                <div class="hp-row-title">${title ?? ""}</div>
-                ${detail ? html`<div class="hp-row-detail">${detail}</div>` : ""}
-            </div>
+        <div class="hp-row">
+            ${title || detail
+                ? html`
+                    <div class="hp-row-text" @click=${() => emit("select")}>
+                        <div class="hp-row-title">${title}</div>
+                        ${detail ? html`<div class="hp-row-detail">${detail}</div>` : ""}
+                    </div>`
+                : ""}
             <slot></slot>
         </div>`,
 );
@@ -95,8 +100,8 @@ defineElement<{ label: string; value: string; placeholder: string; type: string;
     ({ label, value, placeholder, type, disabled }, { emit }) => html`
         <label class="hp-field">
             ${label ? html`<span class="hp-field-label">${label}</span>` : ""}
-            <input class="hp-field-input" .value=${value ?? ""} type=${type || "text"}
-                   placeholder=${placeholder ?? ""} ?disabled=${disabled}
+            <input class="hp-field-input" .value=${value} type=${type || "text"}
+                   placeholder=${placeholder} ?disabled=${disabled}
                    @input=${(event: Event) => emit("change", { value: (event.target as HTMLInputElement).value })}
                    @keydown=${(event: KeyboardEvent) => {
                        if (event.key === "Enter") {
@@ -119,28 +124,27 @@ defineElement<{ checked: boolean; disabled: boolean }>(
 );
 
 // §9 List selector: the row that shows the chosen one and opens HP's drawer of
-// choices under it. `choices` is set as a property, not an attribute.
+// choices under it. `choices` is set as a property, not an attribute. Like
+// every other control here, it says what the user asked for -- "open" and
+// "choose" -- and the card decides what that makes true.
 defineElement<{ label: string; value: string; choices: { value: string; label: string }[]; open: boolean }>(
     "hp-selector",
-    { label: String, value: String, choices: Object as never, open: Boolean },
-    ({ label, value, choices, open }, { emit, element }) => {
+    { label: String, value: String, choices: Object, open: Boolean },
+    ({ label, value, choices, open }, { emit }) => {
         const list = Array.isArray(choices) ? choices : [];
         const chosen = list.find((choice) => choice.value === value);
         return html`
             <div class="hp-selector">
-                <div class="hp-row" @click=${() => element.toggleAttribute("open")}>
+                <div class="hp-row" @click=${() => emit("open", { open: !open })}>
                     <div class="hp-row-text"><div class="hp-row-title">${label ?? ""}</div></div>
-                    <span class="hp-selector-value">${chosen?.label ?? value ?? ""}</span>
+                    <span class="hp-selector-value">${chosen?.label ?? value}</span>
                     <span class="hp-selector-arrow ${open ? "open" : ""}">&#9662;</span>
                 </div>
                 ${open
                     ? html`<div class="hp-selector-drawer">
                         ${list.map((choice) => html`
                             <div class="hp-row hp-selector-choice ${choice.value === value ? "chosen" : ""}"
-                                 @click=${() => {
-                                     element.removeAttribute("open");
-                                     emit("choose", { value: choice.value });
-                                 }}>
+                                 @click=${() => emit("choose", { value: choice.value })}>
                                 <div class="hp-row-text"><div class="hp-row-title">${choice.label}</div></div>
                                 ${choice.value === value ? html`<span class="hp-selector-tick">&#10003;</span>` : ""}
                             </div>`)}
@@ -154,7 +158,7 @@ defineElement<{ label: string; value: string; choices: { value: string; label: s
 // card says which button was pressed by its value.
 defineElement<{ title: string; message: string; buttons: { value: string; label: string; kind?: string }[] }>(
     "hp-dialog",
-    { title: String, message: String, buttons: Object as never },
+    { title: String, message: String, buttons: Object },
     ({ title, message, buttons }, { emit }) => html`
         <div class="hp-dialog-shade" @click=${() => emit("dismiss")}>
             <div class="hp-dialog" @click=${(event: Event) => event.stopPropagation()}>

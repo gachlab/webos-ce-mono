@@ -7,7 +7,7 @@ import { describe, test } from "node:test";
 import { createBridgeLuna, type PalmServiceBridge } from "#lib/infra/luna/bridge.service.ts";
 import { createFakeLuna } from "#lib/infra/luna/fake.service.ts";
 import { LunaCallError, LunaTimeout, errorTextOf, failed, type Payload } from "#lib/infra/luna/service.ts";
-import type { Timers } from "#lib/helpers/with-deadline.ts";
+import type { Timers } from "#lib/helpers/timers.ts";
 
 // A stand-in for WebAppMgr's bridge: it records what it was asked and answers
 // when the test says so.
@@ -121,6 +121,62 @@ describe("the bridge", () => {
         assert.equal(call.cancelled, true);
     });
 
+    test("two calls at once do not cross, and a finished bridge carries the next one", async () => {
+        const bridges = fakeBridges();
+        const timers = immediateTimers();
+        const luna = createBridgeLuna({ open: bridges.open, timers });
+        const first = luna.call("luna://com.palm.wifi/getstatus");
+        const second = luna.call("luna://com.palm.wifi/findnetworks");
+        assert.equal(bridges.opened.length, 2, "one bridge per call in flight");
+        bridges.opened[1]!.answer(JSON.stringify({ returnValue: true, which: "networks" }));
+        bridges.opened[0]!.answer(JSON.stringify({ returnValue: true, which: "status" }));
+        assert.equal((await first).which, "status");
+        assert.equal((await second).which, "networks");
+
+        // WebAppMgr parents every bridge to the page, so a card that polls
+        // would leave one behind on each call.
+        const third = luna.call("luna://com.palm.wifi/getstatus");
+        assert.equal(bridges.opened.length, 2, "a finished bridge is used again");
+        bridges.opened[0]!.answer(JSON.stringify({ returnValue: true, which: "again" }));
+        assert.equal((await third).which, "again");
+    });
+
+    test("a subscription nobody answers is given up on, and the ones after it are not timed", () => {
+        const bridges = fakeBridges();
+        const timers = immediateTimers();
+        const luna = createBridgeLuna({ open: bridges.open, timers });
+        const errors: string[] = [];
+        const replies: Payload[] = [];
+        luna.subscribe("luna://com.palm.wifi/getstatus", {}, (reply) => replies.push(reply),
+                       (error) => errors.push(error.name), { firstReplyMs: 3000 });
+        timers.fire();
+        assert.deepEqual(errors, ["LunaTimeout"], "a card does not sit on a spinner for good");
+
+        const answered = createBridgeLuna({ open: bridges.open, timers });
+        answered.subscribe("luna://com.palm.wifi/getstatus", {}, (reply) => replies.push(reply),
+                           (error) => errors.push(error.name));
+        bridges.opened[1]!.answer(JSON.stringify({ returnValue: true, status: "serviceEnabled" }));
+        timers.fire();
+        assert.deepEqual(errors, ["LunaTimeout"], "once it has answered, its own pace is its business");
+        assert.equal(replies.length, 1);
+    });
+
+    test("a bridge that refuses the call leaves nothing behind", async () => {
+        const timers = immediateTimers();
+        const luna = createBridgeLuna({
+            open: () => ({
+                onservicecallback: null,
+                call: () => { throw new Error("the bridge is gone"); },
+                cancel: () => {},
+            }),
+            timers,
+        });
+        await assert.rejects(luna.call("luna://com.palm.wifi/getstatus"), /the bridge is gone/);
+        // Nothing left ticking: firing what is left must not throw or settle
+        // anything a second time.
+        timers.fire();
+    });
+
     test("a reply that is not JSON is an empty one, not a broken card", async () => {
         const bridges = fakeBridges();
         const luna = createBridgeLuna({ open: bridges.open });
@@ -155,12 +211,17 @@ describe("the fake bus", () => {
     test("a subscription can be pushed to, as the real service pushes", () => {
         const luna = createFakeLuna();
         const replies: Payload[] = [];
-        const watching = luna.subscribe("luna://com.palm.wifi/getstatus", {}, (reply) => replies.push(reply));
-        luna.subscribers[0]!.push({ returnValue: true, status: "serviceEnabled" });
+        const watching = luna.subscribe("luna://com.palm.wifi/getstatus", { detailed: true },
+                                        (reply) => replies.push(reply));
+        const subscriber = luna.subscribers[0]!;
+        subscriber.push({ returnValue: true, status: "serviceEnabled" });
+        assert.deepEqual(luna.calls[0]!.payload, { detailed: true, subscribe: true },
+                         "asks to subscribe, as the bridge does");
         watching.cancel();
-        luna.subscribers[0]!.push({ returnValue: true, status: "serviceDisabled" });
+        subscriber.push({ returnValue: true, status: "serviceDisabled" });
         assert.deepEqual(replies.map((r) => r.status), ["serviceEnabled"]);
-        assert.equal(luna.subscribers[0]!.cancelled(), true);
+        assert.equal(subscriber.cancelled(), true);
+        assert.deepEqual(luna.subscribers, [], "a cancelled subscription is not still open");
     });
 
     test("a silent uri never answers, which is what a missing service looks like", async () => {

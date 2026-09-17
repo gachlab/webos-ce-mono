@@ -1,16 +1,19 @@
 // The bus through WebAppMgr's PalmServiceBridge, which is what a card has.
 //
 // The bridge is one call: `new PalmServiceBridge()`, `call(uri, json)`, replies
-// arrive as JSON text on `onservicecallback`, and `cancel()` ends it. A bridge
-// carries one call, so this makes one per call and throws it away when the call
-// is over -- which is what enyo's PalmService did, and what keeps a cancelled
-// subscription from being answered into a card that has moved on.
+// arrive as JSON text on `onservicecallback`, and `cancel()` ends it. One
+// bridge carries one call at a time, so there is one per call in flight -- and
+// a finished one is kept and handed to the next call rather than dropped:
+// WebAppMgr parents each bridge to the page (PalmServiceBridgeFactory), so a
+// card that polls would leave one native object and one signal connection
+// behind every few seconds, for as long as it is open.
 
 import {
     DEFAULT_TIMEOUT_MS, LunaCallError, LunaTimeout,
-    failed, type LunaCallOptions, type LunaService, type Payload, type Subscription,
+    failed, type LunaCallOptions, type LunaService, type LunaSubscribeOptions,
+    type Payload, type Subscription,
 } from "./service.ts";
-import { systemTimers, type Timers } from "#lib/helpers/with-deadline.ts";
+import { systemTimers, type Timers } from "#lib/helpers/timers.ts";
 
 // What WebAppMgr puts on the page.
 export interface PalmServiceBridge {
@@ -42,17 +45,26 @@ const asBridgeUri = (uri: string): string => uri.replace(/^luna:/, "palm:");
 
 export const createBridgeLuna = (deps: BridgeDeps): LunaService => {
     const timers = deps.timers ?? systemTimers;
+    // Bridges whose call is over, waiting to carry the next one.
+    const free: PalmServiceBridge[] = [];
+    const take = (): PalmServiceBridge => free.pop() ?? deps.open();
+    const give = (bridge: PalmServiceBridge) => {
+        bridge.onservicecallback = null;
+        bridge.cancel();
+        if (free.length < 4) {
+            free.push(bridge);
+        }
+    };
     return {
         call: <Reply extends Payload>(uri: string, payload: Payload = {}, options: LunaCallOptions = {}) =>
             new Promise<Reply>((resolve, reject) => {
                 const ms = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
-                const bridge = deps.open();
+                const bridge = take();
                 let done = false;
                 const finish = () => {
                     done = true;
                     timers.clearTimeout(handle);
-                    bridge.onservicecallback = null;
-                    bridge.cancel();
+                    give(bridge);
                 };
                 const handle = timers.setTimeout(() => {
                     if (!done) {
@@ -72,18 +84,42 @@ export const createBridgeLuna = (deps: BridgeDeps): LunaService => {
                         resolve(reply as Reply);
                     }
                 };
-                bridge.call(asBridgeUri(uri), JSON.stringify(payload));
+                try {
+                    bridge.call(asBridgeUri(uri), JSON.stringify(payload));
+                } catch (error) {
+                    // The bridge refused to take it: without this the call
+                    // rejects while its timer and its bridge stay behind.
+                    if (!done) {
+                        finish();
+                        reject(error instanceof Error ? error : new Error(String(error)));
+                    }
+                }
             }),
 
         subscribe: <Reply extends Payload>(uri: string, payload: Payload,
                                            onReply: (reply: Reply) => void,
-                                           onError?: (error: LunaCallError) => void): Subscription => {
-            const bridge = deps.open();
+                                           onError?: (error: LunaCallError | LunaTimeout) => void,
+                                           options: LunaSubscribeOptions = {}): Subscription => {
+            const bridge = take();
             let cancelled = false;
+            let answered = false;
+            // A service that is not there never answers at all. The first reply
+            // is waited for like any other call; the ones after it are the
+            // service's own business and are not timed.
+            const firstReplyMs = options.firstReplyMs ?? DEFAULT_TIMEOUT_MS;
+            const handle = firstReplyMs > 0
+                ? timers.setTimeout(() => {
+                    if (!cancelled && !answered) {
+                        onError?.(new LunaTimeout(uri, firstReplyMs));
+                    }
+                }, firstReplyMs)
+                : undefined;
             bridge.onservicecallback = (text) => {
                 if (cancelled) {
                     return;
                 }
+                answered = true;
+                timers.clearTimeout(handle);
                 const reply = parse(text);
                 if (failed(reply)) {
                     // Not the end of it: HP's services answer a transient
@@ -101,8 +137,8 @@ export const createBridgeLuna = (deps: BridgeDeps): LunaService => {
                         return;
                     }
                     cancelled = true;
-                    bridge.onservicecallback = null;
-                    bridge.cancel();
+                    timers.clearTimeout(handle);
+                    give(bridge);
                 },
             };
         },

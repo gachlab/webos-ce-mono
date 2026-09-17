@@ -28,10 +28,16 @@ without maintaining a 2011 framework alongside them.
   component of anyone's framework. A card written in React, or in nothing at
   all, uses the same controls and the same services, and none of them can tell
   what drew them.
-* `lit-html` is the only UI dependency (3 KB), and it is confined to
-  `src/ui/element.ts`. Its templates are ordinary JavaScript template literals,
-  so there is no compiler in the way and what runs in the card is what was
-  written. Replacing it means rewriting that one file.
+* `lit-html` is the only UI dependency, and its templates are ordinary
+  JavaScript template literals, so there is no compiler in the way and what
+  runs in the card is what was written.
+* Being honest about how far that goes: the kit and the cards are written in
+  lit-html's dialect (`?on=`, `@press=`, `.choices=`), so replacing it means
+  rewriting them. What it does *not* reach is the consumers: an element's
+  contract is its tag, its attributes, its properties and its events, and a
+  card -- or a shim, or another framework -- that uses `<hp-toggle>` cannot
+  tell what drew it. That is the part that has to outlive the library, and it
+  does.
 * The logic never knew about any of this. `src/lib` is tested with
   `node --test`, without a browser, and would survive the UI being thrown away.
 
@@ -61,12 +67,14 @@ it pushed.
 
 ```
 components/cards/
-  src/lib/helpers/      create-state, event-bus, with-deadline
+  src/lib/helpers/      create-state, timers
   src/lib/infra/luna/   the bus: the port, the PalmServiceBridge adapter, a fake
   src/lib/services/     one service per screen, a state machine each
   src/ui/element.ts     defineElement: functions in, custom elements out
+  src/ui/start-card.ts  how a card starts: styles, first frame, its own life
   src/ui/kit/           HP's controls
-  src/ui/hp.css         the look, in numbered sections
+  src/ui/kit.css        the controls' look; every element adopts this one sheet
+  src/ui/page.css       the page a card lives on, and the text it writes
   src/cards/<app id>/   index.html, appinfo.json, main.ts -- where it is wired up
 ```
 
@@ -76,7 +84,9 @@ components/cards/
   import of a concrete thing: `main.ts` is the only file that decides that the
   bus is `PalmServiceBridge` here and a fake in a browser.
 * **Every wait is bounded.** A call that is not answered fails with
-  `LunaTimeout` rather than leaving a spinner on screen for good.
+  `LunaTimeout`, and so does a subscription whose first reply never comes --
+  a service that is not there never answers at all, and a card that waits for
+  it shows its spinner for good.
 * **A failure is shown, not swallowed.** What the user reads is what the service
   said; the uri and the rest go to the log.
 
@@ -113,8 +123,16 @@ three above are ever reached through a card's own code.
 * `tests/template-card.cpp` runs the built card in the engine WebAppMgr uses,
   against a fake `PalmServiceBridge`: it asks the bus, draws HP's rows, says so
   when a service is not running, and asks again when the user presses.
-* Everything was checked by mutation.
+* `tests/kit-elements.cpp` covers what only exists in a browser: a property set
+  before the definition arrived, a property set later repainting, a control
+  slotted into a row not selecting it, the stylesheet meaning the same thing
+  inside a shadow root as outside one, and a card's own CSS not reaching in.
+* Everything above was checked by mutation.
 
-The sizes, for the record: the template card is 36 KB of JavaScript (10.6 KB
-gzipped) including `lit-html` and its own logic, plus 5 KB of CSS. enyo's core
+**Not covered by a test**, and worth knowing: `startCard` itself -- what it
+wires is covered through the two cards, not directly; and `AppService.banner`,
+which needs a running WebAppMgr to mean anything.
+
+The sizes, for the record: the template card is 31 KB of JavaScript (11 KB
+gzipped) including `lit-html` and its own logic, plus 10 KB of CSS. enyo's core
 alone is 388 KB of JavaScript and 60 KB of CSS, before the card's own code.

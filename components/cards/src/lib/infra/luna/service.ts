@@ -41,6 +41,13 @@ export interface Subscription {
     cancel(): void;
 }
 
+export interface LunaSubscribeOptions {
+    // Milliseconds to wait for the first reply. A service that is not there
+    // never answers at all, and a card that waits for it shows its spinner for
+    // good. 0 waits forever, for the rare caller that means it.
+    readonly firstReplyMs?: number;
+}
+
 export interface LunaService {
     // One reply, or a rejection: LunaCallError when the service said no,
     // LunaTimeout when nothing answered in time.
@@ -51,7 +58,8 @@ export interface LunaService {
     // transient failure and then carry on.
     subscribe<Reply extends Payload = Payload>(uri: string, payload: Payload,
                                                onReply: (reply: Reply) => void,
-                                               onError?: (error: LunaCallError) => void): Subscription;
+                                               onError?: (error: LunaCallError | LunaTimeout) => void,
+                                               options?: LunaSubscribeOptions): Subscription;
 }
 
 export class LunaCallError extends Error {

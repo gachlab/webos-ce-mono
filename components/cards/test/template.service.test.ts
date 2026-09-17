@@ -62,6 +62,25 @@ describe("the template card", () => {
         assert.equal(luna.calls.length, 1);
     });
 
+    test("a disposed card is not repainted by an answer that arrives late", async () => {
+        const { luna, service, states } = setup();
+        let answer = () => {};
+        luna.answer(PROFILE, () => new Promise((resolve) => {
+            answer = () => resolve({ returnValue: true, deviceInfo: { deviceModel: "Too late" } });
+        }));
+        service.onShown();
+        await settle();
+        const seen = states.length;
+        service.dispose();
+        answer();
+        await settle();
+        assert.equal(states.length, seen, "nothing was told about it");
+        assert.equal(service.getState().name, "template:loading", "and the state it left behind is untouched");
+        service.onRetry();
+        await settle();
+        assert.equal(luna.calls.length, 1, "and it does not start another");
+    });
+
     test("missing fields are empty, never the word undefined on screen", () => {
         assert.deepEqual(factsOf({}), { model: "webOS device", version: "", serial: "" });
         assert.deepEqual(factsOf({ deviceInfo: { deviceModel: "", softwareVersion: 3 } }),

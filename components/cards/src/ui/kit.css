@@ -1,18 +1,21 @@
 /*
- * The look, as one stylesheet. This is the contract: a card sets classes, this
- * file decides what they look like, and a new class goes in its section and
- * nowhere else.
+ * The controls, as one stylesheet. Every element adopts this one sheet into
+ * its shadow root (see element.ts), so a rule here means the same thing in
+ * every card and a card's own CSS cannot reach in and change it.
  *
  * The values are HP's 3.0.5 look, taken from the framework in this tree
  * (components/enyo-1.0) and from the device's screens. The code is ours.
  *
- *   §0  Reset and page
+ * Written from inside a shadow root: `:host` is the element itself and
+ * `::slotted()` is what the card put inside it. A rule written as if the
+ * element were not there -- `.hp-row:first-child` -- would match every element
+ * rather than the first one.
+ *
  *   §1  Header
  *   §2  Buttons
- *   §3  Lists
+ *   §3  Rows
  *   §4  Toggles
  *   §5  Spinner
- *   §6  Text
  *   §7  Fields
  *   §8  Checkboxes
  *   §9  List selectors
@@ -20,46 +23,13 @@
  *   §11 Progress
  */
 
-/* §0 Reset and page ------------------------------------------------------- */
-
-* {
+:host {
     box-sizing: border-box;
     -webkit-tap-highlight-color: transparent;
 }
 
-html, body {
-    margin: 0;
-    padding: 0;
-    height: 100%;
-}
-
-body {
-    /* Prose sans, as HP's cards used; the device's own family first. */
-    font-family: Prelude, "Prelude Medium", Helvetica, Arial, sans-serif;
-    font-size: 16px;
-    color: #000;
-    background: #f4f4f4;
-    -webkit-user-select: none;
-    user-select: none;
-    overflow-x: hidden;
-}
-
-/* Where a card renders (index.html's <div id="card">). Without a height of its
- * own, the card inside it is as tall as its content and nothing ever scrolls. */
-#card {
-    height: 100%;
-}
-
-.hp-card {
-    display: flex;
-    flex-direction: column;
-    height: 100%;
-}
-
-.hp-body {
-    flex: 1;
-    overflow-y: auto;
-    padding: 12px 0 24px;
+*, *::before, *::after {
+    box-sizing: border-box;
 }
 
 /* §1 Header --------------------------------------------------------------- */
@@ -127,8 +97,10 @@ body {
     background: linear-gradient(to bottom, #c01b1e, #be0003);
 }
 
-/* A button in a row takes the room the row has left, as HP's did. */
-.hp-row > hp-button {
+/* A button the card put inside a row takes the room the row has left, as HP's
+ * did. It is slotted, so it is reached through ::slotted and not as a child:
+ * a child combinator does not cross a slot. */
+::slotted(hp-button) {
     flex: 1;
 }
 
@@ -136,27 +108,7 @@ body {
     opacity: 0.4;
 }
 
-/* §3 Lists ---------------------------------------------------------------- */
-
-.hp-group {
-    margin: 0 12px 18px;
-}
-
-.hp-group-title {
-    padding: 4px 8px;
-    font-size: 12px;
-    font-weight: 500;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
-    color: #6b6b6b;
-}
-
-.hp-list {
-    border: 1px solid #b6b6b6;
-    border-radius: 8px;
-    background: #fff;
-    overflow: hidden;
-}
+/* §3 Rows ----------------------------------------------------------------- */
 
 .hp-row {
     display: flex;
@@ -168,11 +120,15 @@ body {
     background: #fff;
 }
 
-.hp-row:first-child {
+/* The first row in a list, which from inside the row is the element's own
+ * place among its brothers. `.hp-row:first-child` was every row: each one is
+ * the first child of its own shadow root, so no list had a separator. */
+:host(hp-row:first-child) .hp-row,
+:host(hp-row[first]) .hp-row {
     border-top: 0;
 }
 
-.hp-row[data-pressed="true"] {
+.hp-row:active {
     background: #dfe9f5;
 }
 
@@ -262,21 +218,6 @@ body {
 
 @keyframes hp-spin {
     to { transform: rotate(360deg); }
-}
-
-/* §6 Text ----------------------------------------------------------------- */
-
-.hp-note {
-    margin: 0 20px 12px;
-    color: #6b6b6b;
-    font-size: 13px;
-    line-height: 1.35;
-}
-
-.hp-error {
-    margin: 0 20px 12px;
-    color: #be0003;
-    font-size: 13px;
 }
 
 /* §7 Fields --------------------------------------------------------------- */
