@@ -1,0 +1,6 @@
+{
+    "role": { "exeName": "js", "type": "regular", "allowedNames": ["com.palm.service.customization"] },
+    "permissions": [
+        { "service": "com.palm.service.customization", "inbound": ["*"], "outbound": ["*"] }
+    ]
+}

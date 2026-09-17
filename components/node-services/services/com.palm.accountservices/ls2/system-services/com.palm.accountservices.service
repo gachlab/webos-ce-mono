@@ -1,0 +1,3 @@
+[D-BUS Service]
+Name=com.palm.accountservices
+Exec=/usr/palm/nodejs/node /usr/palm/node-services/services/com.palm.accountservices/main.ts
