@@ -380,6 +380,30 @@ cp -rf "$A"/tempdb/kinds/*                       "$ROOTFS/etc/palm/tempdb/kinds/
 cp -rf "$A"/tempdb/permissions/*                 "$ROOTFS/etc/palm/tempdb/permissions/" 2>/dev/null
 
 mkdir -p "$ROOTFS"/var/palm/data/universalsearchmgr/searchplugins
+# The search providers the browser and Just Type offer, read from
+# /usr/palm/universalsearchmgr/resources/<locale>/ with en_us as the fallback.
+# The file in the tree is the template HP's localization step started from:
+# its "loc_" keys are the ones that step filled in, so "loc_url" becomes the
+# "url" every reader looks for (Google's had no url at all otherwise). Without
+# the file the list was empty and the browser threw on anything typed that was
+# not an address.
+mkdir -p "$ROOTFS"/usr/palm/universalsearchmgr/resources/en_us
+python3 - "$C/luna-universalsearchmgr/desktop-support/UniversalSearchList.json" \
+    "$ROOTFS/usr/palm/universalsearchmgr/resources/en_us/UniversalSearchList.json" <<'PYEOF'
+import json, sys
+
+def localized(value):
+    if isinstance(value, dict):
+        return {(k[4:] if k.startswith("loc_") else k): localized(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [localized(v) for v in value]
+    return value
+
+with open(sys.argv[1]) as fh:
+    template = json.load(fh)
+with open(sys.argv[2], "w") as fh:
+    json.dump(localized(template), fh, indent=4)
+PYEOF
 mkdir -p "$ROOTFS"/var/palm/data "$ROOTFS"/var/file-cache
 # configurator records what it has already applied under WEBOS_INSTALL_LOCALSTATEDIR
 # /cache/configurator (Configurator.h.in), a path compiled into the binary. The
