@@ -28,6 +28,7 @@
 #include <QWebEngineUrlRequestJob>
 #include <QWebEngineUrlScheme>
 #include <QWebEngineUrlSchemeHandler>
+#include <QWebEngineDownloadRequest>
 #include <QWebEngineView>
 
 #include <memory>
@@ -886,6 +887,14 @@ const char kBrowserView[] = R"JS(
                 control.doPageTitleChanged(title, view.url(),
                                            view.canGoBack(), view.canGoForward());
         });
+        // A file the page would download: the plugin's mimeNotSupported, which
+        // the app turns into a com.palm.downloadmanager download.
+        if (view.fileRequested) {
+            view.fileRequested.connect(function (mimeType, url) {
+                if (control.mimeNotSupported)
+                    control.mimeNotSupported(mimeType, url);
+            });
+        }
     }
 
     function patch(BasicWebView) {
@@ -1305,6 +1314,22 @@ QWebEngineProfile* sharedProfile()
 
     static BridgeHandler handler;
     profile->installUrlSchemeHandler(kScheme, &handler);
+
+    // A response the engine will not show becomes a download, and a download
+    // is the profile's, not the page's. On a device the browser plugin told
+    // the app instead (mimeNotSupported), and the app handed it to
+    // com.palm.downloadmanager. So the engine's own download is refused and the
+    // page that asked is told. Every page shares this profile; the engine page
+    // belongs to its QWebPage.
+    QObject::connect(profile, &QWebEngineProfile::downloadRequested, profile,
+                     [](QWebEngineDownloadRequest* download) {
+        const QUrl url = download->url();
+        const QString mimeType = download->mimeType();
+        QWebPage* page = download->page() ? qobject_cast<QWebPage*>(download->page()->parent()) : nullptr;
+        download->cancel();
+        if (page)
+            Q_EMIT page->downloadRequested(url, mimeType);
+    });
     return profile;
 }
 

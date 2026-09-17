@@ -1,0 +1,3 @@
+[D-BUS Service]
+Name=com.palm.downloadmanager;com.palm.appInstallService
+Exec=/usr/palm/nodejs/node /usr/palm/node-services/services/com.palm.downloadmanager/main.ts
