@@ -5,9 +5,10 @@ import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 
 import { isLunaError, type Payload } from "#kit/luna.ts";
+import { locationCommands } from "../services/com.palm.location/commands.ts";
 import { askerOf, createConsent, siteOf, type Consent } from "../services/com.palm.location/consent.ts";
 import { addressFromNominatim } from "../services/com.palm.location/geocode.ts";
-import { allowedSources, createLocator, ERRORS, RESPONSE_MS } from "../services/com.palm.location/locator.ts";
+import { allowedSources, createLocator, ERRORS, REMOTE_REFRESH_MS, RESPONSE_MS } from "../services/com.palm.location/locator.ts";
 import { createPrefs, DEFAULT_PREFS, type Prefs, type PrefsStore } from "../services/com.palm.location/prefs.ts";
 import {
     BEACONDB_URL, createGpsSource, createIpSource, createWifiSource, fixFromTpv, parseNmcliScan,
@@ -203,22 +204,46 @@ describe("locator", () => {
         assert.deepEqual(RESPONSE_MS, { 1: 10_000, 2: 30_000, 3: 60_000 });
     });
 
+    test("a network source is asked again only after a minute, even for no position", async () => {
+        const calls: string[] = [];
+        let clock = 0;
+        let wifiKnows = false;
+        const locator = createLocator({
+            sources: three(calls, {
+                wifi: async () => (wifiKnows ? fix(7, clock) : undefined),
+                ip: async () => fix(8, clock),
+            }),
+            prefs: () => ({ ...DEFAULT_PREFS, ...ALL_ON, useGps: false }), now: () => clock, log: () => {},
+        });
+        const request = { accuracy: 3, responseTime: 1, maximumAge: 0 } as const;
+        const signal = new AbortController().signal;
+        assert.equal((await locator.locate(request, signal)).latitude, 8);
+        wifiKnows = true;
+        clock += 10_000;
+        assert.equal((await locator.locate(request, signal)).latitude, 8, "the answers of ten seconds ago");
+        assert.deepEqual(calls, ["wifi", "ip"]);
+        clock += REMOTE_REFRESH_MS;
+        assert.equal((await locator.locate(request, signal)).latitude, 7);
+        assert.deepEqual(calls, ["wifi", "ip", "wifi"]);
+        assert.equal(REMOTE_REFRESH_MS, 60_000);
+    });
+
     test("a recent enough position is answered without looking again", async () => {
         const calls: string[] = [];
         let clock = 10_000;
         const locator = createLocator({
-            sources: three(calls, { wifi: async () => fix(clock, clock) }),
+            sources: three(calls, { gps: async () => fix(clock, clock) }),
             prefs: () => ({ ...DEFAULT_PREFS, ...ALL_ON }), now: () => clock, log: () => {},
         });
         const signal = new AbortController().signal;
-        await locator.locate({ accuracy: 3, responseTime: 1, maximumAge: 0 }, signal);
+        await locator.locate({ accuracy: 1, responseTime: 1, maximumAge: 0 }, signal);
         clock += 30_000;
-        const cached = await locator.locate({ accuracy: 3, responseTime: 1, maximumAge: 60 }, signal);
+        const cached = await locator.locate({ accuracy: 1, responseTime: 1, maximumAge: 60 }, signal);
         assert.equal(cached.latitude, 10_000);
-        assert.deepEqual(calls, ["wifi"]);
-        const fresh = await locator.locate({ accuracy: 3, responseTime: 1, maximumAge: 10 }, signal);
+        assert.deepEqual(calls, ["gps"]);
+        const fresh = await locator.locate({ accuracy: 1, responseTime: 1, maximumAge: 10 }, signal);
         assert.equal(fresh.latitude, 40_000);
-        assert.deepEqual(calls, ["wifi", "wifi"]);
+        assert.deepEqual(calls, ["gps", "gps"]);
     });
 });
 
@@ -404,6 +429,38 @@ describe("consent", () => {
         assert.equal(published.length, 2);
         later.answer("accept", "https://maps.example.org");
         await again;
+    });
+});
+
+describe("commands", () => {
+    test("a preference subscriber hears a change made while its last reply was on its way", async () => {
+        const prefs = memoryPrefs();
+        const commands = locationCommands({
+            locator: { locate: async () => fix(0) },
+            consent: createConsent({ prefs, publish: async () => {}, log: () => {} }),
+            prefs,
+            reverse: async () => undefined,
+            gpsAvailable: async () => false,
+            cameraAvailable: async () => false,
+            sleep: async () => {},
+        });
+        const getter = commands.find((c) => c.name === "getGeotagPhotos")!;
+        const stop = new AbortController();
+        const replies = getter.handler({
+            method: "getGeotagPhotos", category: "/", payload: { subscribe: true }, subscribe: true,
+            sender: undefined, senderServiceName: undefined, applicationId: undefined, signal: stop.signal,
+        }) as AsyncGenerator<Payload>;
+        assert.equal((await replies.next()).value.geotagPhotos, false);
+        const second = replies.next();
+        prefs.set({ geotagPhotos: true });
+        assert.equal((await second).value.geotagPhotos, true);
+        // Changed again before anyone asked for the next reply.
+        prefs.set({ geotagPhotos: false });
+        const third = await Promise.race([replies.next(), new Promise((resolve) => setTimeout(resolve, 200, "lost"))]);
+        assert.notEqual(third, "lost", "the change was lost");
+        assert.equal((third as IteratorResult<Payload>).value.geotagPhotos, false);
+        stop.abort();
+        await replies.return(undefined);
     });
 });
 

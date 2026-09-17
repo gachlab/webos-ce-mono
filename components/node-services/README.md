@@ -225,7 +225,9 @@ Location Services and First Use apps, WebKit), and runs for the whole session.
 * `locator.ts`: which of them a request may use and in what order. HP's
   `accuracy` level picks the order (1: GPS first; 3: the network first) and its
   `responseTime` level the wait (10, 30 or 60 s). `maximumAge` answers a recent
-  enough position without looking again. The errors are HP's: 1 timeout, 2 no
+  enough position without looking again, and a network source is asked again
+  only a minute after its last answer -- tracking would otherwise send the
+  surroundings to a free service every few seconds. The errors are HP's: 1 timeout, 2 no
   position, 5 every source off, 6 terms not accepted, 8 refused by the user.
 * `prefs.ts`: HP's preferences, in a JSON file. As on the device, the network
   sources wait for the terms (`acceptTermsOfUse`, which First Use and the

@@ -32,6 +32,12 @@ const ORDER: Record<Level, readonly SourceName[]> = {
     3: ["wifi", "ip", "gps"],
 };
 
+// A network source is asked again only this long after its last answer, "no
+// position" included: tracking and repeated requests would otherwise send the
+// surroundings to a free service every few seconds, for a position that is a
+// few hundred metres to a city wide anyway.
+export const REMOTE_REFRESH_MS = 60_000;
+
 // How long a request waits, by its responseTime level.
 export const RESPONSE_MS: Record<Level, number> = { 1: 10_000, 2: 30_000, 3: 60_000 };
 
@@ -64,6 +70,19 @@ export const allowedSources = (sources: readonly Source[], prefs: Prefs, accurac
 
 export const createLocator = (deps: LocatorDeps): Locator => {
     let last: Fix | undefined;
+    const remote = new Map<SourceName, { at: number; fix: Fix | undefined }>();
+    const ask = async (source: Source, signal: AbortSignal): Promise<Fix | undefined> => {
+        if (!source.remote) {
+            return source.locate(signal);
+        }
+        const cached = remote.get(source.name);
+        if (cached && deps.now() - cached.at < REMOTE_REFRESH_MS) {
+            return cached.fix;
+        }
+        const fix = await source.locate(signal);
+        remote.set(source.name, { at: deps.now(), fix });
+        return fix;
+    };
     return {
         locate: async (request, signal) => {
             const prefs = deps.prefs();
@@ -85,7 +104,7 @@ export const createLocator = (deps: LocatorDeps): Locator => {
                     break;
                 }
                 try {
-                    const fix = await source.locate(stop);
+                    const fix = await ask(source, stop);
                     if (fix) {
                         last = fix;
                         return fix;

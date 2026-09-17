@@ -48,13 +48,22 @@ const getter = (deps: CommandDeps, pick: (prefs: Prefs) => Payload) =>
         if (!subscribe) {
             return;
         }
+        // A change that lands while the reply is on its way is not lost: it
+        // leaves `changed` set for the next turn.
+        let changed = false;
         let wake: (() => void) | undefined;
-        const stop = deps.prefs.watch(() => wake?.());
+        const stop = deps.prefs.watch(() => {
+            changed = true;
+            wake?.();
+        });
         const aborted = () => wake?.();
         signal.addEventListener("abort", aborted, { once: true });
         try {
             while (!signal.aborted) {
-                await new Promise<void>((resolve) => { wake = resolve; });
+                if (!changed) {
+                    await new Promise<void>((resolve) => { wake = resolve; });
+                }
+                changed = false;
                 const next = pick(deps.prefs.get());
                 if (!signal.aborted && JSON.stringify(next) !== JSON.stringify(current)) {
                     current = next;
