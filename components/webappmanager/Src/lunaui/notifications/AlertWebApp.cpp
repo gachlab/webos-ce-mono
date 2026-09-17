@@ -61,9 +61,13 @@ AlertWebApp::~AlertWebApp()
     // we need to re-parent the children since there might be pages that are tied to this apps web bridge
     // for example a new popup alert or a dashboad app is launched within the original alert web app
     // and without detaching them they will be killed when the parent is
-    QList<QObject*>::const_iterator i;
-    for (i = page()->children().constBegin(); i != page()->children().constEnd(); ++i)
-        (*i)->setParent(0);
+    //
+    // webOS CE: over a copy of the list. Each setParent(0) takes the child out
+    // of the list being walked, and the walk crashed WebAppMgr -- in
+    // QObject::setParent, on the next child -- whenever a popup alert closed.
+    const QObjectList children = page()->children();
+    Q_FOREACH (QObject* child, children)
+        child->setParent(0);
 
 	stopPowerdActivity();
 }

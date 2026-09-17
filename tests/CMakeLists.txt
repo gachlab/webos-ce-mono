@@ -221,6 +221,7 @@ add_executable(qml-graphics-slot
     qml-graphics-slot.cpp
     ${SYSMGR}/Src/base/QmlGraphicsSlot.cpp
     ${SYSMGR}/Src/base/QmlSceneItem.cpp
+    ${SYSMGR}/Src/base/TouchAsMouse.cpp
 )
 target_include_directories(qml-graphics-slot PRIVATE
     ${SYSMGR}/Src ${SYSMGR}/Src/base ${GLIB_INCLUDE_DIRS}
@@ -228,6 +229,12 @@ target_include_directories(qml-graphics-slot PRIVATE
 target_link_libraries(qml-graphics-slot PRIVATE
     Qt::Core Qt::Gui Qt::Widgets Qt::Qml Qt::Quick Qt::GuiPrivate Qt::Test ${GLIB_LIBRARIES})
 add_test(NAME qml-graphics-slot COMMAND qml-graphics-slot -platform offscreen)
+
+# A touch a container keeps reaches the window under the finger as mouse.
+add_executable(touch-as-mouse touch-as-mouse.cpp ${SYSMGR}/Src/base/TouchAsMouse.cpp)
+target_include_directories(touch-as-mouse PRIVATE ${SYSMGR}/Src/base)
+target_link_libraries(touch-as-mouse PRIVATE Qt::Core Qt::Gui Qt::Widgets Qt::Test)
+add_test(NAME touch-as-mouse COMMAND touch-as-mouse -platform offscreen)
 
 # --- what WebAppMgr needs from a web engine, and the layer built on it --------
 find_package(Qt6 REQUIRED COMPONENTS WebEngineWidgets)
@@ -300,6 +307,20 @@ find_package(Qt6 REQUIRED COMPONENTS Network)
 target_link_libraries(browser-preferences PRIVATE qtwebkit-compat-lib Qt::Network)
 add_test(NAME browser-preferences COMMAND browser-preferences)
 set_tests_properties(browser-preferences PROPERTIES
+    ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
+# A web page's navigator.geolocation goes through com.palm.location.
+find_package(Qt6 REQUIRED COMPONENTS Positioning)
+set(GEOLOCATION_ADAPTER "${CMAKE_CURRENT_SOURCE_DIR}/../components/webappmanager/Src/webbase/GeolocationAdapter.cpp")
+add_executable(geolocation geolocation.cpp ${GEOLOCATION_ADAPTER}
+    "${CMAKE_CURRENT_SOURCE_DIR}/../components/webappmanager/Src/webbase/GeolocationAdapter.h")
+# Built into the executable, as in WebAppMgr.
+set_source_files_properties(${GEOLOCATION_ADAPTER} PROPERTIES COMPILE_DEFINITIONS QT_STATICPLUGIN)
+target_include_directories(geolocation PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/../components/webappmanager/Src/webbase")
+target_link_libraries(geolocation PRIVATE qtwebkit-compat-lib Qt::Network Qt::Positioning)
+add_test(NAME geolocation COMMAND geolocation)
+set_tests_properties(geolocation PROPERTIES
     ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
 
 # The WebView methods the mail app calls on a plain view. Without them its

@@ -209,6 +209,48 @@ when idle). Each ships its role and `.service` file in `ls2/`.
 * `com.palm.devicewipe`: a remote wipe cannot be verified without the account
   servers, so `deviceWipe` refuses it. The local erase is `com.palm.storage`'s.
 
+### com.palm.location
+
+HP's `mojolocation` was never released; the stub HP did release
+(`components/mojolocation-stub`) answered every request with Palm's
+headquarters. This one has HP's methods, parameters, replies and error codes,
+read from the device image and its callers (Just Type, Maps, Camera, the
+Location Services and First Use apps, WebKit), and runs for the whole session.
+
+* `sources.ts`: where a position comes from, each behind the same `locate`:
+  `gps` (gpsd), `wifi` (the access points NetworkManager sees, looked up in
+  BeaconDB, never fewer than two and never a `_nomap` network) and `ip`
+  (BeaconDB's estimate from the address). More can be added without touching
+  the rest.
+* `locator.ts`: which of them a request may use and in what order. HP's
+  `accuracy` level picks the order (1: GPS first; 3: the network first) and its
+  `responseTime` level the wait (10, 30 or 60 s). `maximumAge` answers a recent
+  enough position without looking again, and a network source is asked again
+  only a minute after its last answer -- tracking would otherwise send the
+  surroundings to a free service every few seconds. The errors are HP's: 1 timeout, 2 no
+  position, 5 every source off, 6 terms not accepted, 8 refused by the user.
+* `prefs.ts`: HP's preferences, in a JSON file. As on the device, the network
+  sources wait for the terms (`acceptTermsOfUse`, which First Use and the
+  Location Services app call; neither is in this tree yet) and Auto Locate is
+  off.
+* `consent.ts`: the user's say, through the system UI's own "Location
+  Services" alert (`registerForLocationServiceNotifications`) and the
+  `accept*`/`reject*`/`ignore*` methods it calls. An application is asked about
+  once a session unless Auto Locate is on; a website unless it is always
+  allowed, and never with "Never Share Location". A caller that is not an
+  application is the system and is not asked. One alert at a time; one nobody
+  answers counts as ignored after 60 s.
+* `geocode.ts`: `getReverseLocation`, from OpenStreetMap's Nominatim; it needs
+  the terms, as HP's Google lookup did.
+
+Web pages reach it through WebAppMgr (`GeolocationAdapter`): QtWebEngine's
+permission request becomes a `getCurrentPosition` with the site's url, as
+WebKit's was, and its positions come from a Qt Positioning source built into
+WebAppMgr.
+
+Left out: `cellChange` and `wifiChange`, the activity callbacks HP's service
+gave itself, and background data collection, which is only stored.
+
 What luna-service2 needs, found the hard way
 --------------------------------------------
 
@@ -241,6 +283,9 @@ WEBOS_TEST_LOGS=build/node-services-logs components/node-services/test/run.sh
   alerts and the transfers against a local HTTP server;
   `downloadmanager.hub.test.ts` runs both services on a real hub, called as the
   browser and LunaSysMgr call them, with `com.palm.appinstaller` faked.
+* `location.unit.test.ts` covers the sources, the choice between them, the
+  preferences and the consent; `location.hub.test.ts` runs the service on a
+  real hub with its sources and the system UI faked.
 * `device-services.unit.test.ts` and `device-services.hub.test.ts` cover the
   four small services and `serveOnDemand`; the latter also starts
   `com.palm.deviceprofile`'s `main.ts` twice to see its `nduId` kept.

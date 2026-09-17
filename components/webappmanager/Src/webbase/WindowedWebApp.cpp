@@ -47,6 +47,7 @@
 #include <webos_keys.h>
 
 #include <QDebug>
+#include <QPointer>
 
 #define MESSAGES_INTERNAL_FILE "SysMgrMessagesInternal.h"
 #include <PIpcMessageMacros.h>
@@ -449,7 +450,14 @@ void WindowedWebApp::inputEvent(sptr<Event> e)
                 (evt->button == Event::Right) ? Qt::RightButton : Qt::LeftButton;
             QMouseEvent* qtEvent = new QMouseEvent(QEvent::MouseButtonRelease, QPoint(evt->x, evt->y), qtButton, qtButton, 0);
             bridge->page()->event(qtEvent);
+            // webOS CE: the hit test waits for the page's answer, and events are
+            // handled meanwhile. A tap that closes its own window -- an alert's
+            // "Allow Once" -- has this app deleted by then, and going on
+            // crashed WebAppMgr.
+            QPointer<SysMgrWebBridge> alive(bridge);
             QWebHitTestResult hitTest = bridge->page()->mainFrame()->hitTestContent(QPoint(evt->x, evt->y));
+            if (!alive)
+                return;
             if (hitTest.isContentEditable()) {
                 QWebElement element = hitTest.element();
                 QString palmType = element.attribute("x-palm-input-type");

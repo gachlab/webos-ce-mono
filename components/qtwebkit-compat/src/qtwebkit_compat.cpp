@@ -21,6 +21,7 @@
 #include <QUrlQuery>
 #include <QWebEngineFrame>
 #include <QWebEnginePage>
+#include <QWebEnginePermission>
 #include <QWebEngineProfile>
 #include <QWebEngineScript>
 #include <QWebEngineScriptCollection>
@@ -1551,6 +1552,11 @@ QWebEngineProfile* sharedProfile()
     static BridgeHandler handler;
     profile->installUrlSchemeHandler(kScheme, &handler);
 
+    // Whether a site may have the location is com.palm.location's to say --
+    // "Always Allow" and "Clear My Location Data" are kept there -- so the
+    // engine keeps no answer of its own.
+    profile->setPersistentPermissionsPolicy(QWebEngineProfile::PersistentPermissionsPolicy::AskEveryTime);
+
     // A response the engine will not show becomes a download, and a download
     // is the profile's, not the page's. On a device the browser plugin told
     // the app instead (mimeNotSupported), and the app handed it to
@@ -1702,6 +1708,19 @@ private:
     QWebPage* m_owner;
 };
 
+namespace {
+QWebPage::GeolocationPolicy& geolocationPolicy()
+{
+    static QWebPage::GeolocationPolicy policy;
+    return policy;
+}
+}
+
+void QWebPage::setGeolocationPolicy(GeolocationPolicy policy)
+{
+    geolocationPolicy() = std::move(policy);
+}
+
 QWebPage::QWebPage(QObject* parent)
     : QObject(parent)
     , m_engine(nullptr)
@@ -1745,6 +1764,23 @@ QWebPage::QWebPage(QObject* parent)
             [this](const QUrl& url) { Q_EMIT m_frame->urlChanged(url); });
     connect(m_engine, &QWebEnginePage::contentsSizeChanged, m_frame,
             [this](const QSizeF& size) { Q_EMIT m_frame->contentsSizeChanged(size.toSize()); });
+    // Only the location is asked for; anything else a page wants is refused,
+    // as it was when nothing answered.
+    connect(m_engine, &QWebEnginePage::permissionRequested, this, [](QWebEnginePermission permission) {
+        if (permission.permissionType() != QWebEnginePermission::PermissionType::Geolocation
+            || !geolocationPolicy()) {
+            permission.deny();
+            return;
+        }
+        geolocationPolicy()(permission.origin(), [permission](bool allowed) mutable {
+            if (!permission.isValid())
+                return;
+            if (allowed)
+                permission.grant();
+            else
+                permission.deny();
+        });
+    });
 
     // Every script below runs in the child frames too. A QWebEngineScript is
     // main-frame-only unless it says otherwise, while QtWebKit cleared and

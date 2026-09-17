@@ -50,6 +50,7 @@
 #include "WindowedWebApp.h"
 //#include "Preferences.h"
 #include "EventReporter.h"
+#include "GeolocationAdapter.h"
 #include <WebKitEventListener.h>
 #include <BackupManager.h>
 #include "Utils.h"
@@ -829,6 +830,9 @@ void WebAppManager::threadStarting()
 				r = LSGmainAttachPalmService(m_service, mainLoop(), &lserror);
 				if (!r)
 					goto Error;
+
+				// webOS CE: web pages' location comes from com.palm.location (#10).
+				Geolocation::install(m_servicePrivate);
 
 				r = LSCall(m_servicePrivate, "palm://com.palm.lunabus/signal/registerServerStatus",
 						   "{\"serviceName\":\"com.palm.systemservice\"}",

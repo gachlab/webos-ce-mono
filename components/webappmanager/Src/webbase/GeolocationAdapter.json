@@ -1,0 +1,9 @@
+{
+    "Keys": ["webos"],
+    "Provider": "webos",
+    "Position": true,
+    "Satellite": false,
+    "Monitor": false,
+    "Priority": 10000,
+    "Testable": false
+}
