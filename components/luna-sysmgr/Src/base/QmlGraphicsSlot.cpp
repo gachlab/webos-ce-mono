@@ -28,6 +28,7 @@
 #include <QTouchEvent>
 
 #include "QmlSceneItem.h"
+#include "TouchAsMouse.h"
 
 QmlGraphicsSlot::QmlGraphicsSlot(QmlSceneItem* host, QQuickItem* place, QGraphicsObject* content)
 	: QGraphicsObject(host)
@@ -114,37 +115,18 @@ void QmlGraphicsSlot::follow()
 
 bool QmlGraphicsSlot::sceneEvent(QEvent* event)
 {
-	QEvent::Type type;
 	switch (event->type()) {
-	case QEvent::TouchBegin:  type = QEvent::GraphicsSceneMousePress; break;
-	case QEvent::TouchUpdate: type = QEvent::GraphicsSceneMouseMove; break;
+	case QEvent::TouchBegin:
+	case QEvent::TouchUpdate:
 	case QEvent::TouchEnd:
-	case QEvent::TouchCancel: type = QEvent::GraphicsSceneMouseRelease; break;
+	case QEvent::TouchCancel:
+		if (!m_content || !TouchAsMouse::send(event, m_content))
+			return false;
+		event->accept();
+		return true;
 	default:
 		return QGraphicsObject::sceneEvent(event);
 	}
-
-	QTouchEvent* touch = static_cast<QTouchEvent*>(event);
-	if (!m_content || !scene() || touch->points().isEmpty())
-		return false;
-
-	// One finger, the first, as a left button.
-	const QEventPoint& point = touch->points().first();
-	QGraphicsSceneMouseEvent mouse(type);
-	mouse.setScenePos(point.scenePosition());
-	mouse.setLastScenePos(point.sceneLastPosition());
-	mouse.setPos(m_content->mapFromScene(point.scenePosition()));
-	mouse.setLastPos(m_content->mapFromScene(point.sceneLastPosition()));
-	mouse.setButtonDownScenePos(Qt::LeftButton, point.scenePressPosition());
-	mouse.setButtonDownPos(Qt::LeftButton, m_content->mapFromScene(point.scenePressPosition()));
-	mouse.setButton(type == QEvent::GraphicsSceneMouseMove ? Qt::NoButton : Qt::LeftButton);
-	mouse.setButtons(type == QEvent::GraphicsSceneMouseRelease ? Qt::NoButton : Qt::LeftButton);
-	mouse.setModifiers(touch->modifiers());
-	mouse.setAccepted(event->type() != QEvent::TouchCancel);
-	scene()->sendEvent(m_content, &mouse);
-
-	event->accept();
-	return true;
 }
 
 #endif /* QT_VERSION >= 5 */

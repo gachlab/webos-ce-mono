@@ -22,6 +22,7 @@
 #include "Common.h"
 
 #include "GraphicsItemContainer.h"
+#include "TouchAsMouse.h"
 
 #include <QPainter>
 #include <QGraphicsScene>
@@ -213,8 +214,13 @@ bool GraphicsItemContainer::sceneEvent(QEvent* event)
 	case QEvent::TouchBegin:
 	case QEvent::TouchUpdate:
 	case QEvent::TouchEnd:
-		if(isVisible())
+		if(isVisible()) {
+			// webOS CE: on a device the touch this keeps also came as a mouse
+			// event, which is what the windows inside read -- an alert's
+			// buttons among them. Here it does not, so it is handed on.
+			TouchAsMouse::sendToChild(event, this);
 			return true;
+		}
 
 	default:
 		break;
