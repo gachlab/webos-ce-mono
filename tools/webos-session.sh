@@ -72,7 +72,7 @@ teardown() {
     # run-js-service leaves them in; ours are found by their path, and never by
     # name alone -- "nm-connectionmanager" is 20 characters and Linux truncates
     # comm to 15, so anything pgrep -x based would silently miss it.
-    services=" mojodb-luna LunaSysService sysfs-powerd nm-connectionmanager filecache activitymanager LunaUniversalSearchMgr "
+    services=" mojodb-luna LunaSysService sysfs-powerd nm-connectionmanager storaged filecache activitymanager LunaUniversalSearchMgr "
     for d in /proc/[0-9]*; do
         pid=${d#/proc/}
         exe="$(readlink "$d/exe" 2>/dev/null)"

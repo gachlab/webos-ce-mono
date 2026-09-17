@@ -1,0 +1,14 @@
+{
+    "role": {
+        "exeName": "/usr/lib/luna/storaged",
+        "type": "regular",
+        "allowedNames": ["com.palm.storage"]
+    },
+    "permissions": [
+        {
+            "service": "com.palm.storage",
+            "inbound": ["*"],
+            "outbound": ["*"]
+        }
+    ]
+}

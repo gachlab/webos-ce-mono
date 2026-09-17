@@ -11,7 +11,7 @@
 # Usage:
 #   tools/build.sh              # everything
 #   tools/build.sh cmake        # one stage: headers | autotools | cmake |
-#                               # node | rootfs
+#                               # node | powerd | connmgr | storaged | rootfs
 set -u
 R="$(cd "$(dirname "$0")/.." && pwd)"
 STAGE="${1:-all}"
@@ -313,6 +313,24 @@ stage_connmgr() {
       || { echo "  FAILED (see /tmp/webos/nm-connectionmanager-build.log)"; return 1; }
 }
 
+stage_storaged() {
+    echo "== storaged =="
+    # com.palm.storage, ours rather than HP's: nothing in the CE drop answers
+    # that name, and Open webOS's storaged is written against a phone's USB
+    # gadget. Not a MANIFEST component either, so it gets its own stage.
+    export PKG_CONFIG_PATH=$S/lib/pkgconfig:$S/usr/share/pkgconfig:$S/usr/lib/pkgconfig
+    mkdir -p /tmp/webos
+    cmake -S "$R/components/storaged" -B "$B/storaged" \
+          -DCMAKE_BUILD_TYPE="$BUILD_TYPE" \
+          -DCMAKE_INSTALL_PREFIX="$WEBOS_PREFIX" \
+          -DCMAKE_INSTALL_RPATH='$ORIGIN/../lib:$ORIGIN/..' \
+          -DCMAKE_EXE_LINKER_FLAGS='-Wl,--disable-new-dtags' > /tmp/webos/storaged-build.log 2>&1 \
+      && cmake --build "$B/storaged" -j"$(nproc)" >> /tmp/webos/storaged-build.log 2>&1 \
+      && DESTDIR="$DESTDIR" cmake --install "$B/storaged" >> /tmp/webos/storaged-build.log 2>&1 \
+      && echo "  storaged                     OK" \
+      || { echo "  FAILED (see /tmp/webos/storaged-build.log)"; return 1; }
+}
+
 stage_rootfs() {
     echo "== rootfs =="
     # The MANIFEST's "copiar" components are not built: they are JS, themes and
@@ -329,13 +347,14 @@ case "$STAGE" in
     node)   stage_node_addons ;;
     powerd) stage_powerd ;;
     connmgr) stage_connmgr ;;
+    storaged) stage_storaged ;;
     rootfs) stage_rootfs ;;
     all)   # NOTE the placement: the echoes go INSIDE the if, not loose after
             # the chain. They were outside and the script announced success even
             # when a stage had failed.
             if stage_headers && stage_autotools \
                && stage_cmake && stage_node_addons && stage_powerd \
-               && stage_connmgr && stage_rootfs; then
+               && stage_connmgr && stage_storaged && stage_rootfs; then
                 echo
                 echo "Done. To start the shell:  tools/run-lunasysmgr.sh"
             else

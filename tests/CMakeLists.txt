@@ -230,6 +230,17 @@ target_link_libraries(qml-graphics-slot PRIVATE
     Qt::Core Qt::Gui Qt::Widgets Qt::Qml Qt::Quick Qt::GuiPrivate Qt::Test ${GLIB_LIBRARIES})
 add_test(NAME qml-graphics-slot COMMAND qml-graphics-slot -platform offscreen)
 
+# --- storaged: what an erase erases, and what it must never touch ------------
+set(STORAGED "${CMAKE_CURRENT_SOURCE_DIR}/../components/storaged")
+add_executable(storaged-erase storaged-erase.cpp ${STORAGED}/src/erase.cpp)
+target_include_directories(storaged-erase PRIVATE ${STORAGED}/src ${CJSON_INCLUDE_DIRS}
+    "${WEBOS_STAGING}/include")
+target_link_directories(storaged-erase PRIVATE "${WEBOS_STAGING}/lib" "${WEBOS_STAGING}/usr/lib")
+target_link_libraries(storaged-erase PRIVATE cjson)
+add_test(NAME storaged-erase COMMAND storaged-erase)
+set_tests_properties(storaged-erase PROPERTIES
+    ENVIRONMENT "LD_LIBRARY_PATH=${WEBOS_STAGING}/lib:${WEBOS_STAGING}/usr/lib")
+
 # A touch a container keeps reaches the window under the finger as mouse.
 add_executable(touch-as-mouse touch-as-mouse.cpp ${SYSMGR}/Src/base/TouchAsMouse.cpp)
 target_include_directories(touch-as-mouse PRIVATE ${SYSMGR}/Src/base)
