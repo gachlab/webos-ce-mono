@@ -10,7 +10,8 @@
 // A page here plays the browser app: an enyo.BasicWebView of its own, and a
 // BrowserViewFactory that records every rect the box sends.
 //
-// Verified by mutation: without the ResizeObserver this turns red.
+// Verified by mutation: without the ResizeObserver, or without measuring a
+// covered box again, this turns red.
 
 #include <QApplication>
 #include <QElapsedTimer>
@@ -97,6 +98,7 @@ int main(int argc, char** argv)
         file.open(QIODevice::WriteOnly | QIODevice::Text);
         QTextStream(&file) << R"HTML(<html><body style="margin:0">
 <div id="pane"><div id="hole" style="position:relative;left:10px;top:20px;width:300px;height:200px"></div></div>
+<div id="prefs" style="position:absolute;left:0;top:0;width:200px;height:100px;display:none"></div>
 <script>
   // As enyo does: the kind is complete before it is assigned.
   var BasicWebView = function () {};
@@ -108,6 +110,12 @@ int main(int argc, char** argv)
   control.rendered();
   window.hide = function () { document.getElementById("pane").style.display = "none"; };
   window.show = function () { document.getElementById("pane").style.display = ""; };
+  // enyo's Pane going back: the view shows while the other still covers it.
+  window.showUnderPrefs = function () {
+    document.getElementById("prefs").style.display = "block";
+    show();
+    setTimeout(function () { document.getElementById("prefs").style.display = "none"; }, 300);
+  };
 </script></body></html>
 )HTML";
     }
@@ -136,6 +144,13 @@ int main(int argc, char** argv)
     page.mainFrame()->evaluateJavaScript("show(); 1");
     waitFor([&]() { return last(factory.view) == "10,20 300x200"; }, 5000);
     check("showing it again puts the page back", last(factory.view) == "10,20 300x200", last(factory.view));
+
+    page.mainFrame()->evaluateJavaScript("hide(); 1");
+    waitFor([&]() { return last(factory.view) == "0,0 0x0"; }, 5000);
+    page.mainFrame()->evaluateJavaScript("showUnderPrefs(); 1");
+    waitFor([&]() { return last(factory.view) == "10,20 300x200"; }, 5000);
+    check("shown while still covered, it comes back once uncovered", last(factory.view) == "10,20 300x200",
+          last(factory.view));
 
     return failures == 0 ? 0 : 1;
 }

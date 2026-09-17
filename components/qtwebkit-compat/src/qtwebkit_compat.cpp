@@ -779,10 +779,22 @@ const char kBrowserView[] = R"JS(
         return false;
     }
 
+    // While a hole cannot be painted, measure it again for a while: the
+    // change that frees it may come with no event of its own.
+    var RETRY_MS = 100;
+    var RETRIES = 40;
+
+    function retry(control, attempt) {
+        clearTimeout(control.__webosRetry);
+        if (attempt < RETRIES)
+            control.__webosRetry = setTimeout(function () { sendGeometry(control, attempt + 1); }, RETRY_MS);
+    }
+
     function sendGeometry(control, attempt) {
         var node = control.hasNode && control.hasNode();
         if (!node || !control.__webosView)
             return;
+        attempt = attempt || 0;
         var b = boundsOf(node);
         if (b.w <= 0 || b.h <= 0) {
             // Nothing to paint into. Either the pane that owns this view has
@@ -792,15 +804,19 @@ const char kBrowserView[] = R"JS(
             // which is also what keeps a backgrounded tab from painting over
             // the one in front, and measure again for a moment.
             suspend(control);
-            attempt = attempt || 0;
-            if (attempt < 12)
-                setTimeout(function () { sendGeometry(control, attempt + 1); }, 50);
+            retry(control, attempt);
             return;
         }
         if (covered(node, b)) {
+            // Found live: back from the Preferences, the browser's view is
+            // shown while the Preferences still cover it, and they go away
+            // without the view changing size -- so nothing measured it again
+            // and a white panel stayed where the page should be.
             suspend(control);
+            retry(control, attempt);
             return;
         }
+        clearTimeout(control.__webosRetry);
         setRect(control, b);
     }
 
