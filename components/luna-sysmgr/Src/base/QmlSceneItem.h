@@ -77,6 +77,10 @@ public:
 	// backend is chosen the first time QtQuick is used and never revisited.
 	static void setUpSoftwareBackend();
 
+Q_SIGNALS:
+	// A frame was rendered: anything in the scene may have moved.
+	void signalRendered();
+
 protected:
 	// The shell turns mouse input into touch before it reaches the scene (see
 	// WindowServer::deliverAsTouch) and MouseEventEater swallows what is left,

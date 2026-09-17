@@ -228,6 +228,10 @@ public:
     // choosing this instead of event().
     void sendKeyToHostPage(QKeyEvent* event);
 
+    // Palm's QtWebKit API: the "attributes=" part of the window.open() call
+    // that created this page, which is JSON, or empty.
+    QString attributes() const { return m_attributes; }
+
 Q_SIGNALS:
     void loadStarted();
     void loadProgress(int progress);
@@ -263,6 +267,9 @@ private:
     QSize m_viewportSize;
     QPalette m_palette;
     QPointer<QObject> m_renderSurface;
+    QString m_attributes;
+    bool m_transparent = false;   // the palette asked for no background
+    int m_number = 0;   // names this page to the scripts it runs
 
     // Held by pointer, never owned: a page embedded in this one, and where it
     // goes. A null page is one that was deleted from under us; render() steps

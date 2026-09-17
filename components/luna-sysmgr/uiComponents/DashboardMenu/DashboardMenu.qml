@@ -4,7 +4,8 @@ import "../MenuContainer"
 MenuContainer {
     id: dashboardMenu
 
-    mainMenuItem.children: [DashboardContainer]
+    // DashboardContainer is a graphics item, which QtQuick 2 cannot parent:
+    // the shell shows it over mainMenuItem (see QmlGraphicsSlot).
 
     onMenuScrollStarted: {
         DashboardContainer.mouseWasGrabbedByParent();

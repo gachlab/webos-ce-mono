@@ -219,6 +219,7 @@ void QmlSceneItem::renderNow()
 	m_control->sync();
 	m_control->render();
 	update();
+	Q_EMIT signalRendered();
 }
 
 void QmlSceneItem::paint(QPainter* painter, const QStyleOptionGraphicsItem* option, QWidget* widget)

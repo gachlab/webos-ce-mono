@@ -43,6 +43,7 @@ const char kFrameCancelScriptName[] = "webos-frame-cancel";
 const char kFlexWidthScriptName[] = "webos-flex-width";
 const char kEnyoWheelScriptName[] = "webos-enyo-wheel";
 const char kNumberInputScriptName[] = "webos-number-inputs";
+const char kWindowOpenScriptName[] = "webos-window-open";
 
 // Before QApplication exists: a URL scheme can only be registered then, and
 // QtWebEngine wants shared GL contexts decided before the first one is made.
@@ -408,6 +409,11 @@ const char kBorderImageCompat[] = R"JS(
 // Type, the status bar -- the narrow rule changes nothing at all, which is the
 // point: it repairs a broken box, it does not re-lay out the framework.
 //
+// Only a zero width FlexLayout wrote, which it always writes next to a flex.
+// A zero width alone is someone clipping on purpose: the dashboard hides the
+// notifications under the top one in boxes 0px wide with overflow hidden,
+// and clearing those drew all three on top of each other.
+//
 // It runs again on mutation because the popup lists are built when they are
 // opened, and re-running is safe: enyo writes these styles when it renders and
 // nothing re-applies them afterwards, verified by calling resized() on 564
@@ -417,6 +423,11 @@ const char kFlexWidthCompat[] = R"JS(
     if (window.__webosFlexWidth)
         return;
     window.__webosFlexWidth = true;
+
+    // Flexed means: FlexLayout wrote the zero width, next to the flex.
+    function flexed(n) {
+        return parseFloat(n.style.getPropertyValue("-webkit-box-flex")) > 0;
+    }
 
     // Starved means: the element carries the inline zero width AND something
     // is actually being cut off by it. scrollWidth past clientWidth catches a
@@ -436,7 +447,7 @@ const char kFlexWidthCompat[] = R"JS(
         var nodes = document.querySelectorAll(
             '[style*="width:0px"],[style*="width: 0px"]');
         for (var i = 0; i < nodes.length; i++)
-            if (starved(nodes[i]))
+            if (flexed(nodes[i]) && starved(nodes[i]))
                 nodes[i].style.removeProperty("width");
     }
 
@@ -976,6 +987,41 @@ const char kBrowserView[] = R"JS(
 })();
 )JS";
 
+// window.open()'s third argument, which QtWebEngine never hands to
+// createWindow(). Palm's QtWebKit kept it for the new page, and WebAppMgr reads
+// its "attributes=" part to decide what a window is: enyo and Mojo open every
+// dashboard, alert and child card with it. Without it every window became a
+// card.
+//
+// So the string goes to the C++ side, synchronously, just before the call that
+// creates the window. %1 is the page's number; frames share their page's.
+const char kWindowOpen[] = R"JS(
+(function (page) {
+    var open = window.open;
+    if (typeof open !== "function" || open.__webosPage !== undefined)
+        return;
+    var wrapped = function (url, name, features) {
+        // Sent even when empty, so an earlier call's string is never taken
+        // for this one's.
+        var xhr = new XMLHttpRequest();
+        xhr.open("GET", "webos-bridge:///window/" + page + "?a="
+                 + encodeURIComponent(JSON.stringify([typeof features === "string" ? features : ""])), false);
+        xhr.send();
+        return open.apply(this, arguments);
+    };
+    wrapped.__webosPage = page;
+    window.open = wrapped;
+})(%1);
+)JS";
+
+// The last features string each page announced, by page number, until the
+// window it was meant for is created.
+QHash<int, QString>& pendingWindowFeatures()
+{
+    static QHash<int, QString> table;
+    return table;
+}
+
 // ---------------------------------------------------------------------------
 // The C++ side: which QObject each id is, and what JavaScript may reach.
 
@@ -1194,11 +1240,26 @@ public:
     void requestStarted(QWebEngineUrlRequestJob* job) override
     {
         // webos-bridge:///<id>/<get|set|call>/<name>?a=<JSON array>
+        // webos-bridge:///window/<page>?a=[<features>]
         const QStringList parts = job->requestUrl().path().split('/', Qt::SkipEmptyParts);
         const QJsonArray args = QJsonDocument::fromJson(
             QUrlQuery(job->requestUrl()).queryItemValue("a", QUrl::FullyDecoded).toUtf8()).array();
 
         QByteArray body;
+        if (parts.size() == 2 && parts[0] == QLatin1String("window")) {
+            bool ok = false;
+            const int page = parts[1].toInt(&ok);
+            if (ok && pendingWindowFeatures().contains(page)) {
+                pendingWindowFeatures()[page] = args.at(0).toString();
+                body = replyValue(QJsonValue::Null);
+            } else {
+                body = replyError("no such page");
+            }
+            auto* device = new QBuffer(job);
+            device->setData(body);
+            job->reply("application/json", device);
+            return;
+        }
         const Published entry = parts.size() == 3 ? published().value(parts[0].toInt()) : Published{};
         if (!entry.object) {
             body = replyError("no such object");
@@ -1335,7 +1396,12 @@ protected:
     {
         QWebPage* created = m_owner->createWindow(type == WebDialog ? QWebPage::WebModalDialog
                                                                     : QWebPage::WebBrowserWindow);
-        return created ? created->enginePage() : nullptr;
+        const QString features = pendingWindowFeatures().value(m_owner->m_number);
+        pendingWindowFeatures()[m_owner->m_number].clear();
+        if (!created)
+            return nullptr;
+        created->m_attributes = attributesOf(features);
+        return created->enginePage();
     }
 
     bool acceptNavigationRequest(const QUrl& url, NavigationType type, bool isMainFrame) override
@@ -1363,6 +1429,15 @@ protected:
     }
 
 private:
+    // Palm's QtWebKit handed the new page what follows "attributes=", the
+    // rest of the string, which is JSON and may itself hold commas.
+    static QString attributesOf(const QString& features)
+    {
+        static const QLatin1String key("attributes=");
+        const qsizetype at = features.indexOf(key);
+        return at < 0 ? QString() : features.mid(at + key.size()).trimmed();
+    }
+
     QWebPage* m_owner;
 };
 
@@ -1374,6 +1449,10 @@ QWebPage::QWebPage(QObject* parent)
     , m_settings(nullptr)
     , m_viewportSize(1024, 768)
 {
+    static int nextNumber = 1;
+    m_number = nextNumber++;
+    pendingWindowFeatures().insert(m_number, QString());
+
     m_engine = new Engine(this);
     m_frame = new QWebFrame(this);
     m_settings = new QWebSettings(m_engine->settings());
@@ -1498,10 +1577,20 @@ QWebPage::QWebPage(QObject* parent)
     browserView.setRunsOnSubFrames(true);
     browserView.setSourceCode(QString::fromLatin1(kBrowserView));
     m_engine->scripts().insert(browserView);
+
+    // What a window opened from here is; see kWindowOpen.
+    QWebEngineScript windowOpen;
+    windowOpen.setName(kWindowOpenScriptName);
+    windowOpen.setInjectionPoint(QWebEngineScript::DocumentCreation);
+    windowOpen.setWorldId(QWebEngineScript::MainWorld);
+    windowOpen.setRunsOnSubFrames(true);
+    windowOpen.setSourceCode(QString::fromLatin1(kWindowOpen).arg(m_number));
+    m_engine->scripts().insert(windowOpen);
 }
 
 QWebPage::~QWebPage()
 {
+    pendingWindowFeatures().remove(m_number);
     delete m_settings;
     delete m_view;   // owns nothing of ours; the engine page is our child
 }
@@ -1609,7 +1698,8 @@ QWebPage::ViewportAttributes QWebPage::viewportAttributesForSize(const QSize& av
 void QWebPage::setPalette(const QPalette& palette)
 {
     m_palette = palette;
-    if (palette.brush(QPalette::Base).color().alpha() == 0)
+    m_transparent = palette.brush(QPalette::Base).color().alpha() == 0;
+    if (m_transparent)
         m_engine->setBackgroundColor(Qt::transparent);
 }
 
@@ -1811,9 +1901,24 @@ QString QWebFrame::title() const
     return m_page->m_engine->title();
 }
 
+// The view as the page painted it. grab() fills the widget's background with
+// the palette's window colour first, which is invisible under an opaque page
+// and shows through a transparent one: dashboards, whose page is transparent
+// so the shell's dark menu is their background, came out light grey.
+static QPixmap grabView(QWebEngineView* view, bool transparent)
+{
+    if (!transparent)
+        return view->grab();
+    QPixmap frame(view->size() * view->devicePixelRatioF());
+    frame.setDevicePixelRatio(view->devicePixelRatioF());
+    frame.fill(Qt::transparent);
+    view->render(&frame, QPoint(), QRegion(), QWidget::DrawChildren);
+    return frame;
+}
+
 void QWebFrame::render(QPainter* painter, RenderLayer, const QRegion& clip)
 {
-    const QPixmap frame = m_page->m_view->grab();
+    const QPixmap frame = grabView(m_page->m_view, m_page->m_transparent);
     painter->save();
     if (!clip.isEmpty())
         painter->setClipRegion(clip, Qt::IntersectClip);
@@ -1828,7 +1933,7 @@ void QWebFrame::render(QPainter* painter, RenderLayer, const QRegion& clip)
     for (const QWebPage::EmbeddedPage& embedded : m_page->m_embedded) {
         if (embedded.page.isNull() || embedded.rect.isEmpty())
             continue;
-        const QPixmap content = embedded.page->m_view->grab();
+        const QPixmap content = grabView(embedded.page->m_view, embedded.page->m_transparent);
         if (content.isNull())
             continue;
         painter->save();

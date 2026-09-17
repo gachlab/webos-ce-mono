@@ -487,13 +487,10 @@ void SysMgrWebBridge::slotSetupPage(const QUrl& url)
     if (m_client)
         return;
 
-    // QT5_TODO:
-#if (QT_VERSION < QT_VERSION_CHECK(5, 0, 0))
     QString attributes = m_page->attributes();
     if (!attributes.isEmpty())
         setArgs(attributes.toUtf8().constData());
     else
-#endif
         setupStageArgs(url);
     QString windowType = m_stageArgs.value("window").toString();
     SysMgrWebBridge* parent = 0;
