@@ -1,0 +1,4 @@
+[D-BUS Service]
+Name=com.palm.storage
+Exec=/usr/sbin/storaged
+Type=static
