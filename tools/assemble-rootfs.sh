@@ -559,6 +559,15 @@ if [ -d "$NS/services" ]; then
     for svc in "$NS"/services/*/; do
         name="$(basename "$svc")"
         cp -rf "${svc%/}" "$ROOTFS/usr/palm/node-services/services/"
+        # A service with no HP counterpart brings its own bus files: its roles,
+        # and the .service files that list its names (Exec is set just below).
+        if [ -d "$svc/ls2" ]; then
+            for sub in roles/prv roles/pub services system-services; do
+                [ -d "$svc/ls2/$sub" ] || continue
+                mkdir -p "$ROOTFS/usr/share/ls2/$sub"
+                cp -f "$svc/ls2/$sub"/* "$ROOTFS/usr/share/ls2/$sub/"
+            done
+        fi
         for sf in "$ROOTFS"/usr/share/ls2/services/"$name".service \
                   "$ROOTFS"/usr/share/ls2/system-services/"$name".service; do
             [ -f "$sf" ] || continue

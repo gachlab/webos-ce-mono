@@ -53,6 +53,8 @@ BrowserViewAdapter::BrowserViewAdapter(QWebPage* host, QObject* parent)
             [this](const QString& title) { Q_EMIT titleChanged(title); });
     connect(m_view->mainFrame(), &QWebFrame::urlChanged, this,
             [this](const QUrl& url) { Q_EMIT urlChanged(url.toString()); });
+    connect(m_view, &QWebPage::downloadRequested, this,
+            [this](const QUrl& url, const QString& mimeType) { Q_EMIT fileRequested(mimeType, url.toString()); });
 }
 
 BrowserViewAdapter::~BrowserViewAdapter()

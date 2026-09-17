@@ -49,6 +49,13 @@ service_pids() {   # service_pids <absolute path to the binary>
     return 0
 }
 
+# The node services all run the same node binary, so they are told apart by
+# the script they run.
+node_service_pids() {   # node_service_pids <absolute path to main.ts>
+    grep -lxzF -- "$1" /proc/[0-9]*/cmdline 2>/dev/null | sed -n 's|^/proc/\([0-9]*\)/cmdline$|\1|p'
+    return 0
+}
+
 service_running() {
     [ -n "$(service_pids "$1")" ]
 }
@@ -341,6 +348,18 @@ case "${1:-run}" in
         "$L/$svc" > "/tmp/webos/$svc.log" 2>&1 &
         sleep 1
     done
+    # Services in components/node-services that run for the whole session, as
+    # their HP counterparts did: LunaSysMgr and the system UI subscribe to
+    # com.palm.downloadmanager and com.palm.appInstallService only once the bus
+    # reports them up, so on demand they would never be asked for.
+    NODE_STATIC="com.palm.downloadmanager"
+    for name in $NODE_STATIC; do
+        main="/usr/palm/node-services/services/$name/main.ts"
+        [ -f "$main" ] || { echo "$name: not installed"; continue; }
+        pids="$(node_service_pids "$main")"
+        [ -n "$pids" ] && kill $pids 2>/dev/null
+        NODE_PATH=/usr/palm/nodejs /usr/palm/nodejs/node "$main" > "/tmp/webos/$name.log" 2>&1 &
+    done
     # HP's JavaScript services. They are not in STATIC_SERVICES because on a
     # device the hub starts them on demand -- which it cannot do here: ls-hubd
     # runs outside the bwrap namespace on purpose (it identifies callers through
@@ -352,6 +371,10 @@ case "${1:-run}" in
     sleep 2
     for svc in $ALL_SERVICES; do
         printf "%-24s %s\n" "$svc" "$(service_running "$L/$svc" && echo alive || echo DEAD)"
+    done
+    for name in $NODE_STATIC; do
+        printf "%-24s %s\n" "$name" \
+            "$([ -n "$(node_service_pids "/usr/palm/node-services/services/$name/main.ts")" ] && echo alive || echo DEAD)"
     done
     ;;
   ns-exec)

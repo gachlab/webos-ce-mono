@@ -75,6 +75,10 @@ Q_SIGNALS:
     void loadFinished(bool ok);
     void titleChanged(const QString& title);
     void urlChanged(const QString& url);
+    // Something the page would download rather than show: what the browser
+    // plugin reported as mimeNotSupported, which the app downloads through
+    // com.palm.downloadmanager.
+    void fileRequested(const QString& mimeType, const QString& url);
 
 private:
     QPointer<QWebPage> m_host;

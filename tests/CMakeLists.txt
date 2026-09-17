@@ -260,6 +260,14 @@ add_test(NAME dashboard-window COMMAND dashboard-window)
 set_tests_properties(dashboard-window PROPERTIES
     ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
 
+# A file the engine would download goes to the page that asked, as the browser
+# plugin's mimeNotSupported did, and the engine's own download is refused.
+add_executable(download-request download-request.cpp)
+target_link_libraries(download-request PRIVATE qtwebkit-compat-lib)
+add_test(NAME download-request COMMAND download-request)
+set_tests_properties(download-request PROPERTIES
+    ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
 # The WebView methods the mail app calls on a plain view. Without them its
 # rendered() threw on setRedirects and the card never switched views.
 add_executable(app-view-shims app-view-shims.cpp)

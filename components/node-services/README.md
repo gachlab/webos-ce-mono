@@ -147,6 +147,45 @@ Not covered on the bus: the application id of a public caller cannot be set here
 (it needs `LSCallFromApplication`), so the whitelisted path of
 `listAccountsPublic` and `readCredentialsPublic` is covered by unit tests only.
 
+### com.palm.downloadmanager (and com.palm.appInstallService)
+
+HP's `LunaDownloadMgr` was never released; its callers here are the
+specification: the browser, LunaSysMgr, the universal search manager and the
+system UI. One process answers both names, as HP's did.
+
+* `transfers.ts`: the downloads. Each is a queue entry (HP's two at a time)
+  writing to `.name` beside its destination and renamed when complete; it
+  outlives the request that started it. Replies follow HP's: the ticket and
+  `target` (the file, not the URL) first, then `amountReceived`/`amountTotal`,
+  then the final record LunaSysMgr opens or installs. Pause keeps the partial
+  file and resumes with `Range`. `Auth-Token` and `Device-Id` are sent as
+  HP's binary sent them.
+* `paths.ts`: `/media/internal/downloads` is the user's XDG Downloads folder,
+  the rest of `/media/internal` their home; callers are told the real path. A
+  taken name becomes `name_2.ext`, as on the device.
+* `history.ts`: what `getAllHistory` answers, per owner, in a JSON file.
+* `filesys.ts`: `filesysStatusCheck`'s levels, which the system UI turns into
+  its disk space alert.
+* `installs.ts`: `com.palm.appInstallService`. Downloads the icon and the
+  package, then has LunaSysMgr's `com.palm.appinstaller` install it, with HP's
+  `details.state` strings in the `status` subscription LunaSysMgr and the
+  system UI read. `remove` goes through the installer too.
+* `ls2/`: the role and `.service` files for both names, which no HP package
+  provides; `tools/assemble-rootfs.sh` installs them.
+
+It runs for the whole session (`tools/run-lunasysmgr.sh services`): LunaSysMgr
+and the system UI subscribe only once the bus reports it up, so started on
+demand it would never be asked for.
+
+Decisions HP's code does not settle:
+
+* A failed download (HTTP error or network) ends with `completed: false` and
+  `aborted: true` (and `interrupted: true` for the network): the browser
+  offers a retry, and LunaSysMgr does not open the file.
+* A disk alert needs both HP's percentages and little room in absolute terms
+  (2 GB, 1 GB, 500 MB): a desktop disk 98% full can still have gigabytes free.
+* `upload`, `allow1x` and `swapToInterface` are left out: nothing calls them.
+
 What luna-service2 needs, found the hard way
 --------------------------------------------
 
@@ -175,6 +214,10 @@ WEBOS_TEST_LOGS=build/node-services-logs components/node-services/test/run.sh
 * `lunabus.hub.test.ts` covers the addon's own rules: a script ends once its
   handles close and not before, descriptor reuse, closing inside a callback.
 * `db8.hub.test.ts` runs against a real `mojodb-luna`.
+* `downloadmanager.unit.test.ts` covers names, places, the history, disk
+  alerts and the transfers against a local HTTP server;
+  `downloadmanager.hub.test.ts` runs both services on a real hub, called as the
+  browser and LunaSysMgr call them, with `com.palm.appinstaller` faked.
 * `accounts.unit.test.ts` covers the accounts service's pure parts and the
   schema validator; `accounts.hub.test.ts` runs HP's own test cases
   (`tests/accounts-test.js`) and the rest of the commands against a real hub and

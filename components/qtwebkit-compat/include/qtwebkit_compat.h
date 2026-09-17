@@ -242,6 +242,10 @@ Q_SIGNALS:
     void viewportChangeRequested();
     void microFocusChanged();
     void windowCloseRequested();
+    // NOT QtWebKit API: the page asked for something the engine would
+    // download rather than show. The engine's download has been refused;
+    // whoever handles this downloads it (see sharedProfile).
+    void downloadRequested(const QUrl& url, const QString& mimeType);
 
 protected:
     virtual QWebPage* createWindow(WebWindowType type);
