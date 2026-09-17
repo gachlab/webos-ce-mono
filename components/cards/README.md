@@ -22,6 +22,9 @@ src/cards/    one directory per app: index.html, appinfo.json, main.ts.
   its first frame without waiting. An error belongs to the state it happened
   in: a new name leaves it behind.
 * `lib/helpers/timers.ts` — the clock, as something a test can hand over.
+* `lib/helpers/watch.ts` — a subscription that follows the card: on while it is
+  being looked at, off while it is not. A card that is sent away keeps its
+  page; what it must not keep is a service pushing at it.
 * `lib/infra/luna/service.ts` — the bus as a card sees it: `call` and
   `subscribe`, `LunaCallError`, `LunaTimeout`. `bridge.service.ts` is
   WebAppMgr's `PalmServiceBridge`; `fake.service.ts` is what tests and a plain
@@ -33,6 +36,12 @@ src/cards/    one directory per app: index.html, appinfo.json, main.ts.
   `PalmSystem`, keeping whatever hooks were already on the page.
 * `lib/i18n/translate.ts` — `t("Turn on Wi-Fi")`. The key is the English text,
   so a missing translation shows English rather than a dotted name.
+* `lib/infra/luna/<service>.ts` — one webOS service, typed: its uris, its reply
+  shapes and its quirks, in one place. `connectionmanager.ts` is the first.
+  A card's service asks these, never the bus directly.
+* `lib/services/navigation.service.ts` — which screen a card is showing.
+  HP's cards are a stack: a row opens a screen, back pops it, and the card
+  closes when there is nothing left to pop.
 * `lib/services/<screen>.service.ts` — one screen, one state machine, made by a
   factory function that takes what it needs in `deps`.
 * `ui/element.ts` — `defineElement(name, props, component)`. Components are
@@ -94,7 +103,10 @@ can be in, and a list of what WebAppMgr has said to the card so far. It is the
 kit itself, so it cannot go stale, and it is where a change to `kit.css` is
 looked at before it reaches a card.
 
-`src/cards/com.palm.app.template` is the one the others are copied from. It asks
-`com.palm.deviceprofile` who this device is, shows it in HP's rows, says so when
-the service is not running, and asks again when the user presses. It is what
+`src/cards/com.palm.app.template` is the one the others are copied from, and it
+does everything a card does: it asks `com.palm.deviceprofile` who this device
+is, watches `com.palm.connectionmanager` while it is on screen and stops while
+it is not, shows what came back in HP's rows, says so when a service is not
+running, asks again when the user presses, and opens a second screen that the
+back gesture comes out of before the card closes. It is what
 `tests/template-card.cpp` drives in the engine WebAppMgr uses.

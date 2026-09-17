@@ -67,9 +67,10 @@ it pushed.
 
 ```
 components/cards/
-  src/lib/helpers/      create-state, timers
-  src/lib/infra/luna/   the bus: the port, the PalmServiceBridge adapter, a fake
-  src/lib/services/     one service per screen, a state machine each
+  src/lib/helpers/      create-state, timers, watch
+  src/lib/services/     navigation, and one service per screen
+  src/lib/infra/luna/   the bus: the port, the PalmServiceBridge adapter, a
+                        fake, and one file per webOS service, typed
   src/ui/element.ts     defineElement: functions in, custom elements out
   src/ui/start-card.ts  how a card starts: styles, first frame, its own life
   src/ui/kit/           HP's controls
@@ -89,6 +90,12 @@ components/cards/
   it shows its spinner for good.
 * **A failure is shown, not swallowed.** What the user reads is what the service
   said; the uri and the rest go to the log.
+* **A card that is not being looked at is not listening.** A subscription is
+  started when the card is shown and cancelled when it is sent away
+  (`helpers/watch.ts`), which `startCard` wires to the card's own life.
+* **Screens are a stack.** A row opens one, the back gesture pops it, and only
+  an empty stack closes the card -- HP's flow, written once
+  (`services/navigation.service.ts`).
 
 ## Porting HP's cards, rather than rewriting them whole
 

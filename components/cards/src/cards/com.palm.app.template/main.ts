@@ -14,7 +14,7 @@ import { startCard } from "#ui/start-card.ts";
 import type { State } from "#lib/helpers/create-state.ts";
 import type { TemplateService } from "#lib/services/template.service.ts";
 
-const view = (state: State<TemplateData>, service: TemplateService) => html`
+const device = (state: State<TemplateData>, service: TemplateService) => html`
     <div class="hp-card">
         <hp-header title="Template"></hp-header>
         <div class="hp-body">
@@ -23,6 +23,7 @@ const view = (state: State<TemplateData>, service: TemplateService) => html`
             ${state.data.device
                 ? html`
                     <div class="hp-group">
+                        <div class="hp-group-title">This device</div>
                         <div class="hp-list">
                             <hp-row title=${state.data.device.model} detail="Model"></hp-row>
                             <hp-row title=${state.data.device.version || "unknown"} detail="Software"></hp-row>
@@ -30,7 +31,15 @@ const view = (state: State<TemplateData>, service: TemplateService) => html`
                         </div>
                     </div>`
                 : ""}
-            ${note("This card is the one the others are copied from: the bus, a state machine and HP's controls.")}
+            <div class="hp-group">
+                <div class="hp-group-title">Network</div>
+                <div class="hp-list">
+                    <hp-row title=${state.data.connection?.online ? "Online" : "Offline"}
+                            detail=${state.data.connection?.through || "Nothing connected"}
+                            @select=${() => service.onOpenNetwork()}></hp-row>
+                </div>
+            </div>
+            ${note("This card is the one the others are copied from: the bus, a state machine, two screens and HP's controls.")}
             ${state.name === "template:failed"
                 ? html`<div class="hp-group">
                            <hp-button label="Try again" kind="affirmative"
@@ -39,6 +48,27 @@ const view = (state: State<TemplateData>, service: TemplateService) => html`
                 : ""}
         </div>
     </div>`;
+
+// The second screen, which the back gesture pops: the card only closes once
+// there is nothing left to go back to.
+const network = (state: State<TemplateData>, service: TemplateService) => html`
+    <div class="hp-card">
+        <hp-header title="Network" back @back=${() => service.onBack()}></hp-header>
+        <div class="hp-body">
+            <div class="hp-group">
+                <div class="hp-list">
+                    <hp-row title=${state.data.connection?.online ? "Online" : "Offline"} detail="Internet"></hp-row>
+                    <hp-row title=${state.data.connection?.through || "none"} detail="Through"></hp-row>
+                    <hp-row title=${state.data.connection?.ssid || "-"} detail="Network"></hp-row>
+                    <hp-row title=${state.data.connection?.ipAddress || "-"} detail="Address"></hp-row>
+                </div>
+            </div>
+            ${note("It follows the connection while the card is on screen, and stops while it is not.")}
+        </div>
+    </div>`;
+
+const view = (state: State<TemplateData>, service: TemplateService) =>
+    (state.data.screen === "network" ? network : device)(state, service);
 
 startCard({
     service: createTemplateService({ luna: openBus(), log: (message) => console.warn(message) }),

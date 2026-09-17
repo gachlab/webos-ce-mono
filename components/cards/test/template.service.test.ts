@@ -9,6 +9,7 @@ import type { State } from "#lib/helpers/create-state.ts";
 import type { TemplateData } from "#lib/services/template.service.ts";
 
 const PROFILE = "luna://com.palm.deviceprofile/getDeviceProfile";
+const STATUS = "luna://com.palm.connectionmanager/getstatus";
 
 const setup = () => {
     const luna = createFakeLuna();
@@ -33,7 +34,7 @@ describe("the template card", () => {
         assert.deepEqual(names(), ["template:loading", "template:loading", "template:ready"]);
         assert.deepEqual(states.at(-1)!.data.device,
                          { model: "ZBook", version: "webOS-CE-3.0.5", serial: "ab".repeat(20) });
-        assert.deepEqual(luna.calls.map((c) => c.uri), [PROFILE]);
+        assert.deepEqual(luna.calls.map((c) => c.uri), [STATUS, PROFILE]);
     });
 
     test("a service that says no leaves the card able to say so, and to try again", async () => {
@@ -50,7 +51,7 @@ describe("the template card", () => {
         await settle();
         assert.equal(names().at(-1), "template:ready");
         assert.equal(states.at(-1)!.data.device?.model, "ZBook");
-        assert.equal(luna.calls.length, 2);
+        assert.deepEqual(luna.calls.map((c) => c.uri), [STATUS, PROFILE, PROFILE]);
     });
 
     test("a second ask while the first is in flight is not a second call", async () => {
@@ -59,7 +60,7 @@ describe("the template card", () => {
         service.onShown();
         service.onRetry();
         await settle();
-        assert.equal(luna.calls.length, 1);
+        assert.deepEqual(luna.calls.filter((c) => c.uri === PROFILE).length, 1);
     });
 
     test("a disposed card is not repainted by an answer that arrives late", async () => {
@@ -78,7 +79,44 @@ describe("the template card", () => {
         assert.equal(service.getState().name, "template:loading", "and the state it left behind is untouched");
         service.onRetry();
         await settle();
-        assert.equal(luna.calls.length, 1, "and it does not start another");
+        assert.equal(luna.calls.filter((c) => c.uri === PROFILE).length, 1, "and it does not start another");
+    });
+
+    test("it follows the connection while it is being looked at, and not while it is not", async () => {
+        const { luna, service, states } = setup();
+        luna.answer(PROFILE, () => ({ returnValue: true, deviceInfo: {} }));
+        service.onShown();
+        await settle();
+        assert.equal(luna.subscribers.length, 1, "one subscription, to the connection manager");
+        assert.equal(luna.subscribers[0]!.uri, STATUS);
+
+        luna.subscribers[0]!.push({
+            returnValue: true, isInternetConnectionAvailable: true,
+            wifi: { state: "connected", ssid: "home", ipAddress: "192.168.1.10" },
+        });
+        assert.deepEqual(states.at(-1)!.data.connection,
+                         { online: true, through: "wifi", ssid: "home", ipAddress: "192.168.1.10" });
+
+        service.onHidden();
+        assert.deepEqual(luna.subscribers, [], "sent away, it stops listening");
+        service.onShown();
+        await settle();
+        assert.equal(luna.subscribers.length, 1, "and starts again when it comes back");
+        service.dispose();
+        assert.deepEqual(luna.subscribers, []);
+    });
+
+    test("a row opens the second screen, and back comes out of it before the card closes", async () => {
+        const { luna, service } = setup();
+        luna.answer(PROFILE, () => ({ returnValue: true, deviceInfo: {} }));
+        service.onShown();
+        await settle();
+        assert.equal(service.getState().data.screen, "device");
+        service.onOpenNetwork();
+        assert.equal(service.getState().data.screen, "network");
+        assert.equal(service.onBack(), true, "back comes out of the second screen");
+        assert.equal(service.getState().data.screen, "device");
+        assert.equal(service.onBack(), false, "and then it is the card's turn to close");
     });
 
     test("missing fields are empty, never the word undefined on screen", () => {

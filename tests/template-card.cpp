@@ -114,13 +114,18 @@ int main(int argc, char** argv)
 
     // It asks the bus, and tells WebAppMgr it is ready to be shown.
     waitFor([&]() { return js("String(window.__calls.length)") != "0"; }, 5000);
-    check("the card asks com.palm.deviceprofile", js("window.__calls[0]"),
-          QStringLiteral("palm://com.palm.deviceprofile/getDeviceProfile"));
+    check("the card asks com.palm.deviceprofile",
+          js("String(window.__calls.indexOf('palm://com.palm.deviceprofile/getDeviceProfile') >= 0)"),
+          QStringLiteral("true"));
+    check("and watches the connection while it is on screen",
+          js("String(window.__calls.indexOf('palm://com.palm.connectionmanager/getstatus') >= 0)"),
+          QStringLiteral("true"));
     check("and says its stage is ready", js("String(window.__ready === true)"), QStringLiteral("true"));
 
     // What came back is on screen, drawn by the kit's own elements.
     waitFor([&]() { return js(kRowTitles).contains("ZBook"); }, 5000);
-    check("what came back is shown in HP's rows", js(kRowTitles), QStringLiteral("ZBook|webOS-CE-3.0.5|abc"));
+    check("what came back is shown in HP's rows", js(kRowTitles),
+          QStringLiteral("ZBook|webOS-CE-3.0.5|abc|Offline"));
     check("the header is the kit's", js("document.querySelector('hp-header').shadowRoot.querySelector('.hp-header span').textContent"),
           QStringLiteral("Template"));
     check("and it is styled by hp.css, not by the browser",
@@ -162,7 +167,18 @@ int main(int argc, char** argv)
     waitFor([&]() { return js(kRowTitles).contains("Answered"); }, 5000);
     check("pressing Try again asks the bus once more", js("String(window.__calls.length)"), QStringLiteral("1"));
     check("and what comes back replaces the error", js(kRowTitles),
-          QStringLiteral("Answered|unknown|unknown"));
+          QStringLiteral("Answered|unknown|unknown|Offline"));
+
+    // The second screen, and the way back out of it: the card only closes once
+    // there is nothing left to go back to.
+    js("document.querySelectorAll('hp-row')[3].shadowRoot.querySelector('.hp-row-text').click(); 1");
+    waitFor([&]() { return js("document.querySelector('hp-header').getAttribute('title')") == "Network"; }, 3000);
+    check("a row opens the second screen", js("document.querySelector('hp-header').getAttribute('title')"),
+          QStringLiteral("Network"));
+    js("window.Mojo.handleGesture('back'); 1");
+    waitFor([&]() { return js("document.querySelector('hp-header').getAttribute('title')") == "Template"; }, 3000);
+    check("and the back gesture comes out of it",
+          js("document.querySelector('hp-header').getAttribute('title')"), QStringLiteral("Template"));
     check("with the error gone", js("String(document.querySelectorAll('.hp-error').length)"), QStringLiteral("0"));
 
     return failures == 0 ? 0 : 1;
