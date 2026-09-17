@@ -20,11 +20,11 @@
 				 					"enabled":true
 				 				},
 				 				{ 
-				 					"id": "twitter", 
+				 					"id": "duckduckgo",
 				 					"category": "search",
-				 					"displayName": "Twitter",
-				 					"iconFilePath":"/usr/lib/luna/system/luna-applauncher/images/search-icon-twitter.png",
-				 					"url":"http://search.twitter.com/search?q=#{searchTerms}",
+				 					"displayName": "DuckDuckGo",
+				 					"iconFilePath":"/usr/lib/luna/system/luna-applauncher/images/search-icon-duckduckgo.png",
+				 					"url":"https://duckduckgo.com/?q=#{searchTerms}",
 				 					"type":"web",
 				 					"enabled":true
 				 				},

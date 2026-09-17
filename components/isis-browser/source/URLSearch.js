@@ -157,23 +157,23 @@ enyo.kind({
 	loadingChanged: function() {
 		this.$.address.setLoading(this.loading);
 	},
+	// webOS CE: one row per enabled provider, the default first (see
+	// defaultSearchChanged), where HP's code offered the default alone.
 	providersListGetItem: function(inSender, inIndex) {
-		if (inIndex == 0) {
-			var list = this.searchPreferences;
-			var provider = list[inIndex];
-			if (!provider) {
-				return;
-			}
-			// FIXME: set top-bottom item styling
-			var s = inIndex == 0 ? "border-top: 0;" : (inIndex == list.length-1 ? "border-bottom: 0;" : "");
-			// title
-			var v = this.$.address.getUserInput(true);
-			var t = provider.displayName + (v ? ' "' + v + '"' : "");
-			this.$.providerItem.setStyle(s);
-			this.$.providerTitle.setContent(t);
-			this.$.providerIcon.setSrc(provider.iconFilePath);
-			return true;
+		var list = this.searchPreferences;
+		var provider = list[inIndex];
+		if (!provider) {
+			return;
 		}
+		// FIXME: set top-bottom item styling
+		var s = inIndex == 0 ? "border-top: 0;" : (inIndex == list.length-1 ? "border-bottom: 0;" : "");
+		// title
+		var v = this.$.address.getUserInput(true);
+		var t = provider.displayName + (v ? ' "' + v + '"' : "");
+		this.$.providerItem.setStyle(s);
+		this.$.providerTitle.setContent(t);
+		this.$.providerIcon.setSrc(provider.iconFilePath);
+		return true;
 	},
 	providerClick: function(inSender, inEvent, inRowIndex) {
 		var provider = this.defaultSearchPreferences[0];
