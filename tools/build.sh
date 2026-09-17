@@ -11,7 +11,8 @@
 # Usage:
 #   tools/build.sh              # everything
 #   tools/build.sh cmake        # one stage: headers | autotools | cmake |
-#                               # node | powerd | connmgr | storaged | rootfs
+#                               # node | powerd | connmgr | storaged |
+#                               # cards | rootfs
 set -u
 R="$(cd "$(dirname "$0")/.." && pwd)"
 STAGE="${1:-all}"
@@ -331,6 +332,21 @@ stage_storaged() {
       || { echo "  FAILED (see /tmp/webos/storaged-build.log)"; return 1; }
 }
 
+stage_cards() {
+    echo "== cards =="
+    # The cards in components/cards, bundled into build/cards, which
+    # assemble-rootfs.sh installs as web apps. esbuild and lit-html are pinned
+    # in the repository's package.json; without node_modules this skips rather
+    # than fails, the way the other npm-dependent steps do.
+    "$R/tools/build-cards.sh"
+    local status=$?
+    if [ $status -eq 77 ]; then
+        echo "  cards                        SKIPPED (npm ci)"
+        return 0
+    fi
+    [ $status -eq 0 ] || { echo "  FAILED"; return 1; }
+}
+
 stage_rootfs() {
     echo "== rootfs =="
     # The MANIFEST's "copiar" components are not built: they are JS, themes and
@@ -348,13 +364,14 @@ case "$STAGE" in
     powerd) stage_powerd ;;
     connmgr) stage_connmgr ;;
     storaged) stage_storaged ;;
+    cards) stage_cards ;;
     rootfs) stage_rootfs ;;
     all)   # NOTE the placement: the echoes go INSIDE the if, not loose after
             # the chain. They were outside and the script announced success even
             # when a stage had failed.
             if stage_headers && stage_autotools \
                && stage_cmake && stage_node_addons && stage_powerd \
-               && stage_connmgr && stage_storaged && stage_rootfs; then
+               && stage_connmgr && stage_storaged && stage_cards && stage_rootfs; then
                 echo
                 echo "Done. To start the shell:  tools/run-lunasysmgr.sh"
             else

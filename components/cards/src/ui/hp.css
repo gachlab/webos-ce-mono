@@ -1,0 +1,463 @@
+/*
+ * The look, as one stylesheet. This is the contract: a card sets classes, this
+ * file decides what they look like, and a new class goes in its section and
+ * nowhere else.
+ *
+ * The values are HP's 3.0.5 look, taken from the framework in this tree
+ * (components/enyo-1.0) and from the device's screens. The code is ours.
+ *
+ *   §0  Reset and page
+ *   §1  Header
+ *   §2  Buttons
+ *   §3  Lists
+ *   §4  Toggles
+ *   §5  Spinner
+ *   §6  Text
+ *   §7  Fields
+ *   §8  Checkboxes
+ *   §9  List selectors
+ *   §10 Dialogs
+ *   §11 Progress
+ */
+
+/* §0 Reset and page ------------------------------------------------------- */
+
+* {
+    box-sizing: border-box;
+    -webkit-tap-highlight-color: transparent;
+}
+
+html, body {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+}
+
+body {
+    /* Prose sans, as HP's cards used; the device's own family first. */
+    font-family: Prelude, "Prelude Medium", Helvetica, Arial, sans-serif;
+    font-size: 16px;
+    color: #000;
+    background: #f4f4f4;
+    -webkit-user-select: none;
+    user-select: none;
+    overflow-x: hidden;
+}
+
+/* Where a card renders (index.html's <div id="card">). Without a height of its
+ * own, the card inside it is as tall as its content and nothing ever scrolls. */
+#card {
+    height: 100%;
+}
+
+.hp-card {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+}
+
+.hp-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 12px 0 24px;
+}
+
+/* §1 Header --------------------------------------------------------------- */
+
+.hp-header {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    height: 48px;
+    padding: 0 12px;
+    color: #fff;
+    font-size: 20px;
+    font-weight: 300;
+    background: linear-gradient(to bottom, #4b4b4b, #2d2d2d);
+    border-bottom: 1px solid #000;
+    flex: none;
+}
+
+.hp-header .hp-header-back {
+    position: absolute;
+    left: 8px;
+    font-size: 15px;
+    color: #cfcfcf;
+    background: none;
+    border: 0;
+    padding: 8px;
+}
+
+/* §2 Buttons -------------------------------------------------------------- */
+
+/* The element itself, inside its own shadow root: an element that shrinks to
+ * its content cannot hold a control that fills the row. */
+:host(hp-button), :host(hp-header), :host(hp-row), :host(hp-group), :host(hp-spinner) {
+    display: block;
+}
+
+:host(hp-toggle) {
+    display: inline-block;
+    flex: none;
+}
+
+.hp-button {
+    display: block;
+    width: 100%;
+    min-height: 44px;
+    padding: 10px 16px;
+    font-size: 16px;
+    font-weight: 500;
+    color: #fff;
+    border: 1px solid rgba(0, 0, 0, 0.45);
+    border-radius: 6px;
+    background: linear-gradient(to bottom, #5f5f5f, #3f3f3f);
+}
+
+.hp-button:active {
+    background: linear-gradient(to bottom, #3f3f3f, #2a2a2a);
+}
+
+.hp-button.affirmative {
+    background: linear-gradient(to bottom, #43a200, #2aa100);
+}
+
+.hp-button.negative {
+    background: linear-gradient(to bottom, #c01b1e, #be0003);
+}
+
+/* A button in a row takes the room the row has left, as HP's did. */
+.hp-row > hp-button {
+    flex: 1;
+}
+
+.hp-button[disabled] {
+    opacity: 0.4;
+}
+
+/* §3 Lists ---------------------------------------------------------------- */
+
+.hp-group {
+    margin: 0 12px 18px;
+}
+
+.hp-group-title {
+    padding: 4px 8px;
+    font-size: 12px;
+    font-weight: 500;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: #6b6b6b;
+}
+
+.hp-list {
+    border: 1px solid #b6b6b6;
+    border-radius: 8px;
+    background: #fff;
+    overflow: hidden;
+}
+
+.hp-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 52px;
+    padding: 8px 12px;
+    border-top: 1px solid #dcdcdc;
+    background: #fff;
+}
+
+.hp-row:first-child {
+    border-top: 0;
+}
+
+.hp-row[data-pressed="true"] {
+    background: #dfe9f5;
+}
+
+.hp-row .hp-row-text {
+    flex: 1;
+    min-width: 0;
+}
+
+.hp-row .hp-row-title {
+    font-size: 16px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.hp-row .hp-row-detail {
+    font-size: 13px;
+    color: #6b6b6b;
+}
+
+/* §4 Toggles -------------------------------------------------------------- */
+
+.hp-toggle {
+    position: relative;
+    width: 66px;
+    height: 30px;
+    padding: 0;
+    border: 1px solid rgba(0, 0, 0, 0.4);
+    border-radius: 4px;
+    background: #9a9a9a;
+    color: #fff;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.hp-toggle.on {
+    background: #2aa100;
+}
+
+.hp-toggle .hp-toggle-knob {
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 30px;
+    height: 24px;
+    border-radius: 3px;
+    background: linear-gradient(to bottom, #fdfdfd, #d8d8d8);
+    transition: left 120ms ease-out;
+}
+
+.hp-toggle.on .hp-toggle-knob {
+    left: 32px;
+}
+
+.hp-toggle .hp-toggle-label {
+    position: absolute;
+    top: 7px;
+    right: 6px;
+}
+
+.hp-toggle.on .hp-toggle-label {
+    right: auto;
+    left: 6px;
+}
+
+/* §5 Spinner -------------------------------------------------------------- */
+
+.hp-spinner {
+    display: inline-block;
+    width: 22px;
+    height: 22px;
+    border: 3px solid rgba(0, 0, 0, 0.18);
+    border-top-color: #2071bb;
+    border-radius: 50%;
+    animation: hp-spin 900ms linear infinite;
+}
+
+.hp-spinner-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px;
+    color: #6b6b6b;
+    font-size: 14px;
+}
+
+@keyframes hp-spin {
+    to { transform: rotate(360deg); }
+}
+
+/* §6 Text ----------------------------------------------------------------- */
+
+.hp-note {
+    margin: 0 20px 12px;
+    color: #6b6b6b;
+    font-size: 13px;
+    line-height: 1.35;
+}
+
+.hp-error {
+    margin: 0 20px 12px;
+    color: #be0003;
+    font-size: 13px;
+}
+
+/* §7 Fields --------------------------------------------------------------- */
+
+:host(hp-field) {
+    display: block;
+}
+
+.hp-field {
+    display: block;
+    padding: 8px 12px;
+    background: #fff;
+}
+
+.hp-field-label {
+    display: block;
+    font-size: 12px;
+    font-weight: 500;
+    text-transform: uppercase;
+    color: #6b6b6b;
+}
+
+.hp-field-input {
+    width: 100%;
+    padding: 6px 0;
+    font-family: inherit;
+    font-size: 16px;
+    color: #000;
+    background: transparent;
+    border: 0;
+    border-bottom: 2px solid #c8c8c8;
+    outline: none;
+    -webkit-user-select: text;
+    user-select: text;
+}
+
+.hp-field-input:focus {
+    border-bottom-color: #2071bb;
+}
+
+.hp-field-input[disabled] {
+    color: #9a9a9a;
+}
+
+/* §8 Checkboxes ----------------------------------------------------------- */
+
+:host(hp-check) {
+    display: inline-block;
+    flex: none;
+}
+
+.hp-check {
+    width: 30px;
+    height: 30px;
+    padding: 0;
+    font-size: 18px;
+    line-height: 1;
+    color: #fff;
+    background: linear-gradient(to bottom, #fdfdfd, #e2e2e2);
+    border: 1px solid rgba(0, 0, 0, 0.4);
+    border-radius: 4px;
+}
+
+.hp-check.checked {
+    background: linear-gradient(to bottom, #43a200, #2aa100);
+}
+
+.hp-check[disabled] {
+    opacity: 0.4;
+}
+
+/* §9 List selectors ------------------------------------------------------- */
+
+:host(hp-selector) {
+    display: block;
+}
+
+.hp-selector-value {
+    color: #2071bb;
+    font-size: 15px;
+}
+
+.hp-selector-arrow {
+    color: #9a9a9a;
+    transition: transform 120ms ease-out;
+}
+
+.hp-selector-arrow.open {
+    transform: rotate(180deg);
+}
+
+.hp-selector-drawer {
+    background: #ededed;
+    border-top: 1px solid #c8c8c8;
+}
+
+.hp-selector-choice {
+    background: transparent;
+}
+
+.hp-selector-choice.chosen .hp-row-title {
+    font-weight: 600;
+}
+
+.hp-selector-tick {
+    color: #2aa100;
+}
+
+/* §10 Dialogs ------------------------------------------------------------- */
+
+:host(hp-dialog) {
+    display: block;
+}
+
+.hp-dialog-shade {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    background: rgba(0, 0, 0, 0.55);
+    z-index: 10;
+}
+
+.hp-dialog {
+    width: 100%;
+    max-width: 420px;
+    padding: 16px;
+    border-radius: 10px;
+    background: #f4f4f4;
+    box-shadow: 0 6px 24px rgba(0, 0, 0, 0.45);
+}
+
+.hp-dialog-title {
+    font-size: 18px;
+    font-weight: 600;
+    margin-bottom: 8px;
+}
+
+.hp-dialog-message {
+    font-size: 14px;
+    color: #4b4b4b;
+    margin-bottom: 16px;
+}
+
+.hp-dialog-buttons {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+/* §11 Progress ------------------------------------------------------------ */
+
+:host(hp-progress) {
+    display: block;
+}
+
+.hp-progress-row {
+    padding: 10px 12px;
+    background: #fff;
+}
+
+.hp-progress-label {
+    display: block;
+    font-size: 13px;
+    color: #6b6b6b;
+    margin-bottom: 6px;
+}
+
+.hp-progress {
+    display: block;
+    height: 10px;
+    border-radius: 5px;
+    background: #d8d8d8;
+    overflow: hidden;
+}
+
+.hp-progress-bar {
+    display: block;
+    height: 100%;
+    background: linear-gradient(to bottom, #2b8fe0, #2071bb);
+    transition: width 160ms ease-out;
+}

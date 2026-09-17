@@ -230,6 +230,19 @@ target_link_libraries(qml-graphics-slot PRIVATE
     Qt::Core Qt::Gui Qt::Widgets Qt::Qml Qt::Quick Qt::GuiPrivate Qt::Test ${GLIB_LIBRARIES})
 add_test(NAME qml-graphics-slot COMMAND qml-graphics-slot -platform offscreen)
 
+# --- the cards: the library, and the template card in the engine -------------
+# The library needs neither bus nor browser; the card runs the built bundle the
+# way WebAppMgr loads it, against a fake PalmServiceBridge.
+add_test(NAME cards-lib COMMAND "${CMAKE_CURRENT_SOURCE_DIR}/../components/cards/test/run.sh")
+set_tests_properties(cards-lib PROPERTIES SKIP_RETURN_CODE 77)
+
+add_executable(template-card template-card.cpp)
+target_link_libraries(template-card PRIVATE qtwebkit-compat-lib)
+add_test(NAME template-card COMMAND template-card)
+set_tests_properties(template-card PROPERTIES
+    SKIP_RETURN_CODE 77
+    ENVIRONMENT "QT_QPA_PLATFORM=offscreen;WEBOS_CARDS_BUILD=${CMAKE_CURRENT_SOURCE_DIR}/../build/cards")
+
 # --- storaged: what an erase erases, and what it must never touch ------------
 set(STORAGED "${CMAKE_CURRENT_SOURCE_DIR}/../components/storaged")
 add_executable(storaged-erase storaged-erase.cpp ${STORAGED}/src/erase.cpp)

@@ -1,12 +1,14 @@
 {
   "name": "webos-ce-mono",
   "private": true,
-  "description": "Pinned tooling for the TypeScript in the tree. Nothing here ships: node runs the .ts files by stripping their types, and tsc only checks them.",
+  "description": "Pinned tooling for the TypeScript in the tree, and the two dependencies the cards build on: lit-html, which is bundled into each card (components/cards), and esbuild, which bundles it. node runs the services' .ts files by stripping their types, and tsc only checks them.",
   "scripts": {
-    "typecheck": "tsc -p components/node-services"
+    "typecheck": "tsc -p components/node-services && tsc -p components/cards"
   },
   "devDependencies": {
     "@types/node": "24.13.5",
+    "esbuild": "0.28.2",
+    "lit-html": "3.3.3",
     "typescript": "7.0.2"
   }
 }
