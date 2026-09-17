@@ -810,9 +810,9 @@ const char kBrowserView[] = R"JS(
     }
 
     // The verbs isis-browser actually sends. Everything else the control emits
-    // on its way up -- pageFocused, setEnableJavaScript, addUrlRedirect,
-    // handleFlick and the rest -- is taken and dropped: either the engine
-    // already does it, or nothing depends on it yet.
+    // on its way up -- pageFocused, addUrlRedirect, handleFlick and the rest --
+    // is taken and dropped: either the engine already does it, or nothing
+    // depends on it yet.
     function command(control, name, args) {
         var view = control.__webosView;
         if (!view)
@@ -826,6 +826,10 @@ const char kBrowserView[] = R"JS(
         case "stopLoad":       view.stop(); break;
         case "findInPage":     view.findInPage(String(args[0] || "")); break;
         case "setVisibleSize": sendGeometry(control); break;
+        // The browser's preferences.
+        case "setEnableJavaScript": view.setEnableJavaScript(args[0] !== false); break;
+        case "setBlockPopups":      view.setBlockPopups(args[0] !== false); break;
+        case "setAcceptCookies":    view.setAcceptCookies(args[0] !== false); break;
         default: break;
         }
     }

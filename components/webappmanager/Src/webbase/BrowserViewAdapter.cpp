@@ -7,9 +7,13 @@
 #include <QWebPage>
 
 #include <QWebEngineFullScreenRequest>
+#include <QWebEngineCookieStore>
 #include <QWebEngineHistory>
+#include <QWebEngineProfile>
 #include <QWebEnginePage>
 #include <QWebEngineSettings>
+
+#include <atomic>
 
 BrowserViewAdapter::BrowserViewAdapter(QWebPage* host, QObject* parent)
     : QObject(parent)
@@ -131,6 +135,58 @@ bool BrowserViewAdapter::canGoBack() const
 bool BrowserViewAdapter::canGoForward() const
 {
     return m_view && m_view->enginePage()->history()->canGoForward();
+}
+
+void BrowserViewAdapter::setEnableJavaScript(bool enable)
+{
+    if (m_view)
+        m_view->enginePage()->settings()->setAttribute(QWebEngineSettings::JavascriptEnabled, enable);
+}
+
+void BrowserViewAdapter::setBlockPopups(bool block)
+{
+    // What QtWebKit's JavascriptCanOpenWindows was for the plugin. Chromium
+    // still lets a page open a window the user asked for with a tap.
+    if (m_view)
+        m_view->enginePage()->settings()->setAttribute(QWebEngineSettings::JavascriptCanOpenWindows, !block);
+}
+
+bool BrowserViewAdapter::blocksPopups() const
+{
+    return m_view && !m_view->enginePage()->settings()->testAttribute(QWebEngineSettings::JavascriptCanOpenWindows);
+}
+
+// The browser's "Accept Cookies". Every app's pages share one profile, and so
+// one cookie store, so the switch cannot be per view. It applies to web pages
+// only -- a first party on http or https -- which is what the browser shows;
+// the apps' own documents are file:// and keep their cookies whatever the
+// browser says. The filter may run off the main thread, hence the atomic.
+static std::atomic<bool> s_acceptCookies(true);
+
+static bool cookieAllowed(const QWebEngineCookieStore::FilterRequest& request)
+{
+    if (s_acceptCookies.load())
+        return true;
+    const QString scheme = request.firstPartyUrl.scheme();
+    return scheme != QLatin1String("http") && scheme != QLatin1String("https");
+}
+
+void BrowserViewAdapter::setAcceptCookies(bool accept)
+{
+    s_acceptCookies.store(accept);
+    if (!m_view)
+        return;
+    static QWebEngineCookieStore* filtered = nullptr;
+    QWebEngineCookieStore* store = m_view->enginePage()->profile()->cookieStore();
+    if (store != filtered) {
+        store->setCookieFilter(cookieAllowed);
+        filtered = store;
+    }
+}
+
+bool BrowserViewAdapter::acceptsCookies() const
+{
+    return s_acceptCookies.load();
 }
 
 void BrowserViewAdapter::setZoom(double factor)

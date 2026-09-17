@@ -46,9 +46,8 @@ enyo.kind({
 					{kind: "LabeledContainer", caption: $L("Enable JavaScript"), components: [
 						{kind: "ToggleButton", name: "enableJavascript", onChange: "togglePreferenceClick", preference: "enableJavascript", type: "Browser"}
 					]},
-					{kind: "LabeledContainer", caption: $L("Enable Flash"), components: [
-						{kind: "ToggleButton", name: "flashplugins", onChange: "togglePreferenceClick", preference: "flashplugins", type: "System"}
-					]},
+					// webOS CE: no "Enable Flash". There is no Flash, and the
+					// engine has no plugins to switch on or off.
 				]},
 				{kind: "Button", caption: $L("Clear Bookmarks"), onclick: "promptButtonClick", dialog: "clearBookmarksPrompt"},
 				{kind: "Button", caption: $L("Clear History"), onclick: "promptButtonClick", dialog: "clearHistoryPrompt"},
