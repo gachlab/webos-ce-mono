@@ -857,6 +857,15 @@ const char kBrowserView[] = R"JS(
         control.__webosView = view;
         holes.push(control);
 
+        // A hole hidden by its app says nothing: enyo's Pane shows another
+        // view by setting display:none on the browser's, and nothing calls
+        // back. Found live: the Preferences opened over a loaded page and the
+        // page went on being painted over them. The box's own size changes,
+        // though, to nothing and back, and that is what this watches.
+        if (window.ResizeObserver) {
+            new ResizeObserver(function () { sendGeometry(control); }).observe(node);
+        }
+
         // What the control probes for before it will talk to a plugin.
         node.openURL = function () {};
         node.setPageIdentifier = function () {};

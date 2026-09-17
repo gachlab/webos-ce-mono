@@ -268,6 +268,13 @@ add_test(NAME download-request COMMAND download-request)
 set_tests_properties(download-request PROPERTIES
     ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
 
+# The browser's content area stops being painted while its app hides it.
+add_executable(browser-view-hole browser-view-hole.cpp)
+target_link_libraries(browser-view-hole PRIVATE qtwebkit-compat-lib)
+add_test(NAME browser-view-hole COMMAND browser-view-hole)
+set_tests_properties(browser-view-hole PROPERTIES
+    ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
 # The browser's Preferences reach the engine through WebAppMgr's view adapter.
 add_executable(browser-preferences browser-preferences.cpp
     "${CMAKE_CURRENT_SOURCE_DIR}/../components/webappmanager/Src/webbase/BrowserViewAdapter.cpp"
