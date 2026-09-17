@@ -177,7 +177,10 @@ enyo.kind({
 	},
 	providerClick: function(inSender, inEvent, inRowIndex) {
 		var provider = this.defaultSearchPreferences[0];
-		if (window.PalmSystem) {
+		// webOS CE: the list from com.palm.universalsearch can be empty (the
+		// service down, or no search list installed); fall back to the default
+		// rather than throw on an undefined provider.
+		if (window.PalmSystem && this.searchPreferences[inRowIndex]) {
 			provider = this.searchPreferences[inRowIndex];
 		}
 		this.closeSearchPopup();
