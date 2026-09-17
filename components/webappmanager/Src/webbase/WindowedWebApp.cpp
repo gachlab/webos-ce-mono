@@ -968,7 +968,9 @@ void WindowedWebApp::focusedEvent(bool focused)
         script = QString("if (window.Mojo && Mojo.stageDeactivated) {Mojo.stageDeactivated();}");
     page()->page()->mainFrame()->evaluateJavaScript(script);
 
-    QFocusEvent fEvent(QEvent::FocusIn);
+    // webOS CE: a deactivated window loses the focus. This sent FocusIn either
+    // way, which did nothing until the compat layer began delivering it.
+    QFocusEvent fEvent(focused ? QEvent::FocusIn : QEvent::FocusOut);
     page()->event(&fEvent);
 
 /*

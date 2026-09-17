@@ -268,6 +268,21 @@ add_test(NAME download-request COMMAND download-request)
 set_tests_properties(download-request PROPERTIES
     ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
 
+# A page WebAppMgr focuses, or that is typed into, has the focus, and its
+# fields hear about it.
+add_executable(page-focus page-focus.cpp)
+target_link_libraries(page-focus PRIVATE qtwebkit-compat-lib)
+add_test(NAME page-focus COMMAND page-focus)
+set_tests_properties(page-focus PROPERTIES
+    ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
+# An app's own document can call web services that send no CORS headers.
+add_executable(remote-requests remote-requests.cpp)
+target_link_libraries(remote-requests PRIVATE qtwebkit-compat-lib Qt::Network)
+add_test(NAME remote-requests COMMAND remote-requests)
+set_tests_properties(remote-requests PROPERTIES
+    ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
 # The browser's content area stops being painted while its app hides it.
 add_executable(browser-view-hole browser-view-hole.cpp)
 target_link_libraries(browser-view-hole PRIVATE qtwebkit-compat-lib)
@@ -423,6 +438,25 @@ set_tests_properties(node-services PROPERTIES SKIP_RETURN_CODE 77)
 # settled on a shell with no bus. Runs against stubs; see the script for why the
 # cases that let a start through skip themselves while a real session is up.
 add_test(NAME session-lock COMMAND "${CMAKE_CURRENT_SOURCE_DIR}/session-lock/run.sh")
+
+# --- OpenSearch descriptions, parsed by the universal search manager ----------
+# Its own sources, less main(), against the staged libraries.
+set(USM "${CMAKE_CURRENT_SOURCE_DIR}/../components/luna-universalsearchmgr")
+pkg_check_modules(USM_DEPS REQUIRED libxml-2.0 sqlite3 gthread-2.0)
+add_executable(opensearch-parse opensearch-parse.cpp
+    ${USM}/Src/OpenSearchHandler.cpp ${USM}/Src/SearchItemsManager.cpp ${USM}/Src/SearchServiceManager.cpp
+    ${USM}/Src/UniversalSearchPrefsDb.cpp ${USM}/Src/UniversalSearchService.cpp ${USM}/Src/USUtils.cpp
+    ${USM}/Src/Logging.cpp)
+target_include_directories(opensearch-parse PRIVATE ${USM}/include/public ${GLIB_INCLUDE_DIRS} ${USM_DEPS_INCLUDE_DIRS}
+    "${WEBOS_STAGING}/include" "${WEBOS_STAGING}/usr/include")
+target_link_directories(opensearch-parse PRIVATE "${WEBOS_STAGING}/lib" "${WEBOS_STAGING}/usr/lib")
+target_link_libraries(opensearch-parse PRIVATE luna-service2 cjson ${USM_DEPS_LIBRARIES} ${GLIB_LIBRARIES})
+add_test(NAME opensearch-parse COMMAND opensearch-parse)
+set_tests_properties(opensearch-parse PROPERTIES
+    ENVIRONMENT "LD_LIBRARY_PATH=${WEBOS_STAGING}/lib:${WEBOS_STAGING}/usr/lib")
+
+# The provider list Just Type and the browser use: HTTPS, with suggestions.
+add_test(NAME search-providers COMMAND python3 "${CMAKE_CURRENT_SOURCE_DIR}/search-providers.py")
 
 # --- the bus leaves when it is told to ------------------------------------------
 # ls-hubd's SIGTERM handler called g_main_loop_quit() inside the signal and could

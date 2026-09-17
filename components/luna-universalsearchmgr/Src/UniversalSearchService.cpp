@@ -1643,7 +1643,9 @@ static bool cbAddOptionalSearchDesc(LSHandle* lshandle, LSMessage *message, void
 		goto done;
 	}
 	
-	if(strcmp(uriScheme, "http") != 0)
+	// webOS CE: https too; HP's check predates the web moving to it, and
+	// every engine's description is served over https now.
+	if(strcmp(uriScheme, "http") != 0 && strcmp(uriScheme, "https") != 0)
 	{
 		g_debug("Invalid URL Provided");
 		errMsg = "Invalid URL Provided";
