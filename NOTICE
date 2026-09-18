@@ -61,10 +61,10 @@ Changes in this repository
 --------------------------
 
 Everything needed to build HP's 2012 sources on a current Linux. Measured
-against the hp-original tag: 230 files, 8,111 lines added and 433 removed. Of
-that, 6,740 lines are in files HP never shipped -- the compatibility adapters
-under adapters/qt6-compat, adapters/qtwebkit-compat and
-adapters/node-v8-shim -- and 1,804 lines are changes inside HP's own files.
+against the hp-original tag: 206 of HP's files changed, 5,634 lines added and
+486 removed. Beside them, and not inside anything of HP's, 28,512 lines we
+wrote: the compatibility adapters under adapters/, the services HP never
+released under services/, the SDK under sdk/ and the applications under apps/.
 The scripts under tools/ and the tests under tests/ are ours as well. All of it
 is contributed under the same Apache License, Version 2.0.
 

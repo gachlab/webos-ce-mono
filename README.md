@@ -138,7 +138,7 @@ own, which we rewrite — is visible before opening anything.
   of ours drifts back in.
 - `adapters/` — **ours**, so HP's code runs here: `qt6-compat` for what Qt 6
   removed, `qtwebkit-compat` for the QtWebKit API WebAppMgr is written against,
-  `input-compat`, `node-v8-shim`, `build-support-ce`, `enyo-lib-networkproxy`.
+  `input-compat`, `node-v8-shim`, `enyo-lib-networkproxy`.
   Nothing here is a product; each one exists because something of HP's expects
   an API that is gone.
 - `services/` — **ours**, because HP never released them: `nm-connectionmanager`,
@@ -183,20 +183,23 @@ native Wayland client — see `docs/lunasysmgr-on-debian.png`.
 | Listed in the manifest | 55 components |
 | Marked buildable | 35 |
 | Actually built | 26 — the other nine are skipped on purpose, each with its reason in `tools/build.sh` (`qt4` and `webkit` are replaced by Debian's Qt 6 and QtWebEngine; `nodejs` by the official node LTS pinned in `tools/node-version`) |
-| Changes inside HP's components | 230 files, +8,111 −433 — `git diff --stat hp-original -- components/` |
-| …in files HP never shipped | 6,740 lines: the adapters below |
-| …inside HP's own files | 1,804 lines |
+| Edits inside HP's own code | **206 files, +5,634 −486** — `git diff --stat hp-original -- components/` |
+| Our own code beside it | 224 files, 28,512 lines — `adapters/` 6,141, `services/` 15,642, `sdk/` 3,719, `apps/` 3,010 |
 | Toolchain | Debian sid, gcc 16, Qt 6.10 + QtWebEngine, system CMake |
 
-`git diff --stat hp-original` on the whole tree reports a much larger number —
-it counts `tools/`, `tests/` and these documents too, and it moves every time
-one of them is edited. The figures above are scoped to `components/` on
-purpose: what changed in HP's code is the number worth being able to check.
+Those two lines are a single `git diff` each, and that is the point of the
+layout above: `components/` holds HP's code and nothing else, so the first
+command means exactly what it says and cannot drift. It used to include
+fourteen directories of ours, which is why the figure quoted here for a long
+time — 230 files and 8,111 lines — was counting our own work as changes to
+HP's.
 
-The split matters more than the total: most of the work is **new code beside
-HP's**, not edits to it. Three adapters carry it — `qt6-compat` for what Qt 6
-removed, `qtwebkit-compat` for the QtWebKit API WebAppMgr is written against
-(on QtWebEngine), and `node-v8-shim` for HP's three node addons on node 26.
+The split matters more than either total: **the work is overwhelmingly new code
+beside HP's, not edits to it** — five lines written next to his for every one
+changed in his. The adapters are what make that possible: `qt6-compat` for what
+Qt 6 removed, `qtwebkit-compat` for the QtWebKit API WebAppMgr is written
+against (on QtWebEngine), and `node-v8-shim` for HP's three node addons on
+node 26.
 
 Working: the lock screen, the launcher, the dock, keyboard input, taps and
 drag-to-scroll, scrolling with a wheel or a trackpad — in the browser and in

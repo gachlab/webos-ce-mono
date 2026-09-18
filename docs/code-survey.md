@@ -26,8 +26,8 @@ linked; today the shell is a native Wayland client by default.
 
 ## Size
 
-The monorepo is ~3.6M lines, but that is misleading: `build-support-ce` (1.4M)
-is **headers**, and `nodejs` (297K) has V8 inside.
+The monorepo is ~3.6M lines, but that is misleading: `build-support-ce` (1.4M,
+now under `reference/`) is **headers**, and `nodejs` (297K) has V8 inside.
 
 | Component | Lines | Note |
 |---|---|---|
@@ -75,9 +75,8 @@ What it uses heavily is still alive in Qt6: `QGraphicsView`/`QGraphicsScene`
 path left. The QML1 blocker was real and is closed: the `.qml` files were moved
 to QtQuick 2 and the pieces Qt 6 removed come back through
 `adapters/qt6-compat`. Measured against the `hp-original` tag, the whole of
-HP's code took 230 files and +8,111 −433 lines to get there — and 6,740 of
-those lines are in files HP never shipped, so the edits inside his own sources
-are 1,804. See `KNOWN_BUGS.md`.
+HP's code took **206 files and +5,634 −486 lines** to get there; the 28,512
+lines we wrote sit beside it, not in it. See `KNOWN_BUGS.md`.
 
 ## The web engine is isolated
 
