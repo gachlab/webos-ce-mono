@@ -143,10 +143,10 @@
     --wos-spinner-ring: rgba(0, 0, 0, 0.18);
     --wos-spinner-lead: #8b8b8b;
 
-    /* input-focus.png: a white panel with a soft edge, and no line under the
-     * text when it is not focused. */
+    /* input-focus.png: a white panel with a soft edge (Onyx Input.css). */
     --wos-field-focus-bg: #fff;
     --wos-field-focus-edge: rgba(0, 0, 0, 0.22);
+    --wos-field-focus-border-image: url(images/input-focus.png) 14 14 fill repeat;
     --wos-field-ink: #000;
     --wos-field-placeholder: #888;
 

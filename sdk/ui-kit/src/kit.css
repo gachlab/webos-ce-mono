@@ -383,23 +383,32 @@
     opacity: 0;
 }
 
-/* Unlabeled field: the group caption is the label (VPN Add). enyo's single
- * Item is 48px (12px pad + 24px input). Horizontal pad on the input keeps the
- * caret off the chrome; placeholder hides on focus so it does not sit under
- * the caret (Palm hint behaviour users expect here). */
+/* Unlabeled field: the group caption is the label (VPN Add). Mirror enyo's
+ * Item > Input: a 48px box with a 14px transparent border that becomes
+ * input-focus.png on focus. The caret sits in the content box (inset ~14px),
+ * not flush on a nested white rectangle. Placeholder hides on focus. */
 .wos-field:not(:has(.wos-field-label)) {
     display: block;
-    box-sizing: content-box;
-    padding: 12px 10px;
+    box-sizing: border-box;
+    height: 48px;
+    padding: 0;
+    margin: 0;
+    border: 14px solid transparent;
+}
+
+.wos-field:not(:has(.wos-field-label)):focus-within {
+    -webkit-border-image: var(--wos-field-focus-border-image, none);
+    border-image: var(--wos-field-focus-border-image, none);
 }
 
 .wos-field:not(:has(.wos-field-label)) .wos-field-input {
     display: block;
     width: 100%;
     height: 24px;
-    box-sizing: border-box;
-    padding: 0 8px;
-    margin: 0;
+    /* Vertical only — enyo's -4px horizontal pulls the caret into the
+     * focus chrome edge and makes it look flush. */
+    margin: -2px 0;
+    padding: 0;
     border: 0;
     border-radius: 0;
     font-size: 0.9rem;
@@ -411,9 +420,8 @@
 }
 
 .wos-field:not(:has(.wos-field-label)) .wos-field-input:focus {
-    background: var(--wos-field-focus-bg);
-    box-shadow: inset 0 0 0 1px var(--wos-field-focus-edge);
-    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
 }
 
 
