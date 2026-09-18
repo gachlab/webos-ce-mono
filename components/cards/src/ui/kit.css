@@ -21,6 +21,11 @@
  *   §9  List selectors
  *   §10 Dialogs
  *   §11 Progress
+ *   §12 Swipe to delete
+ *   §13 The app menu
+ *   §14 A button that is working
+ *   §15 One of a few
+ *   §16 Sliders
  */
 
 :host {
@@ -100,7 +105,7 @@
 /* A button the card put inside a row takes the room the row has left, as HP's
  * did. It is slotted, so it is reached through ::slotted and not as a child:
  * a child combinator does not cross a slot. */
-::slotted(hp-button) {
+::slotted(hp-button), ::slotted(hp-activity-button) {
     flex: 1;
 }
 
@@ -401,4 +406,167 @@
     height: 100%;
     background: linear-gradient(to bottom, #2b8fe0, #2071bb);
     transition: width 160ms ease-out;
+}
+
+/* §12 Swipe to delete ------------------------------------------------------ */
+
+:host(hp-swipe-row) {
+    display: block;
+}
+
+.hp-swipe-row {
+    position: relative;
+    overflow: hidden;
+    touch-action: pan-y;
+}
+
+.hp-swipe-row.open .hp-row {
+    display: none;
+}
+
+.hp-swipe-confirm {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    background: #f0d6d6;
+}
+
+.hp-swipe-confirm .hp-button {
+    min-height: 36px;
+}
+
+/* §13 The app menu --------------------------------------------------------- */
+
+:host(hp-app-menu) {
+    display: block;
+}
+
+.hp-menu-shade {
+    position: fixed;
+    inset: 0;
+    z-index: 20;
+}
+
+.hp-menu {
+    position: absolute;
+    top: 0;
+    left: 0;
+    min-width: 220px;
+    padding: 4px 0;
+    background: linear-gradient(to bottom, #4b4b4b, #333);
+    border: 1px solid #000;
+    border-radius: 0 0 8px 0;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.5);
+}
+
+.hp-menu-item {
+    display: block;
+    width: 100%;
+    padding: 12px 18px;
+    font-family: inherit;
+    font-size: 16px;
+    text-align: left;
+    color: #fff;
+    background: none;
+    border: 0;
+}
+
+.hp-menu-item:active {
+    background: #2071bb;
+}
+
+.hp-menu-item[disabled] {
+    opacity: 0.4;
+}
+
+/* §14 A button that is working --------------------------------------------- */
+
+:host(hp-activity-button) {
+    display: block;
+}
+
+.hp-button-spinner {
+    display: inline-block;
+    width: 16px;
+    height: 16px;
+    margin-right: 8px;
+    vertical-align: -3px;
+    border: 2px solid rgba(255, 255, 255, 0.35);
+    border-top-color: #fff;
+    border-radius: 50%;
+    animation: hp-spin 900ms linear infinite;
+}
+
+/* §15 One of a few --------------------------------------------------------- */
+
+:host(hp-choice) {
+    display: block;
+}
+
+.hp-choice {
+    display: flex;
+    flex: none;
+    border: 1px solid rgba(0, 0, 0, 0.4);
+    border-radius: 6px;
+    overflow: hidden;
+}
+
+.hp-choice-one {
+    padding: 8px 14px;
+    font-family: inherit;
+    font-size: 14px;
+    color: #fff;
+    background: linear-gradient(to bottom, #5f5f5f, #3f3f3f);
+    border: 0;
+    border-left: 1px solid rgba(0, 0, 0, 0.4);
+}
+
+.hp-choice-one:first-child {
+    border-left: 0;
+}
+
+.hp-choice-one.chosen {
+    background: linear-gradient(to bottom, #2b8fe0, #2071bb);
+}
+
+/* §16 Sliders -------------------------------------------------------------- */
+
+:host(hp-slider) {
+    display: block;
+    flex: 1;
+}
+
+.hp-slider {
+    padding: 14px 12px;
+    touch-action: none;
+}
+
+.hp-slider.disabled {
+    opacity: 0.4;
+}
+
+.hp-slider-bar {
+    position: relative;
+    height: 10px;
+    border-radius: 5px;
+    background: #d8d8d8;
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+.hp-slider-filled {
+    height: 100%;
+    border-radius: 5px 0 0 5px;
+    background: linear-gradient(to bottom, #2b8fe0, #2071bb);
+}
+
+.hp-slider-knob {
+    position: absolute;
+    top: 50%;
+    width: 26px;
+    height: 26px;
+    margin: -13px 0 0 -13px;
+    border-radius: 50%;
+    background: linear-gradient(to bottom, #fdfdfd, #d8d8d8);
+    border: 1px solid rgba(0, 0, 0, 0.4);
 }
