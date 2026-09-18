@@ -99,7 +99,7 @@ const addStep = (fields: ProfileFields, data: VpnData, service: VpnService) => h
     <div class="wos-group">
         <div class="wos-group-title">${t("VPN Server")}</div>
         <div class="wos-list">
-            <wos-field label="" value=${fields.remote}
+            <wos-field label="" value=${fields.remote} type="url"
                 placeholder=${t("Enter hostname or IP address")}
                 @change=${(e: CustomEvent<{ value: string }>) =>
                     service.onAddField({ remote: e.detail.value })}

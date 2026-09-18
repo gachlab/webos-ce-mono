@@ -43,6 +43,7 @@
     --wos-list-under-caption-top: 0;
     --wos-list-under-caption-radius: 0;
     --wos-list-under-caption-margin: -12px;
+    --wos-list-under-caption-overflow: visible;
 
     /* Item.css: two translucent hairlines, white over black. */
     --wos-row-line-top: rgba(255, 255, 255, 0.5);
