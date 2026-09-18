@@ -9,7 +9,7 @@
 #
 # So one call exercises the whole stack: the hub's activation, the namespace,
 # run-js-service and bootstrap-node.js, mojoloader and the frameworks, the
-# service's own assistant, and components/node-v8-shim underneath all of it --
+# service's own assistant, and adapters/node-v8-shim underneath all of it --
 # with none of HP's JavaScript changed.
 #
 # Needs the bus and the static services up (tools/run-lunasysmgr.sh bus, then

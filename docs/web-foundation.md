@@ -14,8 +14,8 @@ UI**, and the UI holds no business logic.
 
 | | |
 |---|---|
-| Logic | `components/cards/src/lib` — services as factory functions with their own state, and one callback to subscribe to it |
-| UI | `components/cards/src/ui` — custom elements written as functions, one stylesheet, one card entry point per app |
+| Logic | `sdk/webos-api` — services as factory functions with their own state, and one callback to subscribe to it |
+| UI | `sdk/ui-kit` — custom elements written as functions, one stylesheet, one card entry point per app |
 
 ### Why not a framework
 
@@ -65,19 +65,41 @@ it pushed.
 
 ## How a card is put together
 
+Three packages, not three directories: npm workspaces, so an app reaches the
+platform and the kit **by name**, and the layering is resolution rather than
+discipline.
+
 ```
-components/cards/
-  src/lib/helpers/      create-state, timers, watch
-  src/lib/services/     navigation, and one service per screen
-  src/lib/infra/luna/   the bus: the port, the PalmServiceBridge adapter, a
-                        fake, and one file per webOS service, typed
-  src/ui/element.ts     defineElement: functions in, custom elements out
-  src/ui/start-card.ts  how a card starts: styles, first frame, its own life
-  src/ui/kit/           HP's controls (16 of them; the rest is #58)
-  src/ui/kit.css        the controls' look; every element adopts this one sheet
-  src/ui/page.css       the page a card lives on, and the text it writes
-  src/cards/<app id>/   index.html, appinfo.json, main.ts -- where it is wired up
+sdk/webos-api/            @webos/api -- no DOM. Nothing here knows there is a screen.
+  src/helpers/            create-state, timers, watch
+  src/services/           navigation: which screen the card is showing
+  src/infra/luna/         the bus: the port, the PalmServiceBridge adapter, a
+                          fake, and one file per webOS service, typed
+  src/infra/app/          the card's own life, on window.Mojo and PalmSystem
+
+sdk/ui-kit/               @webos/ui-kit -- depends on @webos/api, never the reverse
+  src/element.ts          defineElement: functions in, custom elements out
+  src/start-card.ts       how a card starts: styles, first frame, its own life
+  src/kit/                HP's controls (16 of them; the rest is #58)
+  src/kit.css             the controls' look; every element adopts this one sheet
+  src/page.css            the page a card lives on, and the text it writes
+  src/theme-*.css         the same 69 token names, twice
+  showcase/               every control in every state -- an app, and the kit's
+                          documentation, which is why it lives in here
+
+apps/<name>/              one package per app
+  src/main.ts             where the service and the view are wired up
+  src/<screen>.service.ts one screen, one state machine
+  src/luna/<service>.ts   a webOS service only this app talks to
+  src/appinfo.json        the id; the directory name is not the id
+  test/                   the service, with a fake bus
 ```
+
+* **The direction of the dependency is enforced, not agreed.** `@webos/api`
+  must not mention the kit; `tools/test-web.sh` fails if it does. Workspaces put
+  every package in `node_modules`, so node would resolve a wrong import happily
+  -- that check is what says no. Without it, "a card can be written in something
+  that is not our kit" would be a claim rather than a fact (#65).
 
 * **State names are the contract**: `"template:loading"`, `"template:ready"`,
   `"template:failed"`. The UI switches on them; tests assert the sequence.
@@ -146,7 +168,7 @@ links neither has no colours at all, and `tests/template-card.cpp` fails on it.
 
 ### The other side of the A/B
 
-`components/kit-enyo` is the same kit built out of enyo 1.0 and the Onyx theme,
+`apps/reference/kit-enyo` is the same kit built out of enyo 1.0 and the Onyx theme,
 installed as `com.gachlab.app.kitenyo`. It is not a card anybody uses: it is the
 reference. Same controls, same order, same captions as `com.gachlab.app.kit`, so
 the two can be photographed at the same scroll offset and compared pixel by
@@ -181,8 +203,8 @@ three above are ever reached through a card's own code.
   (one `main.js`, the page, the stylesheet, `appinfo.json`);
   `tools/assemble-rootfs.sh` installs those as web apps. `tools/build.sh cards`
   is the stage that runs it, so CI builds them too.
-* `components/cards/test/run.sh` type-checks with TypeScript 7 and runs the
-  library's tests on `node --test` -- no browser, no bus.
+* `tools/test-web.sh` type-checks with TypeScript 7 and runs the
+  SDK's tests on `node --test` -- no browser, no bus.
 * `tests/template-card.cpp` runs the built card in the engine WebAppMgr uses,
   against a fake `PalmServiceBridge`: it asks the bus, draws HP's rows, says so
   when a service is not running, and asks again when the user presses.

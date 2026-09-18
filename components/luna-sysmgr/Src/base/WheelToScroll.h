@@ -30,7 +30,7 @@ class QWidget;
 // arrives at the shell's viewport, QGraphicsView finds nobody who wants it, and
 // it is dropped. This filter takes it there and sends the active card a scroll
 // event through the range HP reserved for events he did not define, packed by
-// components/input-compat.
+// adapters/input-compat.
 //
 // Installed exactly like MouseEventEater, from Main.cpp, and for the same
 // reason it watches one widget: the filter goes on the QCoreApplication, so

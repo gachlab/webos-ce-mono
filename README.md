@@ -31,7 +31,7 @@ sqlite3, openssl, libxml2 and boost.
 is not built: it needs Python 2 and SCons. The official node LTS is used instead,
 at the version and SHA-256 in `tools/node-version` -- **24.21.0** today, moving
 to 26 when that becomes LTS. HP's three addons are built from their original
-sources against `components/node-v8-shim`, which implements node 0.4's V8 API on
+sources against `adapters/node-v8-shim`, which implements node 0.4's V8 API on
 N-API, so a new node does not mean rebuilding them for a new ABI.
 
 Fetching it is the one step that needs the network, in the same place as
@@ -128,8 +128,29 @@ distribution instead, which is the whole reason they are cheap.
 
 ## Layout
 
-- `components/` — HP's sources, vendored with `git subtree --squash`. Each
-  carries the source repo and sha in its import commit.
+Each directory at the root says what kind of thing is inside it, so that the
+most important distinction in the tree — HP's code, which we patch, against our
+own, which we rewrite — is visible before opening anything.
+
+- `components/` — **HP's sources**, vendored with `git subtree --squash`. Each
+  carries the source repo and sha in its import commit. This is exactly the 55
+  of `MANIFEST.tsv` and nothing else; `tests/repo-layout.sh` fails if anything
+  of ours drifts back in.
+- `adapters/` — **ours**, so HP's code runs here: `qt6-compat` for what Qt 6
+  removed, `qtwebkit-compat` for the QtWebKit API WebAppMgr is written against,
+  `input-compat`, `node-v8-shim`, `build-support-ce`, `enyo-lib-networkproxy`.
+  Nothing here is a product; each one exists because something of HP's expects
+  an API that is gone.
+- `services/` — **ours**, because HP never released them: `nm-connectionmanager`,
+  `storaged`, `sysfs-powerd`, and `node-services` (the JavaScript services
+  rewritten in TypeScript).
+- `sdk/` — what an app is written against: `webos-api` (the bus, the app's own
+  life, translation — no DOM) and `ui-kit` (the controls, the stylesheets, the
+  two themes, and the showcase).
+- `apps/` — applications. `wifi/` and `app-template/` on the SDK;
+  `reference/` holds the enyo originals they are measured against, which are
+  ours too and are kept for exactly that.
+- `reference/` — HP's, read and never built. See its README.
 - `patches/` — one build-time helper script. It used to hold portability
   patches; they have all been absorbed into the components themselves, where
   `git diff hp-original` shows them in context instead of as a pile of diffs.
@@ -148,7 +169,7 @@ distribution instead, which is the whole reason they are cheap.
 
 - `components/luna-sysmgr/` — **Open webOS**'s (`openwebos/luna-sysmgr`). This
   is the reference implementation and the one all work happens on.
-- `components/luna-sysmgr-ce/` — the **TouchPad's CE 3.0.5**
+- `reference/luna-sysmgr-ce/` — the **TouchPad's CE 3.0.5**
   (`woce/LunaSysMgr` at the "Push from tarball" commit). Kept for reference
   only; it is not built and will not be ported.
 
@@ -180,7 +201,7 @@ removed, `qtwebkit-compat` for the QtWebKit API WebAppMgr is written against
 Working: the lock screen, the launcher, the dock, keyboard input, taps and
 drag-to-scroll, scrolling with a wheel or a trackpad — in the browser and in
 HP's own enyo lists — and a pointer that hovers, neither of which webOS itself
-had, so both are carried across HP's IPC by `components/input-compat` without
+had, so both are carried across HP's IPC by `adapters/input-compat` without
 changing it, apps opening as cards, db8 with its schemas loaded, HP's
 services up alongside it (`mojodb-luna`, `LunaSysService`, `filecache`,
 `activitymanager`, `LunaUniversalSearchMgr`, `mojomail`), the base apps
@@ -203,12 +224,12 @@ the real percentage and the charging state follows the cable, systemui's
 "Charging Battery" banner appears on plug-in, and webOS's own Power Off and
 Restart end or restart the session without touching the machine. On a device
 that was powerd; nothing in the CE drop provides `com.palm.power`, so
-`components/sysfs-powerd` answers it.
+`services/sysfs-powerd` answers it.
 
 **The network state is real**, from NetworkManager over D-Bus. What the CE drop
 ships is `pmnetconfigmanager-stub`, which answers `com.palm.connectionmanager`
 with a constant -- connected, over wifi, on "Open webOS", always -- so every app
-believed it was online whatever the machine was doing. `components/nm-connectionmanager`
+believed it was online whatever the machine was doing. `services/nm-connectionmanager`
 answers that name for real: the wifi's name, address and signal, whether the
 cable is in, and a captive portal reported as one rather than as the internet.
 The four subscribers HP wrote -- the status bar, luna-sysservice, BrowserServer
@@ -228,11 +249,11 @@ Ubuntu 12.04 build, and so are not this port's doing.
 Still to do, in order:
 
 - ~~**The node addons** (`sysbus`, `pmlog`, `dynaload`)~~: done, unmodified,
-  through `components/node-v8-shim` on node 26. HP's JavaScript services start
+  through `adapters/node-v8-shim` on node 26. HP's JavaScript services start
   on demand, which is what lets apps have background services.
 - ~~**Qt 6**~~: done, and the only build there is. What Qt 6 removed comes back
-  through `components/qt6-compat`; the QtWebKit API WebAppMgr is written against
-  comes back through `components/qtwebkit-compat`, on QtWebEngine.
+  through `adapters/qt6-compat`; the QtWebKit API WebAppMgr is written against
+  comes back through `adapters/qtwebkit-compat`, on QtWebEngine.
 - ~~**The browser**~~: done, and not the way HP did it. `BrowserServer` and the
   NPAPI `BrowserAdapter` (~29k lines) are replaced by a `QWebPage::embedPage`
   that paints one page inside another, plus `BrowserViewAdapter` speaking to

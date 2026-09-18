@@ -2,7 +2,7 @@
 # HP's node 0.4 addons must load and work in a modern node, unmodified.
 #
 # The point is not that pmloglib works -- it is 104 lines. The point is that its
-# source was not touched: every V8 call in it goes through components/node-v8-shim,
+# source was not touched: every V8 call in it goes through adapters/node-v8-shim,
 # so the same shim carries sysbus (2660 lines) and dynaload without those being
 # rewritten either.
 #
@@ -33,7 +33,7 @@ PY
 cat > "$BUILD/CMakeLists.txt" <<'CMAKE'
 cmake_minimum_required(VERSION 3.16)
 project(node-shim-test CXX)
-add_subdirectory(@ROOT@/components/node-v8-shim shim)
+add_subdirectory(@ROOT@/adapters/node-v8-shim shim)
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(GLIB REQUIRED glib-2.0)
 

@@ -45,13 +45,13 @@ foreach (t touch-in eater-synthesis home-gesture wheel-in filter-order)
     add_test(NAME ${t} COMMAND ${t} -platform offscreen)
 endforeach ()
 
-# --- the wheel crossing HP's IPC, packed by components/input-compat ----------
+# --- the wheel crossing HP's IPC, packed by adapters/input-compat ----------
 # No Qt at all: what is under test is the agreement between the two processes
 # about which of SysMgrEvent's fields carry a scroll, and that the type chosen
 # out of HP's reserved range trips none of his own event tests.
 add_executable(wheel-pack wheel-pack.cpp)
 target_include_directories(wheel-pack PRIVATE
-    "${CMAKE_CURRENT_SOURCE_DIR}/../components/input-compat/include"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../adapters/input-compat/include"
     "${WEBOS_STAGING}/usr/include/sysmgr-ipc")
 add_test(NAME wheel-pack COMMAND wheel-pack)
 
@@ -59,7 +59,7 @@ add_test(NAME wheel-pack COMMAND wheel-pack)
 # other: both ride in HP's reserved User range off the same union.
 add_executable(hover-pack hover-pack.cpp)
 target_include_directories(hover-pack PRIVATE
-    "${CMAKE_CURRENT_SOURCE_DIR}/../components/input-compat/include"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../adapters/input-compat/include"
     "${WEBOS_STAGING}/usr/include/sysmgr-ipc")
 add_test(NAME hover-pack COMMAND hover-pack)
 
@@ -71,7 +71,7 @@ add_test(NAME hover-pack COMMAND hover-pack)
 # refusing to translate anything else: this runs on every key a card receives.
 add_executable(key-translate key-translate.cpp)
 target_include_directories(key-translate PRIVATE
-    "${CMAKE_CURRENT_SOURCE_DIR}/../components/input-compat/include")
+    "${CMAKE_CURRENT_SOURCE_DIR}/../adapters/input-compat/include")
 target_link_libraries(key-translate PRIVATE Qt::Core)
 add_test(NAME key-translate COMMAND key-translate)
 
@@ -103,7 +103,7 @@ add_test(NAME strip-drag COMMAND strip-drag)
 # as a wrong number. The fields are checked as strings for that reason.
 add_executable(power-state power-state.cpp)
 target_include_directories(power-state PRIVATE
-    "${CMAKE_CURRENT_SOURCE_DIR}/../components/sysfs-powerd/src")
+    "${CMAKE_CURRENT_SOURCE_DIR}/../services/sysfs-powerd/src")
 add_test(NAME power-state COMMAND power-state)
 
 # --- what com.palm.connectionmanager reports, from a fake NetworkManager -------
@@ -114,14 +114,14 @@ add_test(NAME power-state COMMAND power-state)
 # absence segfaults the shell instead of showing a wrong icon.
 add_executable(network-state network-state.cpp)
 target_include_directories(network-state PRIVATE
-    "${CMAKE_CURRENT_SOURCE_DIR}/../components/nm-connectionmanager/src")
+    "${CMAKE_CURRENT_SOURCE_DIR}/../services/nm-connectionmanager/src")
 add_test(NAME network-state COMMAND network-state)
 
 # --- what is read from NetworkManager, and what is asked of it ----------------
 # The other half: nm_client.cpp against a fake NetworkManager on a private bus,
 # started by GTestDBus -- so it needs dbus-daemon, and not the host's network.
 pkg_check_modules(GIO REQUIRED gio-2.0)
-set(CONNMGR "${CMAKE_CURRENT_SOURCE_DIR}/../components/nm-connectionmanager/src")
+set(CONNMGR "${CMAKE_CURRENT_SOURCE_DIR}/../services/nm-connectionmanager/src")
 add_executable(nm-client nm-client.cpp ${CONNMGR}/nm_client.cpp ${CONNMGR}/sleep_watch.cpp)
 target_include_directories(nm-client PRIVATE ${CONNMGR} ${GIO_INCLUDE_DIRS})
 target_link_libraries(nm-client PRIVATE ${GIO_LIBRARIES})
@@ -230,11 +230,15 @@ target_link_libraries(qml-graphics-slot PRIVATE
     Qt::Core Qt::Gui Qt::Widgets Qt::Qml Qt::Quick Qt::GuiPrivate Qt::Test ${GLIB_LIBRARIES})
 add_test(NAME qml-graphics-slot COMMAND qml-graphics-slot -platform offscreen)
 
-# --- the cards: the library, and the template card in the engine -------------
-# The library needs neither bus nor browser; the card runs the built bundle the
+# --- the cards: the SDK, and the template card in the engine -----------------
+# The SDK needs neither bus nor browser; the card runs the built bundle the
 # way WebAppMgr loads it, against a fake PalmServiceBridge.
-add_test(NAME cards-lib COMMAND "${CMAKE_CURRENT_SOURCE_DIR}/../components/cards/test/run.sh")
-set_tests_properties(cards-lib PROPERTIES SKIP_RETURN_CODE 77)
+add_test(NAME web-sdk COMMAND "${CMAKE_CURRENT_SOURCE_DIR}/../tools/test-web.sh")
+set_tests_properties(web-sdk PROPERTIES SKIP_RETURN_CODE 77)
+
+# And the shape of the tree itself: components/ is HP's and nothing else.
+add_test(NAME repo-layout COMMAND "${CMAKE_CURRENT_SOURCE_DIR}/repo-layout.sh")
+set_tests_properties(repo-layout PROPERTIES SKIP_RETURN_CODE 77)
 
 add_executable(kit-elements kit-elements.cpp)
 target_link_libraries(kit-elements PRIVATE qtwebkit-compat-lib)
@@ -251,7 +255,7 @@ set_tests_properties(template-card PROPERTIES
     ENVIRONMENT "QT_QPA_PLATFORM=offscreen;WEBOS_CARDS_BUILD=${CMAKE_CURRENT_SOURCE_DIR}/../build/cards")
 
 # --- storaged: what an erase erases, and what it must never touch ------------
-set(STORAGED "${CMAKE_CURRENT_SOURCE_DIR}/../components/storaged")
+set(STORAGED "${CMAKE_CURRENT_SOURCE_DIR}/../services/storaged")
 add_executable(storaged-erase storaged-erase.cpp ${STORAGED}/src/erase.cpp)
 target_include_directories(storaged-erase PRIVATE ${STORAGED}/src ${CJSON_INCLUDE_DIRS}
     "${WEBOS_STAGING}/include")
@@ -280,7 +284,7 @@ set_tests_properties(webengine-capabilities PROPERTIES
     ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
 
 # QtWebKit's API as WebAppMgr uses it, on QtWebEngine.
-add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/../components/qtwebkit-compat"
+add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/../adapters/qtwebkit-compat"
                  "${CMAKE_CURRENT_BINARY_DIR}/qtwebkit-compat-lib")
 add_executable(qtwebkit-compat qtwebkit-compat.cpp)
 target_link_libraries(qtwebkit-compat PRIVATE qtwebkit-compat-lib)
@@ -481,10 +485,10 @@ add_test(NAME long-process-name
 add_test(NAME node-shim COMMAND "${CMAKE_CURRENT_SOURCE_DIR}/node-shim/run.sh")
 
 # --- services in modern TypeScript --------------------------------------------
-# components/node-services: type check, then the kit's tests, twice over for the
+# services/node-services: type check, then the kit's tests, twice over for the
 # bus (an in-memory palmbus and a real ls-hubd) and once for db8. The script
 # gives the run a /tmp of its own, since the hub's sockets live there.
-add_test(NAME node-services COMMAND "${CMAKE_CURRENT_SOURCE_DIR}/../components/node-services/test/run.sh")
+add_test(NAME node-services COMMAND "${CMAKE_CURRENT_SOURCE_DIR}/../services/node-services/test/run.sh")
 set_tests_properties(node-services PROPERTIES SKIP_RETURN_CODE 77)
 
 # --- one webOS session at a time ---------------------------------------------

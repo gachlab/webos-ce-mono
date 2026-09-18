@@ -19,7 +19,7 @@ How it was done: build against Qt 6, inventory every error with `make -k`, and
 fix each where it can be fixed without touching HP's code. The Qt 5 build stayed
 alongside until the apps ran on Qt 6, and was then dropped.
 
-- **WebAppMgr's QtWebKit** (`components/qtwebkit-compat`): the QtWebKit classes it
+- **WebAppMgr's QtWebKit** (`adapters/qtwebkit-compat`): the QtWebKit classes it
   uses, over QtWebEngine, without changing WebAppMgr's web code. Pages render
   offscreen and are grabbed; input goes to the view's focus proxy; objects added
   with `addToJavaScriptWindowObject` become JavaScript proxies whose properties
@@ -29,7 +29,7 @@ alongside until the apps ran on Qt 6, and was then dropped.
   `tests/webengine-capabilities` checks each QtWebEngine
   capability this relies on, and `tests/qtwebkit-compat` drives the layer the way
   SysMgrWebBridge does.
-- **Adapters** (`components/qt6-compat`, only compiled for Qt 6): the `QGL*`
+- **Adapters** (`adapters/qt6-compat`, only compiled for Qt 6): the `QGL*`
   classes over `QOpenGL*`, and a forced include that brings back `qrand`,
   `qSort`, `qFind`, `qVariantFromValue` and `qRegisterMetaTypeStreamOperators`
   and includes `<QObject>`, which Qt 5's headers pulled in for HP's.
@@ -105,7 +105,7 @@ Traps found on the way, each confirmed before being fixed:
   owner is reached and every other frame's `emit` finds nothing and stops.
   `tests/subframe-signal` fails without it.
 - **~~Nothing scrolls a page by wheel, anywhere, because webOS had no wheel~~**
-  (fixed, in `components/input-compat` and the two files beside it).
+  (fixed, in `adapters/input-compat` and the two files beside it).
   `Event::Type` (`luna-sysmgr-ipc-messages/.../SysMgrEvent.h`, reached through
   `luna-sysmgr-common/include/Event.h`) is `Key*`, `Pen*`, `Gesture*` and the
   sensors -- there is no scroll or wheel member, and `QEvent::Wheel`,
@@ -234,7 +234,7 @@ the engine knew where the pointer was and was never told that it moved.
 
 Carried now the same way as the wheel, through the range `Event::Type` reserves
 as `User` and fields of the union a hover never fills
-(`components/input-compat/include/webos_hover.h`), picked up by
+(`adapters/input-compat/include/webos_hover.h`), picked up by
 `Src/base/HoverToMouseMove.cpp` and handed to the page as a buttonless
 `QMouseEvent(MouseMove)` by `Src/webbase/HoverDelivery.cpp`.
 
@@ -496,7 +496,7 @@ a synthesised event inside WebAppMgr.
   corrupted -- the handler's own `listAccounts` check is what keeps it from
   creating a second account -- but the exception is noise and configurator's
   upstart job used to `start on first-use-profile-created`. It is restored in
-  `components/node-v8-shim/js/webos-node-compat.js`, which every JS service
+  `adapters/node-v8-shim/js/webos-node-compat.js`, which every JS service
   already loads through `NODE_OPTIONS=--require`, rather than by editing HP's
   handler. A sweep for the rest of that family (`require('sys')`, `util.print`,
   `new Buffer(`, `path.exists`) turns up nothing else outside the tests.
@@ -539,7 +539,7 @@ a synthesised event inside WebAppMgr.
   brush does scale with the item transform) -- each of those was measured and
   ruled out before the border turned up.
 
-  `components/qtwebkit-compat` now injects a script at document creation that
+  `adapters/qtwebkit-compat` now injects a script at document creation that
   walks the stylesheets and gives `border-style: solid; border-color: transparent`
   to every rule carrying a border image and no style of its own. A rule that
   declares its own `border-style` is left alone. `tests/border-image-box`
@@ -668,7 +668,7 @@ a synthesised event inside WebAppMgr.
   of them `addEventListener` -- and `enyo.Pane` treats a transition as still in
   flight until that handler runs. `Pane.flow()` applies `display: none` only to a
   view that is neither the current one nor transitioning, so a pane that switches
-  views never hides the one it left. `components/qtwebkit-compat` now registers a
+  views never hides the one it left. `adapters/qtwebkit-compat` now registers a
   prefixed listener under the modern name as well, covering transition and
   animation events; `tests/prefixed-transition-event` checks it and fails when
   the injection is removed.
@@ -738,7 +738,7 @@ escaping the timer callback (zero `Runtime.exceptionThrown` in 45 s across every
 page), a blocking bridge call inside the callback (211 synchronous bridge calls,
 1-6 ms each, none stalling), and two overlapping fades sharing `this.handle`.
 
-The fix is in `components/qtwebkit-compat`: hand the prefixed canceller back, so
+The fix is in `adapters/qtwebkit-compat`: hand the prefixed canceller back, so
 HP's `||` finds it and cancels frames instead of timers. enyo is untouched.
 `tests/frame-cancel` covers it, and mutation-verified: with the shim removed,
 "cancelling a frame leaves a plain timer alone" fails.
@@ -827,7 +827,7 @@ through `rootItem()`.
 `SystemMenu.qml`'s `ReferenceError: inProgress is not defined` was a typo for
 `airplaneModeInProgress`, fixed along with `MenuContainer.qml`'s, and
 `tests/qml-functions-qt5` catches both. The 34 files in
-`components/luna-sysmgr-ce/` still carry the QML 1 import; that tree is kept for
+`reference/luna-sysmgr-ce/` still carry the QML 1 import; that tree is kept for
 reference and not built.
 
 ### ~~Calendar and email open empty~~ (the JavaScript services run, on demand)
@@ -844,7 +844,7 @@ with LunaSysMgr and WebAppMgr up and nothing started by hand:
 
 That is `tests/node-shim/service.sh`, which needs the bus and the static services
 up and so is run by hand. Underneath: HP's JavaScript unchanged, on node 26,
-through `components/node-v8-shim`.
+through `adapters/node-v8-shim`.
 
 What had to be true for that, each of which was broken:
 
@@ -924,7 +924,7 @@ method answering "is not running" on `-P` is by design. db8 answering -3963
   addon mapped into it. Whatever triggers it is specific: 13 open sockets
   against 9.
 
-  The cause is ours, in `components/node-v8-shim`. gdb on the spinning process
+  The cause is ours, in `adapters/node-v8-shim`. gdb on the spinning process
   catches the main thread at
 
       ev_io_start -> prepare_cb -> PrepareBridge -> uv__run_prepare -> uv_run
@@ -1181,7 +1181,7 @@ an ordinary, immediate JavaScript expression. QtWebEngine has no equivalent: the
 page lives in another process, and everything it can be told is asynchronous. So
 the old contract is kept by blocking.
 
-**The mechanism**, in two halves of `components/qtwebkit-compat/src/qtwebkit_compat.cpp`:
+**The mechanism**, in two halves of `adapters/qtwebkit-compat/src/qtwebkit_compat.cpp`:
 
 The injected side (`kBridgeCore`, line 325) builds a proxy per published object
 from its metadata and turns every access into one blocking request:
@@ -1247,7 +1247,7 @@ in HP's app, not in the path.
 
 **The path, measured end to end.** The strip posts `Key_CoreNavi_Back`, which in
 `SysMgrDeviceKeydefs.h` is that catalogue's `Key_Escape` (`0x1B`).
-`components/input-compat` turns it into Qt's `Key_Escape` (`0x01000000`), which
+`adapters/input-compat` turns it into Qt's `Key_Escape` (`0x01000000`), which
 is the only value Chromium turns into DOM `keyCode` 27, and the shim's
 `sendKeyToHostPage` addresses it to the app's own document rather than to
 whichever page was last clicked. With a listener on every document and the

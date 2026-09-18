@@ -1,0 +1,9 @@
+{
+  "name": "@webos/api",
+  "private": true,
+  "description": "What an app is written against: the bus, its own lifecycle, launch params and translation. No DOM, no look -- nothing here knows there is a screen.",
+  "type": "module",
+  "exports": {
+    "./*": "./src/*"
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "name": "@webos/ui-kit",
+  "private": true,
+  "description": "The system's look: the controls as custom elements, the stylesheets, and the two themes. Depends on @webos/api; nothing in @webos/api depends on this.",
+  "type": "module",
+  "exports": {
+    "./*": "./src/*"
+  },
+  "dependencies": {
+    "@webos/api": "*",
+    "lit-html": "*"
+  }
+}

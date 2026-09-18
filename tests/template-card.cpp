@@ -1,6 +1,6 @@
 // The template card, in the engine that runs it.
 //
-// The library's own tests (components/cards/test) need no browser. This one is
+// The library's own tests (the SDK's own tests) need no browser. This one is
 // the other half: the card as WebAppMgr loads it -- the built bundle, the
 // custom elements, HP's stylesheet -- against a PalmServiceBridge that answers
 // the way com.palm.deviceprofile does, and then the way a service that is not

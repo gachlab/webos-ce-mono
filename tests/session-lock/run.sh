@@ -94,7 +94,7 @@ else
     echo
     echo "a start with nothing else running"
     "$RM" -f "$T/teardown.calls" "$T/launch.calls"
-    # A service from components/node-services, as teardown sees one: the
+    # A service from services/node-services, as teardown sees one: the
     # rootfs's node running a script under /usr/palm/node-services. bash stands
     # in for node, waiting on a fifo so it stays itself (a sleep would be a
     # different executable).

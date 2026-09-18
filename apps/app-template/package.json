@@ -1,0 +1,10 @@
+{
+  "name": "@webos/app-template",
+  "private": true,
+  "description": "The card an app is started from: it asks the bus, shows what came back, fails out loud and offers the way back.",
+  "type": "module",
+  "dependencies": {
+    "@webos/api": "*",
+    "@webos/ui-kit": "*"
+  }
+}

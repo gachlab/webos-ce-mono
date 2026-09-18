@@ -101,8 +101,8 @@ target_link_libraries(LunaSysMgrCommon PUBLIC
     ${SQLITE_LDFLAGS}
 )
 
-# The adapters for what Qt 6 removed (components/qt6-compat).
-add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../qt6-compat ${CMAKE_CURRENT_BINARY_DIR}/qt6-compat)
+# The adapters for what Qt 6 removed (adapters/qt6-compat).
+add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../../adapters/qt6-compat ${CMAKE_CURRENT_BINARY_DIR}/qt6-compat)
 target_link_libraries(LunaSysMgrCommon PRIVATE qt6compat)
 
 # qmake gives Qt libraries a version by default: libLunaSysMgrCommon.so.1.0.0

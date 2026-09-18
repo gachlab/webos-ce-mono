@@ -44,7 +44,7 @@ honours it.
 ### The three node addon components are load-bearing
 
 Easy to get wrong, and worth stating plainly: what is skipped is **HP's
-CMakeLists for each of them**, not their code. `components/node-v8-shim/addons`
+CMakeLists for each of them**, not their code. `adapters/node-v8-shim/addons`
 compiles their sources directly:
 
     ${COMPONENTS}/nodejs-module-webos-pmlog/src/pmloglib.cpp
@@ -63,7 +63,7 @@ Fifteen are installed into the rootfs by `tools/assemble-rootfs.sh`:
 
 `pmnetconfigmanager-stub` used to be on that list and no longer is. It answers
 `com.palm.connectionmanager/getStatus` with a constant -- connected, over wifi,
-on "Open webOS", always -- and `components/nm-connectionmanager` now answers that
+on "Open webOS", always -- and `services/nm-connectionmanager` now answers that
 name from NetworkManager instead. The component stays vendored, because
 MANIFEST.tsv is an inventory of what HP released, but nothing copies it into the
 rootfs.
@@ -127,7 +127,7 @@ used to be an empty file the launcher bind-mounted the host's node onto, so the
 `.deb` depended on the distribution's node and the AppImage used whatever the
 host had, or none.
 
-`components/node-v8-shim` implements node 0.4's V8 API on **N-API**, which is
+`adapters/node-v8-shim` implements node 0.4's V8 API on **N-API**, which is
 ABI-stable. MEASURED: the built addons import only `napi_*` (and `uv_*`) symbols,
 none from `v8::` or `node::`, and load under both node 24 and 26 -- so moving the
 pin to a newer LTS does not mean rebuilding them for a new ABI.

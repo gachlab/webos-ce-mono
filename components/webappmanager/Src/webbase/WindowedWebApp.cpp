@@ -412,7 +412,7 @@ void WindowedWebApp::inputEvent(sptr<Event> e)
 
     // A scroll wheel. HP's catalogue has no member for one, so it travels in
     // the range Event::Type reserves for events he did not define and is
-    // unpacked by components/input-compat; everything it means on this side is
+    // unpacked by adapters/input-compat; everything it means on this side is
     // in WheelDelivery.
     if (WebosWheel::isScroll(*evt)) {
         WheelDelivery::deliver(bridge, *evt);
@@ -757,7 +757,7 @@ void WindowedWebApp::onKeyEvent(const SysMgrKeyEvent& e)
     // does not know, so Chromium gives the DOM keyCode 0 -- measured in the
     // running browser -- and enyo's Gesture.js, which tests keyCode == 27 and
     // nothing else, never synthesises the "back" event. Which Qt key each
-    // webOS code means is in components/input-compat; this only applies it.
+    // webOS code means is in adapters/input-compat; this only applies it.
     const WebosKeys::QtKey qtKey = WebosKeys::toQtKey(ev.key());
     if (qtKey.isTranslated()) {
         QKeyEvent translated(ev.type(), qtKey.key, ev.modifiers(),

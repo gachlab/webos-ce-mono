@@ -74,7 +74,7 @@ What it uses heavily is still alive in Qt6: `QGraphicsView`/`QGraphicsScene`
 *Since settled:* the tree builds and runs on **Qt 6.10**, and there is no Qt 5
 path left. The QML1 blocker was real and is closed: the `.qml` files were moved
 to QtQuick 2 and the pieces Qt 6 removed come back through
-`components/qt6-compat`. Measured against the `hp-original` tag, the whole of
+`adapters/qt6-compat`. Measured against the `hp-original` tag, the whole of
 HP's code took 230 files and +8,111 −433 lines to get there — and 6,740 of
 those lines are in files HP never shipped, so the edits inside his own sources
 are 1,804. See `KNOWN_BUGS.md`.
@@ -92,7 +92,7 @@ engine enables modern-JS apps without touching LunaSysMgr**.
 
 That is no longer a prediction. `BrowserServer` and `BrowserAdapter` are not
 ported at all; QtWebEngine took their place, reached through
-`components/qtwebkit-compat` — and `LunaSysMgr` still includes no WebKit header,
+`adapters/qtwebkit-compat` — and `LunaSysMgr` still includes no WebKit header,
 exactly as the separation promised.
 
 Enyo 1.0 is 2011-era ES5 (verified: 0 arrow functions, 0 `let`, 0 `class`), but

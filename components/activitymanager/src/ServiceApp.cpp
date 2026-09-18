@@ -176,7 +176,7 @@ MojErr ActivityManagerApp::open()
 		// "wifi" or "*Confidence" requirement was skipped with "Unable to find
 		// Manager", so an activity waiting for the network -- the mail sync --
 		// started with or without one. com.palm.connectionmanager is real here
-		// (components/nm-connectionmanager); the system and telephony services
+		// (services/nm-connectionmanager); the system and telephony services
 		// the other two proxies follow are not.
 		boost::shared_ptr<ConnectionManagerProxy> cmp =
 			boost::make_shared<ConnectionManagerProxy>(&m_client);

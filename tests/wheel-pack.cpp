@@ -1,6 +1,6 @@
 // The scroll wheel crossing HP's IPC without changing HP's IPC.
 //
-// components/input-compat carries a wheel in the range Event::Type reserves for
+// adapters/input-compat carries a wheel in the range Event::Type reserves for
 // events HP did not define (User = 0xFF000000), reusing fields of SysMgrEvent's
 // union that a scroll never fills. Two things have to hold for that to be safe,
 // and neither is obvious by reading:

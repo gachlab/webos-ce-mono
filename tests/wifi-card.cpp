@@ -1,6 +1,6 @@
 // The Wi-Fi card, in the engine that runs it.
 //
-// components/cards/test covers what the card decides -- which screen is up,
+// the SDK's own tests covers what the card decides -- which screen is up,
 // when a join can be attempted, what a failure says -- with no browser in
 // sight. This one is the other half: the built bundle, the custom elements and
 // the theme, loaded the way WebAppMgr loads them, against a PalmServiceBridge
