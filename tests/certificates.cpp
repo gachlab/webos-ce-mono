@@ -80,6 +80,25 @@ int main()
           "one with no common name keeps its organization, comma and all");
     check(Certificates::list(d + "/missing").empty(), "a missing directory is an empty store");
 
+    std::printf("add and remove\n");
+    gchar* otherDir = g_dir_make_tmp("certificates-src-XXXXXX", nullptr);
+    const std::string src = std::string(otherDir) + "/new-laptop.pem";
+    write(std::string(otherDir), "new-laptop.pem", kLaptop);
+    NmNet::Certificate added;
+    std::string error;
+    check(Certificates::add(d, src, "", added, error), "add copies a PEM into the store");
+    check(added.certificateId == 3 && added.commonName == "Laptop Wi-Fi",
+          "the new certificate is listed after the two that were already there");
+    check(!Certificates::add(d, src, "secret", added, error)
+          && error.find("encrypted") != std::string::npos,
+          "a passphrase is refused — the store is plaintext PEM");
+    check(Certificates::remove(d, added.certificateId, error), "remove deletes by certificateId");
+    check(Certificates::list(d).size() == 2, "after remove the store is back to two");
+    check(!Certificates::remove(d, 99, error), "an unknown id fails");
+    g_unlink(src.c_str());
+    g_rmdir(otherDir);
+    g_free(otherDir);
+
     std::printf("where it is\n");
     g_setenv("WEBOS_CERTIFICATE_DIR", "/somewhere/certs", TRUE);
     check(Certificates::directory() == "/somewhere/certs", "WEBOS_CERTIFICATE_DIR decides");
