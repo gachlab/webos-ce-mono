@@ -143,27 +143,39 @@
 .wos-button {
     --wos-button-color: var(--wos-button-light);
     --wos-button-ink: var(--wos-button-light-ink);
+    /* enyo centers the caption with text-align + line-height inside a 4px
+     * border-image, not by flex-centering glyph ink (which sits high). */
+    display: block;
+    box-sizing: border-box;
+    width: 100%;
+    min-height: 1.8rem;
+    margin: 0.15rem 0;
+    padding: 4px 8px;
+    font-size: 16px;
+    line-height: 20px;
+    text-align: center;
+    color: var(--wos-button-ink);
+    border-width: var(--wos-button-border-width, 1px);
+    border-style: solid;
+    border-color: var(--wos-button-edge, transparent);
+    border-radius: var(--wos-button-radius);
+    -webkit-border-image: var(--wos-button-border-image, none);
+    border-image: var(--wos-button-border-image, none);
+    background-color: var(--wos-button-color);
+    background-image: var(--wos-button-sheen, none);
+}
+
+/* Only when a spinner is present do we switch to a flex row. */
+.wos-button:has(.wos-button-spinner) {
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 100%;
-    /* enyo's `.enyo-button`: 16px over a 20px line, 4px and 8px of padding,
-     * a 5px radius and 3px of air around it. */
-    min-height: 1.8rem;
-    margin: 0.15rem;
-    padding: 0.2rem 0.4rem;
-    font-size: 0.8rem;
-    line-height: 1rem;
-    color: var(--wos-button-ink);
-    border: 1px solid var(--wos-button-edge);
-    border-radius: var(--wos-button-radius);
-    background: var(--wos-button-sheen) var(--wos-button-color);
 }
 
-/* button-down.png, the same way: the sheen turns into a shadow cast inwards
- * from the top. */
 .wos-button:active {
-    background: var(--wos-button-sheen-down) var(--wos-button-color);
+    -webkit-border-image: var(--wos-button-border-image-down, var(--wos-button-border-image, none));
+    border-image: var(--wos-button-border-image-down, var(--wos-button-border-image, none));
+    background-image: var(--wos-button-sheen-down, none);
 }
 
 .wos-button.dark {
@@ -729,6 +741,12 @@
 /* enyo's ActivityButton keeps its caption in the middle of the button and puts
  * the spinner after it, at the end. */
 .wos-button-label {
+    display: block;
+    line-height: 20px;
+    text-align: center;
+}
+
+.wos-button:has(.wos-button-spinner) .wos-button-label {
     flex: 1;
 }
 

@@ -66,21 +66,14 @@
     /* `fill` paints the toolbar face with the slice, as WebKit did for enyo. */
     --wos-header-light-border-image: url(images/toolbar-light.png) 2 4 fill repeat stretch;
 
-    /* Button.css: one sheen, button-up.png, over whatever the kind is
-     * painted; button-down.png is the same sheen turned into a shadow. */
-    --wos-button-sheen: linear-gradient(to bottom,
-        rgba(247, 247, 247, 0.56) 0, rgba(247, 247, 247, 0.56) 1px,
-        rgba(232, 232, 232, 0.35) 1px,
-        rgba(92, 92, 92, 0.16) calc(100% - 3px),
-        rgba(131, 131, 131, 0.2) calc(100% - 3px),
-        rgba(171, 171, 171, 0.26) calc(100% - 2px),
-        rgba(220, 220, 220, 0.47) calc(100% - 1px));
-    --wos-button-sheen-down: linear-gradient(to bottom,
-        rgba(0, 0, 0, 0.37) 0, rgba(0, 0, 0, 0.37) 1px,
-        rgba(3, 3, 3, 0.3) 1px,
-        rgba(8, 8, 8, 0.07) 85%,
-        rgba(0, 0, 0, 0.17) calc(100% - 1px));
-    --wos-button-edge: rgba(0, 0, 0, 0.25);
+    /* Button.css: button-up.png / button-down.png as the chrome (4px slice).
+     * Kind colours paint underneath; the PNG is only the sheen and lip. */
+    --wos-button-sheen: none;
+    --wos-button-sheen-down: none;
+    --wos-button-border-width: 4px;
+    --wos-button-border-image: url(images/button-up.png) 4 4 fill stretch stretch;
+    --wos-button-border-image-down: url(images/button-down.png) 4 4 fill stretch stretch;
+    --wos-button-edge: transparent;
     --wos-button-radius: 0.25rem;
     --wos-button-light: rgba(255, 255, 255, 0.8);
     --wos-button-light-ink: #292929;

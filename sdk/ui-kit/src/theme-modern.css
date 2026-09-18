@@ -48,6 +48,9 @@
     --wos-button-sheen: none;
     --wos-button-sheen-down: linear-gradient(rgba(0, 0, 0, 0.12), rgba(0, 0, 0, 0.12));
     --wos-button-edge: transparent;
+    --wos-button-border-width: 0;
+    --wos-button-border-image: none;
+    --wos-button-border-image-down: none;
     --wos-button-radius: 0.4rem;
     --wos-button-light: #e7eaee;
     --wos-button-light-ink: #1f2328;
