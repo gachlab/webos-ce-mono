@@ -354,7 +354,7 @@ case "${1:-run}" in
         "$L/$svc" > "/tmp/webos/$svc.log" 2>&1 &
         sleep 1
     done
-    # Services in components/node-services that run for the whole session, as
+    # Services in services/node-services that run for the whole session, as
     # their HP counterparts did: LunaSysMgr and the system UI subscribe to
     # com.palm.downloadmanager and com.palm.appInstallService only once the bus
     # reports them up, so on demand they would never be asked for.

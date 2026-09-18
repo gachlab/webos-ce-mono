@@ -1,0 +1,146 @@
+/*
+ * The page a card lives on: the reset, the card's own frame, and the text a
+ * card writes itself. The controls are kit.css, which the elements adopt into
+ * their own shadow roots; this one is only ever linked by the page.
+ *
+ * Sizes are in rem, and the root font size below is the one knob that scales
+ * all of them together -- the kit included, since a shadow root inherits it.
+ * Hairlines stay in px: a separator is one line, not a measure.
+ *
+ *   §0  Reset and page
+ *   §3  Groups and lists -- what a card writes around the controls
+ *   §6  Text
+ */
+
+/* §0 Reset and page ------------------------------------------------------- */
+
+/* The pseudo-elements too: a card draws with them -- the Wi-Fi padlock's
+ * shackle is one -- and `*` on its own does not reach them. */
+*, *::before, *::after {
+    box-sizing: border-box;
+    -webkit-tap-highlight-color: transparent;
+}
+
+html, body {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+}
+
+/* The scale of everything, and it is enyo's: its theme.css sets `html, body`
+ * to 20px and writes its controls in rem over that root -- `.enyo-item` is
+ * .9rem, a group's caption .7rem. Ours is the same root, so those numbers mean
+ * here what they meant there and a control can be reimplemented by reading
+ * them rather than by measuring a screenshot of it. A screen narrower than a
+ * tablet gets a smaller root, and the whole card follows because nothing under
+ * here is in px. */
+html {
+    font-size: 125%;
+}
+
+@media (max-width: 24rem) {
+    html {
+        font-size: 109%;
+    }
+}
+
+body {
+    /* Prose sans, as HP's cards used; the device's own family first. */
+    font-family: Prelude, "Prelude Medium", Helvetica, Arial, sans-serif;
+    font-size: 1rem;
+    color: var(--wos-ink);
+    /* HP's page, measured off its own card rather than guessed: enyo's body is
+     * #d8d8d8 and everything on it -- rows included -- is that same grey, with
+     * translucent black and white lines drawn over it. The white panels this
+     * had before were not HP's. */
+    background: var(--wos-page);
+    -webkit-user-select: none;
+    user-select: none;
+    overflow-x: hidden;
+}
+
+/* Where a card renders (index.html's <div id="card">). Without a height of its
+ * own, the card inside it is as tall as its content and nothing ever scrolls. */
+#card {
+    height: 100%;
+}
+
+/* The header keeps its height and the body takes what is left. */
+.wos-card {
+    display: grid;
+    grid-template-rows: auto 1fr;
+    height: 100%;
+}
+
+/* HP's settings cards are a column down the middle, not the whole width of a
+ * tablet: 25rem is the 500px its Wi-Fi card used, and `min` gives way on a
+ * screen narrower than that. On the body itself, not on each child: a child
+ * with margins of its own would override the centring. */
+.wos-body {
+    width: min(25rem, 100%);
+    margin: 0 auto;
+    /* HP's cards put 23px under the header and another 23 at the top of each
+     * view, which is the 46px of air its Wi-Fi card opens with. */
+    padding: 1.95rem 0 1.2rem;
+    overflow-y: auto;
+    /* A grid row does not shrink below its content unless it is told it may,
+     * and a body that cannot shrink is one that never scrolls. */
+    min-height: 0;
+}
+
+
+/* §3 Groups and lists ------------------------------------------------------ */
+
+.wos-group {
+    margin: 0 0 0.9rem;
+}
+
+/* enyo's RowGroup caption: the bar at the top of the group, which its
+ * group-labeled.png drew as translucent black over the page. */
+.wos-group-title,
+.wos-group-caption {
+    padding: 0.3rem 0.5rem;
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--wos-caption-ink);
+    background: var(--wos-caption-bg);
+    /* Three longhands rather than `border` and then `border-bottom: 0`:
+     * QtWebEngine loses the colour of the other three sides when that second
+     * shorthand runs, and the bar comes out with no line at all. */
+    border-width: 1px 1px 0;
+    border-style: solid;
+    border-color: var(--wos-outline);
+    border-radius: var(--wos-radius) var(--wos-radius) 0 0;
+}
+
+.wos-group-title + .wos-list,
+.wos-group-caption + .wos-list {
+    border-top: 0;
+    border-radius: 0 0 var(--wos-radius) var(--wos-radius);
+}
+
+/* The group's own outline. What is inside it is the page: HP's rows have no
+ * background of their own, only the lines between them. */
+.wos-list {
+    background: var(--wos-list-bg);
+    border: 1px solid var(--wos-outline);
+    border-radius: var(--wos-radius);
+    overflow: hidden;
+}
+
+/* §6 Text ----------------------------------------------------------------- */
+
+.wos-note {
+    margin: 0 0.4rem 0.6rem;
+    color: var(--wos-ink-dim);
+    font-size: 0.8rem;
+    line-height: 1.35;
+}
+
+.wos-error {
+    margin: 0 0.4rem 0.6rem;
+    color: var(--wos-danger);
+    font-size: 0.8rem;
+}

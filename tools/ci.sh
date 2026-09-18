@@ -86,7 +86,9 @@ build_image() {                 # build_image <release>
     # node too, for the same reason: the pinned one, fetched and hash-checked
     # while the network is still on. The build then uses it, not the distribution's.
     # TypeScript as well, from package-lock.json, into /opt/node-tools: the
-    # tests type-check components/node-services with it.
+    # tests type-check services/node-services with it. Only the third-party
+    # packages: the tree's own live in the source, which the image does not
+    # have, and tools/link-workspaces.sh puts them in once it is extracted.
     printf 'FROM %s\nENV DEBIAN_FRONTEND=noninteractive\nRUN apt-get update && apt-get install -y --no-install-recommends %s && rm -rf /var/lib/apt/lists/*\nCOPY tools/node-version tools/fetch-node.sh /tmp/node/tools/\nRUN /tmp/node/tools/fetch-node.sh /opt/node-dist && rm -rf /tmp/node\nCOPY package.json package-lock.json /opt/node-tools/\nRUN cd /opt/node-tools && PATH=/opt/node-dist/current/bin:$PATH npm ci --ignore-scripts --no-audit --no-fund\n' \
         "$rel" "$(echo "$PACKAGES" | tr '\n' ' ')" \
         | "$RUNNER" build -t "$tag" -f - "$ctx" > "/tmp/webos-ci-image-$name.log" 2>&1
@@ -152,6 +154,7 @@ run_target() {                  # run_target <release>
             -w /src "$tag" \
             sh -c 'mkdir -p /src && tar -x -C /src && \
                    ln -s /opt/node-tools/node_modules node_modules && \
+                   tools/link-workspaces.sh > /dev/null && \
                    { echo "--- build.sh ---" && tools/build.sh \
                      && echo "--- tests ---" \
                      && cmake -S tests -B build/tests > /tmp/t.log 2>&1 \

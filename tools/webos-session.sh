@@ -8,7 +8,7 @@
 # exits without touching it; --down still works, since it is how to recover.
 #
 # webOS's own Power Off and Restart end up here too. com.palm.power
-# (components/sysfs-powerd) writes "poweroff" or "restart" to
+# (services/sysfs-powerd) writes "poweroff" or "restart" to
 # $WEBOS_SESSION_REQUEST and ends the shell; after the shell exits, a restart
 # brings the whole stack back and anything else stops. The machine itself is
 # never powered off or rebooted.
@@ -86,7 +86,7 @@ teardown() {
         case "$(readlink "$d/cwd" 2>/dev/null)" in
             */usr/palm/services/*) kill "$pid" 2>/dev/null ;;
         esac
-        # The services rewritten in components/node-services run the same node
+        # The services rewritten in services/node-services run the same node
         # from the rootfs directory; their script path gives them away. Read with
         # mapfile, a builtin, so the sweep stays free of forks.
         if [ "$exe" = /usr/palm/nodejs/node ] || [ "$exe" = "$ROOTFS/usr/palm/nodejs/node" ]; then

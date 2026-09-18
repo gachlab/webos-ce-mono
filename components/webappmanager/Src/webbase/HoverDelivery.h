@@ -23,7 +23,7 @@ struct SysMgrEvent;
 class SysMgrWebBridge;
 
 //
-// The receiving end of the hover the shell packs in components/input-compat.
+// The receiving end of the hover the shell packs in adapters/input-compat.
 //
 namespace HoverDelivery {
 

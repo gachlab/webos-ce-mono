@@ -1,0 +1,10 @@
+{
+  "name": "@gachlab/app-wifi",
+  "private": true,
+  "description": "The Wi-Fi settings card (#38).",
+  "type": "module",
+  "dependencies": {
+    "@webos/api": "*",
+    "@webos/ui-kit": "*"
+  }
+}

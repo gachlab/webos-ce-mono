@@ -1,7 +1,7 @@
 // The hover crossing HP's IPC without changing HP's IPC.
 //
 // Same contract as tests/wheel-pack, for the other event
-// components/input-compat carries: it has to round-trip, and it has to be
+// adapters/input-compat carries: it has to round-trip, and it has to be
 // invisible to every test HP's own code makes on an event's type.
 //
 // Runs headless, and needs no Qt:  ./hover-pack

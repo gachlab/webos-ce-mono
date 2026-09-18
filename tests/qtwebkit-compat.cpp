@@ -1,4 +1,4 @@
-// components/qtwebkit-compat: QtWebKit's API as WebAppMgr uses it, on
+// adapters/qtwebkit-compat: QtWebKit's API as WebAppMgr uses it, on
 // QtWebEngine. Qt 6 only, no window.
 //
 // Driven the way SysMgrWebBridge drives QtWebKit: objects added from

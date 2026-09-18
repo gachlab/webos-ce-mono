@@ -1,6 +1,6 @@
 // The Wi-Fi card, in the engine that runs it.
 //
-// components/cards/test covers what the card decides -- which screen is up,
+// the SDK's own tests covers what the card decides -- which screen is up,
 // when a join can be attempted, what a failure says -- with no browser in
 // sight. This one is the other half: the built bundle, the custom elements and
 // the theme, loaded the way WebAppMgr loads them, against a PalmServiceBridge
@@ -130,17 +130,17 @@ window.__answers["palm://com.palm.connectionmanager/getWakeOnWiFiMode"] = { retu
 // What the card shows: the rows' titles, out of the shadow roots the elements
 // keep them in.
 static const char kRowTitles[] = R"JS(
-Array.prototype.slice.call(document.querySelectorAll("hp-row, hp-swipe-row"))
+Array.prototype.slice.call(document.querySelectorAll("wos-row, wos-swipe-row"))
     .map(function (row) {
-        var t = row.shadowRoot && row.shadowRoot.querySelector(".hp-row-title");
+        var t = row.shadowRoot && row.shadowRoot.querySelector(".wos-row-title");
         return t ? t.textContent : "";
     }).filter(function (t) { return t; }).join("|")
 )JS";
 
 static const char kRowDetails[] = R"JS(
-Array.prototype.slice.call(document.querySelectorAll("hp-row"))
+Array.prototype.slice.call(document.querySelectorAll("wos-row"))
     .map(function (row) {
-        var t = row.shadowRoot && row.shadowRoot.querySelector(".hp-row-detail");
+        var t = row.shadowRoot && row.shadowRoot.querySelector(".wos-row-detail");
         return t ? t.textContent : "";
     }).filter(function (t) { return t; }).join("|")
 )JS";
@@ -226,19 +226,19 @@ int main(int argc, char** argv)
     if (!open(QString()))
         return 1;
     waitFor([&]() { return js(kRowTitles).contains("Oficina"); }, 5000);
-    js("document.querySelectorAll('hp-row')[1].shadowRoot.querySelector('.hp-row-text').click(); 1");
-    waitFor([&]() { return js("String(document.querySelectorAll('hp-field').length)") != "0"; }, 3000);
+    js("document.querySelectorAll('wos-row')[1].shadowRoot.querySelector('.wos-row-text').click(); 1");
+    waitFor([&]() { return js("String(document.querySelectorAll('wos-field').length)") != "0"; }, 3000);
     check("a secured network opens the join screen",
-          js("String(document.querySelectorAll('hp-field').length)"), QStringLiteral("1"));
+          js("String(document.querySelectorAll('wos-field').length)"), QStringLiteral("1"));
     check("with the network already named", js("document.querySelector('.wifi-caption') ? "
           "document.querySelector('.wifi-caption').textContent : ''"),
           QStringLiteral("Join Oficina"));
 
-    js("var f = document.querySelector('hp-field').shadowRoot.querySelector('input');"
+    js("var f = document.querySelector('wos-field').shadowRoot.querySelector('input');"
        "f.value = 'una clave'; f.dispatchEvent(new Event('input', { bubbles: true })); 1");
-    waitFor([&]() { return js("String(document.querySelector('hp-activity-button').disabled)") != "true"; }, 3000);
+    waitFor([&]() { return js("String(document.querySelector('wos-activity-button').disabled)") != "true"; }, 3000);
     js("window.__calls = [];"
-       "document.querySelector('hp-activity-button').shadowRoot.querySelector('button').click(); 1");
+       "document.querySelector('wos-activity-button').shadowRoot.querySelector('button').click(); 1");
     waitFor([&]() { return js("String(window.__count('palm://com.palm.wifi/connect'))") == "1"; }, 5000);
     check("Sign In asks the service to connect",
           js("String(window.__count('palm://com.palm.wifi/connect'))"), QStringLiteral("1"));
@@ -254,10 +254,10 @@ int main(int argc, char** argv)
     js("window.__push('palm://com.palm.wifi/getstatus', { returnValue: true, status: 'serviceEnabled',"
        " networkInfo: { ssid: 'Oficina', connectState: 'associationFailed',"
        "                lastConnectError: 'IncorrectPassword' } }); 1");
-    waitFor([&]() { return !js("document.querySelector('.hp-error') ? "
-                               "document.querySelector('.hp-error').textContent : ''").isEmpty(); }, 3000);
+    waitFor([&]() { return !js("document.querySelector('.wos-error') ? "
+                               "document.querySelector('.wos-error').textContent : ''").isEmpty(); }, 3000);
     check("a wrong password is said, not swallowed",
-          js("document.querySelector('.hp-error').textContent"),
+          js("document.querySelector('.wos-error').textContent"),
           QStringLiteral("The username or password you entered is not correct. Try again."));
 
     // --- the radio ----------------------------------------------------------
@@ -266,16 +266,16 @@ int main(int argc, char** argv)
         return 1;
     waitFor([&]() { return js(kRowTitles).contains("Casa"); }, 5000);
     js("window.__calls = [];"
-       "document.querySelector('hp-toggle').shadowRoot.querySelector('button').click(); 1");
+       "document.querySelector('wos-toggle').shadowRoot.querySelector('button').click(); 1");
     waitFor([&]() { return js("String(window.__count('palm://com.palm.wifi/setstate'))") == "1"; }, 5000);
     check("the switch asks the service to turn the radio off",
           js("window.__last('palm://com.palm.wifi/setstate')"),
           QStringLiteral("{\"state\":\"disabled\"}"));
     check("and waits for it rather than believing itself",
-          js("String(document.querySelector('hp-toggle').disabled)"), QStringLiteral("true"));
+          js("String(document.querySelector('wos-toggle').disabled)"), QStringLiteral("true"));
     js("window.__push('palm://com.palm.wifi/getstatus',"
        " { returnValue: true, status: 'serviceDisabled' }); 1");
-    waitFor([&]() { return js("String(document.querySelector('hp-toggle').disabled)") == "false"; }, 3000);
+    waitFor([&]() { return js("String(document.querySelector('wos-toggle').disabled)") == "false"; }, 3000);
     check("until the radio says it is off", js("document.querySelector('.wifi-off') ? "
           "document.querySelector('.wifi-off').textContent : ''"),
           QStringLiteral("Wi-Fi is turned off."));
@@ -292,9 +292,9 @@ int main(int argc, char** argv)
           js("String(window.__count('palm://com.palm.wifi/getprofile') >= 1)"), QStringLiteral("true"));
     check("asking for that profile", js("window.__last('palm://com.palm.wifi/getprofile')"),
           QStringLiteral("{\"profileId\":10}"));
-    waitFor([&]() { return js("String(document.querySelectorAll('hp-field').length)") == "5"; }, 3000);
+    waitFor([&]() { return js("String(document.querySelectorAll('wos-field').length)") == "5"; }, 3000);
     check("and shows the address it holds",
-          js("document.querySelectorAll('hp-field')[0].shadowRoot.querySelector('input').value"),
+          js("document.querySelectorAll('wos-field')[0].shadowRoot.querySelector('input').value"),
           QStringLiteral("10.20.30.99"));
 
     // --- the app menu -------------------------------------------------------
@@ -304,10 +304,10 @@ int main(int argc, char** argv)
     waitFor([&]() { return js(kRowTitles).contains("Casa"); }, 5000);
     js("window.PalmSystem.launchParams = JSON.stringify({ 'palm-command': 'open-app-menu' });"
        "window.Mojo.relaunch(); 1");
-    waitFor([&]() { return js("String(document.querySelector('hp-app-menu').open)") == "true"; }, 3000);
+    waitFor([&]() { return js("String(document.querySelector('wos-app-menu').open)") == "true"; }, 3000);
     check("the shell's relaunch opens the card's menu",
-          js("String(document.querySelector('hp-app-menu').open)"), QStringLiteral("true"));
-    js("var items = document.querySelector('hp-app-menu').shadowRoot.querySelectorAll('.hp-menu-item');"
+          js("String(document.querySelector('wos-app-menu').open)"), QStringLiteral("true"));
+    js("var items = document.querySelector('wos-app-menu').shadowRoot.querySelectorAll('.wos-menu-item');"
        "items[1].click(); 1");
     waitFor([&]() { return js("String(window.__count('palm://com.palm.wifi/getprofilelist'))") != "0"; }, 5000);
     check("Known Networks asks for the saved profiles",

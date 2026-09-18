@@ -2831,7 +2831,7 @@ bool StatusBarServicesConnector::connMgrEventsCallback(LSHandle* handle, LSMessa
 	}
 
 	// The cable, which HP's connectionmanager never reported: a phone had no
-	// socket. components/nm-connectionmanager answers with a "wired" object
+	// socket. services/nm-connectionmanager answers with a "wired" object
 	// shaped like the "wifi" one.
 	//
 	// Read outside the isInternetConnectionAvailable branch above on purpose. A

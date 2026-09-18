@@ -23,7 +23,7 @@ struct SysMgrEvent;
 class SysMgrWebBridge;
 
 //
-// The receiving end of the scroll the shell packs in components/input-compat.
+// The receiving end of the scroll the shell packs in adapters/input-compat.
 //
 // Kept out of WindowedWebApp so that HP's dispatch needs one line rather than a
 // branch: everything about what a scroll means on this side lives here.

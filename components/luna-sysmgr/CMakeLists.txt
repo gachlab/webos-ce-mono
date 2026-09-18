@@ -24,12 +24,12 @@ find_package(Qt6 REQUIRED COMPONENTS Core Gui Network Widgets Quick Qml OpenGL S
 # Qt 6 also moved QStateMachine and its transitions into their own module
 # (Debian: qt6-scxml-dev). MouseToTouch and QmlSceneItem fill in touch points
 # through QMutableEventPoint, which is private API (GuiPrivate). The rest of
-# what Qt 6 removed comes back through components/qt6-compat.
+# what Qt 6 removed comes back through adapters/qt6-compat.
 find_package(Qt6 REQUIRED COMPONENTS OpenGLWidgets StateMachine GuiPrivate)
-add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../qt6-compat ${CMAKE_CURRENT_BINARY_DIR}/qt6-compat)
+add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../../adapters/qt6-compat ${CMAKE_CURRENT_BINARY_DIR}/qt6-compat)
 # Input modern hardware produces that webOS's catalogue never had -- the wheel,
 # so far -- packed into HP's Event without changing it.
-add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../input-compat ${CMAKE_CURRENT_BINARY_DIR}/input-compat)
+add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../../adapters/input-compat ${CMAKE_CURRENT_BINARY_DIR}/input-compat)
 # Qt 6's moc needs the complete type behind every pointer-typed property.
 # icon.h declares Q_PROPERTY(LayoutItem * ...) with LayoutItem only forward
 # declared, which Qt 5 accepted. -b puts the definition in front of every

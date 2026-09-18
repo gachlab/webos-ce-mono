@@ -4,13 +4,18 @@ Measured on 2026-09-12, after a from-scratch offline build. Every figure below
 comes with the command that produces it, because a number nobody can re-derive
 stops being true without anybody noticing.
 
-`components/` holds **56 directories**: 51 of the 55 entries in `MANIFEST.tsv`,
-plus 5 that are not manifest components. Four manifest entries have no directory
-at all: `cmake` and `leveldb` are marked EXTERNO, and `qt4` and `webkit` were
-never vendored because Debian's Qt 6 and QtWebEngine replace them.
+`components/` holds **51 directories**, and every one of them is an entry in
+`MANIFEST.tsv` -- there is nothing else in there. Four manifest entries have no
+directory at all: `cmake` and `leveldb` are marked EXTERNO, and `qt4` and
+`webkit` were never vendored because Debian's Qt 6 and QtWebEngine replace them.
+55 − 4 = 51.
 
     awk -F'\t' 'NR>1 {print $2"\t"$5}' MANIFEST.tsv    # the manifest
     ls -d components/*/ | wc -l                        # the directories
+    tests/repo-layout.sh                               # and that they agree
+
+It used to hold 56, five of them ours. They moved out: see README.md's Layout,
+and the section below for where each one went.
 
 ## Built: 26
 
@@ -44,7 +49,7 @@ honours it.
 ### The three node addon components are load-bearing
 
 Easy to get wrong, and worth stating plainly: what is skipped is **HP's
-CMakeLists for each of them**, not their code. `components/node-v8-shim/addons`
+CMakeLists for each of them**, not their code. `adapters/node-v8-shim/addons`
 compiles their sources directly:
 
     ${COMPONENTS}/nodejs-module-webos-pmlog/src/pmloglib.cpp
@@ -63,7 +68,7 @@ Fifteen are installed into the rootfs by `tools/assemble-rootfs.sh`:
 
 `pmnetconfigmanager-stub` used to be on that list and no longer is. It answers
 `com.palm.connectionmanager/getStatus` with a constant -- connected, over wifi,
-on "Open webOS", always -- and `components/nm-connectionmanager` now answers that
+on "Open webOS", always -- and `services/nm-connectionmanager` now answers that
 name from NetworkManager instead. The component stays vendored, because
 MANIFEST.tsv is an inventory of what HP released, but nothing copies it into the
 rootfs.
@@ -76,17 +81,22 @@ grep of `assemble-rootfs.sh` makes them look unused:
 - `npapi-headers` — HP's sources include `<npapi.h>` from places that are not
   the browser path, so 4 headers are still copied even though NPAPI is gone.
 
-## Not in the manifest
+## What used to be here and is not in the manifest
 
-- `build-support-ce` — **76M, 9,108 tracked files, zero references** anywhere in
-  `tools/` or any `CMakeLists`. A prebuilt staging tree for **ARM**: useless on
-  x86. The largest dead weight here.
-- `luna-sysmgr-ce` — 21M, the TouchPad's LunaSysMgr. Reference only, not built,
-  and byte-identical to HP's drop (`git diff hp-original` on it is empty). It is
-  the evidence for where `webkitView()` and `Palm::WebView` actually lived,
-  which is why it is kept and why it is not edited.
-- `node-v8-shim`, `qt6-compat`, `qtwebkit-compat` — ours, not HP's. The three
-  adapters the port rests on.
+These five were in `components/` and are not any more. They were never manifest
+entries -- two are HP's but unbuilt, three are ours -- and having them mixed in
+with HP's 51 is what made "what did we change in HP's code" unanswerable.
+
+- `reference/build-support-ce` — **76M, 9,108 tracked files, zero references**
+  anywhere in `tools/` or any `CMakeLists`. A prebuilt staging tree for **ARM**:
+  useless on x86. HP's, and the largest dead weight in the repository.
+- `reference/luna-sysmgr-ce` — 21M, the TouchPad's LunaSysMgr. HP's, reference
+  only, never built, and byte-identical to his drop: `git diff hp-original --
+  reference/luna-sysmgr-ce` is empty once the move is a rename, which needs
+  whole-tree `-M` (see README.md). It is the evidence for where `webkitView()`
+  and `Palm::WebView` actually lived, which is why it is kept and not edited.
+- `adapters/node-v8-shim`, `adapters/qt6-compat`, `adapters/qtwebkit-compat` —
+  **ours, not HP's.** The three adapters the port rests on.
 
 ## Applications and services
 
@@ -127,7 +137,7 @@ used to be an empty file the launcher bind-mounted the host's node onto, so the
 `.deb` depended on the distribution's node and the AppImage used whatever the
 host had, or none.
 
-`components/node-v8-shim` implements node 0.4's V8 API on **N-API**, which is
+`adapters/node-v8-shim` implements node 0.4's V8 API on **N-API**, which is
 ABI-stable. MEASURED: the built addons import only `napi_*` (and `uv_*`) symbols,
 none from `v8::` or `node::`, and load under both node 24 and 26 -- so moving the
 pin to a newer LTS does not mean rebuilding them for a new ABI.

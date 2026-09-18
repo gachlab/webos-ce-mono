@@ -1,8 +1,14 @@
 #!/bin/bash
-# Builds the cards in components/cards into build/cards/<app id>/, ready for
+# Builds the cards in apps/ and sdk/ into build/cards/<app id>/, ready for
 # tools/assemble-rootfs.sh to install as webOS web apps.
 #
 #   tools/build-cards.sh [app id...]     # all of them when none is named
+#
+# A card is any directory with an appinfo.json and a main.ts next to it: the
+# apps under apps/, and the kit's showcase, which lives inside sdk/ui-kit
+# because it is the kit's documentation and must not be able to fall behind it.
+# The id comes out of the appinfo.json rather than the directory name, so a
+# directory can be called "wifi" and still install as com.gachlab.app.wifi.
 #
 # Each card is one esbuild bundle: its entry point, everything it imports, and
 # lit-html, in one main.js next to the page. No network: esbuild and lit-html
@@ -12,31 +18,58 @@
 #                                            # opened in an ordinary browser
 set -u
 R="$(cd "$(dirname "$0")/.." && pwd)"
-CARDS="$R/components/cards"
+KIT="$R/sdk/ui-kit/src"
 OUT="$R/build/cards"
 ESBUILD="$R/node_modules/.bin/esbuild"
 DEV="${WEBOS_CARDS_DEV:-}"
 
 # esbuild is installed with --ignore-scripts in CI's image, which leaves its
 # launcher a node script rather than the native binary -- so node has to be on
-# the PATH here, exactly as components/cards/test/run.sh needs it.
+# the PATH here, exactly as tools/test-web.sh needs it.
 . "$R/tools/node-home.sh" \
     || { echo "SKIP: the pinned node is not unpacked (run tools/fetch-node.sh)"; exit 77; }
 
 [ -x "$ESBUILD" ] || { echo "SKIP: esbuild is not installed (npm ci)"; exit 77; }
 
+# id -> source directory, for every card in the tree.
+declare -A SRC=()
+while IFS= read -r info; do
+    dir="$(dirname "$info")"
+    [ -f "$dir/main.ts" ] || continue          # the enyo references are not ours to bundle
+    id="$(sed -n 's/.*"id"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$info" | head -1)"
+    [ -n "$id" ] || { echo "  $dir: appinfo.json has no id"; exit 1; }
+    # Two cards under one id used to mean the second quietly replaced the first
+    # here and in the rootfs. There is no manifest on our side of the tree the
+    # way MANIFEST.tsv is on HP's, so this is where a collision gets caught --
+    # and #63 is about to add a second id per app.
+    [ -z "${SRC[$id]:-}" ] || {
+        echo "  two cards claim $id: ${SRC[$id]} and $dir"; exit 1
+    }
+    SRC["$id"]="$dir"
+done < <(find "$R/apps" "$R/sdk" -name appinfo.json -not -path '*/node_modules/*' | sort)
+
 ids=("$@")
 if [ ${#ids[@]} -eq 0 ]; then
-    ids=()
-    for dir in "$CARDS"/src/cards/*/; do
-        [ -f "$dir/appinfo.json" ] && ids+=("$(basename "$dir")")
+    ids=("${!SRC[@]}")
+    # A full build owns this directory, so a card that no longer exists under
+    # that id goes. It is not tidiness: assemble-rootfs.sh installs every
+    # directory it finds in here, and the id comes out of appinfo.json now --
+    # so renaming an app used to leave the old one built AND installed, quietly
+    # running beside the new one. build/ is never wiped between runs, which is
+    # the same hazard drop_stale_cache() answers on the CMake side.
+    for built in "$OUT"/*/; do
+        [ -d "$built" ] || continue
+        old_id="$(basename "$built")"
+        [ -z "${SRC[$old_id]:-}" ] || continue
+        echo "  $old_id: no card claims this id any more, removing"
+        rm -rf "${built%/}"
     done
 fi
 
 status=0
 for id in "${ids[@]}"; do
-    src="$CARDS/src/cards/$id"
-    [ -f "$src/appinfo.json" ] || { echo "  $id: no appinfo.json"; status=1; continue; }
+    src="${SRC[$id]:-}"
+    [ -n "$src" ] || { echo "  $id: no card by that id"; status=1; continue; }
     dest="$OUT/$id"
     rm -rf "$dest"
     mkdir -p "$dest"
@@ -57,8 +90,8 @@ for id in "${ids[@]}"; do
     fi
     rm -f "$dest/build.log"
     cp -f "$src/index.html" "$src/appinfo.json" "$dest/"
-    cp -f "$CARDS/src/ui/page.css" "$CARDS/src/ui/kit.css" \
-          "$CARDS/src/ui/theme-enyo.css" "$CARDS/src/ui/theme-modern.css" "$dest/"
+    cp -f "$KIT/page.css" "$KIT/kit.css" \
+          "$KIT/theme-enyo.css" "$KIT/theme-modern.css" "$dest/"
     # Whatever else the card ships: its own stylesheet, icons, images.
     for extra in "$src"/*.css "$src"/*.png "$src"/*.jpg "$src"/images; do
         [ -e "$extra" ] && cp -rf "$extra" "$dest/"

@@ -1,0 +1,695 @@
+/*
+ * The controls, as one stylesheet. Every element adopts this one sheet into
+ * its shadow root (see element.ts), so a rule here means the same thing in
+ * every card and a card's own CSS cannot reach in and change it.
+ *
+ * The values are HP's 3.0.5 look, taken from the framework in this tree
+ * (components/enyo-1.0) and from the device's screens. The code is ours: what
+ * it looks like is 2011, how it is written is not. Sizes are in rem so the
+ * whole interface scales with one root font size (page.css), and the layout is
+ * grid and flexbox rather than the absolute positioning enyo needed. The only
+ * lengths left in px are hairlines -- a separator is one line, not a measure,
+ * and 0.05rem of a line rounds to a blur.
+ *
+ * Written from inside a shadow root: `:host` is the element itself and
+ * `::slotted()` is what the card put inside it. A rule written as if the
+ * element were not there -- `.wos-row:first-child` -- would match every element
+ * rather than the first one.
+ *
+ *   §1  Header
+ *   §2  Buttons
+ *   §3  Rows
+ *   §4  Toggles
+ *   §5  Spinner
+ *   §7  Fields
+ *   §8  Checkboxes
+ *   §9  List selectors
+ *   §10 Dialogs
+ *   §11 Progress
+ *   §12 Swipe to delete
+ *   §13 The app menu
+ *   §14 A button that is working
+ *   §15 One of a few
+ *   §16 Sliders
+ */
+
+:host {
+    box-sizing: border-box;
+    -webkit-tap-highlight-color: transparent;
+}
+
+*, *::before, *::after {
+    box-sizing: border-box;
+}
+
+/* §1 Header --------------------------------------------------------------- */
+
+/* Three columns: the back arrow, the title, and whatever the card slotted at
+ * the end. The title is in the middle column, so it stays centred on the
+ * header whether or not the other two are there -- which is what enyo needed
+ * absolute positioning for. */
+.wos-header {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    align-items: center;
+    height: 2.65rem;
+    padding: 0 0.6rem;
+    color: var(--wos-header-ink);
+    font-size: 1rem;
+    font-weight: 300;
+    background: var(--wos-header-bg);
+    border-bottom: 1px solid var(--wos-header-line);
+    flex: none;
+}
+
+/* HP's other toolbar, the one its settings cards wear. Every number here was
+ * read off a screenshot of HP's own Wi-Fi card, row by row: a #b4b4b4 line, a
+ * white hair under it, then a fall from #e0e0e0 to #a6a6a6, a #ababab line,
+ * and a shadow on the page below. */
+.wos-header.light {
+    color: var(--wos-header-light-ink);
+    background: var(--wos-header-light-bg);
+    border-top: 1px solid var(--wos-header-light-line-top);
+    border-bottom: 1px solid var(--wos-header-light-line-bottom);
+    box-shadow: var(--wos-header-light-shadow);
+}
+
+.wos-header.light .wos-header-back {
+    color: var(--wos-header-light-back-ink);
+}
+
+.wos-header-title {
+    grid-column: 2;
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+}
+
+.wos-header-icon {
+    width: 1.6rem;
+    height: 1.6rem;
+}
+
+.wos-header .wos-header-end {
+    grid-column: 3;
+    justify-self: end;
+    display: flex;
+    align-items: center;
+}
+
+.wos-header .wos-header-back {
+    grid-column: 1;
+    justify-self: start;
+    font-size: 0.75rem;
+    color: var(--wos-header-back-ink);
+    background: none;
+    border: 0;
+    padding: 0.4rem;
+}
+
+/* §2 Buttons -------------------------------------------------------------- */
+
+/* The element itself, inside its own shadow root: an element that shrinks to
+ * its content cannot hold a control that fills the row. */
+:host(wos-button), :host(wos-header), :host(wos-row), :host(wos-group), :host(wos-spinner) {
+    display: block;
+}
+
+:host(wos-toggle) {
+    display: inline-block;
+    flex: none;
+}
+
+/* A button is a flat colour with one sheen painted over it, which is how enyo
+ * drew one: the colour came from the kind (`.enyo-button-dark` and friends)
+ * and the sheen from button-up.png, one image over every kind. The numbers
+ * below are that image, read row by row: a black line, a white hair, a fall
+ * from light grey to dark, and a lit bottom edge. The colour is a custom
+ * property so the sheen is written once and a kind only names its colour.
+ *
+ * enyo's own default is the light button -- the one its cards use for Cancel
+ * and Done -- so that is the one a `kind` of nothing gets here too. */
+.wos-button {
+    --wos-button-color: var(--wos-button-light);
+    --wos-button-ink: var(--wos-button-light-ink);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    /* enyo's `.enyo-button`: 16px over a 20px line, 4px and 8px of padding,
+     * a 5px radius and 3px of air around it. */
+    min-height: 1.8rem;
+    margin: 0.15rem;
+    padding: 0.2rem 0.4rem;
+    font-size: 0.8rem;
+    line-height: 1rem;
+    color: var(--wos-button-ink);
+    border: 1px solid var(--wos-button-edge);
+    border-radius: var(--wos-button-radius);
+    background: var(--wos-button-sheen) var(--wos-button-color);
+}
+
+/* button-down.png, the same way: the sheen turns into a shadow cast inwards
+ * from the top. */
+.wos-button:active {
+    background: var(--wos-button-sheen-down) var(--wos-button-color);
+}
+
+.wos-button.dark {
+    --wos-button-color: var(--wos-button-dark);
+    --wos-button-ink: var(--wos-button-loud-ink);
+}
+
+.wos-button.affirmative {
+    --wos-button-color: var(--wos-button-affirmative);
+    --wos-button-ink: var(--wos-button-loud-ink);
+}
+
+.wos-button.negative {
+    --wos-button-color: var(--wos-button-negative);
+    --wos-button-ink: var(--wos-button-loud-ink);
+}
+
+.wos-button.blue {
+    --wos-button-color: var(--wos-button-blue);
+    --wos-button-ink: var(--wos-button-loud-ink);
+}
+
+.wos-button.gray {
+    --wos-button-color: var(--wos-button-gray);
+    --wos-button-ink: var(--wos-button-loud-ink);
+}
+
+/* A button the card put inside a row takes the room the row has left, as HP's
+ * did. It is slotted, so it is reached through ::slotted and not as a child:
+ * a child combinator does not cross a slot. */
+::slotted(wos-button), ::slotted(wos-activity-button), ::slotted(wos-choice) {
+    flex: 1;
+}
+
+.wos-button[disabled] {
+    opacity: 0.4;
+}
+
+/* §3 Rows ----------------------------------------------------------------- */
+
+/* A row, as enyo drew one (`.enyo-item`): no background of its own, and two
+ * translucent hairlines -- white above, black below -- so the pair between any
+ * two rows reads as one dark line with a lit one under it, whatever colour the
+ * page happens to be. The padding and the type are enyo's numbers, on enyo's
+ * root; the minimum height is ours, because a row has to be big enough to hit.
+ */
+.wos-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    min-height: 2.6rem;
+    padding: 0.5rem;
+    border-top: 1px solid var(--wos-row-line-top);
+    border-bottom: 1px solid var(--wos-row-line-bottom);
+}
+
+/* The ends of a list, which from inside a row is the element's own place among
+ * its brothers -- enyo's `.enyo-first` and `.enyo-last`, which it had to put
+ * there by hand. `.wos-row:first-child` was every row: each one is the first
+ * child of its own shadow root, so no list had a separator. */
+:host(wos-row:first-child) .wos-row,
+:host(wos-row[first]) .wos-row {
+    border-top: 0;
+}
+
+:host(wos-row:last-child) .wos-row,
+:host(wos-row[last]) .wos-row {
+    border-bottom: 0;
+}
+
+.wos-row:active {
+    background: var(--wos-row-press);
+}
+
+.wos-row .wos-row-text {
+    flex: 1;
+    min-width: 0;
+}
+
+.wos-row .wos-row-title.strong {
+    font-weight: 600;
+}
+
+.wos-row .wos-row-title {
+    font-size: 0.9rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* enyo's own second line (`.wifi-message-status`): 12px, grey. */
+.wos-row .wos-row-detail {
+    font-size: 0.6rem;
+    color: var(--wos-ink-faint);
+}
+
+/* §4 Toggles -------------------------------------------------------------- */
+
+/* enyo's toggle-button.png, read out of the image: the track that is on is
+ * BLUE, not green -- green is what its affirmative button is painted, and the
+ * two are not the same control. The word sits at the end the knob is not at,
+ * so the track itself decides where it goes and only the knob is taken out of
+ * the flow.
+ *
+ * 74px by 30px, of which the knob is 30 and the word has 36. */
+.wos-toggle {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    width: 3.7rem;
+    height: 1.5rem;
+    padding: 0 0.4rem;
+    border: 1px solid var(--wos-toggle-edge);
+    border-radius: 0.2rem;
+    background: var(--wos-toggle-off);
+    color: var(--wos-toggle-ink);
+    font-size: 0.7rem;
+    font-weight: bold;
+    text-transform: uppercase;
+}
+
+.wos-toggle.on {
+    justify-content: flex-start;
+    background: var(--wos-toggle-on);
+}
+
+.wos-toggle .wos-toggle-knob {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 1.5rem;
+    height: 100%;
+    border-radius: 0.15rem;
+    background: var(--wos-toggle-knob);
+    transition: transform 120ms ease-out;
+}
+
+/* The knob picks up the blue it sits on, as the image does. */
+.wos-toggle.on .wos-toggle-knob {
+    transform: translateX(2.1rem);
+    background: var(--wos-toggle-knob-on);
+}
+
+/* §5 Spinner -------------------------------------------------------------- */
+
+.wos-spinner {
+    display: inline-block;
+    width: 1.1rem;
+    height: 1.1rem;
+    border: 0.15rem solid var(--wos-spinner-ring);
+    border-top-color: var(--wos-spinner-lead);
+    border-radius: 50%;
+    animation: wos-spin 900ms linear infinite;
+}
+
+.wos-spinner-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.6rem;
+    color: var(--wos-ink-dim);
+    font-size: 0.7rem;
+}
+
+@keyframes wos-spin {
+    to { transform: rotate(360deg); }
+}
+
+/* §7 Fields --------------------------------------------------------------- */
+
+:host(wos-field) {
+    display: block;
+}
+
+.wos-field {
+    display: block;
+    padding: 0.4rem 0.6rem;
+}
+
+.wos-field-label {
+    display: block;
+    font-size: 0.6rem;
+    font-weight: 500;
+    text-transform: uppercase;
+    color: var(--wos-ink-dim);
+}
+
+/* enyo's `.enyo-input`: text in the row, and nothing under it. What it grows
+ * when it takes the focus is input-focus.png -- a white panel with a soft grey
+ * edge -- and not the line this had before, which was nobody's. */
+.wos-field-input {
+    width: 100%;
+    padding: 0.3rem;
+    font-family: inherit;
+    font-size: 0.9rem;
+    color: var(--wos-field-ink);
+    background: transparent;
+    border: 0;
+    border-radius: 0.4rem;
+    outline: none;
+    -webkit-user-select: text;
+    user-select: text;
+}
+
+.wos-field-input:focus {
+    background: var(--wos-field-focus-bg);
+    box-shadow: inset 0 0 0 1px var(--wos-field-focus-edge);
+}
+
+.wos-field-input[disabled] {
+    color: var(--wos-ink-faint);
+}
+
+/* §8 Checkboxes ----------------------------------------------------------- */
+
+:host(wos-check) {
+    display: inline-block;
+    flex: none;
+}
+
+/* enyo's checkbox.png: a grey box that turns the toggle's blue, with a pale
+ * tick rather than a white one. 30 by 31, as the image is. */
+.wos-check {
+    width: 1.5rem;
+    height: 1.55rem;
+    padding: 0;
+    font-size: 0.9rem;
+    line-height: 1;
+    color: transparent;
+    background: var(--wos-check-off);
+    border: 1px solid var(--wos-check-edge);
+    border-radius: 0.2rem;
+}
+
+.wos-check.checked {
+    color: var(--wos-check-tick);
+    background: var(--wos-check-on);
+}
+
+.wos-check[disabled] {
+    opacity: 0.4;
+}
+
+/* §9 List selectors ------------------------------------------------------- */
+
+:host(wos-selector) {
+    display: block;
+}
+
+/* enyo's `.enyo-listselector-label`: the value, at 14px, written in the same
+ * ink as the row. It was blue here, which is a colour enyo keeps for links. */
+.wos-selector-value {
+    color: var(--wos-ink);
+    font-size: 0.7rem;
+}
+
+.wos-selector-arrow {
+    color: var(--wos-ink-faint);
+    transition: transform 120ms ease-out;
+}
+
+.wos-selector-arrow.open {
+    transform: rotate(180deg);
+}
+
+.wos-selector-drawer {
+    background: rgba(0, 0, 0, 0.06);
+    border-top: 1px solid var(--wos-row-line-bottom);
+}
+
+.wos-selector-choice {
+    background: transparent;
+}
+
+.wos-selector-choice.chosen .wos-row-title {
+    font-weight: 600;
+}
+
+.wos-selector-tick {
+    color: var(--wos-accent);
+}
+
+/* §10 Dialogs ------------------------------------------------------------- */
+
+:host(wos-dialog) {
+    display: block;
+}
+
+.wos-dialog-shade {
+    position: fixed;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    padding: 1.2rem;
+    background: var(--wos-scrim);
+    z-index: 10;
+}
+
+.wos-dialog {
+    width: min(21rem, 100%);
+    padding: 0.8rem;
+    border-radius: var(--wos-radius);
+    background: var(--wos-dialog-bg);
+    box-shadow: 0 0.3rem 1.2rem rgba(0, 0, 0, 0.45);
+}
+
+.wos-dialog-title {
+    font-size: 0.9rem;
+    font-weight: 600;
+    margin-bottom: 0.4rem;
+}
+
+.wos-dialog-message {
+    font-size: 0.7rem;
+    color: var(--wos-ink-dim);
+    margin-bottom: 0.8rem;
+}
+
+.wos-dialog-buttons {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+}
+
+/* §11 Progress ------------------------------------------------------------ */
+
+:host(wos-progress) {
+    display: block;
+}
+
+.wos-progress-row {
+    padding: 0.5rem 0.6rem;
+}
+
+.wos-progress-label {
+    display: block;
+    font-size: 0.65rem;
+    color: var(--wos-ink-dim);
+    margin-bottom: 0.3rem;
+}
+
+/* progress-bar.png and progress-bar-inner.png: a translucent grey trough with
+ * a dark lip at each edge, and a fill that is brighter than the blue the
+ * toggle wears -- they are different images and were never the same blue. */
+.wos-progress {
+    display: block;
+    height: 0.6rem;
+    border-radius: 0.3rem;
+    background: var(--wos-progress-track);
+    overflow: hidden;
+}
+
+.wos-progress-bar {
+    display: block;
+    height: 100%;
+    background: var(--wos-progress-fill);
+    transition: width 160ms ease-out;
+}
+
+/* §12 Swipe to delete ------------------------------------------------------ */
+
+:host(wos-swipe-row) {
+    display: block;
+}
+
+.wos-swipe-row {
+    position: relative;
+    overflow: hidden;
+    touch-action: pan-y;
+}
+
+.wos-swipe-row.open .wos-row {
+    display: none;
+}
+
+.wos-swipe-confirm {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.4rem 0.6rem;
+    background: var(--wos-swipe-bg);
+}
+
+.wos-swipe-confirm .wos-button {
+    min-height: 1.8rem;
+}
+
+/* §13 The app menu --------------------------------------------------------- */
+
+:host(wos-app-menu) {
+    display: block;
+}
+
+.wos-menu-shade {
+    position: fixed;
+    inset: 0;
+    z-index: 20;
+}
+
+.wos-menu {
+    position: absolute;
+    top: 0;
+    left: 0;
+    min-width: 11rem;
+    padding: 0.2rem 0;
+    background: var(--wos-menu-bg);
+    border: 1px solid var(--wos-menu-edge);
+    border-radius: 0 0 0.4rem 0;
+    box-shadow: 0 0.2rem 0.7rem rgba(0, 0, 0, 0.5);
+}
+
+.wos-menu-item {
+    display: block;
+    width: 100%;
+    padding: 0.6rem 0.9rem;
+    font-family: inherit;
+    font-size: 0.8rem;
+    text-align: left;
+    color: var(--wos-menu-ink);
+    background: none;
+    border: 0;
+}
+
+.wos-menu-item:active {
+    background: var(--wos-menu-press);
+}
+
+.wos-menu-item[disabled] {
+    opacity: 0.4;
+}
+
+/* §14 A button that is working --------------------------------------------- */
+
+:host(wos-activity-button) {
+    display: block;
+}
+
+/* enyo's ActivityButton keeps its caption in the middle of the button and puts
+ * the spinner after it, at the end. */
+.wos-button-label {
+    flex: 1;
+}
+
+.wos-button-spinner {
+    flex: none;
+    width: 0.8rem;
+    height: 0.8rem;
+    margin-left: 0.4rem;
+    /* It turns in whatever the button writes in, so it is visible on the light
+     * button as well as the dark one. */
+    border: 0.1rem solid rgba(128, 128, 128, 0.4);
+    border-top-color: currentColor;
+    border-radius: 50%;
+    animation: wos-spin 900ms linear infinite;
+}
+
+/* §15 One of a few --------------------------------------------------------- */
+
+:host(wos-choice) {
+    display: block;
+}
+
+/* enyo's RadioGroup, from radiobutton.png: the segments share the row rather
+ * than huddling at one end, one that is not chosen is translucent white over
+ * whatever is behind it, and the chosen one is the blue the toggle and the
+ * checkbox are painted. */
+.wos-choice {
+    display: flex;
+    flex: 1;
+    border-radius: 0.3rem;
+    overflow: hidden;
+}
+
+.wos-choice-one {
+    flex: 1;
+    padding: 0.35rem 0.4rem 0.4rem;
+    font-family: inherit;
+    font-size: 0.8rem;
+    color: var(--wos-choice-off-ink);
+    background: var(--wos-choice-off);
+    border: 0;
+    border-left: 1px solid var(--wos-choice-line);
+}
+
+.wos-choice-one:first-child {
+    border-left: 0;
+}
+
+.wos-choice-one.chosen {
+    color: var(--wos-choice-on-ink);
+    background: var(--wos-choice-on);
+}
+
+/* §16 Sliders -------------------------------------------------------------- */
+
+:host(wos-slider) {
+    display: block;
+    flex: 1;
+}
+
+.wos-slider {
+    padding: 0.7rem 0.6rem;
+    touch-action: none;
+}
+
+.wos-slider.disabled {
+    opacity: 0.4;
+}
+
+/* slider-track.png: one flat grey rail with a dark lip top and bottom. The
+ * part behind the knob is not painted a different colour -- enyo's slider says
+ * where it is with the knob alone, and the blue fill this had was ours. */
+.wos-slider-bar {
+    position: relative;
+    height: 0.5rem;
+    border-radius: 0.25rem;
+    background: var(--wos-slider-track);
+}
+
+.wos-slider-filled {
+    height: 100%;
+    border-radius: 0.25rem 0 0 0.25rem;
+    background: var(--wos-slider-fill);
+}
+
+/* The knob's `left` is the value, as a percentage of the bar; it is pulled
+ * back over its own middle rather than by a margin of half a fixed size, so
+ * the size can change without the centring having to. */
+.wos-slider-knob {
+    position: absolute;
+    top: 50%;
+    width: 1.3rem;
+    height: 1.3rem;
+    transform: translate(-50%, -50%);
+    border-radius: 50%;
+    background: var(--wos-slider-knob);
+    border: 1px solid var(--wos-slider-knob-edge);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+}

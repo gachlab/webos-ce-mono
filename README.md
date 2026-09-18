@@ -31,7 +31,7 @@ sqlite3, openssl, libxml2 and boost.
 is not built: it needs Python 2 and SCons. The official node LTS is used instead,
 at the version and SHA-256 in `tools/node-version` -- **24.21.0** today, moving
 to 26 when that becomes LTS. HP's three addons are built from their original
-sources against `components/node-v8-shim`, which implements node 0.4's V8 API on
+sources against `adapters/node-v8-shim`, which implements node 0.4's V8 API on
 N-API, so a new node does not mean rebuilding them for a new ABI.
 
 Fetching it is the one step that needs the network, in the same place as
@@ -128,8 +128,32 @@ distribution instead, which is the whole reason they are cheap.
 
 ## Layout
 
-- `components/` — HP's sources, vendored with `git subtree --squash`. Each
-  carries the source repo and sha in its import commit.
+Each directory at the root says what kind of thing is inside it, so that the
+most important distinction in the tree — HP's code, which we patch, against our
+own, which we rewrite — is visible before opening anything.
+
+- `components/` — **HP's sources**, vendored with `git subtree --squash`. Each
+  carries the source repo and sha in its import commit. Every directory here is
+  one of the 55 `MANIFEST.tsv` lists and nothing else is (51 of them; `cmake`,
+  `leveldb`, `qt4` and `webkit` are built from elsewhere or replaced, and have
+  no directory). `tests/repo-layout.sh` fails if anything of ours drifts back
+  in, or if one the manifest lists goes missing.
+- `adapters/` — **ours**, so HP's code runs here: `qt6-compat` for what Qt 6
+  removed, `qtwebkit-compat` for the QtWebKit API WebAppMgr is written against,
+  `input-compat`, `node-v8-shim`, `enyo-lib-networkproxy`.
+  Nothing here is a product; each one exists because something of HP's expects
+  an API that is gone.
+- `services/` — **ours**, because HP never released them: `nm-connectionmanager`,
+  `storaged`, `sysfs-powerd`, and `node-services` (the JavaScript services
+  rewritten in TypeScript).
+- `sdk/` — what an app is written against: `webos-api` (the bus, the app's own
+  life, translation — no DOM) and `ui-kit` (the controls, the stylesheets, the
+  two themes, and the showcase).
+- `apps/` — applications. `wifi/` and `app-template/` on the SDK; `baseline/`
+  holds the enyo ones a rewrite is measured against — ours too, kept for
+  exactly that, so "does it still look right" is a screenshot rather than an
+  argument.
+- `reference/` — HP's, read and never built. See its README.
 - `patches/` — one build-time helper script. It used to hold portability
   patches; they have all been absorbed into the components themselves, where
   `git diff hp-original` shows them in context instead of as a pile of diffs.
@@ -148,7 +172,7 @@ distribution instead, which is the whole reason they are cheap.
 
 - `components/luna-sysmgr/` — **Open webOS**'s (`openwebos/luna-sysmgr`). This
   is the reference implementation and the one all work happens on.
-- `components/luna-sysmgr-ce/` — the **TouchPad's CE 3.0.5**
+- `reference/luna-sysmgr-ce/` — the **TouchPad's CE 3.0.5**
   (`woce/LunaSysMgr` at the "Push from tarball" commit). Kept for reference
   only; it is not built and will not be ported.
 
@@ -162,25 +186,43 @@ native Wayland client — see `docs/lunasysmgr-on-debian.png`.
 | Listed in the manifest | 55 components |
 | Marked buildable | 35 |
 | Actually built | 26 — the other nine are skipped on purpose, each with its reason in `tools/build.sh` (`qt4` and `webkit` are replaced by Debian's Qt 6 and QtWebEngine; `nodejs` by the official node LTS pinned in `tools/node-version`) |
-| Changes inside HP's components | 230 files, +8,111 −433 — `git diff --stat hp-original -- components/` |
-| …in files HP never shipped | 6,740 lines: the adapters below |
-| …inside HP's own files | 1,804 lines |
+| Edits inside HP's own code | **206 files, +5,634 −486** |
+| Our own code beside it | 224 files, 28,520 lines |
 | Toolchain | Debian sid, gcc 16, Qt 6.10 + QtWebEngine, system CMake |
 
-`git diff --stat hp-original` on the whole tree reports a much larger number —
-it counts `tools/`, `tests/` and these documents too, and it moves every time
-one of them is edited. The figures above are scoped to `components/` on
-purpose: what changed in HP's code is the number worth being able to check.
+Both rows come out of one command, which is the point of the layout above —
+`components/` is HP's code and nothing else, so a path is enough to tell the
+two apart:
 
-The split matters more than the total: most of the work is **new code beside
-HP's**, not edits to it. Three adapters carry it — `qt6-compat` for what Qt 6
-removed, `qtwebkit-compat` for the QtWebKit API WebAppMgr is written against
-(on QtWebEngine), and `node-v8-shim` for HP's three node addons on node 26.
+```sh
+git diff --numstat -M hp-original | awk -F'\t' '
+    $3 ~ /=>/            { next }                     # skip the renames themselves
+    $3 ~ /^components\//  { hp++;   hpa += $1; hpd += $2; next }
+    $3 ~ /^(adapters|services|sdk|apps)\// { ours++; oursa += $1 }
+    END { print hp" of HP, +"hpa" -"hpd;  print ours" of ours, "oursa" new lines" }'
+```
+
+`-M` is not optional and `-- components/` is not enough: the fourteen
+directories that left `components/` were under it at the `hp-original` tag, and
+a pathspec that sees only one half of a rename counts the other half as 21 MB
+of deletions. Rename detection has to run over the whole tree first, and the
+filtering after.
+
+The figure quoted here for a long time — 230 files, 8,111 lines — was measured
+before this layout existed, when `components/` still held fourteen directories
+of ours, so it was reporting our own work as changes to HP's.
+
+The split matters more than either total: **the work is overwhelmingly new code
+beside HP's, not edits to it** — five lines written next to his for every one
+changed in his. The adapters are what make that possible: `qt6-compat` for what
+Qt 6 removed, `qtwebkit-compat` for the QtWebKit API WebAppMgr is written
+against (on QtWebEngine), and `node-v8-shim` for HP's three node addons on
+node 26.
 
 Working: the lock screen, the launcher, the dock, keyboard input, taps and
 drag-to-scroll, scrolling with a wheel or a trackpad — in the browser and in
 HP's own enyo lists — and a pointer that hovers, neither of which webOS itself
-had, so both are carried across HP's IPC by `components/input-compat` without
+had, so both are carried across HP's IPC by `adapters/input-compat` without
 changing it, apps opening as cards, db8 with its schemas loaded, HP's
 services up alongside it (`mojodb-luna`, `LunaSysService`, `filecache`,
 `activitymanager`, `LunaUniversalSearchMgr`, `mojomail`), the base apps
@@ -203,12 +245,12 @@ the real percentage and the charging state follows the cable, systemui's
 "Charging Battery" banner appears on plug-in, and webOS's own Power Off and
 Restart end or restart the session without touching the machine. On a device
 that was powerd; nothing in the CE drop provides `com.palm.power`, so
-`components/sysfs-powerd` answers it.
+`services/sysfs-powerd` answers it.
 
 **The network state is real**, from NetworkManager over D-Bus. What the CE drop
 ships is `pmnetconfigmanager-stub`, which answers `com.palm.connectionmanager`
 with a constant -- connected, over wifi, on "Open webOS", always -- so every app
-believed it was online whatever the machine was doing. `components/nm-connectionmanager`
+believed it was online whatever the machine was doing. `services/nm-connectionmanager`
 answers that name for real: the wifi's name, address and signal, whether the
 cable is in, and a captive portal reported as one rather than as the internet.
 The four subscribers HP wrote -- the status bar, luna-sysservice, BrowserServer
@@ -228,11 +270,11 @@ Ubuntu 12.04 build, and so are not this port's doing.
 Still to do, in order:
 
 - ~~**The node addons** (`sysbus`, `pmlog`, `dynaload`)~~: done, unmodified,
-  through `components/node-v8-shim` on node 26. HP's JavaScript services start
+  through `adapters/node-v8-shim` on node 26. HP's JavaScript services start
   on demand, which is what lets apps have background services.
 - ~~**Qt 6**~~: done, and the only build there is. What Qt 6 removed comes back
-  through `components/qt6-compat`; the QtWebKit API WebAppMgr is written against
-  comes back through `components/qtwebkit-compat`, on QtWebEngine.
+  through `adapters/qt6-compat`; the QtWebKit API WebAppMgr is written against
+  comes back through `adapters/qtwebkit-compat`, on QtWebEngine.
 - ~~**The browser**~~: done, and not the way HP did it. `BrowserServer` and the
   NPAPI `BrowserAdapter` (~29k lines) are replaced by a `QWebPage::embedPage`
   that paints one page inside another, plus `BrowserViewAdapter` speaking to

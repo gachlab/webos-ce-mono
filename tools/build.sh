@@ -5,7 +5,7 @@
 # topologically sorted. MANIFEST.tsv keeps it in its first column.
 #
 # One build tree, build/. There is no Qt 5 build any more: Qt 6 covers the shell
-# through components/qt6-compat and WebAppMgr through components/qtwebkit-compat,
+# through adapters/qt6-compat and WebAppMgr through adapters/qtwebkit-compat,
 # on Debian's QtWebEngine, so nothing here builds QtWebKit 5.212.
 #
 # Usage:
@@ -50,12 +50,12 @@ declare -A SKIP=(
     [cmake]="it is the tool itself; we use the system one"
     [cmake-modules-webos]="CMake modules, consumed via CMAKE_MODULE_PATH"
     [qt4]="replaced by Debian's Qt 6"
-    [webkit]="replaced by QtWebEngine; WebAppMgr reaches it through components/qtwebkit-compat"
+    [webkit]="replaced by QtWebEngine; WebAppMgr reaches it through adapters/qtwebkit-compat"
     [nodejs]="the official node LTS ships instead (tools/node-version); HP's needs Python 2 and SCons"
-    # The three addons are built from components/node-v8-shim/addons, which
+    # The three addons are built from adapters/node-v8-shim/addons, which
     # compiles HP's sources against the shim. Their own CMakeLists are HP's and
     # need a node that no longer exists.
-    [nodejs-module-webos-sysbus]="built via components/node-v8-shim/addons"
+    [nodejs-module-webos-sysbus]="built via adapters/node-v8-shim/addons"
     [nodejs-module-webos-pmlog]="same"
     [nodejs-module-webos-dynaload]="same"
     # The browser path renders pages in another process for a WebKit that had no
@@ -104,6 +104,20 @@ selected() {
         fi
         echo "$c"
     done
+}
+
+# A build directory remembers the source directory it was generated from, and
+# CMake refuses to reuse it for a different one. That is exactly what happens
+# the first time a tree is built after a component moves -- and the error names
+# CMakeCache.txt, not the move, so it reads as a broken checkout. Nothing is
+# lost by regenerating, so the stale cache is dropped here instead.
+drop_stale_cache() {
+    local src="$1" dir="$2" cached
+    cached=$(sed -n 's/^CMAKE_HOME_DIRECTORY:INTERNAL=//p' "$dir/CMakeCache.txt" 2>/dev/null)
+    if [ -n "$cached" ] && [ "$cached" != "$src" ]; then
+        echo "  (moved since the last build: regenerating $(basename "$dir"))"
+        rm -rf "$dir"
+    fi
 }
 
 stage_headers() {
@@ -222,7 +236,7 @@ stage_cmake() {
 
 stage_node_addons() {
     echo "== node addons =="
-    # HP's three addons, built from his sources against components/node-v8-shim.
+    # HP's three addons, built from his sources against adapters/node-v8-shim.
     # Separate from the CMake stage because they are not one MANIFEST component:
     # one project builds all three, which is what lets them share the shim.
     # The node that ships, not whatever the host has: its headers are what the
@@ -248,7 +262,8 @@ stage_node_addons() {
     # node on PATH, but CMake caches the result, and this build directory is not
     # wiped between runs: MEASURED, with the pinned node first on PATH the addons
     # still compiled against the headers of the node cached from an earlier run.
-    cmake -S "$R/components/node-v8-shim/addons" -B "$B/node-addons" \
+    drop_stale_cache "$R/adapters/node-v8-shim/addons" "$B/node-addons"
+    cmake -S "$R/adapters/node-v8-shim/addons" -B "$B/node-addons" \
           -DNODE_INCLUDE_DIR="$NODE_HOME/include/node" \
           -DCMAKE_INSTALL_PREFIX="$WEBOS_PREFIX" \
           -DCMAKE_INSTALL_RPATH='$ORIGIN/../../lib' \
@@ -257,8 +272,9 @@ stage_node_addons() {
       && DESTDIR="$DESTDIR" cmake --install "$B/node-addons" >> /tmp/webos/node-addons.log 2>&1 \
       && echo "  pmloglib, palmbus, webos     OK" \
       || { echo "  FAILED (see /tmp/webos/node-addons.log)"; return 1; }
-    # Ours: the bus for components/node-services, on Node-API directly.
-    cmake -S "$R/components/node-services/native" -B "$B/node-services-native" \
+    # Ours: the bus for services/node-services, on Node-API directly.
+    drop_stale_cache "$R/services/node-services/native" "$B/node-services-native"
+    cmake -S "$R/services/node-services/native" -B "$B/node-services-native" \
           -DNODE_INCLUDE_DIR="$NODE_HOME/include/node" \
           -DCMAKE_INSTALL_PREFIX="$WEBOS_PREFIX" \
           -DCMAKE_INSTALL_RPATH='$ORIGIN/../../lib' \
@@ -281,7 +297,8 @@ stage_powerd() {
     # overwrite each other.
     # Installed to <prefix>/usr/sbin and copied to <rootfs>/usr/lib/luna, so the
     # libraries are one level up from either.
-    cmake -S "$R/components/sysfs-powerd" -B "$B/sysfs-powerd" \
+    drop_stale_cache "$R/services/sysfs-powerd" "$B/sysfs-powerd"
+    cmake -S "$R/services/sysfs-powerd" -B "$B/sysfs-powerd" \
           -DCMAKE_BUILD_TYPE="$BUILD_TYPE" \
           -DCMAKE_INSTALL_PREFIX="$WEBOS_PREFIX" \
           -DCMAKE_INSTALL_RPATH='$ORIGIN/../lib:$ORIGIN/..' \
@@ -303,7 +320,8 @@ stage_connmgr() {
     mkdir -p /tmp/webos
     # -build in the name, as with sysfs-powerd: the services stage writes the
     # running service's own output to /tmp/webos/nm-connectionmanager.log.
-    cmake -S "$R/components/nm-connectionmanager" -B "$B/nm-connectionmanager" \
+    drop_stale_cache "$R/services/nm-connectionmanager" "$B/nm-connectionmanager"
+    cmake -S "$R/services/nm-connectionmanager" -B "$B/nm-connectionmanager" \
           -DCMAKE_BUILD_TYPE="$BUILD_TYPE" \
           -DCMAKE_INSTALL_PREFIX="$WEBOS_PREFIX" \
           -DCMAKE_INSTALL_RPATH='$ORIGIN/../lib:$ORIGIN/..' \
@@ -321,7 +339,8 @@ stage_storaged() {
     # gadget. Not a MANIFEST component either, so it gets its own stage.
     export PKG_CONFIG_PATH=$S/lib/pkgconfig:$S/usr/share/pkgconfig:$S/usr/lib/pkgconfig
     mkdir -p /tmp/webos
-    cmake -S "$R/components/storaged" -B "$B/storaged" \
+    drop_stale_cache "$R/services/storaged" "$B/storaged"
+    cmake -S "$R/services/storaged" -B "$B/storaged" \
           -DCMAKE_BUILD_TYPE="$BUILD_TYPE" \
           -DCMAKE_INSTALL_PREFIX="$WEBOS_PREFIX" \
           -DCMAKE_INSTALL_RPATH='$ORIGIN/../lib:$ORIGIN/..' \
@@ -334,7 +353,7 @@ stage_storaged() {
 
 stage_cards() {
     echo "== cards =="
-    # The cards in components/cards, bundled into build/cards, which
+    # The cards in apps/ and sdk/ui-kit, bundled into build/cards, which
     # assemble-rootfs.sh installs as web apps. esbuild and lit-html are pinned
     # in the repository's package.json; without node_modules this skips rather
     # than fails, the way the other npm-dependent steps do.

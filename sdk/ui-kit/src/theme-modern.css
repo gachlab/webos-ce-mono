@@ -1,0 +1,100 @@
+/*
+ * The same kit, painted for a screen somebody is looking at today.
+ *
+ * It is the same file as theme-enyo.css with different values: same names,
+ * same structure, so a card changes how it looks by linking this instead and
+ * not by changing a single line of itself. Nothing here is measured off
+ * anything -- these are choices, and that is the point of having two.
+ *
+ * What it changes, and why:
+ *   - the page is lighter and the lists sit on white, so a list is an object
+ *     rather than an area fenced off with a line;
+ *   - one accent, used for everything that is on, chosen or being dragged,
+ *     instead of the four blues HP's images each had their own of;
+ *   - no sheen on anything: a button is its colour;
+ *   - the separators are one soft line rather than a dark one and a lit one,
+ *     which is what you draw when the surface underneath is not a texture.
+ */
+
+:root {
+    --wos-page: #eef0f3;
+    --wos-ink: #1f2328;
+    --wos-ink-dim: #5c6570;
+    --wos-ink-faint: #8a939e;
+    --wos-danger: #c2362f;
+    --wos-accent: #2f6fed;
+    --wos-radius: 0.6rem;
+
+    --wos-outline: #dfe3e8;
+    --wos-list-bg: #fff;
+    --wos-caption-bg: none;
+    --wos-caption-ink: #5c6570;
+
+    --wos-row-line-top: transparent;
+    --wos-row-line-bottom: #e7eaee;
+    --wos-row-press: rgba(47, 111, 237, 0.1);
+
+    --wos-header-bg: #22262c;
+    --wos-header-ink: #fff;
+    --wos-header-line: #14171b;
+    --wos-header-back-ink: #c3c9d1;
+    --wos-header-light-bg: #fff;
+    --wos-header-light-ink: #1f2328;
+    --wos-header-light-back-ink: #2f6fed;
+    --wos-header-light-line-top: transparent;
+    --wos-header-light-line-bottom: #dfe3e8;
+    --wos-header-light-shadow: 0 0.1rem 0.4rem rgba(15, 20, 30, 0.07);
+
+    --wos-button-sheen: none;
+    --wos-button-sheen-down: linear-gradient(rgba(0, 0, 0, 0.12), rgba(0, 0, 0, 0.12));
+    --wos-button-edge: transparent;
+    --wos-button-radius: 0.4rem;
+    --wos-button-light: #e7eaee;
+    --wos-button-light-ink: #1f2328;
+    --wos-button-dark: #3b4150;
+    --wos-button-affirmative: #1f9254;
+    --wos-button-negative: #c2362f;
+    --wos-button-blue: #2f6fed;
+    --wos-button-gray: #5c6570;
+    --wos-button-loud-ink: #fff;
+
+    --wos-toggle-on: #2f6fed;
+    --wos-toggle-off: #c3c9d1;
+    --wos-toggle-knob: #fff;
+    --wos-toggle-knob-on: #fff;
+    --wos-toggle-edge: transparent;
+    --wos-toggle-ink: #fff;
+
+    --wos-check-off: #c3c9d1;
+    --wos-check-on: #2f6fed;
+    --wos-check-tick: #fff;
+    --wos-check-edge: transparent;
+
+    --wos-choice-off: #e7eaee;
+    --wos-choice-off-ink: #1f2328;
+    --wos-choice-on: #2f6fed;
+    --wos-choice-on-ink: #fff;
+    --wos-choice-line: rgba(31, 35, 40, 0.08);
+
+    --wos-progress-track: #e7eaee;
+    --wos-progress-fill: #2f6fed;
+    --wos-slider-track: #e7eaee;
+    --wos-slider-fill: #2f6fed;
+    --wos-slider-knob: #fff;
+    --wos-slider-knob-edge: rgba(15, 20, 30, 0.2);
+
+    --wos-spinner-ring: rgba(31, 35, 40, 0.12);
+    --wos-spinner-lead: #2f6fed;
+
+    --wos-field-focus-bg: #f4f6f9;
+    --wos-field-focus-edge: #2f6fed;
+    --wos-field-ink: #1f2328;
+
+    --wos-menu-bg: #22262c;
+    --wos-menu-ink: #fff;
+    --wos-menu-edge: #14171b;
+    --wos-menu-press: #2f6fed;
+    --wos-dialog-bg: #fff;
+    --wos-scrim: rgba(15, 20, 30, 0.45);
+    --wos-swipe-bg: #fbeceb;
+}

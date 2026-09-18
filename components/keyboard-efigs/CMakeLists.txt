@@ -15,8 +15,8 @@ set(CMAKE_AUTOMOC ON)
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
 
 find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets)
-# The adapters for what Qt 6 removed (components/qt6-compat).
-add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../qt6-compat ${CMAKE_CURRENT_BINARY_DIR}/qt6-compat)
+# The adapters for what Qt 6 removed (adapters/qt6-compat).
+add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../../adapters/qt6-compat ${CMAKE_CURRENT_BINARY_DIR}/qt6-compat)
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(GLIB REQUIRED glib-2.0 gthread-2.0)
 

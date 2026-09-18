@@ -4,7 +4,10 @@
 # an empty window: it finds neither configuration nor UI resources.
 set -u
 R="$(cd "$(dirname "$0")/.." && pwd)"
-C="$R/components"
+C="$R/components"   # HP's, exactly MANIFEST.tsv
+A="$R/adapters"     # ours, so HP's code runs here
+SV="$R/services"    # ours, because HP never released them
+AP="$R/apps"        # ours, and the enyo originals we measure against
 ROOTFS="${1:-$R/build/rootfs}"
 # Overridable for the same reason tools/build.sh's is: a package build puts the
 # staging tree at $DESTDIR$WEBOS_PREFIX, not under build/.
@@ -165,9 +168,9 @@ mkdir -p "$ROOTFS/usr/palm/frameworks/enyo/0.10/framework"
 cp -rf "$C"/enyo-1.0/framework/* "$ROOTFS/usr/palm/frameworks/enyo/0.10/framework/" 2>/dev/null
 ln -sfn 0.10 "$ROOTFS/usr/palm/frameworks/enyo/version" 2>/dev/null
 # lib/networkproxy, which HP's lib/wifi loads and HP never released; ours, beside
-# the framework rather than inside it. See components/enyo-lib-networkproxy.
+# the framework rather than inside it. See adapters/enyo-lib-networkproxy.
 mkdir -p "$ROOTFS/usr/palm/frameworks/enyo/0.10/framework/lib/networkproxy"
-cp -f "$C"/enyo-lib-networkproxy/*.js "$ROOTFS/usr/palm/frameworks/enyo/0.10/framework/lib/networkproxy/"
+cp -f "$A"/enyo-lib-networkproxy/*.js "$ROOTFS/usr/palm/frameworks/enyo/0.10/framework/lib/networkproxy/"
 
 # HP's apps. Each ships its own db8 kinds and permissions.
 for APP in "$C"/core-apps/*/; do
@@ -187,13 +190,13 @@ if [ -f "$C/isis-browser/appinfo.json" ]; then
     cp -rf "$C/isis-browser" "$ROOTFS/usr/palm/applications/com.palm.app.browser"
 fi
 
-# The Wi-Fi settings card used to be installed here from components/wifi-app,
+# The Wi-Fi settings card used to be installed here from apps/baseline/wifi-enyo,
 # which is enyo 1.0 on HP's lib/wifi. It is not any more: the card is now one of
-# the cards in components/cards (#38), installed with them just above, under the
+# the cards built from apps/wifi (#38), installed with them just above, under the
 # same id. The old one stays in the tree -- it is ours, and it is what the new
 # one was written from -- and is simply not installed, the way the stubs are.
 
-# The cards built from components/cards: our own, on the modern web platform
+# The cards built from apps/ and sdk/ui-kit: our own, on the modern web platform
 # (#37). Each one is already a plain web app -- index.html, one bundle, HP's
 # stylesheets -- in build/cards, where tools/build-cards.sh put it; nothing here
 # builds, so a tree assembled without that step simply has no new cards.
@@ -215,8 +218,16 @@ fi
 # are on screen together -- so this one sits next to com.gachlab.app.kit and the
 # differences become numbers. It is small, and it is the only copy of HP's own
 # look that runs.
-rm -rf "$ROOTFS/usr/palm/applications/com.gachlab.app.kitenyo"
-cp -rf "$C/kit-enyo" "$ROOTFS/usr/palm/applications/com.gachlab.app.kitenyo"
+# The id comes out of its own appinfo.json, like every other card's: it used to
+# be spelled here as well, which is two places to change and one of them silent.
+KITENYO="$AP/baseline/kit-enyo"
+kitenyo_id=$(sed -n 's/.*"id"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$KITENYO/appinfo.json" | head -1)
+if [ -n "$kitenyo_id" ]; then
+    rm -rf "$ROOTFS/usr/palm/applications/$kitenyo_id"
+    cp -rf "$KITENYO" "$ROOTFS/usr/palm/applications/$kitenyo_id"
+else
+    echo "  kit-enyo: appinfo.json has no id, not installed"
+fi
 
 # Servicios de aplicacion (JS, corren sobre node)
 for SVC in "$C"/app-services/*/; do
@@ -263,7 +274,9 @@ cp -f "$C"/mojoloader/mojoloader.js "$ROOTFS/usr/palm/frameworks/" 2>/dev/null
 #   *.service.pub -> services/<n>.service
 #   *.service     -> both (db8 only ships one)
 # Some components keep them in desktop-support/ and others in service/.
-for DS in "$C"/*/desktop-support "$C"/*/service; do
+# Ours come last on purpose: where a stub of HP's and a service of ours
+# declare the same bus name, the one that answers wins.
+for DS in "$C"/*/desktop-support "$C"/*/service "$SV"/*/desktop-support "$SV"/*/service; do
     [ -d "$DS" ] || continue
     # pmnetconfigmanager-stub is vendored but never installed -- see where
     # com.palm.location's stub is installed, below, for why. It has to be skipped
@@ -313,12 +326,12 @@ sed -i -E "s|^Exec=[^ ]*/([^ /]+)|Exec=$WEBOS_PREFIX/usr/lib/luna/\\1|" \
 
 # pmnetconfigmanager-stub and mojolocation-stub used to be installed here, for
 # com.palm.connectionmanager and com.palm.location. They are not any more:
-# components/nm-connectionmanager answers the first from NetworkManager, and
-# components/node-services the second (#10) -- HP's stub answered every request
+# services/nm-connectionmanager answers the first from NetworkManager, and
+# services/node-services the second (#10) -- HP's stub answered every request
 # with Palm's headquarters. The stubs' role and .service files would silently
 # overwrite the real services' ones. The components stay in the tree -- they are
 # HP's, and MANIFEST.tsv is an inventory of what HP released -- they are simply
-# not installed, the same way components/luna-sysmgr-ce is kept but never built.
+# not installed, the same way reference/luna-sysmgr-ce is kept but never built.
 
 # A tree assembled before com.palm.connectionmanager and com.palm.location
 # became real services still has the stubs' JavaScript in it, and this script
@@ -572,12 +585,12 @@ sed -i -E "s|^Exec=$WEBOS_PREFIX/usr/lib/luna/|Exec=$WEBOS_LAUNCHER ns-exec /usr
     "$ROOTFS"/usr/share/ls2/services/*.service \
     "$ROOTFS"/usr/share/ls2/system-services/*.service 2>/dev/null
 
-# Services rewritten in modern TypeScript (components/node-services) take over
+# Services rewritten in modern TypeScript (services/node-services) take over
 # from HP's JavaScript service of the same name. HP's copy stays where it was,
 # since its db8 kinds, permissions and role are installed from it, but the hub
 # now starts the new one: the pinned node on its main.ts, inside the namespace,
 # with NODE_PATH pointing at lunabus.node. node runs the .ts files as they are.
-NS="$C/node-services"
+NS="$SV/node-services"
 if [ -d "$NS/services" ]; then
     rm -rf "$ROOTFS/usr/palm/node-services"
     mkdir -p "$ROOTFS/usr/palm/node-services/services"
@@ -672,7 +685,7 @@ JSON
     # The addons and the compat shim come from staging, where the node stage of
     # tools/build.sh installed them.
     cp -f "$S/usr/palm/nodejs/"*.node "$ROOTFS/usr/palm/nodejs/" 2>/dev/null || true
-    cp -f "$R/components/node-v8-shim/js/webos-node-compat.js" "$ROOTFS/usr/palm/nodejs/"
+    cp -f "$R/adapters/node-v8-shim/js/webos-node-compat.js" "$ROOTFS/usr/palm/nodejs/"
     echo "  node:                $("$NODE_BIN" -v) copied from $NODE_HOME"
 else
     # Say it out loud. Everything else assembles without node and the shell

@@ -9,13 +9,14 @@ Chromium. This is what they stand on, and why it is shaped this way.
 **No UI framework in the cards. The logic is a plain TypeScript library, and
 the controls are custom elements drawn with `lit-html`.**
 
-Two layers, one rule between them: **`src/lib/` never imports anything from the
-UI**, and the UI holds no business logic.
+Two layers, one rule between them: **`@webos/api` never imports anything from
+the UI**, and the UI holds no business logic. It is a package boundary now, and
+`tools/test-web.sh` fails when it is crossed.
 
 | | |
 |---|---|
-| Logic | `components/cards/src/lib` — services as factory functions with their own state, and one callback to subscribe to it |
-| UI | `components/cards/src/ui` — custom elements written as functions, one stylesheet, one card entry point per app |
+| Logic | `sdk/webos-api` — services as factory functions with their own state, and one callback to subscribe to it |
+| UI | `sdk/ui-kit` — custom elements written as functions, one stylesheet, one card entry point per app |
 
 ### Why not a framework
 
@@ -24,7 +25,7 @@ five years, when this port is still here and the framework of the day is not.
 enyo answers that question by example: HP's cards cannot be maintained today
 without maintaining a 2011 framework alongside them.
 
-* What a card publishes is `<hp-toggle on></hp-toggle>` — an element, not a
+* What a card publishes is `<wos-toggle on></wos-toggle>` — an element, not a
   component of anyone's framework. A card written in React, or in nothing at
   all, uses the same controls and the same services, and none of them can tell
   what drew them.
@@ -35,10 +36,10 @@ without maintaining a 2011 framework alongside them.
   lit-html's dialect (`?on=`, `@press=`, `.choices=`), so replacing it means
   rewriting them. What it does *not* reach is the consumers: an element's
   contract is its tag, its attributes, its properties and its events, and a
-  card -- or a shim, or another framework -- that uses `<hp-toggle>` cannot
+  card -- or a shim, or another framework -- that uses `<wos-toggle>` cannot
   tell what drew it. That is the part that has to outlive the library, and it
   does.
-* The logic never knew about any of this. `src/lib` is tested with
+* The logic never knew about any of this. `sdk/webos-api` is tested with
   `node --test`, without a browser, and would survive the UI being thrown away.
 
 Solid was the other candidate, and the nearest miss: fine-grained reactivity,
@@ -65,19 +66,41 @@ it pushed.
 
 ## How a card is put together
 
+Three packages, not three directories: npm workspaces, so an app reaches the
+platform and the kit **by name**, and the layering is resolution rather than
+discipline.
+
 ```
-components/cards/
-  src/lib/helpers/      create-state, timers, watch
-  src/lib/services/     navigation, and one service per screen
-  src/lib/infra/luna/   the bus: the port, the PalmServiceBridge adapter, a
-                        fake, and one file per webOS service, typed
-  src/ui/element.ts     defineElement: functions in, custom elements out
-  src/ui/start-card.ts  how a card starts: styles, first frame, its own life
-  src/ui/kit/           HP's controls (16 of them; the rest is #58)
-  src/ui/kit.css        the controls' look; every element adopts this one sheet
-  src/ui/page.css       the page a card lives on, and the text it writes
-  src/cards/<app id>/   index.html, appinfo.json, main.ts -- where it is wired up
+sdk/webos-api/            @webos/api -- no DOM. Nothing here knows there is a screen.
+  src/helpers/            create-state, timers, watch
+  src/services/           navigation: which screen the card is showing
+  src/infra/luna/         the bus: the port, the PalmServiceBridge adapter, a
+                          fake, and one file per webOS service, typed
+  src/infra/app/          the card's own life, on window.Mojo and PalmSystem
+
+sdk/ui-kit/               @webos/ui-kit -- depends on @webos/api, never the reverse
+  src/element.ts          defineElement: functions in, custom elements out
+  src/start-card.ts       how a card starts: styles, first frame, its own life
+  src/kit/                HP's controls (16 of them; the rest is #58)
+  src/kit.css             the controls' look; every element adopts this one sheet
+  src/page.css            the page a card lives on, and the text it writes
+  src/theme-*.css         the same 69 token names, twice
+  showcase/               every control in every state -- an app, and the kit's
+                          documentation, which is why it lives in here
+
+apps/<name>/              one package per app
+  src/main.ts             where the service and the view are wired up
+  src/<screen>.service.ts one screen, one state machine
+  src/luna/<service>.ts   a webOS service only this app talks to
+  src/appinfo.json        the id; the directory name is not the id
+  test/                   the service, with a fake bus
 ```
+
+* **The direction of the dependency is enforced, not agreed.** `@webos/api`
+  must not mention the kit; `tools/test-web.sh` fails if it does. Workspaces put
+  every package in `node_modules`, so node would resolve a wrong import happily
+  -- that check is what says no. Without it, "a card can be written in something
+  that is not our kit" would be a claim rather than a fact (#65).
 
 * **State names are the contract**: `"template:loading"`, `"template:ready"`,
   `"template:failed"`. The UI switches on them; tests assert the sequence.
@@ -95,7 +118,23 @@ components/cards/
   (`helpers/watch.ts`), which `startCard` wires to the card's own life.
 * **Screens are a stack.** A row opens one, the back gesture pops it, and only
   an empty stack closes the card -- HP's flow, written once
-  (`services/navigation.service.ts`).
+  (`sdk/webos-api/src/services/navigation.service.ts`).
+
+### The names we publish are `wos-`
+
+The controls used to be `hp-toggle`, `hp-row`, `--hp-accent`. That prefix was
+wrong twice over: it is someone else's brand, and it is a **false claim about
+who wrote the code** -- these are ours, reimplementing a look. It would also
+collide the day a real piece of HP's markup and ours meet on one page.
+
+They are `wos-` now, all 71 tokens and every element and class with them. Not
+`gach-` and not `gl-`: an app's **id** says who publishes it
+(`com.gachlab.app.wifi`), but an **element** says which system it belongs to,
+and somebody else writing a card for this device should be reaching for "the
+system's toggle", not for ours.
+
+`theme-enyo.css` keeps its name. There the word is exact: it is enyo's look,
+measured.
 
 ## What a rewritten card is allowed to look like
 
@@ -146,7 +185,7 @@ links neither has no colours at all, and `tests/template-card.cpp` fails on it.
 
 ### The other side of the A/B
 
-`components/kit-enyo` is the same kit built out of enyo 1.0 and the Onyx theme,
+`apps/baseline/kit-enyo` is the same kit built out of enyo 1.0 and the Onyx theme,
 installed as `com.gachlab.app.kitenyo`. It is not a card anybody uses: it is the
 reference. Same controls, same order, same captions as `com.gachlab.app.kit`, so
 the two can be photographed at the same scroll offset and compared pixel by
@@ -164,7 +203,7 @@ jump.
   service code goes through that wrapper keeps working while its screens are
   replaced.
 * The controls are custom elements, so enyo's own DOM-driven code can create
-  and use them (`document.createElement("hp-toggle")`) without knowing what
+  and use them (`document.createElement("wos-toggle")`) without knowing what
   they are. The mapping that matters is per control, and only the controls an
   app actually uses have to be covered.
 * The card lifecycle (`AppService`) is the same one enyo's `ApplicationEvents`
@@ -181,8 +220,8 @@ three above are ever reached through a card's own code.
   (one `main.js`, the page, the stylesheet, `appinfo.json`);
   `tools/assemble-rootfs.sh` installs those as web apps. `tools/build.sh cards`
   is the stage that runs it, so CI builds them too.
-* `components/cards/test/run.sh` type-checks with TypeScript 7 and runs the
-  library's tests on `node --test` -- no browser, no bus.
+* `tools/test-web.sh` type-checks with TypeScript 7 and runs the
+  SDK's tests on `node --test` -- no browser, no bus.
 * `tests/template-card.cpp` runs the built card in the engine WebAppMgr uses,
   against a fake `PalmServiceBridge`: it asks the bus, draws HP's rows, says so
   when a service is not running, and asks again when the user presses.
