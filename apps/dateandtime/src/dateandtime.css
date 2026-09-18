@@ -1,0 +1,31 @@
+.dateandtime-now {
+    margin: 0.4rem 1rem 0.8rem;
+    font-size: 1.1rem;
+    text-align: center;
+    color: var(--wos-ink);
+}
+
+.dateandtime-footer {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 0.4rem;
+    flex: none;
+    box-sizing: border-box;
+    min-height: 2.7rem;
+    height: 2.7rem;
+    padding: 0 0.5rem;
+    --wos-button-margin: 0;
+    background: var(--wos-header-light-bg);
+    border-width: var(--wos-header-light-border-width, 1px 0 0);
+    border-style: solid;
+    border-color: var(--wos-header-light-line-bottom, var(--wos-outline));
+}
+
+.dateandtime-footer .dateandtime-wide {
+    width: 10.7rem;
+}
+
+.wos-card.dateandtime-has-footer {
+    grid-template-rows: auto 1fr auto;
+}

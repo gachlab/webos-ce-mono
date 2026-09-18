@@ -1,0 +1,10 @@
+{
+  "name": "@gachlab/app-swmanager",
+  "private": true,
+  "description": "The Software Manager settings card (#22).",
+  "type": "module",
+  "dependencies": {
+    "@webos/api": "*",
+    "@webos/ui-kit": "*"
+  }
+}

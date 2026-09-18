@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Help: question mark on a tile. -->
+<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 48 48">
+  <defs>
+    <radialGradient id="bubble" cx="35%" cy="30%" r="70%">
+      <stop offset="0%" stop-color="#d0e8ff"/>
+      <stop offset="40%" stop-color="#4a9ae0"/>
+      <stop offset="100%" stop-color="#104878"/>
+    </radialGradient>
+  </defs>
+  <path d="M9 33.5 L24 41 L39 33.5 L24 26 Z" fill="#4a4a4a"/>
+  <path d="M9 33.5 L24 41 L24 43.5 L9 36 Z" fill="#2e2e2e"/>
+  <path d="M39 33.5 L24 41 L24 43.5 L39 36 Z" fill="#1a1a1a"/>
+  <circle cx="24" cy="18" r="13" fill="url(#bubble)"/>
+  <path d="M18.5 15.5 q0-4.5 5.5-4.5 q5 0 5 4.2 q0 2.4-2.2 3.6 q-2 1.1-2.6 2.2 v1.2"
+        fill="none" stroke="#f4faff" stroke-width="2.4" stroke-linecap="round"/>
+  <circle cx="24" cy="25.8" r="1.5" fill="#f4faff"/>
+</svg>

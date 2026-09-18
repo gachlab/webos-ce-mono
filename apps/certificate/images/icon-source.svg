@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Certificate Manager: sealed document on a tile. -->
+<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 48 48">
+  <defs>
+    <linearGradient id="paper" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#fff8e8"/>
+      <stop offset="100%" stop-color="#d8c8a0"/>
+    </linearGradient>
+    <linearGradient id="seal" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#e06050"/>
+      <stop offset="100%" stop-color="#801808"/>
+    </linearGradient>
+  </defs>
+  <path d="M9 33.5 L24 41 L39 33.5 L24 26 Z" fill="#4a4a4a"/>
+  <path d="M9 33.5 L24 41 L24 43.5 L9 36 Z" fill="#2e2e2e"/>
+  <path d="M39 33.5 L24 41 L24 43.5 L39 36 Z" fill="#1a1a1a"/>
+  <path d="M15 8 h14 l5 5 v18 h-19 z" fill="url(#paper)" stroke="#8a7850" stroke-width="0.6"/>
+  <path d="M29 8 v5 h5" fill="none" stroke="#8a7850" stroke-width="0.6"/>
+  <g stroke="#a09060" stroke-width="1.3" stroke-linecap="round">
+    <path d="M18 16 h10"/><path d="M18 19.5 h10"/><path d="M18 23 h7"/>
+  </g>
+  <circle cx="28" cy="27" r="4.2" fill="url(#seal)"/>
+  <path d="M26.2 27 l1.3 1.3 2.4-2.8" fill="none" stroke="#ffe8e0"
+        stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

@@ -1,0 +1,16 @@
+/* Certificate Manager */
+
+.certificate-has-footer .wos-body {
+    padding-bottom: 4.5rem;
+}
+
+.certificate-footer {
+    display: flex;
+    gap: 0.8rem;
+    justify-content: center;
+    padding: 0.6rem 1rem 0.8rem;
+}
+
+.certificate-wide {
+    min-width: 8rem;
+}
