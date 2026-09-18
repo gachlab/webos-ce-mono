@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Software Manager: package / box on a tile. -->
+<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 48 48">
+  <defs>
+    <linearGradient id="top" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#f0c060"/>
+      <stop offset="100%" stop-color="#c08020"/>
+    </linearGradient>
+    <linearGradient id="front" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#d49830"/>
+      <stop offset="100%" stop-color="#805010"/>
+    </linearGradient>
+    <linearGradient id="side" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#a87018"/>
+      <stop offset="100%" stop-color="#604008"/>
+    </linearGradient>
+  </defs>
+  <path d="M9 33.5 L24 41 L39 33.5 L24 26 Z" fill="#4a4a4a"/>
+  <path d="M9 33.5 L24 41 L24 43.5 L9 36 Z" fill="#2e2e2e"/>
+  <path d="M39 33.5 L24 41 L24 43.5 L39 36 Z" fill="#1a1a1a"/>
+  <!-- isometric box -->
+  <path d="M14 18 L24 12 L34 18 L24 24 Z" fill="url(#top)"/>
+  <path d="M14 18 L24 24 L24 34 L14 28 Z" fill="url(#front)"/>
+  <path d="M34 18 L24 24 L24 34 L34 28 Z" fill="url(#side)"/>
+  <path d="M24 12 L24 24" stroke="#906018" stroke-width="0.7" opacity="0.5"/>
+  <path d="M19 20.5 L29 20.5" stroke="#fff0c0" stroke-width="1.4" stroke-linecap="round" opacity="0.55"/>
+</svg>
