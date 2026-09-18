@@ -33,6 +33,7 @@ DEV="${WEBOS_CARDS_DEV:-}"
 
 # id -> source directory, for every card in the tree.
 declare -A SRC=()
+declare -A CLAIMED=()   # every id an app answers to: its own, and its aliases
 while IFS= read -r info; do
     dir="$(dirname "$info")"
     [ -f "$dir/main.ts" ] || continue          # the enyo references are not ours to bundle
@@ -42,10 +43,27 @@ while IFS= read -r info; do
     # here and in the rootfs. There is no manifest on our side of the tree the
     # way MANIFEST.tsv is on HP's, so this is where a collision gets caught --
     # and #63 is about to add a second id per app.
-    [ -z "${SRC[$id]:-}" ] || {
-        echo "  two cards claim $id: ${SRC[$id]} and $dir"; exit 1
+    [ -z "${CLAIMED[$id]:-}" ] || {
+        echo "  $id is claimed by ${CLAIMED[$id]} and by $dir"; exit 1
     }
     SRC["$id"]="$dir"
+    CLAIMED["$id"]="$dir"
+    # And the ids it answers to besides its own (#63). They share one namespace
+    # with the real ids -- an alias nobody can reach because another app is
+    # installed under that id exactly is a silently dead redirection, which is
+    # worse than a build that stops. ls-hubd does the same for bus names, at
+    # run time; here it is caught before the device.
+    while read -r alias; do
+        [ -n "$alias" ] || continue
+        # Listing your own id is harmless -- the exact match answers first --
+        # so it is not a collision with yourself.
+        [ "$alias" != "$id" ] || continue
+        [ -z "${CLAIMED[$alias]:-}" ] || {
+            echo "  $alias is claimed by ${CLAIMED[$alias]} and, as an alias, by $dir"; exit 1
+        }
+        CLAIMED["$alias"]="$dir"
+    done < <(sed -n 's/.*"aliases"[[:space:]]*:[[:space:]]*\[\([^]]*\)\].*/\1/p' "$info" \
+             | tr ',' '\n' | sed -n 's/.*"\([^"]*\)".*/\1/p')
 done < <(find "$R/apps" "$R/sdk" -name appinfo.json -not -path '*/node_modules/*' | sort)
 
 ids=("$@")

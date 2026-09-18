@@ -115,6 +115,9 @@ public:
 	bool isLaunchAtBootApp(const std::string& appId);
 
 	ApplicationDescription* getAppById(const std::string& id);
+	// Ours (#63): an app registered under exactly this id, aliases ignored.
+	// What registering and installing must ask; see the definition.
+	ApplicationDescription* getAppByIdExactly(const std::string& id);
 	ApplicationDescription* getAppByIdHardwareCompatibleAppsOnly(const std::string& id);
 	ApplicationDescription* getAppByMime(const std::string& mime);
 	ApplicationDescription* getPendingAppById(const std::string& id);

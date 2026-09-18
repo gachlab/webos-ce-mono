@@ -98,6 +98,9 @@ public:
 	const std::string& menuName()		const { return m_appmenuName; }
 	const std::string& category()   const { return m_category; } 
 	std::list<std::string> keywords() const { return m_keywords.allKeywords(); }
+	// Ours (#63): the other ids this app answers to, read only by
+	// ApplicationManager::getAppById and only when the exact id is not found.
+	const std::list<std::string>& aliases() const { return m_aliases; }
 	const std::string& version()    const { return m_version; }
 	bool               hasTransparentWindows() const { return m_hasTransparentWindows; }
 	bool			   isRemovable() const { return m_isRemovable; }
@@ -267,6 +270,7 @@ private:
 	unsigned int				m_runtimeMemoryRequired; // Amount (in MB) of RAM the application expects to use during runtime
 	std::string					m_appmenuName;
 	KeywordMap			   		m_keywords;
+	std::list<std::string>		m_aliases;			// ours, see aliases()
 	std::string 				m_universalSearchJsonStr;
 	std::string					m_servicesJsonStr;
 	std::string					m_accountsJsonStr;

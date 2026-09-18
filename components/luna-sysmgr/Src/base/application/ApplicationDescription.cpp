@@ -401,6 +401,38 @@ ApplicationDescription* ApplicationDescription::fromFile(const std::string& file
 		}
 	}
 
+	// ALIASES: optional, and OURS rather than HP's.
+	//
+	// The other ids this app answers to. In webOS an app id is an address --
+	// the shell, notifications and activities all open an app by id -- so an
+	// app we write to replace one of HP's has to inherit its address or
+	// everything that calls the old one stops working. HP's own apps call each
+	// other by id twelve times for Contacts alone, and a third-party enyo app
+	// that calls com.palm.app.contacts is one we can neither see nor patch.
+	//
+	// The list is the app's to declare, not a table in the shell, so the next
+	// rewrite does not touch system code again. ApplicationManager::getAppById
+	// is the single place it is read, and only as a fallback: an id that
+	// matches an app exactly always wins, so an alias can never take an
+	// address away from an app that is really installed. See #63.
+	label = json_object_object_get(root, "aliases");
+	if (label && !is_error(label) && json_object_is_type(label, json_type_array)) {
+
+		for (int i = 0; i < json_object_array_length(label); i++) {
+
+			struct json_object* entry = json_object_array_get_idx(label, i);
+			if (!entry || is_error(entry))
+				continue;
+
+			if (!json_object_is_type(entry, json_type_string))
+				continue;
+
+			const char* alias = json_object_get_string(entry);
+			if (alias && *alias)
+				appDesc->m_aliases.push_back(alias);
+		}
+	}
+
 	// Hardware features needed: optional
 	label = json_object_object_get(root, "hardwareFeaturesNeeded");
 	if (label && !is_error(label) && json_object_is_type(label, json_type_array)) {
@@ -872,6 +904,9 @@ void ApplicationDescription::update(const ApplicationStatus& appStatus, bool isU
 int ApplicationDescription::update(const ApplicationDescription& appDesc) 
 {
 	m_category = appDesc.m_category;
+	// Ours (#63): a new version of an app may add or drop an id it answers to,
+	// and without this an in-place update kept the old list until a full rescan.
+	m_aliases = appDesc.m_aliases;
 	m_entryPoint = appDesc.m_entryPoint;
 	m_version = appDesc.m_version;
 	m_folderPath = appDesc.m_folderPath;
