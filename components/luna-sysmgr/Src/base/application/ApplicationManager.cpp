@@ -2381,13 +2381,17 @@ bool ApplicationManager::isTrustedInstallerApp (const std::string& app) const {
 }
 
 bool ApplicationManager::isTrustedPalmApp(const ApplicationDescription* appDesc) const {
-	// "webOS CE" as well as Palm and HP: the apps this port writes to stand in
-	// for HP's own unreleased ones keep their com.palm ids, so the system menu
-	// can launch them, and are platform apps like the ones they replace. As an
-	// untrusted app, com.palm.app.wifi was placed with downloaded apps; trusted,
-	// its "Settings" category puts it on the launcher's Settings page.
+	// "webOS CE" as well as Palm and HP: the cards this port writes to stand in
+	// for HP's own unreleased ones are platform apps like the ones they replace.
+	// Untrusted, a card is placed with downloaded apps; trusted, its "Settings"
+	// category puts it on the launcher's Settings page.
+	//
+	// This used to read appDesc->id().find("com.palm.") directly, from when our
+	// cards still carried HP's ids. Renaming them to com.gachlab.* took their
+	// standing away without a word. claimsPalmId also accepts the ids a card
+	// declares it answers to, which is where that claim lives now (#63).
 	const std::string& vendor = appDesc->vendorName();
-	return (appDesc->id().find("com.palm.") == 0
+	return (claimsPalmId(appDesc)
 	        && (vendor.find("Palm") == 0 || vendor.find("HP") == 0 || vendor == "webOS CE")) ? true : false;
 }
 
@@ -2403,7 +2407,26 @@ bool ApplicationManager::isTrustedPalmApp(const std::string& appId)
 
 bool ApplicationManager::isFactoryPlatformApp(const std::string& appId)
 {
-	return isTrustedPalmApp(appId);
+	// What the launcher asks before deciding which page an icon starts on. It
+	// means "did this come with the image", NOT "is it Palm's".
+	//
+	// HP could answer it with isTrustedPalmApp because everything that shipped
+	// on the device was Palm's. Nothing that ships here is: the cards this port
+	// writes carry com.gachlab ids, so under that rule every one of them was
+	// filed as user-installed and put on the Downloads page -- a plain untruth
+	// about an app that came in the image, and MEASURED: the kit, its enyo
+	// twin, the template card and the plain one all landed there.
+	//
+	// ApplicationDescription already works this out, for a different reason: an
+	// app under the rootfs's /usr came with the system and is not removable
+	// (RomAppPath.h, ours; tests/rom-app-path.cpp). Same question, same answer
+	// -- and a registered system-folder app has removable forced to false a
+	// few hundred lines above, so this is that fact and not a declaration.
+	//
+	// isTrustedPalmApp is left alone: it still means what it says, and it still
+	// decides which apps report the platform version.
+	ApplicationDescription* appDesc = getAppById(appId);
+	return appDesc && !appDesc->isRemovable();
 }
 
 unsigned long ApplicationManager::generateNewTicket()

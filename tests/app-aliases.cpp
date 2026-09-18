@@ -45,6 +45,15 @@ void check(const char* what, const FakeApp* got, const char* wanted)
                 ok ? "OK" : (std::string("<-- FAIL, wanted ") + wanted).c_str());
 }
 
+void checkTrust(const char* what, bool got, bool wanted)
+{
+    const bool ok = got == wanted;
+    if (!ok)
+        ++g_failures;
+    std::printf("  %-62s %-26s %s\n", what, got ? "trusted" : "not trusted",
+                ok ? "OK" : (wanted ? "<-- FAIL, wanted trusted" : "<-- FAIL, wanted not trusted"));
+}
+
 FakeApp* make(const char* id, const char* alias = 0)
 {
     FakeApp* app = new FakeApp();
@@ -113,6 +122,19 @@ int main()
           "com.palm.app.clock");
     check("an empty tree finds nothing", appAnsweringTo(none, none, "com.palm.app.wifi"), "(nobody)");
     check("an empty id finds nothing", appAnsweringTo(registered, system, ""), "(nobody)");
+
+    std::printf("standing in for one of HP's\n");
+    // HP decided an app was a platform app by its id alone. Our cards replace
+    // HP's and carry our own ids, so the claim moved to the alias -- without
+    // this, renaming the packages to com.gachlab.* took their standing away in
+    // silence, which is exactly what happened to the Wi-Fi card: it stopped
+    // being a platform app and dropped off the launcher's Settings page.
+    checkTrust("one of HP's own is trusted, as before", claimsPalmId(browser), true);
+    checkTrust("and so is a card that declares HP's id", claimsPalmId(wifi), true);
+    checkTrust("an app of ours that claims nothing is not", claimsPalmId(make("com.gachlab.app.kit")), false);
+    checkTrust("nor one aliased to something that is not HP's",
+               claimsPalmId(make("com.gachlab.app.kit", "com.example.thing")), false);
+    checkTrust("and nothing at all is not", claimsPalmId<FakeApp>(0), false);
 
     std::printf("%s\n", g_failures == 0 ? "all good" : "FAILURES");
     return g_failures == 0 ? 0 : 1;

@@ -2,7 +2,6 @@
 	"id": "com.gachlab.app.kitenyo",
 	"title": "Kit (enyo)",
 	"type": "web",
-	"category": "Settings",
 	"main": "index.html",
 	"icon": "icon.png",
 	"uiRevision": 2,

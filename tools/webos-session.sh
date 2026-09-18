@@ -3,6 +3,9 @@
 #
 #   webos-session.sh            bring everything up and stay in the foreground
 #   webos-session.sh --down     tear down whatever is running and exit
+#   webos-session.sh --forget-launcher
+#                               tear down, and forget where the launcher put
+#                               every icon so the next start decides again
 #
 # Only one session runs at a time. A second start while one is up says so and
 # exits without touching it; --down still works, since it is how to recover.
@@ -111,6 +114,34 @@ teardown() {
 
 if [ "${1:-}" = "--down" ]; then
     teardown
+    exit 0
+fi
+
+# Forget where the launcher put every icon, so the next start decides again.
+#
+# The launcher saves each app's page on disk and, on the way back up,
+# pageIndexForAppByPredefinedDesignators restores that saved position and
+# RETURNS before it looks at anything else -- category, platform app, any of it.
+# On a device that is right: an icon the user dragged somewhere should stay
+# there, whatever an update thinks.
+#
+# In a development tree it hides your work. MEASURED: the Wi-Fi card was given
+# "category": "Settings" and made a platform app, and it stayed on the Downloads
+# page across restarts, because a run from before either change had pinned it
+# there. The log said so and nothing else did --
+#
+#   [APP-MARSHALL] appId com.gachlab.app.wifi (Previously-Saved) ... page 1
+#
+# and after this, on the same build:
+#
+#   [APP-MARSHALL] appId com.gachlab.app.wifi ... the 'Settings' page of index 3
+#
+# It costs the icon arrangement, which is why it is not done on every start.
+if [ "${1:-}" = "--forget-launcher" ]; then
+    teardown
+    saved="$ROOTFS/var/luna/preferences/launcher3"
+    rm -f "$saved"/page_* "$saved"/launcher_fixed.msave 2>/dev/null
+    echo "webos: the launcher will place every icon again on the next start"
     exit 0
 fi
 

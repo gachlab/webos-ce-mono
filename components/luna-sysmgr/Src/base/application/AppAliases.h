@@ -77,4 +77,34 @@ typename Apps::value_type appAnsweringTo(const Apps& registered, const Apps& sys
 	return appAliasedToIn(system, appId);
 }
 
+// Whether an app is one of HP's, or stands in for one.
+//
+// HP decided this on the id alone: com.palm.* and a vendor it knew. Ours (#63)
+// also accepts an app that DECLARES one of those ids as an alias, because that
+// is the same claim said a different way -- and without it, renaming our
+// packages to com.gachlab.* silently took the standing away from the very cards
+// written to replace HP's. It did: the Wi-Fi card stopped being a platform app
+// the day it was renamed, which put it among downloaded apps instead of on the
+// launcher's Settings page, and nothing failed loudly enough to notice.
+//
+// It grants no more than HP's rule did. Anything could always have named itself
+// com.palm.app.whatever; here it has to claim an alias, and two apps cannot
+// claim the same one (tools/build-cards.sh). Neither version is a security
+// boundary -- the bus is, through ls-hubd's roles.
+template <typename App>
+bool claimsPalmId(const App* app)
+{
+	if (!app)
+		return false;
+	if (app->id().find("com.palm.") == 0)
+		return true;
+	const std::list<std::string>& aliases = app->aliases();
+	for (std::list<std::string>::const_iterator alias = aliases.begin();
+	     alias != aliases.end(); ++alias) {
+		if (alias->find("com.palm.") == 0)
+			return true;
+	}
+	return false;
+}
+
 #endif // APPALIASES_H
