@@ -38,6 +38,18 @@ export const HELP_TOPICS: readonly HelpTopic[] = [
         detail: "Browse featured articles",
         path: "",
     },
+    {
+        id: "screen",
+        title: "Screen & Lock",
+        detail: "Brightness, wallpaper, unlock",
+        path: "",
+    },
+    {
+        id: "wifi",
+        title: "Wi-Fi",
+        detail: "Join and manage networks",
+        path: "",
+    },
 ];
 
 export const topicUrl = (topic: HelpTopic, base = HELP_BASE): string => {
