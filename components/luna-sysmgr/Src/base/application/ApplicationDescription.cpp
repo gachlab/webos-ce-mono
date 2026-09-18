@@ -904,6 +904,9 @@ void ApplicationDescription::update(const ApplicationStatus& appStatus, bool isU
 int ApplicationDescription::update(const ApplicationDescription& appDesc) 
 {
 	m_category = appDesc.m_category;
+	// Ours (#63): a new version of an app may add or drop an id it answers to,
+	// and without this an in-place update kept the old list until a full rescan.
+	m_aliases = appDesc.m_aliases;
 	m_entryPoint = appDesc.m_entryPoint;
 	m_version = appDesc.m_version;
 	m_folderPath = appDesc.m_folderPath;

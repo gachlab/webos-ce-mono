@@ -140,7 +140,12 @@ fi
 if [ "${1:-}" = "--forget-launcher" ]; then
     teardown
     saved="$ROOTFS/var/luna/preferences/launcher3"
-    rm -f "$saved"/page_* "$saved"/launcher_fixed.msave 2>/dev/null
+    # launcher_*.msave rather than launcher_fixed.msave: that name only holds
+    # while UseSingleMasterFilename is on, and with it off the master is
+    # launcher_<dd-MM-yyyy>.msave and would survive this. The quick launch bar
+    # keeps its own saved file, and it is forgotten too, or "the launcher will
+    # place every icon again" would be a half-truth.
+    rm -f "$saved"/page_* "$saved"/launcher_*.msave "$saved"/quicklaunch_*.qlsave 2>/dev/null
     echo "webos: the launcher will place every icon again on the next start"
     exit 0
 fi

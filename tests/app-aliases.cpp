@@ -13,8 +13,8 @@
 //
 // Verified by mutation: with the alias pass moved in front of the exact pass
 // for the second list, with an alias matched against id() instead of
-// aliases(), or with the fallback returning the first app rather than nothing,
-// this turns red.
+// aliases(), with the fallback returning the first app rather than nothing, or
+// with appAnsweringToIn counting aliases, this turns red.
 
 #include "AppAliases.h"
 
@@ -112,16 +112,40 @@ int main()
     check("and an exact match behind an alias in the SAME list still wins",
           appAnsweringTo(bothRegistered, system, "com.palm.app.wifi"), "com.palm.app.wifi");
 
+    std::printf("the other question: is this id already taken\n");
+    // THE ONE THAT WAS MISSING, and the reason a green test sat on top of a
+    // real bug. getAppById answers "who opens when this id is asked for" and
+    // includes aliases. Registering and installing ask something else --
+    // "is an app registered under exactly this id?" -- and they used the same
+    // function. So when the scanner reached HP's own folder, our card's alias
+    // made the id look taken and HP's REAL app was discarded. The rule was
+    // never wrong; the callers were asking it the wrong question, and no
+    // assertion here could see that because none of them asked the second one.
+    check("an alias does NOT make an id look taken",
+          appAnsweringToIn(registered, "com.palm.app.wifi"), "(nobody)");
+    check("an app's own id does", appAnsweringToIn(registered, "com.gachlab.app.wifi"),
+          "com.gachlab.app.wifi");
+    check("and HP's own app is found by it", appAnsweringToIn(bothSystem, "com.palm.app.wifi"),
+          "com.palm.app.wifi");
+
     std::printf("the awkward ones\n");
-    // An app claiming its own id as an alias is harmless, not a loop.
-    FakeApp* selfish = make("com.palm.app.clock", "com.palm.app.clock");
+    Apps none;
+    check("an empty tree finds nothing", appAnsweringTo(none, none, "com.palm.app.wifi"), "(nobody)");
+    // An app that lists its own id as an alias: the exact pass answers first,
+    // so the alias is never consulted and there is no second answer to give.
+    FakeApp* selfish = make("com.gachlab.app.clock", "com.gachlab.app.clock");
     Apps one;
     one.push_back(selfish);
-    Apps none;
-    check("an app aliased to itself answers once", appAnsweringTo(one, none, "com.palm.app.clock"),
-          "com.palm.app.clock");
-    check("an empty tree finds nothing", appAnsweringTo(none, none, "com.palm.app.wifi"), "(nobody)");
-    check("an empty id finds nothing", appAnsweringTo(registered, system, ""), "(nobody)");
+    check("an app aliased to itself is found by its id", appAnsweringTo(one, none, "com.gachlab.app.clock"),
+          "com.gachlab.app.clock");
+    // An empty alias, which is what a stray comma in an appinfo.json makes.
+    // It must not answer to the empty id, and must not answer to everything.
+    FakeApp* blank = make("com.gachlab.app.blank", "");
+    Apps withBlank;
+    withBlank.push_back(blank);
+    check("an empty alias answers to nothing", appAnsweringTo(withBlank, none, ""), "(nobody)");
+    check("and does not swallow another id", appAnsweringTo(withBlank, none, "com.palm.app.wifi"),
+          "(nobody)");
 
     std::printf("standing in for one of HP's\n");
     // HP decided an app was a platform app by its id alone. Our cards replace

@@ -55,6 +55,9 @@ while IFS= read -r info; do
     # run time; here it is caught before the device.
     while read -r alias; do
         [ -n "$alias" ] || continue
+        # Listing your own id is harmless -- the exact match answers first --
+        # so it is not a collision with yourself.
+        [ "$alias" != "$id" ] || continue
         [ -z "${CLAIMED[$alias]:-}" ] || {
             echo "  $alias is claimed by ${CLAIMED[$alias]} and, as an alias, by $dir"; exit 1
         }

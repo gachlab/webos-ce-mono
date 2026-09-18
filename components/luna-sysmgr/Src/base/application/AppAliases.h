@@ -53,7 +53,10 @@ typename Apps::value_type appAliasedToIn(const Apps& apps, const std::string& ap
 		const std::list<std::string>& aliases = (*it)->aliases();
 		for (std::list<std::string>::const_iterator alias = aliases.begin();
 		     alias != aliases.end(); ++alias) {
-			if (*alias == appId)
+			// An empty alias answers to nothing, not to the empty id. The
+			// parser drops empty strings, but the rule must not depend on
+			// somebody else being careful.
+			if (!alias->empty() && *alias == appId)
 				return *it;
 		}
 	}

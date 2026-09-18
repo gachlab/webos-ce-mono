@@ -25,6 +25,7 @@
 
 #include "ApplicationManager.h"
 #include "AppAliases.h"   // ours: who answers to an app id (#63)
+#include "RomAppPath.h"   // ours: did this app come with the image
 //MDK-LAUNCHER #include "DockPositionManager.h"
 #include "ApplicationDescription.h"
 #include "ApplicationStatus.h"
@@ -393,7 +394,7 @@ void ApplicationManager::scan()
 	it = changed.begin();
 	while (it !=  changed.end()) {
 		pAppDesc = *it;						//pAppDesc points to a NEW ApplicationDescriptor
-		pRegAppDesc = getAppById(pAppDesc->id());
+		pRegAppDesc = getAppByIdExactly(pAppDesc->id());
 		if (pRegAppDesc == NULL) {
 			//YIKES! serious issues! something became out of sync...try to ignore
 			it++;
@@ -553,7 +554,7 @@ ApplicationDescription* ApplicationManager::installSysApp(const std::string& app
 	}
 	std::string appPathFull = Settings::LunaSettings()->appInstallBase + std::string("/")
 	+ Settings::LunaSettings()->appInstallRelative + std::string("/") + appId;
-	ApplicationDescription* pAppDesc = getAppById(appId);
+	ApplicationDescription* pAppDesc = getAppByIdExactly(appId);
 	if (pAppDesc)
 	{
 		//TODO: support updating
@@ -606,7 +607,7 @@ ApplicationDescription* ApplicationManager::installApp(const std::string& appId)
 	}
 	std::string appPathFull = Settings::LunaSettings()->appInstallBase + std::string("/")
 			+ Settings::LunaSettings()->appInstallRelative + std::string("/") + appId;
-	ApplicationDescription* existingAppDesc = getAppById(appId);
+	ApplicationDescription* existingAppDesc = getAppByIdExactly(appId);
 	ApplicationDescription* newAppDesc = scanOneApplicationFolder(appPathFull);
 	if (!newAppDesc) {
 		g_warning("Failed to scan newly installed/updated app: %s, which was supposed to be in [%s]", appId.c_str(),appPathFull.c_str());
@@ -876,6 +877,28 @@ ApplicationDescription* ApplicationManager::getAppById( const std::string& appId
 	// can take an address away from nobody. Every way of opening an app by id
 	// comes through here, which is why this is the only place it is resolved.
 	return appAnsweringTo(m_registeredApps, m_systemApps, appId);
+}
+
+// OURS (#63). getAppById answers "which app opens when this id is asked for",
+// and since aliases that can be an app whose own id is something else. This
+// answers a DIFFERENT question -- "is an app registered under exactly this
+// id?" -- and the two must not be confused.
+//
+// Registering and installing ask the second one. They use it to mean "already
+// taken, discard this one", and with aliases in the answer that went badly:
+// our com.gachlab.app.contacts declares com.palm.app.contacts, so when the
+// scanner reached HP's own folder the id looked taken and HP'S REAL APP WAS
+// DELETED -- decided by nothing better than the order readdir returned the
+// folders in. That is the exact opposite of the rule in AppAliases.h, and no
+// test saw it: the rule was right, the callers were asking it the wrong
+// question.
+ApplicationDescription* ApplicationManager::getAppByIdExactly( const std::string& appId )
+{
+	MutexLocker locker(&m_mutex);
+
+	if (ApplicationDescription* app = appAnsweringToIn(m_registeredApps, appId))
+		return app;
+	return appAnsweringToIn(m_systemApps, appId);
 }
 
 ApplicationDescription* ApplicationManager::getAppByIdHardwareCompatibleAppsOnly( const std::string& appId )
@@ -1315,7 +1338,7 @@ void ApplicationManager::scanForSystemApplications()
 		ApplicationDescription* appDesc = scanOneApplicationFolder(systemPaths[i]);
 		if (appDesc) {
 
-			if (!getAppById(appDesc->id())) {			//if not seen yet, process, else discard
+			if (!getAppByIdExactly(appDesc->id())) {			//if not seen yet, process, else discard
 				//force non-removable
 				appDesc->setRemovable(false);
 				appDesc->setVersion(platformVersion);
@@ -1347,7 +1370,7 @@ void ApplicationManager::scanForPendingApplications()
 				ApplicationDescription* appDesc = scanOneApplicationFolder(appFolderPath);
 				if (appDesc) {
 					// we found a valid app!
-					bool appExists = getAppById(appDesc->id()) != 0;
+					bool appExists = getAppByIdExactly(appDesc->id()) != 0;
 					if (appExists)
 						appDesc->setStatus(ApplicationDescription::Status_Updating);
 					else
@@ -1414,7 +1437,7 @@ void ApplicationManager::scanForLaunchPoints(std::string launchPointFolder)
 				launchPoint->setRemovable(false);
 		}
 
-		ApplicationDescription* appDesc = getAppById(launchPoint->id());
+		ApplicationDescription* appDesc = getAppByIdExactly(launchPoint->id());
 		if (!appDesc) {
 			free(list[i]);
 			delete launchPoint;
@@ -1479,7 +1502,7 @@ void ApplicationManager::scanApplicationsFolders(const std::string& appFoldersPa
 						}
 #endif
 						// ignore duplicate applications and applications which have been user-hidden
-						if (!isAppHidden(appDesc->id()) && !getAppById(appDesc->id())) {
+						if (!isAppHidden(appDesc->id()) && !getAppByIdExactly(appDesc->id())) {
 							if (isSystemFolder) {
 
 								//appDesc->setUserHideable(appDesc->isRemovable());
@@ -1641,7 +1664,7 @@ ApplicationDescription* ApplicationManager::scanOneApplicationFolder(const std::
 			// if-clause to handle the case where this app is ALSO hidden via the hidden list or duplicated
 		}
 		// ignore duplicate applications
-		if (!isAppHidden(appDesc->id()) || !getAppById(appDesc->id())) {
+		if (!isAppHidden(appDesc->id()) || !getAppByIdExactly(appDesc->id())) {
 
 			//check to see if this is a system folder: rooted at /usr		TODO: make this better
 			bool isSystemFolder;
@@ -2417,16 +2440,18 @@ bool ApplicationManager::isFactoryPlatformApp(const std::string& appId)
 	// about an app that came in the image, and MEASURED: the kit, its enyo
 	// twin, the template card and the plain one all landed there.
 	//
-	// ApplicationDescription already works this out, for a different reason: an
-	// app under the rootfs's /usr came with the system and is not removable
-	// (RomAppPath.h, ours; tests/rom-app-path.cpp). Same question, same answer
-	// -- and a registered system-folder app has removable forced to false a
-	// few hundred lines above, so this is that fact and not a declaration.
+	// It asks the folder, not the app. !isRemovable() was the obvious shortcut
+	// and it is wrong: "removable" is a key an appinfo.json may SET, HP's own
+	// comment beside it ("you better be a trusted palm application") describes
+	// a check nobody ever wrote, and the fallback that derives it from the
+	// folder is skipped whenever the key is present. Anything downloaded could
+	// have declared itself part of the system. The folder cannot be claimed.
 	//
 	// isTrustedPalmApp is left alone: it still means what it says, and it still
 	// decides which apps report the platform version.
 	ApplicationDescription* appDesc = getAppById(appId);
-	return appDesc && !appDesc->isRemovable();
+	return appDesc && isRomAppPath(appDesc->folderPath(),
+	                               rootfsPrefix(Settings::LunaSettings()->lunaSystemPath));
 }
 
 unsigned long ApplicationManager::generateNewTicket()
@@ -2501,7 +2526,7 @@ void ApplicationManager::handleApplicationStatusUpdates(LSMessage* msg)
 					// do we care about it? (canceled items are never returned by the first response)
 					if (appStatus.state != ApplicationStatus::State_Unknown) {
 						ApplicationDescription* appDesc = getPendingAppById(appStatus.id);
-						bool appExists = getAppById(appStatus.id) != 0;
+						bool appExists = getAppByIdExactly(appStatus.id) != 0;
 						if (appDesc) {
 							// update status
 							appDesc->update(appStatus, appExists);
@@ -2528,7 +2553,7 @@ void ApplicationManager::handleApplicationStatusUpdates(LSMessage* msg)
 	else {
 		// this is a singular update
 		ApplicationStatus appStatus(payload);
-		ApplicationDescription* existingAppDesc = getAppById(appStatus.id);
+		ApplicationDescription* existingAppDesc = getAppByIdExactly(appStatus.id);
 		bool appExists = existingAppDesc != 0;
 
 		if (appStatus.state == ApplicationStatus::State_Canceled) {
