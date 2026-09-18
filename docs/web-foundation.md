@@ -76,11 +76,13 @@ sdk/webos-api/            @webos/api -- no DOM. Nothing here knows there is a sc
   src/services/           navigation: which screen the card is showing
   src/infra/luna/         the bus: the port, the PalmServiceBridge adapter, a
                           fake, and one file per webOS service, typed
-  src/infra/app/          the card's own life, on window.Mojo and PalmSystem
+  src/infra/app/          the card's own life, on window.Mojo and PalmSystem,
+                          and connectCard: everything being a card means
+                          except what draws
 
 sdk/ui-kit/               @webos/ui-kit -- depends on @webos/api, never the reverse
   src/element.ts          defineElement: functions in, custom elements out
-  src/start-card.ts       how a card starts: styles, first frame, its own life
+  src/start-card.ts       connectCard, plus a lit-html render. The optional half.
   src/kit/                HP's controls (16 of them; the rest is #58)
   src/kit.css             the controls' look; every element adopts this one sheet
   src/page.css            the page a card lives on, and the text it writes
@@ -119,6 +121,78 @@ apps/<name>/              one package per app
 * **Screens are a stack.** A row opens one, the back gesture pops it, and only
   an empty stack closes the card -- HP's flow, written once
   (`sdk/webos-api/src/services/navigation.service.ts`).
+
+### Three layers, and only two of them are compulsory
+
+```
+@webos/api     the bus, the card's own life, launch params, translation.
+               No DOM. connectCard lives here.
+@webos/ui-kit  the controls (custom elements, styled by themselves) and, on
+               top, our renderer: defineElement + lit-html + startCard.
+an app         picks what it needs of the two.
+```
+
+The line that matters is not between the packages, it is **inside `ui-kit`**.
+Its controls are ordinary custom elements: `document.createElement("wos-row")`
+from React, from an enyo shim (#56), from nothing at all, and the control comes
+out looking right — because importing the kit is what styles it, at definition
+time. Our renderer is 316 lines (`element.ts` 252 + `start-card.ts` 64) and
+it is **optional by construction**.
+
+`startCard` is `connectCard` plus one line that renders a lit-html template.
+Everything that makes something a card on this device — the lifecycle,
+`stageReady`, the back gesture, letting go when the page unloads — is
+`connectCard`, in the package with no DOM in it.
+
+**enyo's mistake was not having layers, it was making the top one compulsory.**
+That is why porting one of HP's cards today means rewriting it, and it is the
+single thing this foundation exists not to repeat. So the claim gets a file:
+`apps/example-plain` is a card written with none of our renderer, and
+`tests/plain-card.cpp` fails the day it stops working.
+
+### Measured: the kit from five frameworks
+
+The claim above -- that a card could be written in something that is not our
+renderer -- was an inference until it was measured. It has been, on
+2026-09-18, against the kit exactly as it ships.
+
+The probe is `wos-selector`, chosen because it is the hardest case in the kit:
+its `choices` is an **array**, which no attribute can carry, and it answers with
+custom events. Each framework renders one, and three questions are asked of the
+result: did the property arrive (the control shows "WPA Personal" rather than
+falling back to "wpa"), is it styled (2.6rem of page.css's 20px root = the 52px
+HP's rows were), and does the framework hear the event and repaint.
+
+| | property | styled | event | what it costs |
+|---|---|---|---|---|
+| React 19.3 | yes | 52px | yes | a `ref` and `addEventListener`: JSX has no mapping for custom events |
+| Vue 3.5 | yes | 52px | yes | **nothing** |
+| Solid 1.9 | yes | 52px | yes | `prop:` and `on:`, both first-class |
+| Svelte 5.57 | yes | 52px | yes | **nothing** |
+| Angular 22.1 | yes | 52px | yes | `CUSTOM_ELEMENTS_SCHEMA`, then `[prop]` and `(event)` natively |
+
+The probe was checked against itself first: with `choices` not passed it reads
+`"wpa"`, and with the listeners removed the drawer never opens. It is not a
+tautology.
+
+**The one thing that does not travel: property-only data.** React **18**
+stringifies the array into an attribute --
+`choices="[object Object],[object Object],[object Object]"` -- so the property
+never arrives and the control silently shows its fallback. No error, just the
+wrong content. React 19 fixed it.
+
+That is worth knowing beyond React 18, because **anything that can only write
+markup has the same problem**: HTML by hand, `innerHTML`, a page rendered on a
+server, and the enyo shim of #56, which builds its DOM from JavaScript objects.
+Attributes and custom events travel everywhere; an array does not. Whether the
+kit should accept `choices` as a JSON attribute too is #70.
+
+What this did **not** cover, and it should be said: one control, one
+interaction, in headless Chrome rather than on the device, and the harness
+(five frameworks and their `node_modules`, which needs the network) is not in
+the repository, so this is a measurement taken once and written down -- not a
+test that runs in CI. `apps/example-plain` is the part that does run, on every
+build.
 
 ### The names we publish are `wos-`
 

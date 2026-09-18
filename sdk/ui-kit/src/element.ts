@@ -42,13 +42,14 @@ export interface Host {
 
 export type Component<Props extends Attributes> = (props: Props, host: Host) => TemplateResult;
 
-// The stylesheet every element adopts. A card calls this once, with kit.css;
-// startCard does it.
+// The stylesheet every element adopts. `kit/kit.ts` calls this when it defines
+// the controls, so importing the kit is what styles it and nobody else has to
+// do anything (#65).
 //
-// The sheet is made now and filled in then: an element that was drawn before
-// the card got round to calling this -- one the page built itself, before the
-// bundle ran -- has already adopted this very object, and filling it in styles
-// it too. A sheet handed over per element would have left those unstyled.
+// The sheet is made now and filled in then: an element the page built itself,
+// before the bundle ran, has already adopted this very object, and filling it
+// in styles it too. A sheet handed over per element would have left those
+// unstyled.
 const sheet: CSSStyleSheet | undefined = (() => {
     try {
         return new CSSStyleSheet();
@@ -60,11 +61,23 @@ const sheet: CSSStyleSheet | undefined = (() => {
 const fallbacks = new Set<HTMLStyleElement>();
 let styleText = "";
 
+// Sheets add up rather than replace one another. There is one caller today,
+// but there is one sheet for the whole page: a second caller -- the enyo shim
+// (#56) defining its own elements on top of `defineElement`, say -- replacing
+// it would silently strip every control on the page of its look. Adding is the
+// behaviour that cannot do that. Calling it twice with the same text is a
+// no-op, so a module evaluated twice costs nothing.
+const sources: string[] = [];
+
 export const useStyles = (css: string): void => {
-    styleText = css;
-    sheet?.replaceSync(css);
+    if (sources.includes(css)) {
+        return;
+    }
+    sources.push(css);
+    styleText = sources.join("\n");
+    sheet?.replaceSync(styleText);
     for (const style of fallbacks) {
-        style.textContent = css;
+        style.textContent = styleText;
     }
 };
 

@@ -34,6 +34,12 @@ src/services/    navigation: which screen the card is showing
   shapes and its quirks, in one place. `connectionmanager.ts` is the one every
   card needs. A service that only one app talks to lives in that app, the way
   `apps/wifi/src/luna/wifi.ts` does.
+* `infra/app/connect-card.ts` — **the entry point**: `connectCard` is
+  everything being a card on this device means — the lifecycle, `stageReady`,
+  the back gesture, letting go when the page unloads — and nothing about how it
+  is drawn. Its `paint` callback is the seam a renderer hooks into, ours or
+  anyone's. `@webos/ui-kit`'s `startCard` is this plus one line;
+  `apps/example-plain` is a card that calls this one directly and draws itself.
 * `infra/app/service.ts` — what it was launched with, being brought to the
   front and sent away, relaunched with new parameters, the keyboard taking half
   the screen, the back gesture, and telling WebAppMgr the card is ready.

@@ -1,0 +1,11 @@
+{
+    "id": "com.gachlab.app.plain",
+    "version": "1.0.0",
+    "vendor": "gachlab",
+    "type": "web",
+    "main": "index.html",
+    "title": "Plain",
+    "icon": "icon.png",
+    "uiRevision": 2,
+    "noWindow": false
+}

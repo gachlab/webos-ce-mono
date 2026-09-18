@@ -247,6 +247,15 @@ set_tests_properties(kit-elements PROPERTIES
     SKIP_RETURN_CODE 77
     ENVIRONMENT "QT_QPA_PLATFORM=offscreen;WEBOS_CARDS_BUILD=${CMAKE_CURRENT_SOURCE_DIR}/../build/cards")
 
+# A card that uses none of our renderer: the check behind #65's claim that the
+# platform and the controls are usable from anything.
+add_executable(plain-card plain-card.cpp)
+target_link_libraries(plain-card PRIVATE qtwebkit-compat-lib)
+add_test(NAME plain-card COMMAND plain-card)
+set_tests_properties(plain-card PROPERTIES
+    SKIP_RETURN_CODE 77
+    ENVIRONMENT "QT_QPA_PLATFORM=offscreen;WEBOS_CARDS_BUILD=${CMAKE_CURRENT_SOURCE_DIR}/../build/cards")
+
 add_executable(template-card template-card.cpp)
 target_link_libraries(template-card PRIVATE qtwebkit-compat-lib)
 add_test(NAME template-card COMMAND template-card)

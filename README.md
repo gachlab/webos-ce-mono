@@ -149,7 +149,9 @@ own, which we rewrite — is visible before opening anything.
 - `sdk/` — what an app is written against: `webos-api` (the bus, the app's own
   life, translation — no DOM) and `ui-kit` (the controls, the stylesheets, the
   two themes, and the showcase).
-- `apps/` — applications. `wifi/` and `app-template/` on the SDK; `baseline/`
+- `apps/` — applications. `wifi/` and `app-template/` on the SDK, and
+  `example-plain/`, a card written with **none** of our renderer, which is what
+  keeps "you could write one in React" a fact rather than a claim; `baseline/`
   holds the enyo ones a rewrite is measured against — ours too, kept for
   exactly that, so "does it still look right" is a screenshot rather than an
   argument.

@@ -10,7 +10,22 @@
 // it is always the same shape: read the properties, draw, and say what
 // happened with an event.
 
-import { defineElement, html, type TemplateResult } from "../element.ts";
+import { defineElement, html, useStyles, type TemplateResult } from "../element.ts";
+import styles from "../kit.css";
+
+// The kit dresses itself, here, at the moment it is defined.
+//
+// This used to be startCard's job, which meant a control put on a page by
+// anything other than our runtime -- React, an enyo shim (#56), a plain
+// document.createElement -- came out with no styles at all. That was an
+// oversight rather than a design: importing this file is what defines the
+// elements, so importing this file is what must style them. Whoever uses
+// <wos-toggle> is already here by definition.
+//
+// The sheet in element.ts is made empty and filled in now, so an element the
+// page built before this module ran has already adopted this very object and
+// is styled by this line too.
+useStyles(styles);
 
 // §1 Header. `back` adds HP's back arrow, which emits "back"; whatever the
 // card puts inside sits at the right, where the Wi-Fi card's radio switch goes.
