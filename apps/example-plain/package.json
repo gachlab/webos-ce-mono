@@ -1,0 +1,10 @@
+{
+  "name": "@gachlab/app-plain",
+  "private": true,
+  "description": "A card written without our runtime: no lit-html, no defineElement, no startCard. The proof that the platform and the controls are usable from anything (#65).",
+  "type": "module",
+  "dependencies": {
+    "@webos/api": "*",
+    "@webos/ui-kit": "*"
+  }
+}

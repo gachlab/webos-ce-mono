@@ -34,7 +34,11 @@ fail=0
 #    device in anything but our kit.
 #    Code, not prose: the package's README says out loud that the kit depends on
 #    it, and saying so is the point.
-leak=$(cd "$ROOT" && grep -rl --include='*.ts' '@webos/ui-kit\|@gachlab/' sdk/webos-api 2>/dev/null | tr '\n' ' ')
+#    Matched inside quotes, which is what an import specifier looks like in
+#    every form of it -- `from "..."`, `import "..."`, `import("...")`. Prose
+#    may name the kit and does: connect-card.ts explains where the other half
+#    lives, and that sentence is worth more than the grep is strict.
+leak=$(cd "$ROOT" && grep -rlE --include='*.ts' '["'"'"']@webos/ui-kit|["'"'"']@gachlab/' sdk/webos-api 2>/dev/null | tr '\n' ' ')
 if [ -n "$leak" ]; then
     echo "FAIL: @webos/api reaches up into the kit or an app: $leak"
     fail=1
@@ -45,7 +49,7 @@ fi
 #    that draws -- may name the kit. This is the half the old "src/lib never
 #    imports src/ui" covered and that the split nearly dropped: those services
 #    used to live under src/lib and now live in their app.
-leak=$(cd "$ROOT" && grep -rl --include='*.service.ts' --include='luna/*.ts' '@webos/ui-kit' apps/*/src 2>/dev/null | tr '\n' ' ')
+leak=$(cd "$ROOT" && grep -rlE --include='*.service.ts' --include='luna/*.ts' '["'"'"']@webos/ui-kit' apps/*/src 2>/dev/null | tr '\n' ' ')
 if [ -n "$leak" ]; then
     echo "FAIL: an app's logic reaches for the kit: $leak"
     fail=1
@@ -63,8 +67,22 @@ if [ -n "$leak" ]; then
     fail=1
 fi
 
+# 4. And the example card stays an example. apps/example-plain exists to prove
+#    that a card can be written without our renderer (#65), so the day someone
+#    reaches for startCard or defineElement in it "to save a few lines", the
+#    proof quietly stops proving anything. Importing the kit's ELEMENTS is what
+#    it is meant to do; importing the machinery that draws them is not.
+#
+#    Verified by mutation: an import of @webos/ui-kit/start-card.ts there turns
+#    this red.
+leak=$(cd "$ROOT" && grep -rlE --include='*.ts' '["'"'"']@webos/ui-kit/(start-card|element)' apps/example-plain 2>/dev/null | tr '\n' ' ')
+if [ -n "$leak" ]; then
+    echo "FAIL: the card that proves the runtime is optional reaches for it: $leak"
+    fail=1
+fi
+
 [ "$fail" -eq 0 ] || exit 1
-echo "the layers hold: platform, app logic, and no way around them  ok"
+echo "the layers hold, and the runtime is still optional          ok"
 
 if [ $# -eq 0 ]; then
     set -- "$ROOT"/sdk/*/test/*.test.ts "$ROOT"/apps/*/test/*.test.ts

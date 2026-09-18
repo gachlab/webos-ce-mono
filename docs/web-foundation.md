@@ -120,6 +120,33 @@ apps/<name>/              one package per app
   an empty stack closes the card -- HP's flow, written once
   (`sdk/webos-api/src/services/navigation.service.ts`).
 
+### Three layers, and only two of them are compulsory
+
+```
+@webos/api     the bus, the card's own life, launch params, translation.
+               No DOM. connectCard lives here.
+@webos/ui-kit  the controls (custom elements, styled by themselves) and, on
+               top, our renderer: defineElement + lit-html + startCard.
+an app         picks what it needs of the two.
+```
+
+The line that matters is not between the packages, it is **inside `ui-kit`**.
+Its controls are ordinary custom elements: `document.createElement("wos-row")`
+from React, from an enyo shim (#56), from nothing at all, and the control comes
+out looking right — because importing the kit is what styles it, at definition
+time. Our renderer is 342 lines and it is **optional by construction**.
+
+`startCard` is `connectCard` plus one line that renders a lit-html template.
+Everything that makes something a card on this device — the lifecycle,
+`stageReady`, the back gesture, letting go when the page unloads — is
+`connectCard`, in the package with no DOM in it.
+
+**enyo's mistake was not having layers, it was making the top one compulsory.**
+That is why porting one of HP's cards today means rewriting it, and it is the
+single thing this foundation exists not to repeat. So the claim gets a file:
+`apps/example-plain` is a card written with none of our renderer, and
+`tests/plain-card.cpp` fails the day it stops working.
+
 ### The names we publish are `wos-`
 
 The controls used to be `hp-toggle`, `hp-row`, `--hp-accent`. That prefix was
