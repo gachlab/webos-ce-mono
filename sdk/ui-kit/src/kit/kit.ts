@@ -39,7 +39,7 @@ defineElement<{ title: string; back: boolean; light: boolean; icon: string }>(
             ${back ? html`<button class="wos-header-back" @click=${() => emit("back")}>&#9664;</button>` : ""}
             <span class="wos-header-title">
                 ${icon ? html`<img class="wos-header-icon" src=${icon} alt="">` : ""}
-                <span>${title}</span>
+                <span class="wos-header-label">${title}</span>
             </span>
             <span class="wos-header-end"><slot></slot></span>
         </header>`,

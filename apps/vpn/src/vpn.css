@@ -6,9 +6,11 @@
  * these tokens bring the list to that measure without changing other cards.
  */
 .wos-card {
-    --wos-row-min-height: 2.4rem;
-    --wos-row-pad-y: 0.2rem;
-    --wos-row-pad-x: 0.5rem;
+    /* ProfileListItem.js: padding-top 0, padding-bottom 4px; Item.css sides. */
+    --wos-row-min-height: 2.2rem;
+    --wos-row-pad-top: 0;
+    --wos-row-pad-bottom: 0.2rem;
+    --wos-row-pad-x: 0.7rem;
     --wos-info-width: 2.1rem;
     --wos-info-height: 2.3rem;
 }
@@ -18,11 +20,15 @@
     padding-top: 1.1rem;
 }
 
-/* Add/Configure use denser single-control groups: HP's enyo-item is ~56px. */
+/* Add/Configure use denser single-control groups: HP's enyo-item is ~56px.
+ * vpn-row-group also widens the side margin to 8px (Group.css defaults 8px 3px). */
 .vpn-has-footer .wos-body {
-    --wos-row-pad-y: 0.5rem;
+    /* Add/Configure single controls: enyo-item 10px pad, ~56px tall. */
+    --wos-row-pad-top: 0.5rem;
+    --wos-row-pad-bottom: 0.5rem;
     --wos-row-pad-x: 0.5rem;
     --wos-row-min-height: 2.8rem;
+    --wos-group-labeled-margin: 8px;
 }
 
 .vpn-marks {
@@ -59,8 +65,13 @@
     animation: wos-spin 900ms linear infinite;
 }
 
+/* "Add profile..." is a plain enyo.Item (10px pad), not a ProfileListItem. */
 .vpn-add {
     border-top: 1px solid var(--wos-row-line-bottom);
+    --wos-row-pad-top: 0.5rem;
+    --wos-row-pad-bottom: 0.5rem;
+    --wos-row-pad-x: 0.5rem;
+    --wos-row-min-height: 2.6rem;
 }
 
 /* HP's Add/Configure footers: light toolbar with two wide buttons. */

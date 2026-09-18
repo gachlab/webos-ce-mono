@@ -52,12 +52,15 @@
     display: grid;
     grid-template-columns: 1fr auto 1fr;
     align-items: center;
-    /* enyo's light toolbar is min-height 54px on a 20px root. */
-    height: 2.7rem;
-    padding: 0 0.6rem;
+    /* Toolbar.css says min-height 54px, but Onyx's light toolbar with a 48px
+     * inline header icon measures 57px on device (baseline gap under the img
+     * inside HFlexBox). Match that so settings cards line up with HP. */
+    min-height: 2.85rem;
+    height: auto;
+    padding: 0;
     color: var(--wos-header-ink);
     font-size: 1rem;
-    font-weight: 300;
+    font-weight: 400;
     background: var(--wos-header-bg);
     border-bottom: 1px solid var(--wos-header-line);
     flex: none;
@@ -86,7 +89,12 @@
     grid-column: 2;
     display: flex;
     align-items: center;
-    gap: 0.4rem;
+    gap: 0;
+}
+
+.wos-header-icon + .wos-header-label {
+    /* vpn-page-title / enyo: 10px after the 48px icon */
+    padding-left: 10px;
 }
 
 /* HP's settings cards put a 48px picture beside the title (vpn-48.png, the
@@ -117,13 +125,17 @@
 
 /* The element itself, inside its own shadow root: an element that shrinks to
  * its content cannot hold a control that fills the row. */
-:host(wos-button), :host(wos-header), :host(wos-row), :host(wos-group), :host(wos-spinner) {
+:host(wos-button), :host(wos-activity-button), :host(wos-header), :host(wos-row), :host(wos-group), :host(wos-spinner) {
     display: block;
+    font-family: inherit;
 }
 
 :host(wos-info) {
     display: inline-block;
     flex: none;
+    /* vpn.css .info-icon: margin-top 4px, margin-left 8px (outside the tile). */
+    margin-top: var(--wos-info-margin-top, 0.2rem);
+    margin-left: var(--wos-info-margin-left, 0.4rem);
 }
 
 :host(wos-toggle) {
@@ -151,6 +163,7 @@
     min-height: 1.8rem;
     margin: 0.15rem 0;
     padding: 4px 8px;
+    font-family: inherit;
     font-size: 16px;
     line-height: 20px;
     text-align: center;
@@ -227,7 +240,10 @@
     align-items: center;
     gap: 0.5rem;
     min-height: var(--wos-row-min-height, 2.6rem);
-    padding: var(--wos-row-pad-y, 0.5rem) var(--wos-row-pad-x, 0.5rem);
+    padding-top: var(--wos-row-pad-top, var(--wos-row-pad-y, 0.5rem));
+    padding-bottom: var(--wos-row-pad-bottom, var(--wos-row-pad-y, 0.5rem));
+    padding-left: var(--wos-row-pad-x, 0.5rem);
+    padding-right: var(--wos-row-pad-x, 0.5rem);
     border-top: 1px solid var(--wos-row-line-top);
     border-bottom: 1px solid var(--wos-row-line-bottom);
 }
@@ -485,7 +501,7 @@
     justify-content: center;
     width: var(--wos-info-width, 2.1rem);
     height: var(--wos-info-height, 2.3rem);
-    margin-left: 0.4rem;
+    margin: 0;
     padding: 0;
     border: 1px solid var(--wos-info-edge);
     border-radius: 0.3rem;
@@ -565,6 +581,8 @@
     border-top-color: transparent;
     border-bottom-color: transparent;
 }
+
+/* Unlabeled selector: value is the row title at Item.css .9rem (not page 1rem). */
 
 .wos-selector-drawer {
     background: rgba(0, 0, 0, 0.06);
