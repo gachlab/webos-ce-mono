@@ -194,7 +194,7 @@ defineElement<{ label: string; value: string; choices: { value: string; label: s
                             <span class="wos-selector-value">${caption}</span>`
                         : html`
                             <div class="wos-row-text"><div class="wos-row-title">${caption}</div></div>`}
-                    <span class="wos-selector-arrow ${open ? "open" : ""}">&#9662;</span>
+                    <span class="wos-selector-arrow ${open ? "open" : ""}" aria-hidden="true"></span>
                 </div>
                 ${open
                     ? html`<div class="wos-selector-drawer">

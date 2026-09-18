@@ -38,6 +38,7 @@
     --wos-group-labeled-margin: 8px 3px;
     --wos-group-labeled-border-width: 36px 14px 14px 14px;
     --wos-group-labeled-border-image: url(images/group-labeled.png) 36 14 14 14 repeat repeat;
+    --wos-selector-arrow: url(images/menu-arrow.png) center right / 14px 10px no-repeat;
     --wos-list-under-caption-border: 0;
     --wos-list-under-caption-top: 0;
     --wos-list-under-caption-radius: 0;
@@ -146,6 +147,7 @@
     --wos-field-focus-bg: #fff;
     --wos-field-focus-edge: rgba(0, 0, 0, 0.22);
     --wos-field-ink: #000;
+    --wos-field-placeholder: #888;
 
     /* AppMenu.css and Dialog.css. */
     --wos-menu-bg: linear-gradient(to bottom, #4b4b4b, #333);

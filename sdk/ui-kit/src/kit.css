@@ -365,8 +365,33 @@
     border: 0;
     border-radius: 0.4rem;
     outline: none;
+    -webkit-appearance: none;
+    appearance: none;
     -webkit-user-select: text;
     user-select: text;
+}
+
+.wos-field-input::placeholder {
+    color: var(--wos-field-placeholder, #888);
+    opacity: 1;
+}
+
+/* Unlabeled field: the group caption is the label (VPN Add). Match enyo's
+ * item+input: 10px pad, input ~24px tall, no extra inset. */
+.wos-field:not(:has(.wos-field-label)) {
+    display: flex;
+    align-items: center;
+    padding: 0.5rem;
+    min-height: 2.4rem;
+    box-sizing: border-box;
+}
+
+.wos-field:not(:has(.wos-field-label)) .wos-field-input {
+    padding: 0;
+    border-radius: 0;
+    font-size: 0.9rem;
+    line-height: 1.2;
+    min-height: 1.2rem;
 }
 
 .wos-field-input:focus {
@@ -479,23 +504,23 @@
 
 .wos-selector-arrow {
     flex: none;
-    color: var(--wos-ink);
-    font-size: 0.65rem;
-    line-height: 1;
+    width: 14px;
+    min-height: 34px;
+    /* Onyx menu-arrow.png — theme sets --wos-selector-arrow (ListSelector.css). */
+    background: var(--wos-selector-arrow, none);
     transition: transform 120ms ease-out;
-}
-
-/* Unlabeled selector: value is the row title; arrow alone on the right. */
-.wos-field:not(:has(.wos-field-label)) {
-    padding: 0.5rem;
-}
-
-.wos-field:not(:has(.wos-field-label)) .wos-field-input {
-    padding: 0.1rem 0;
 }
 
 .wos-selector-arrow.open {
     transform: rotate(180deg);
+}
+
+/* enyo-item.enyo-single: hairlines go transparent so a lone control inside a
+ * labeled group does not etch a white/black line under the caption. */
+:host(wos-selector:only-child) .wos-row,
+:host(wos-row:only-child) .wos-row {
+    border-top-color: transparent;
+    border-bottom-color: transparent;
 }
 
 .wos-selector-drawer {
