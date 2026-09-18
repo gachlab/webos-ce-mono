@@ -26,11 +26,9 @@ const agentChoices = (data: VpnData) =>
 const tick = () => html`
     <img class="vpn-joined" src="images/checkmark.png" alt=${t("Connected")}>`;
 
-// list-icon-add-item.png: a soft grey plus at the left of "Add profile...".
+// HP Main.js: list-icon-add-item.png with padding 4px / padding-right 10px.
 const plus = () => html`
-    <svg class="vpn-plus" slot="lead" viewBox="0 0 18 18" aria-hidden="true">
-        <path d="M7 0h4v7h7v4h-7v7h-4v-7H0V7h7z"></path>
-    </svg>`;
+    <img class="vpn-plus" slot="lead" src="images/list-icon-add-item.png" alt="">`;
 
 const marks = (profile: VpnProfile, service: VpnService) => {
     const busy = isBusyState(profile.connectState);

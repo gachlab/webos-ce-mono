@@ -34,25 +34,28 @@
 .vpn-marks {
     display: flex;
     align-items: center;
-    gap: 0.1rem;
+    gap: 0;
     flex: none;
 }
 
-.vpn-joined,
+/* vpn.css .checkmark.connected: padding-top 4px on the 32×25 Onyx asset. */
+.vpn-joined {
+    flex: none;
+    width: 32px;
+    height: 25px;
+    padding-top: 4px;
+    box-sizing: content-box;
+}
+
+/* Main.js Image: padding 4px; padding-right 10px on list-icon-add-item.png. */
 .vpn-plus {
     flex: none;
-    height: 1.25rem;
+    width: 18px;
+    height: 18px;
+    padding: 4px;
+    padding-right: 10px;
+    box-sizing: content-box;
 }
-
-.vpn-joined { width: 1.6rem; }
-.vpn-plus {
-    width: 0.9rem;
-    height: 0.9rem;
-    opacity: 0.5;
-    color: #777;
-}
-
-.vpn-plus path { fill: currentColor; }
 
 /* Same ring as wos-spinner, sized for the marks column. */
 .vpn-spinner {
@@ -83,10 +86,15 @@
     display: flex;
     justify-content: center;
     align-items: center;
-    gap: 0.2rem;
+    /* HP wide-button.left/right: 4px each side → 8px between Cancel and Next. */
+    gap: 0.4rem;
     flex: none;
+    /* Onyx light toolbar: min-height 54px border-box; buttons centered in it. */
+    box-sizing: border-box;
     min-height: 2.7rem;
-    padding: 0.35rem 0.5rem;
+    height: 2.7rem;
+    padding: 0 0.5rem;
+    --wos-button-margin: 0;
     background: var(--wos-header-light-bg);
     border-width: var(--wos-header-light-border-width, 1px 0 0);
     border-style: solid;
