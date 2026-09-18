@@ -71,6 +71,9 @@ static const char kIntrospection[] = R"XML(
       <arg name="path" type="o" direction="out"/>
       <arg name="active_connection" type="o" direction="out"/>
     </method>
+    <method name="DeactivateConnection">
+      <arg name="active_connection" type="o" direction="in"/>
+    </method>
   </interface>
   <interface name="org.freedesktop.NetworkManager.Device">
     <property name="DeviceType" type="u" access="read"/>
@@ -110,6 +113,7 @@ static const char kIntrospection[] = R"XML(
   <interface name="org.freedesktop.NetworkManager.Connection.Active">
     <property name="Vpn" type="b" access="read"/>
     <property name="Connection" type="o" access="read"/>
+    <property name="State" type="u" access="read"/>
   </interface>
   <interface name="org.freedesktop.login1.Manager">
     <method name="Inhibit">
@@ -126,6 +130,10 @@ static const char kIntrospection[] = R"XML(
   <interface name="org.freedesktop.NetworkManager.Settings">
     <method name="ListConnections">
       <arg name="connections" type="ao" direction="out"/>
+    </method>
+    <method name="AddConnection">
+      <arg name="connection" type="a{sa{sv}}" direction="in"/>
+      <arg name="path" type="o" direction="out"/>
     </method>
   </interface>
   <interface name="org.freedesktop.NetworkManager.Settings.Connection">
@@ -360,6 +368,11 @@ private:
         else if (name == "AddAndActivateConnection")
             g_dbus_method_invocation_return_value(
                 invocation, g_variant_new("(oo)", NM "/Settings/9", NM "/ActiveConnection/9"));
+        else if (name == "AddConnection")
+            g_dbus_method_invocation_return_value(invocation,
+                                                  g_variant_new("(o)", NM "/Settings/9"));
+        else if (name == "DeactivateConnection")
+            g_dbus_method_invocation_return_value(invocation, nullptr);
         else
             g_dbus_method_invocation_return_value(invocation, nullptr);
     }
@@ -556,7 +569,26 @@ static void wifiScene(FakeNm& nm)
     accessPoint(nm, AP4, "Modern", 60, 1, 0, 0x400);
     nm.set(SETTINGS, I_SETTINGS, "@reply", paths({ SAVED_VPN, SAVED_WIFI, SAVED }));
     nm.set(SAVED_WIFI, I_CONN, "@reply", settings("802-11-wireless", "Home", "Home"));
-    nm.set(SAVED_VPN, I_CONN, "@reply", settings("vpn", "Work VPN"));
+    {
+        GVariantBuilder all;
+        g_variant_builder_init(&all, G_VARIANT_TYPE("a{sa{sv}}"));
+        GVariantBuilder connection;
+        g_variant_builder_init(&connection, G_VARIANT_TYPE("a{sv}"));
+        g_variant_builder_add(&connection, "{sv}", "type", g_variant_new_string("vpn"));
+        g_variant_builder_add(&connection, "{sv}", "id", g_variant_new_string("Work VPN"));
+        g_variant_builder_add(&all, "{s@a{sv}}", "connection", g_variant_builder_end(&connection));
+        GVariantBuilder vpn;
+        g_variant_builder_init(&vpn, G_VARIANT_TYPE("a{sv}"));
+        g_variant_builder_add(&vpn, "{sv}", "service-type",
+                              g_variant_new_string("org.freedesktop.NetworkManager.openvpn"));
+        GVariantBuilder data;
+        g_variant_builder_init(&data, G_VARIANT_TYPE("a{ss}"));
+        g_variant_builder_add(&data, "{ss}", "remote", "vpn.example.com");
+        g_variant_builder_add(&data, "{ss}", "username", "alice");
+        g_variant_builder_add(&vpn, "{sv}", "data", g_variant_builder_end(&data));
+        g_variant_builder_add(&all, "{s@a{sv}}", "vpn", g_variant_builder_end(&vpn));
+        nm.set(SAVED_VPN, I_CONN, "@reply", g_variant_builder_end(&all));
+    }
     nm.set(SAVED, I_CONN, "@reply", settings("802-3-ethernet", "Wired"));
     nm.set(IP_WIFI, I_IP4, "Gateway", g_variant_new_string("192.168.1.1"));
     GVariantBuilder dns;
@@ -587,7 +619,11 @@ static void measuredLaptop(FakeNm& nm)
     nm.set(NM, I_NM, "Devices", paths({ ETH, WIFI, TUN, BRIDGE }));
     nm.set(NM, I_NM, "ActiveConnections", paths({ AC_WIFI, AC_VPN }));
     nm.set(AC_WIFI, I_ACTIVE, "Vpn", g_variant_new_boolean(FALSE));
+    nm.set(AC_WIFI, I_ACTIVE, "Connection", g_variant_new_object_path(SAVED_WIFI));
+    nm.set(AC_WIFI, I_ACTIVE, "State", g_variant_new_uint32(2));
     nm.set(AC_VPN, I_ACTIVE, "Vpn", g_variant_new_boolean(TRUE));
+    nm.set(AC_VPN, I_ACTIVE, "Connection", g_variant_new_object_path(SAVED_VPN));
+    nm.set(AC_VPN, I_ACTIVE, "State", g_variant_new_uint32(2));
 
     device(nm, ETH, 1, 20, "enp0s31f6");
     nm.set(ETH, I_WIRED, "Carrier", g_variant_new_boolean(FALSE));
@@ -1003,6 +1039,67 @@ static void run(const std::string& address)
         std::string mac;
         check(NmClient::wifiMacAddress(bus, mac, why) && mac == "7C:21:4A:00:11:22", "the radio's address");
         measuredLaptop(nm);
+    }
+
+    std::printf("vpn profiles\n");
+    {
+        wifiScene(nm);
+        measuredLaptop(nm);
+        nm.takeCalls();
+        std::vector<NmNet::VpnProfile> profiles;
+        std::string why;
+        check(NmClient::listVpnProfiles(bus, profiles, why) && profiles.size() == 1,
+              "only the VPN is listed");
+        check(profiles[0].name == "Work VPN"
+                  && profiles[0].agentGuid == NmNet::kVpnAgentOpenVpn
+                  && profiles[0].remote == "vpn.example.com"
+                  && profiles[0].userName == "alice"
+                  && profiles[0].connectState == NmNet::kVpnStateConnected,
+              "with its name, agent, remote, and connected state");
+        check(NmNet::vpnProfileItem(profiles[0]).size() < 255,
+              "the list item fits the status bar's 255-byte buffer");
+
+        NmNet::VpnProfile details;
+        check(NmClient::getVpnProfile(bus, "Work VPN", details, why)
+                  && details.remote == "vpn.example.com",
+              "getVpnProfile finds it by name");
+        check(!NmClient::getVpnProfile(bus, "Missing", details, why), "and not a name that does not exist");
+
+        check(NmClient::connectVpn(bus, "Work VPN", why), "connect asks NM to activate it");
+        {
+            const std::vector<std::string> calls = writes(nm);
+            check(calls.size() == 1 && has(calls[0], "ActivateConnection") && has(calls[0], SAVED_VPN),
+                  "by its settings path, with no device");
+        }
+        check(NmClient::disconnectVpn(bus, why), "disconnect tears the active VPN down");
+        {
+            const std::vector<std::string> calls = writes(nm);
+            check(calls.size() == 1 && has(calls[0], "DeactivateConnection") && has(calls[0], AC_VPN),
+                  "by the active-connection path");
+        }
+
+        NmNet::VpnRequest add;
+        add.name = "Home Tunnel";
+        add.agentGuid = NmNet::kVpnAgentOpenVpn;
+        add.remote = "home.example.net";
+        add.userName = "bob";
+        add.password = "secret";
+        check(NmClient::addVpnProfile(bus, add, why), "a new OpenVPN profile is added");
+        {
+            const std::vector<std::string> calls = writes(nm);
+            check(calls.size() == 1 && has(calls[0], "AddConnection") && has(calls[0], "home.example.net"),
+                  "with its remote in the settings");
+        }
+        add.name = "Work VPN";
+        check(!NmClient::addVpnProfile(bus, add, why) && why == "profile with that name already exists",
+              "a duplicate name is refused");
+
+        check(NmClient::deleteVpnProfile(bus, "Work VPN", why), "a VPN profile is deleted");
+        {
+            const std::vector<std::string> calls = writes(nm);
+            check(calls.size() == 1 && calls[0] == SAVED_VPN " Delete ()", "on its own object");
+        }
+        check(!NmClient::deleteVpnProfile(bus, "Home", why), "a wifi name is not a VPN to delete");
     }
 
     std::printf("the machine going to sleep\n");

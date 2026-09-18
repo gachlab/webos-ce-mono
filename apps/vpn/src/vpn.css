@@ -1,0 +1,133 @@
+/* What only this card has. Marks beside a profile are drawn, like Wi-Fi's. */
+
+/*
+ * HP's ProfileListItem is denser than a generic enyo.Item: padding-top 0,
+ * padding-bottom 4px, and a 42×46 info tile. The kit defaults are Wi-Fi's;
+ * these tokens bring the list to that measure without changing other cards.
+ */
+.wos-card {
+    /* ProfileListItem.js: padding-top 0, padding-bottom 4px; Item.css sides. */
+    --wos-row-min-height: 2.2rem;
+    --wos-row-pad-top: 0;
+    --wos-row-pad-bottom: 0.2rem;
+    --wos-row-pad-x: 0.7rem;
+    /* ProfileListItem HFlexBox: name flexes up to the marks; no row gap. */
+    --wos-row-gap: 0;
+    /* Glyph band matches HP when the title sits 1px lower in the flex line. */
+    --wos-row-title-shift: 1px;
+    --wos-info-width: 2.1rem;
+    --wos-info-height: 2.3rem;
+}
+
+/* HP's Main.js puts 22px under the toolbar (box-center), not the 39px Wi-Fi uses. */
+.wos-body {
+    padding-top: 1.1rem;
+}
+
+/* Add/Configure use denser single-control groups: HP's enyo-item is ~56px.
+ * vpn-row-group also widens the side margin to 8px (Group.css defaults 8px 3px). */
+.vpn-has-footer .wos-body {
+    /* Add/Configure single controls: enyo-item 10px pad, ~56px tall. */
+    --wos-row-pad-top: 0.5rem;
+    --wos-row-pad-bottom: 0.5rem;
+    --wos-row-pad-x: 0.5rem;
+    --wos-row-min-height: 2.8rem;
+    --wos-group-labeled-margin: 8px;
+    /* List-only 1px title nudge must not move OpenVPN / field labels. */
+    --wos-row-title-shift: 0;
+}
+
+.vpn-marks {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    flex: none;
+}
+
+/* vpn.css .checkmark.connected: padding-top 4px on the 32×25 Onyx asset. */
+.vpn-joined {
+    flex: none;
+    width: 32px;
+    height: 25px;
+    padding-top: 4px;
+    box-sizing: content-box;
+}
+
+/* Main.js Image: padding 4px; padding-right 10px on list-icon-add-item.png. */
+.vpn-plus {
+    flex: none;
+    width: 18px;
+    height: 18px;
+    padding: 4px;
+    padding-right: 10px;
+    box-sizing: content-box;
+}
+
+/* Same ring as wos-spinner, sized for the marks column. */
+.vpn-spinner {
+    display: inline-block;
+    width: 1.1rem;
+    height: 1.1rem;
+    border: 0.15rem solid var(--wos-spinner-ring);
+    border-top-color: var(--wos-spinner-lead);
+    border-radius: 50%;
+    animation: wos-spin 900ms linear infinite;
+}
+
+/* "Add profile..." is a plain enyo.Item (10px pad), not a ProfileListItem.
+ * enyo-last: keep the top hairline, drop the bottom (host:last-child).
+ * Gap 0: list-icon-add-item already has padding-right 10px (Main.js).
+ * flex-start: HP HFlexBox stretch packs the plus/label to the pad edge. */
+.vpn-add {
+    --wos-row-pad-top: 0.5rem;
+    --wos-row-pad-bottom: 0.5rem;
+    --wos-row-pad-x: 0.5rem;
+    --wos-row-min-height: 2.6rem;
+    --wos-row-gap: 0;
+    --wos-row-align: flex-start;
+}
+
+/* HP's Add/Configure footers: light toolbar with two wide buttons. */
+.wos-card.vpn-has-footer {
+    grid-template-rows: auto 1fr auto;
+}
+
+.vpn-footer {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    /* HP wide-button.left/right: 4px each side → 8px between Cancel and Next. */
+    gap: 0.4rem;
+    flex: none;
+    /* Onyx light toolbar: min-height 54px border-box; buttons centered in it. */
+    box-sizing: border-box;
+    min-height: 2.7rem;
+    height: 2.7rem;
+    padding: 0 0.5rem;
+    --wos-button-margin: 0;
+    background: var(--wos-header-light-bg);
+    border-width: var(--wos-header-light-border-width, 1px 0 0);
+    border-style: solid;
+    border-color: var(--wos-header-light-line-bottom, var(--wos-outline));
+    -webkit-border-image: var(--wos-header-light-border-image, none);
+    border-image: var(--wos-header-light-border-image, none);
+}
+
+.vpn-footer .vpn-wide,
+.vpn-footer ::slotted(.vpn-wide) {
+    width: 10.7rem;
+    flex: none;
+}
+
+:host(wos-button).vpn-wide,
+wos-button.vpn-wide,
+wos-activity-button.vpn-wide {
+    width: 10.7rem;
+    display: block;
+    flex: none;
+}
+
+.vpn-footer wos-button,
+.vpn-footer wos-activity-button {
+    width: 10.7rem;
+}

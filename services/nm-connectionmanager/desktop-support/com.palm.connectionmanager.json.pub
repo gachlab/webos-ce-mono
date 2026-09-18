@@ -2,23 +2,49 @@
     "role": {
         "exeName": "/usr/lib/luna/nm-connectionmanager",
         "type": "regular",
-        "allowedNames": ["com.palm.connectionmanager", "com.palm.wifi", "com.palm.certificatemanager"]
+        "allowedNames": [
+            "com.palm.connectionmanager",
+            "com.palm.wifi",
+            "com.palm.certificatemanager",
+            "com.palm.vpn"
+        ]
     },
     "permissions": [
         {
             "service": "com.palm.connectionmanager",
-            "inbound": ["*"],
-            "outbound": ["*"]
+            "inbound": [
+                "*"
+            ],
+            "outbound": [
+                "*"
+            ]
         },
         {
             "service": "com.palm.wifi",
-            "inbound": ["*"],
-            "outbound": ["*"]
+            "inbound": [
+                "*"
+            ],
+            "outbound": [
+                "*"
+            ]
         },
         {
             "service": "com.palm.certificatemanager",
-            "inbound": ["*"],
-            "outbound": ["*"]
+            "inbound": [
+                "*"
+            ],
+            "outbound": [
+                "*"
+            ]
+        },
+        {
+            "service": "com.palm.vpn",
+            "inbound": [
+                "*"
+            ],
+            "outbound": [
+                "*"
+            ]
         }
     ]
 }

@@ -39,7 +39,7 @@ defineElement<{ title: string; back: boolean; light: boolean; icon: string }>(
             ${back ? html`<button class="wos-header-back" @click=${() => emit("back")}>&#9664;</button>` : ""}
             <span class="wos-header-title">
                 ${icon ? html`<img class="wos-header-icon" src=${icon} alt="">` : ""}
-                <span>${title}</span>
+                <span class="wos-header-label">${title}</span>
             </span>
             <span class="wos-header-end"><slot></slot></span>
         </header>`,
@@ -152,6 +152,25 @@ defineElement<{ checked: boolean; disabled: boolean }>(
         </button>`,
 );
 
+// §8b Info. The (i) at the right of a list row that opens details without
+// selecting the row -- HP's info-icon-sprite.png on the VPN card. Emits "press".
+defineElement<{ disabled: boolean }>(
+    "wos-info",
+    { disabled: Boolean },
+    ({ disabled }, { emit }) => html`
+        <button class="wos-info" type="button" ?disabled=${disabled}
+                aria-label="Details"
+                @click=${(event: Event) => {
+                    event.stopPropagation();
+                    emit("press");
+                }}>
+            <span class="wos-info-mark" aria-hidden="true">
+                <span class="wos-info-dot"></span>
+                <span class="wos-info-stem"></span>
+            </span>
+        </button>`,
+);
+
 // §9 List selector: the row that shows the chosen one and opens HP's drawer of
 // choices under it. `choices` is set as a property, not an attribute. Like
 // every other control here, it says what the user asked for -- "open" and
@@ -162,12 +181,20 @@ defineElement<{ label: string; value: string; choices: { value: string; label: s
     ({ label, value, choices, open }, { emit }) => {
         const list = Array.isArray(choices) ? choices : [];
         const chosen = list.find((choice) => choice.value === value);
+        const caption = chosen?.label ?? value;
+        // No label → value is the row title (VPN Add). With a label → value at
+        // the right, as Wi-Fi sleep and the showcase do.
+        const named = !!(label && label.length > 0);
         return html`
             <div class="wos-selector">
                 <div class="wos-row" @click=${() => emit("open", { open: !open })}>
-                    <div class="wos-row-text"><div class="wos-row-title">${label ?? ""}</div></div>
-                    <span class="wos-selector-value">${chosen?.label ?? value}</span>
-                    <span class="wos-selector-arrow ${open ? "open" : ""}">&#9662;</span>
+                    ${named
+                        ? html`
+                            <div class="wos-row-text"><div class="wos-row-title">${label}</div></div>
+                            <span class="wos-selector-value">${caption}</span>`
+                        : html`
+                            <div class="wos-row-text"><div class="wos-row-title">${caption}</div></div>`}
+                    <span class="wos-selector-arrow ${open ? "open" : ""}" aria-hidden="true"></span>
                 </div>
                 ${open
                     ? html`<div class="wos-selector-drawer">
@@ -220,10 +247,10 @@ defineElement<{ value: number; label: string }>(
 // enyo's SwipeableItem, whose `confirmRequired` is the same switch: without it
 // the swipe itself deletes, which is how HP's lists that cannot be undone
 // behaved.
-defineElement<{ title: string; detail: string; confirm: string; instant: boolean; open: boolean }>(
+defineElement<{ title: string; detail: string; confirm: string; instant: boolean; open: boolean; strong: boolean }>(
     "wos-swipe-row",
-    { title: String, detail: String, confirm: String, instant: Boolean, open: Boolean },
-    ({ title, detail, confirm, instant, open }, { emit }) => {
+    { title: String, detail: String, confirm: String, instant: Boolean, open: Boolean, strong: Boolean },
+    ({ title, detail, confirm, instant, open, strong }, { emit }) => {
         // A swipe is a drag that got far enough to mean it: the card is told
         // what the user asked for, and decides.
         let from = 0;
@@ -247,7 +274,7 @@ defineElement<{ title: string; detail: string; confirm: string; instant: boolean
                  @pointerdown=${start} @pointerup=${end}>
                 <div class="wos-row">
                     <div class="wos-row-text" @click=${() => emit("select")}>
-                        <div class="wos-row-title">${title}</div>
+                        <div class="wos-row-title ${strong ? "strong" : ""}">${title}</div>
                         ${detail ? html`<div class="wos-row-detail">${detail}</div>` : ""}
                     </div>
                     <slot></slot>

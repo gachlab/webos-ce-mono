@@ -86,6 +86,11 @@ body {
     /* A grid row does not shrink below its content unless it is told it may,
      * and a body that cannot shrink is one that never scrolls. */
     min-height: 0;
+    /* enyo-vflexbox: a column so sibling group margins do not collapse (HP's
+     * RowGroups sit 8+8px apart; block layout would collapse that to 8). */
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
 }
 
 
@@ -95,30 +100,57 @@ body {
     margin: 0 0 0.9rem;
 }
 
-/* enyo's RowGroup caption: the bar at the top of the group, which its
- * group-labeled.png drew as translucent black over the page. */
+/* Capioned groups. theme-enyo paints Onyx group-labeled.png on the group and
+ * pulls the title into the top slice (Group.css .labeled / .enyo-group-label).
+ * theme-modern leaves the tokens empty and keeps the drawn caption bar. */
+.wos-group:has(> .wos-group-title),
+.wos-group:has(> .wos-group-caption),
+.wos-group.captioned {
+    box-sizing: var(--wos-group-labeled-box, border-box);
+    margin: var(--wos-group-labeled-margin, 0 0 0.9rem);
+    border-width: var(--wos-group-labeled-border-width, 0);
+    border-style: solid;
+    border-color: transparent;
+    -webkit-border-image: var(--wos-group-labeled-border-image, none);
+    border-image: var(--wos-group-labeled-border-image, none);
+}
+
+/* enyo's RowGroup caption: height and the etched white text are Group.css's
+ * numbers. With the border-image theme the bar itself is the PNG; otherwise
+ * --wos-caption-bg draws a flat bar joined to the list. */
 .wos-group-title,
 .wos-group-caption {
-    padding: 0.3rem 0.5rem;
+    box-sizing: var(--wos-caption-box, border-box);
+    height: var(--wos-caption-height, 2.2rem);
+    margin: var(--wos-caption-margin, 0);
+    padding: var(--wos-caption-pad, 0.2rem 0.5rem 0.6rem);
     font-size: 0.7rem;
-    font-weight: 600;
-    letter-spacing: 0.04em;
+    font-weight: 700;
+    letter-spacing: var(--wos-caption-letter-spacing, 0.04em);
     text-transform: uppercase;
     color: var(--wos-caption-ink);
+    text-shadow: var(--wos-caption-shadow, none);
     background: var(--wos-caption-bg);
     /* Three longhands rather than `border` and then `border-bottom: 0`:
      * QtWebEngine loses the colour of the other three sides when that second
      * shorthand runs, and the bar comes out with no line at all. */
-    border-width: 1px 1px 0;
+    border-width: var(--wos-caption-border-width, 1px 1px 0);
     border-style: solid;
     border-color: var(--wos-outline);
-    border-radius: var(--wos-radius) var(--wos-radius) 0 0;
+    border-radius: var(--wos-caption-radius, var(--wos-radius) var(--wos-radius) 0 0);
 }
 
+/* List under a caption: joined to the bar by default; theme-enyo clears the
+ * outline so only group-labeled.png frames the group (and pulls the list in
+ * with enyo-group-inner's -12px). overflow must stay visible — hidden clips
+ * the soft PNG edge and leaves a hard nested box around the field. */
 .wos-group-title + .wos-list,
 .wos-group-caption + .wos-list {
-    border-top: 0;
-    border-radius: 0 0 var(--wos-radius) var(--wos-radius);
+    margin: var(--wos-list-under-caption-margin, 0);
+    border: var(--wos-list-under-caption-border, 1px solid var(--wos-outline));
+    border-top: var(--wos-list-under-caption-top, 0);
+    border-radius: var(--wos-list-under-caption-radius, 0 0 var(--wos-radius) var(--wos-radius));
+    overflow: var(--wos-list-under-caption-overflow, hidden);
 }
 
 /* The group's own outline. What is inside it is the page: HP's rows have no

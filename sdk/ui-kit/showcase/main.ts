@@ -162,6 +162,9 @@ const view = (state: State<Shown>, service: ShowcaseService) => {
                         </wos-check>
                     </wos-row>
                     <wos-row title="Disabled"><wos-check disabled></wos-check></wos-row>
+                    <wos-row title="Details without selecting">
+                        <wos-info @press=${() => service.change({ typed: "info" })}></wos-info>
+                    </wos-row>
                 </div>
                 ${shown.typed ? note(t("Typed: #{what}", { what: shown.typed })) : ""}`)}
 

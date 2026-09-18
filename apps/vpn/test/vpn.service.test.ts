@@ -1,0 +1,237 @@
+// The VPN card's state machine, against a fake com.palm.vpn.
+
+import assert from "node:assert/strict";
+import { describe, test } from "node:test";
+
+import { createFakeLuna, type FakeLuna } from "@webos/api/infra/luna/fake.service.ts";
+import { createVpnService, progressLabel, stateLabel } from "../src/vpn.service.ts";
+import type { Payload } from "@webos/api/infra/luna/service.ts";
+
+const VPN = "luna://com.palm.vpn/";
+const LIST = `${VPN}getProfileList`;
+const AGENTS = `${VPN}getAgents`;
+const DETAILS = `${VPN}getProfileDetails`;
+const ADD = `${VPN}addProfile`;
+const CONNECT = `${VPN}connect`;
+const DISCONNECT = `${VPN}disconnect`;
+const DELETE = `${VPN}deleteProfile`;
+
+const settle = () => new Promise((resolve) => setImmediate(resolve));
+
+const profiles = () => ({
+    returnValue: true,
+    subscribed: true,
+    vpnProfiles: [
+        {
+            vpnProfileName: "Work",
+            vpnProfileConnectState: "disconnected",
+            vpnAgentGuid: "com.gachlab.openvpn",
+        },
+    ],
+});
+
+const setup = () => {
+    const luna = createFakeLuna();
+    luna.answer(AGENTS, () => ({
+        returnValue: true,
+        vpnAgents: [
+            { vpnAgentGuid: "com.gachlab.openvpn", vpnAgentLabel: "OpenVPN", vpnAgentTechnology: ["ssl"] },
+            { vpnAgentGuid: "com.gachlab.wireguard", vpnAgentLabel: "WireGuard", vpnAgentTechnology: ["wireguard"] },
+        ],
+    }));
+    luna.answer(LIST, () => profiles());
+    const service = createVpnService(luna);
+    return { luna, service, data: () => service.getState().data };
+};
+
+const push = (luna: FakeLuna, reply: Payload) => {
+    const status = luna.subscribers.find((one) => one.uri === LIST);
+    assert.ok(status, "the card is watching com.palm.vpn");
+    status.push({ returnValue: true, ...reply });
+};
+
+const payloads = (luna: FakeLuna, uri: string): Payload[] =>
+    luna.calls.filter((call) => call.uri === uri).map((call) => call.payload);
+
+describe("connect-state labels", () => {
+    test("the list only shows progress while the tunnel is moving", () => {
+        assert.equal(progressLabel("connecting"), "CONNECTING");
+        assert.equal(progressLabel("disconnecting"), "DISCONNECTING");
+        assert.equal(progressLabel("reconnecting"), "RECONNECTING");
+        assert.equal(progressLabel("connected"), "");
+        assert.equal(progressLabel("disconnected"), "");
+    });
+
+    test("details uses HP's uppercase states", () => {
+        assert.equal(stateLabel("connected"), "CONNECTED");
+        assert.equal(stateLabel("disconnected"), "DISCONNECTED");
+        assert.equal(stateLabel("connectfailed"), "FAILED");
+    });
+});
+
+describe("the profile list", () => {
+    test("subscribes and paints what the service pushes", async () => {
+        const { luna, service, data } = setup();
+        service.onShown();
+        await settle();
+        push(luna, profiles());
+        await settle();
+        assert.equal(data().screen, "list");
+        assert.equal(data().profiles.length, 1);
+        assert.equal(data().profiles[0]?.name, "Work");
+        assert.equal(data().agents.length, 2);
+    });
+
+    test("opening add puts the host step on screen", async () => {
+        const { service, data } = setup();
+        service.onShown();
+        await settle();
+        service.onOpenAdd();
+        assert.equal(data().screen, "add");
+        assert.equal(data().add?.agentGuid, "com.gachlab.openvpn");
+        assert.equal(data().add?.name, "");
+        assert.equal(data().add?.remote, "");
+    });
+
+    test("Next needs a server, then opens configure with the host as the name", async () => {
+        const { service, data } = setup();
+        service.onShown();
+        await settle();
+        service.onOpenAdd();
+        service.onNextAdd();
+        assert.match(data().message, /server/i);
+        assert.equal(data().screen, "add");
+
+        service.onAddField({ remote: "vpn.example.com" });
+        service.onNextAdd();
+        assert.equal(data().screen, "configure");
+        assert.equal(data().add?.name, "vpn.example.com");
+        assert.equal(data().add?.remote, "vpn.example.com");
+    });
+
+    test("tapping a disconnected name connects; tapping connected disconnects", async () => {
+        const { luna, service, data } = setup();
+        luna.answer(CONNECT, () => ({ returnValue: true }));
+        luna.answer(DISCONNECT, () => ({ returnValue: true }));
+        service.onShown();
+        await settle();
+        push(luna, profiles());
+        await settle();
+
+        service.onToggleConnect("Work");
+        await settle();
+        assert.equal(payloads(luna, CONNECT)[0]?.vpnProfileName, "Work");
+
+        push(luna, {
+            vpnProfiles: [{
+                vpnProfileName: "Work",
+                vpnProfileConnectState: "connected",
+                vpnAgentGuid: "com.gachlab.openvpn",
+            }],
+        });
+        await settle();
+        assert.equal(data().profiles[0]?.connectState, "connected");
+
+        service.onToggleConnect("Work");
+        await settle();
+        assert.equal(payloads(luna, DISCONNECT)[0]?.vpnProfileName, "Work");
+    });
+
+    test("swipe delete disconnects first when the profile is up", async () => {
+        const { luna, service } = setup();
+        luna.answer(DISCONNECT, () => ({ returnValue: true }));
+        luna.answer(DELETE, () => ({ returnValue: true }));
+        service.onShown();
+        await settle();
+        push(luna, {
+            vpnProfiles: [{
+                vpnProfileName: "Work",
+                vpnProfileConnectState: "connected",
+                vpnAgentGuid: "com.gachlab.openvpn",
+            }],
+        });
+        await settle();
+        service.onDeleteProfile("Work");
+        await settle();
+        assert.equal(payloads(luna, DISCONNECT)[0]?.vpnProfileName, "Work");
+        assert.equal(payloads(luna, DELETE)[0]?.vpnProfileName, "Work");
+    });
+});
+
+describe("adding a profile", () => {
+    test("refuses a blank name or server without calling the bus", async () => {
+        const { luna, service, data } = setup();
+        service.onShown();
+        await settle();
+        service.onOpenAdd();
+        service.onSaveAdd();
+        assert.match(data().message, /required/i);
+        assert.equal(payloads(luna, ADD).length, 0);
+    });
+
+    test("saves an OpenVPN profile, connects, and returns to the list", async () => {
+        const { luna, service, data } = setup();
+        luna.answer(ADD, () => ({ returnValue: true }));
+        luna.answer(CONNECT, () => ({ returnValue: true }));
+        service.onShown();
+        await settle();
+        service.onOpenAdd();
+        service.onAddField({ remote: "vpn.example.com" });
+        service.onNextAdd();
+        assert.equal(data().screen, "configure");
+        service.onAddField({ name: "Home", userName: "ana", password: "x" });
+        service.onSaveAdd();
+        await settle();
+        assert.equal(data().screen, "list");
+        const sent = payloads(luna, ADD);
+        assert.equal(sent.length, 1);
+        assert.equal(sent[0]?.vpnProfileName, "Home");
+        assert.equal((sent[0]?.vpnProfile as Payload).remote, "vpn.example.com");
+        assert.equal(payloads(luna, CONNECT)[0]?.vpnProfileName, "Home");
+    });
+});
+
+describe("connection details", () => {
+    test("connect and disconnect call the service with the profile name", async () => {
+        const { luna, service, data } = setup();
+        luna.answer(DETAILS, () => ({
+            returnValue: true,
+            vpnProfileName: "Work",
+            vpnAgentGuid: "com.gachlab.openvpn",
+            vpnProfileConnectState: "disconnected",
+            vpnProfile: { remote: "vpn.example.com", userName: "ana" },
+        }));
+        luna.answer(CONNECT, () => ({ returnValue: true }));
+        luna.answer(DISCONNECT, () => ({ returnValue: true }));
+        luna.answer(DELETE, () => ({ returnValue: true }));
+        service.onShown();
+        await settle();
+        service.onOpenDetails("Work");
+        await settle();
+        assert.equal(data().screen, "details");
+        assert.equal(data().details?.remote, "vpn.example.com");
+
+        service.onConnectDisconnect();
+        await settle();
+        assert.equal(payloads(luna, CONNECT)[0]?.vpnProfileName, "Work");
+
+        push(luna, {
+            vpnProfiles: [{
+                vpnProfileName: "Work",
+                vpnProfileConnectState: "connected",
+                vpnAgentGuid: "com.gachlab.openvpn",
+            }],
+        });
+        await settle();
+        assert.equal(data().details?.connectState, "connected");
+
+        service.onConnectDisconnect();
+        await settle();
+        assert.equal(payloads(luna, DISCONNECT)[0]?.vpnProfileName, "Work");
+
+        service.onDelete();
+        await settle();
+        assert.equal(payloads(luna, DELETE)[0]?.vpnProfileName, "Work");
+        assert.equal(data().screen, "list");
+    });
+});

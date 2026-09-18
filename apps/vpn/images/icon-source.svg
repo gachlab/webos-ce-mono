@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- VPN header / launcher icon: globe on a tile with a lock. Drawn for this
+     card so we do not ship HP's artwork; the shape is the one its toolbar used. -->
+<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 48 48">
+  <defs>
+    <radialGradient id="g" cx="32%" cy="28%" r="70%">
+      <stop offset="0%" stop-color="#c8ecff"/>
+      <stop offset="35%" stop-color="#3f92e0"/>
+      <stop offset="75%" stop-color="#1560b0"/>
+      <stop offset="100%" stop-color="#0a2f6a"/>
+    </radialGradient>
+    <linearGradient id="shine" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#fff" stop-opacity="0.7"/>
+      <stop offset="35%" stop-color="#fff" stop-opacity="0.15"/>
+      <stop offset="100%" stop-color="#fff" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="lock" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#f2d56a"/>
+      <stop offset="40%" stop-color="#d4a017"/>
+      <stop offset="100%" stop-color="#8a6508"/>
+    </linearGradient>
+    <linearGradient id="shackle" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#f2f5f8"/>
+      <stop offset="100%" stop-color="#8a949e"/>
+    </linearGradient>
+    <clipPath id="ball"><circle cx="21" cy="19" r="14.5"/></clipPath>
+  </defs>
+
+  <!-- isometric tile -->
+  <path d="M9 33.5 L24 41 L39 33.5 L24 26 Z" fill="#4a4a4a"/>
+  <path d="M9 33.5 L24 41 L24 43.5 L9 36 Z" fill="#2e2e2e"/>
+  <path d="M39 33.5 L24 41 L24 43.5 L39 36 Z" fill="#1a1a1a"/>
+
+  <!-- globe -->
+  <circle cx="21" cy="19" r="14.5" fill="url(#g)"/>
+  <g clip-path="url(#ball)" fill="none" stroke="#e8f6ff" stroke-width="1.15" opacity="0.75">
+    <ellipse cx="21" cy="19" rx="6.2" ry="14"/>
+    <ellipse cx="21" cy="19" rx="14" ry="5.6"/>
+    <path d="M7.5 14.5 Q21 10 34.5 14.5"/>
+    <path d="M7.5 23.5 Q21 28 34.5 23.5"/>
+  </g>
+  <ellipse cx="21" cy="19" rx="14.5" ry="14.5" fill="url(#shine)"/>
+  <circle cx="21" cy="19" r="14.5" fill="none" stroke="#0a2048" stroke-width="0.6" opacity="0.35"/>
+
+  <!-- padlock -->
+  <g transform="translate(25.5,20.5)">
+    <path d="M5.2 7.8 V5 a3.5 3.5 0 0 1 7 0 V7.8" fill="none"
+          stroke="url(#shackle)" stroke-width="2" stroke-linecap="round"/>
+    <rect x="3" y="7.2" width="11.2" height="10" rx="1.5" fill="url(#lock)"
+          stroke="#6a4e08" stroke-width="0.5"/>
+    <rect x="3.7" y="7.8" width="9.8" height="2.4" rx="0.5" fill="#ffe08a" opacity="0.55"/>
+    <circle cx="8.6" cy="12.6" r="1.15" fill="#4a3408"/>
+    <rect x="8.05" y="12.6" width="1.1" height="2.6" rx="0.4" fill="#4a3408"/>
+  </g>
+</svg>
