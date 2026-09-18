@@ -1,4 +1,6 @@
-#include "detail.h"
+#include "qtwebkit_compat.h"
+#include "bridge-scheme.h"
+#include "scripts.h"
 
 #include <QBuffer>
 #include <QElapsedTimer>
@@ -15,7 +17,10 @@
 #include <QWebEngineView>
 #include <memory>
 
-using namespace qtwebkit_compat_detail;
+using qtwebkit_compat::bridge::describe;
+using qtwebkit_compat::bridge::publishObject;
+using qtwebkit_compat::scripts::kBridgeCore;
+using qtwebkit_compat::scripts::kInjectedScriptName;
 
 // ---------------------------------------------------------------------------
 // QWebFrame

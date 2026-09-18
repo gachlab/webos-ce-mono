@@ -9,6 +9,7 @@
 #
 # Verified by mutation: renaming src/page.cpp turns this red, and so does
 # putting `src/qtwebkit_compat.cpp` back as a source in CMakeLists.txt.
+# Bringing back a catch-all detail.h, or dropping scripts.h, turns this red.
 set -u
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -52,5 +53,13 @@ check "CMakeLists.txt lists exactly the six sources" \
 # And does not name the monolith as a source either.
 check "CMakeLists.txt does not build the monolith" \
     "$(grep -c 'qtwebkit_compat\.cpp' "$DIR/CMakeLists.txt" || true)" "0"
+
+# No catch-all private header: each concern that exports to another .cpp has
+# its own (scripts.h, bridge-scheme.h). Verified by mutation: removing either
+# header, or bringing detail.h back, turns this red.
+check "scripts.h and bridge-scheme.h are present" \
+    "$([ -f "$DIR/src/scripts.h" ] && [ -f "$DIR/src/bridge-scheme.h" ] && echo yes || echo no)" "yes"
+check "no catch-all detail.h" \
+    "$([ -e "$DIR/src/detail.h" ] && echo present || echo gone)" "gone"
 
 exit $((failures == 0 ? 0 : 1))

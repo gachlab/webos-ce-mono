@@ -1,4 +1,6 @@
-#include "detail.h"
+#include "qtwebkit_compat.h"
+#include "bridge-scheme.h"
+#include "scripts.h"
 
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -12,7 +14,7 @@
 #include <QQuickWidget>
 #include <QNetworkRequest>
 
-namespace qtwebkit_compat_detail {
+namespace {
 
 QWebEngineSettings::WebAttribute engineAttribute(QWebSettings::WebAttribute attribute, bool* exists)
 {
@@ -49,9 +51,11 @@ QWebEngineSettings::FontFamily engineFont(QWebSettings::FontFamily family)
     }
 }
 
-} // namespace qtwebkit_compat_detail
+} // namespace
 
-using namespace qtwebkit_compat_detail;
+using qtwebkit_compat::bridge::pendingWindowFeatures;
+using qtwebkit_compat::bridge::sharedProfile;
+using namespace qtwebkit_compat::scripts;
 
 QString qWebKitVersion()
 {

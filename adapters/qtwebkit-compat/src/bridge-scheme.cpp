@@ -1,4 +1,5 @@
-#include "detail.h"
+#include "bridge-scheme.h"
+#include "qtwebkit_compat.h"
 
 #include <QBuffer>
 #include <QCoreApplication>
@@ -21,7 +22,8 @@
 #include <QWebEngineUrlSchemeHandler>
 #include <QWebEngineFrame>
 
-namespace qtwebkit_compat_detail {
+namespace qtwebkit_compat {
+namespace bridge {
 
 const char kScheme[] = "webos-bridge";
 
@@ -427,4 +429,5 @@ QWebEngineProfile* sharedProfile()
     return profile;
 }
 
-} // namespace qtwebkit_compat_detail
+} // namespace bridge
+} // namespace qtwebkit_compat

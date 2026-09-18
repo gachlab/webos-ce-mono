@@ -10,8 +10,8 @@
 # The target is qtwebkit-compat-lib, not qtwebkit-compat: the test program
 # that exercises it is called qtwebkit-compat.
 #
-# Sources are split by concern (#59). detail.h is the shared declarations the
-# split needs; the public header stays one.
+# Sources are split by concern (#59). Each concern that other .cpp files call
+# has a matching .h (scripts.h, bridge-scheme.h); the public header stays one.
 
 cmake_minimum_required(VERSION 3.16)
 
@@ -28,7 +28,8 @@ set(QTWEBKIT_COMPAT_SOURCES
 
 add_library(qtwebkit-compat-lib STATIC
     include/qtwebkit_compat.h
-    src/detail.h
+    src/scripts.h
+    src/bridge-scheme.h
     ${QTWEBKIT_COMPAT_SOURCES}
 )
 set_target_properties(qtwebkit-compat-lib PROPERTIES

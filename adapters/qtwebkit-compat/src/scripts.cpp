@@ -1,6 +1,7 @@
-#include "detail.h"
+#include "scripts.h"
 
-namespace qtwebkit_compat_detail {
+namespace qtwebkit_compat {
+namespace scripts {
 
 const char kInjectedScriptName[] = "webos-document-creation";
 const char kBorderImageScriptName[] = "webos-border-image";
@@ -1135,4 +1136,5 @@ const char kRemoteRequests[] = R"JS(
 })();
 )JS";
 
-} // namespace qtwebkit_compat_detail
+} // namespace scripts
+} // namespace qtwebkit_compat

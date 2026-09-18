@@ -1,26 +1,14 @@
-// Shared declarations for the split translation units of qtwebkit-compat.
+// Injected document scripts: names and bodies.
 //
-// The layer used to live in one file with an anonymous namespace. Crossing
-// translation units needs a named namespace: published objects, the shared
-// profile and the injected scripts are one table each, not one per .cpp.
+// Defined in scripts.cpp. Page construction installs them; prepareNewDocument
+// rewrites the bridge core. Other translation units include this header for
+// those constants only — not the bridge, not the page.
 
-#ifndef QTWEBKIT_COMPAT_DETAIL_H
-#define QTWEBKIT_COMPAT_DETAIL_H
+#ifndef QTWEBKIT_COMPAT_SCRIPTS_H
+#define QTWEBKIT_COMPAT_SCRIPTS_H
 
-#include "qtwebkit_compat.h"
-
-#include <QHash>
-#include <QJsonObject>
-#include <QMetaObject>
-#include <QString>
-
-class QObject;
-class QWebEnginePage;
-class QWebEngineProfile;
-
-namespace qtwebkit_compat_detail {
-
-extern const char kScheme[];
+namespace qtwebkit_compat {
+namespace scripts {
 
 extern const char kInjectedScriptName[];
 extern const char kBorderImageScriptName[];
@@ -46,11 +34,7 @@ extern const char kBrowserView[];
 extern const char kWindowOpen[];
 extern const char kRemoteRequests[];
 
-QHash<int, QString>& pendingWindowFeatures();
-QWebEngineProfile* sharedProfile();
-int publishObject(QObject* object, QWebEnginePage* page);
-QJsonObject describe(const QMetaObject* meta);
+} // namespace scripts
+} // namespace qtwebkit_compat
 
-} // namespace qtwebkit_compat_detail
-
-#endif // QTWEBKIT_COMPAT_DETAIL_H
+#endif // QTWEBKIT_COMPAT_SCRIPTS_H
