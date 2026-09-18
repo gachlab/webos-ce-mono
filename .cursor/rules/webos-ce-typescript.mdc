@@ -1,0 +1,22 @@
+---
+description: Functional TypeScript — no classes; DI via functions returning functions
+globs: "{sdk,apps,services}/**/*.{ts,tsx,mts}"
+alwaysApply: false
+---
+
+# TypeScript style
+
+No `class` in new code (including `extends Error`). Functional style with dependency injection as **functions that return functions**:
+
+```typescript
+export const createBus = (deps: BusDeps) => (name: string, options = {}) => {
+  return { call, subscribe, method, close };
+};
+export const openBus = createBus(defaultDeps);
+```
+
+- Deps (native addon, timers, clock, other services) enter at the outer level so tests can fake them.
+- Errors: factory function + type guard, not error subclasses.
+- `defineElement` is the allowed exception for custom elements (one class in the kit).
+- Package boundaries: `@webos/api` (no DOM) ← `@webos/ui-kit` ← `@gachlab/app-*`. Enforce with `tools/check-layers.mjs`, not greps that cannot fire.
+- Our app ids: `com.gachlab.app.*`; use `aliases` for HP ids when replacing a system app.

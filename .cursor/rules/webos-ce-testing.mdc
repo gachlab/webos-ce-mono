@@ -1,0 +1,24 @@
+---
+description: Mutation-verified tests; contract before demo; manual touch
+alwaysApply: true
+---
+
+# Testing
+
+## Mutation verification (required)
+
+Every new test is verified by **breaking the fix on purpose**, running the test, confirming it **fails**, then restoring. Passing alone proves nothing.
+
+- Mutate the **exact predicate** the test claims to cover (two clauses → two mutations).
+- A mutation proves the **assertion**, not a product property. If the property is about callers, enumerate callers before trusting a unit test.
+- Prefer real imports/parsers over `grep` guards that can never match.
+
+## Contract before demo
+
+For platform/foundation work: write the test that exercises the real contract (props, events, engine) **before** the showcase/demo.
+
+## Manual and noisy
+
+- Touch/gesture checks: ask the user to try by hand; do not fight xdotool/gdb.
+- Audible tests: ask before running them.
+- Do not chase side issues; note them and stay on the ticket.

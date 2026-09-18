@@ -1,0 +1,21 @@
+---
+description: Sessions, rootfs, CI, and review habits for webos-ce-mono
+alwaysApply: true
+---
+
+# Sessions and builds
+
+- Never run `tools/assemble-rootfs.sh` while a session is up — `tools/webos-session.sh --down` first.
+- `tools/ci.sh` builds `git archive HEAD` (not the dirty tree); do not switch branches mid-CI.
+- Node is pinned in `tools/node-version`; use `tools/fetch-node.sh`, not a random system node.
+- Reference images of HP live under `/mnt/games/webos-reference` — **do not delete them**.
+
+## Before calling a ticket done
+
+1. Mutation-verify new tests.
+2. Code + architecture self-review (or agents) **before** opening the PR.
+3. Ask the user for manual UI checks when gestures/focus/launcher placement matter.
+
+## Scope
+
+Stay on the ticket. Open follow-ups as issues; do not expand the PR into #68-style engine work unless asked.

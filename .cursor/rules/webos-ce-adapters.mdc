@@ -1,0 +1,21 @@
+---
+description: Prefer adapters over editing HP; shim before apps
+alwaysApply: true
+---
+
+# Adapters first
+
+When something fails on modern Linux, ask which **adapter** it belongs in — not which HP file to open. See `docs/architecture.md`.
+
+Order of preference:
+
+1. **Adapter** (`adapters/`) — map the API HP already calls onto the modern library.
+2. **Our object + one install hook** — behaviour in our file; one guarded hook in HP.
+3. **HP extension points** (e.g. `Event::User`) before widening structs.
+4. **Edit HP** — last resort; justify in the commit message.
+
+Visual/web bugs: check `adapters/qtwebkit-compat` **before** HP CSS/JS.
+
+## Private headers in a split adapter
+
+A `.h` in `src/` exists only when **another** `.cpp` must see a declaration. Do not add empty per-`.cpp` headers. Do not invent a catch-all `detail.h` — one header per **exported** concern, named like its `.cpp`.

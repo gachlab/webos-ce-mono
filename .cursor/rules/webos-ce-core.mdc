@@ -1,0 +1,35 @@
+---
+description: Core webOS CE monorepo workflow — language, git, HP as spec
+alwaysApply: true
+---
+
+# webOS CE — how to work here
+
+Public monorepo: HP webOS CE 3.0.5 on modern Linux. **Not** LuneOS, LunaCE, or LG webOS OSE.
+
+## Language
+
+- Talk to the user in **Spanish**.
+- Code, comments, commits, PR titles/bodies: **English**.
+
+## Git
+
+- Branch + PR; **never commit to `master`**. Merge only when the user says so.
+- No attribution lines (`Co-Authored-By`, `Claude-Session`, etc.).
+- `gh ... --body-file`; verify body length after publishing.
+- Max **two** review rounds; self-review before opening the PR.
+
+## HP is the specification
+
+- HP's drop is reference UX/API, **not** code to copy (especially unreleased apps).
+- Same feel and flow as the original; do not invent a new UI or "simplify" screens.
+- New cards: modern web (`sdk/`, `apps/`), not enyo 2011 and not QML.
+- Services we own: modern C++ or TypeScript as the ticket says.
+
+## Layout (what is whose)
+
+- `components/` — HP's only (MANIFEST.tsv).
+- `adapters/` — ours, so HP runs here.
+- `services/` — ours; HP never released these.
+- `sdk/` / `apps/` — our web foundation and apps.
+- `reference/` — HP's, read, never built.
