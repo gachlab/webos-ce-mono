@@ -7,7 +7,8 @@
 import type { LunaService, Payload, Subscription } from "@webos/api/infra/luna/service.ts";
 
 export type ConnectState =
-    | "connected" | "connecting" | "disconnected" | "disconnecting" | "connectfailed";
+    | "connected" | "connecting" | "disconnected" | "disconnecting"
+    | "reconnecting" | "connectfailed";
 
 export type AgentGuid = "com.gachlab.openvpn" | "com.gachlab.wireguard";
 
@@ -41,7 +42,7 @@ const text = (value: unknown): string => (typeof value === "string" ? value : ""
 const connectStateOf = (value: unknown): ConnectState => {
     const name = text(value);
     if (name === "connected" || name === "connecting" || name === "disconnecting"
-        || name === "connectfailed")
+        || name === "reconnecting" || name === "connectfailed")
         return name;
     return "disconnected";
 };

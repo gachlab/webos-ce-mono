@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 
 import { createFakeLuna, type FakeLuna } from "@webos/api/infra/luna/fake.service.ts";
-import { createVpnService, stateLabel } from "../src/vpn.service.ts";
+import { createVpnService, progressLabel, stateLabel } from "../src/vpn.service.ts";
 import type { Payload } from "@webos/api/infra/luna/service.ts";
 
 const VPN = "luna://com.palm.vpn/";
@@ -53,11 +53,19 @@ const push = (luna: FakeLuna, reply: Payload) => {
 const payloads = (luna: FakeLuna, uri: string): Payload[] =>
     luna.calls.filter((call) => call.uri === uri).map((call) => call.payload);
 
-describe("state labels", () => {
-    test("HP's connect states are uppercased for the list", () => {
+describe("connect-state labels", () => {
+    test("the list only shows progress while the tunnel is moving", () => {
+        assert.equal(progressLabel("connecting"), "CONNECTING");
+        assert.equal(progressLabel("disconnecting"), "DISCONNECTING");
+        assert.equal(progressLabel("reconnecting"), "RECONNECTING");
+        assert.equal(progressLabel("connected"), "");
+        assert.equal(progressLabel("disconnected"), "");
+    });
+
+    test("details uses HP's uppercase states", () => {
         assert.equal(stateLabel("connected"), "CONNECTED");
-        assert.equal(stateLabel("connecting"), "CONNECTING");
-        assert.equal(stateLabel("disconnected"), "");
+        assert.equal(stateLabel("disconnected"), "DISCONNECTED");
+        assert.equal(stateLabel("connectfailed"), "FAILED");
     });
 });
 
@@ -82,6 +90,54 @@ describe("the profile list", () => {
         assert.equal(data().screen, "add");
         assert.equal(data().add?.agentGuid, "com.gachlab.openvpn");
         assert.equal(data().add?.name, "");
+    });
+
+    test("tapping a disconnected name connects; tapping connected disconnects", async () => {
+        const { luna, service, data } = setup();
+        luna.answer(CONNECT, () => ({ returnValue: true }));
+        luna.answer(DISCONNECT, () => ({ returnValue: true }));
+        service.onShown();
+        await settle();
+        push(luna, profiles());
+        await settle();
+
+        service.onToggleConnect("Work");
+        await settle();
+        assert.equal(payloads(luna, CONNECT)[0]?.vpnProfileName, "Work");
+
+        push(luna, {
+            vpnProfiles: [{
+                vpnProfileName: "Work",
+                vpnProfileConnectState: "connected",
+                vpnAgentGuid: "com.gachlab.openvpn",
+            }],
+        });
+        await settle();
+        assert.equal(data().profiles[0]?.connectState, "connected");
+
+        service.onToggleConnect("Work");
+        await settle();
+        assert.equal(payloads(luna, DISCONNECT)[0]?.vpnProfileName, "Work");
+    });
+
+    test("swipe delete disconnects first when the profile is up", async () => {
+        const { luna, service } = setup();
+        luna.answer(DISCONNECT, () => ({ returnValue: true }));
+        luna.answer(DELETE, () => ({ returnValue: true }));
+        service.onShown();
+        await settle();
+        push(luna, {
+            vpnProfiles: [{
+                vpnProfileName: "Work",
+                vpnProfileConnectState: "connected",
+                vpnAgentGuid: "com.gachlab.openvpn",
+            }],
+        });
+        await settle();
+        service.onDeleteProfile("Work");
+        await settle();
+        assert.equal(payloads(luna, DISCONNECT)[0]?.vpnProfileName, "Work");
+        assert.equal(payloads(luna, DELETE)[0]?.vpnProfileName, "Work");
     });
 });
 
@@ -137,7 +193,6 @@ describe("connection details", () => {
         await settle();
         assert.equal(payloads(luna, CONNECT)[0]?.vpnProfileName, "Work");
 
-        // Pretend the subscription said it connected.
         push(luna, {
             vpnProfiles: [{
                 vpnProfileName: "Work",

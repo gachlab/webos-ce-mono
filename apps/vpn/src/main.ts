@@ -1,15 +1,20 @@
 // The VPN settings card.
 //
 // Three screens from the service state: the profile list, add a profile, and
-// connection details. Nothing here decides anything; it draws what the service
-// says and tells it what the user did.
+// connection details. Layout and wording follow HP's card on the TouchPad CE
+// image (spec, not code): light header with the VPN icon, "Choose a Profile",
+// checkmark when connected, (i) for details, tap the name to connect, swipe to
+// delete, and "Add profile..." with the plus.
 
 import { openBus } from "@webos/api/infra/luna/open-bus.ts";
 import { t } from "@webos/api/i18n/translate.ts";
 import { html } from "@webos/ui-kit/element.ts";
 import { error as errorLine, note } from "@webos/ui-kit/kit/kit.ts";
 import { startCard } from "@webos/ui-kit/start-card.ts";
-import { createVpnService, stateLabel, type VpnData, type VpnService } from "./vpn.service.ts";
+import {
+    createVpnService, isActiveState, isBusyState, progressLabel, stateLabel,
+    type VpnData, type VpnService,
+} from "./vpn.service.ts";
 import type { AgentGuid, ProfileFields, VpnProfile } from "./luna/vpn.ts";
 import type { State } from "@webos/api/helpers/create-state.ts";
 
@@ -19,85 +24,167 @@ const agentChoices = (data: VpnData) =>
         { guid: "com.gachlab.wireguard" as AgentGuid, label: "WireGuard", technology: "wireguard" },
     ]).map((a) => ({ value: a.guid, label: a.label }));
 
+// checkmark.png — the only blue mark in HP's list when a profile is up.
+const tick = () => html`
+    <svg class="vpn-joined" viewBox="0 0 32 25" role="img" aria-label=${t("Connected")}>
+        <path d="M8 13.5 14 21 26 4.5"></path>
+    </svg>`;
+
+// list-icon-add-item.png, left of "Add profile...".
+const plus = () => html`
+    <svg class="vpn-plus" slot="lead" viewBox="0 0 18 18" aria-hidden="true">
+        <path d="M7 0h4v7h7v4h-7v7h-4v-7H0V7h7z"></path>
+    </svg>`;
+
+// info-icon-sprite.png — the (i) that opens connection details without toggling.
+const info = (name: string, service: VpnService) => html`
+    <button class="vpn-info" type="button" aria-label=${t("Profile details")}
+            @click=${(e: Event) => {
+                e.stopPropagation();
+                service.onOpenDetails(name);
+            }}>
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+            <circle cx="12" cy="12" r="10"></circle>
+            <circle cx="12" cy="7.5" r="1.4" class="vpn-info-dot"></circle>
+            <rect x="10.7" y="10.2" width="2.6" height="7.2" rx="1" class="vpn-info-dot"></rect>
+        </svg>
+    </button>`;
+
+const spinner = () => html`<span class="vpn-spinner" aria-hidden="true"></span>`;
+
+const marks = (profile: VpnProfile, service: VpnService) => {
+    const busy = isBusyState(profile.connectState);
+    const connected = profile.connectState === "connected";
+    return html`
+        <span class="vpn-marks">
+            ${busy ? spinner() : ""}
+            ${connected ? tick() : ""}
+            ${info(profile.name, service)}
+        </span>`;
+};
+
 const list = (data: VpnData, service: VpnService) => html`
     ${data.caption ? note(data.caption) : ""}
-    <wos-group title=${t("VPN PROFILES")}>
-        ${data.profiles.map((profile: VpnProfile) => html`
-            <wos-row
-                title=${profile.name}
-                detail=${stateLabel(profile.connectState)}
-                @select=${() => service.onOpenDetails(profile.name)}>
-            </wos-row>
-        `)}
-        <wos-row title=${t("Add a Profile")} @select=${() => service.onOpenAdd()}></wos-row>
-    </wos-group>
+    <div class="wos-group">
+        <div class="wos-group-title">${t("Choose a Profile")}</div>
+        <div class="wos-list">
+            ${data.profiles.map((profile) => {
+                const busy = isBusyState(profile.connectState);
+                const active = isActiveState(profile.connectState);
+                const detail = progressLabel(profile.connectState);
+                const open = data.swipeOpen === profile.name;
+                // HP disables swipe while the tunnel is moving.
+                if (busy) {
+                    return html`
+                        <wos-row title=${profile.name} detail=${detail}
+                                ?strong=${true}
+                                @select=${() => service.onToggleConnect(profile.name)}>
+                            ${marks(profile, service)}
+                        </wos-row>`;
+                }
+                return html`
+                    <wos-swipe-row
+                        title=${profile.name}
+                        detail=${detail}
+                        confirm=${t("Delete")}
+                        ?strong=${active}
+                        ?open=${open}
+                        @select=${() => service.onToggleConnect(profile.name)}
+                        @open=${(e: CustomEvent<{ open: boolean }>) =>
+                            service.onSwipe(profile.name, e.detail.open)}
+                        @remove=${() => service.onDeleteProfile(profile.name)}>
+                        ${marks(profile, service)}
+                    </wos-swipe-row>`;
+            })}
+            <wos-row class="vpn-add" title=${t("Add profile...")}
+                    @select=${() => service.onOpenAdd()}>${plus()}</wos-row>
+        </div>
+    </div>
+    ${data.message ? errorLine(data.message) : ""}
 `;
 
 const addForm = (fields: ProfileFields, data: VpnData, service: VpnService) => {
     const openvpn = fields.agentGuid === "com.gachlab.openvpn";
     return html`
-        <wos-group title=${t("ADD A PROFILE")}>
-            <wos-field label=${t("Profile Name")} value=${fields.name}
-                @change=${(e: CustomEvent<{ value: string }>) =>
-                    service.onAddField({ name: e.detail.value })}></wos-field>
-            <wos-selector label=${t("Connection Type")} value=${fields.agentGuid}
-                .choices=${agentChoices(data)}
-                @choose=${(e: CustomEvent<{ value: string }>) =>
-                    service.onAddField({ agentGuid: e.detail.value as AgentGuid })}></wos-selector>
-            <wos-field label=${openvpn ? t("Server") : t("Endpoint")} value=${fields.remote}
-                @change=${(e: CustomEvent<{ value: string }>) =>
-                    service.onAddField({ remote: e.detail.value })}></wos-field>
-            ${openvpn ? html`
-                <wos-field label=${t("Username")} value=${fields.userName}
+        <div class="wos-group">
+            <div class="wos-group-title">${t("Add a Profile")}</div>
+            <div class="wos-list">
+                <wos-field label=${t("Profile Name")} value=${fields.name}
                     @change=${(e: CustomEvent<{ value: string }>) =>
-                        service.onAddField({ userName: e.detail.value })}></wos-field>
-                <wos-field label=${t("Password")} value=${fields.password} type="password"
+                        service.onAddField({ name: e.detail.value })}></wos-field>
+                <wos-selector label=${t("Connection Type")} value=${fields.agentGuid}
+                    .choices=${agentChoices(data)}
+                    @choose=${(e: CustomEvent<{ value: string }>) =>
+                        service.onAddField({ agentGuid: e.detail.value as AgentGuid })}></wos-selector>
+                <wos-field label=${openvpn ? t("Server") : t("Endpoint")} value=${fields.remote}
                     @change=${(e: CustomEvent<{ value: string }>) =>
-                        service.onAddField({ password: e.detail.value })}></wos-field>
-            ` : html`
-                <wos-field label=${t("Private Key")} value=${fields.privateKey}
-                    @change=${(e: CustomEvent<{ value: string }>) =>
-                        service.onAddField({ privateKey: e.detail.value })}></wos-field>
-                <wos-field label=${t("Peer Public Key")} value=${fields.peerPublicKey}
-                    @change=${(e: CustomEvent<{ value: string }>) =>
-                        service.onAddField({ peerPublicKey: e.detail.value })}></wos-field>
-                <wos-field label=${t("Address")} value=${fields.address}
-                    @change=${(e: CustomEvent<{ value: string }>) =>
-                        service.onAddField({ address: e.detail.value })}></wos-field>
-            `}
-        </wos-group>
+                        service.onAddField({ remote: e.detail.value })}></wos-field>
+                ${openvpn ? html`
+                    <wos-field label=${t("Username")} value=${fields.userName}
+                        @change=${(e: CustomEvent<{ value: string }>) =>
+                            service.onAddField({ userName: e.detail.value })}></wos-field>
+                    <wos-field label=${t("Password")} value=${fields.password} type="password"
+                        @change=${(e: CustomEvent<{ value: string }>) =>
+                            service.onAddField({ password: e.detail.value })}></wos-field>
+                ` : html`
+                    <wos-field label=${t("Private Key")} value=${fields.privateKey}
+                        @change=${(e: CustomEvent<{ value: string }>) =>
+                            service.onAddField({ privateKey: e.detail.value })}></wos-field>
+                    <wos-field label=${t("Peer Public Key")} value=${fields.peerPublicKey}
+                        @change=${(e: CustomEvent<{ value: string }>) =>
+                            service.onAddField({ peerPublicKey: e.detail.value })}></wos-field>
+                    <wos-field label=${t("Address")} value=${fields.address}
+                        @change=${(e: CustomEvent<{ value: string }>) =>
+                            service.onAddField({ address: e.detail.value })}></wos-field>
+                `}
+            </div>
+        </div>
         ${data.message ? errorLine(data.message) : ""}
-        <wos-activity-button label=${t("Save")} kind="affirmative" ?busy=${data.busy}
-            @press=${() => service.onSaveAdd()}></wos-activity-button>
+        <div class="wos-group">
+            <wos-activity-button label=${t("Connect")} kind="affirmative" ?busy=${data.busy}
+                @press=${() => service.onSaveAdd()}></wos-activity-button>
+        </div>
     `;
 };
 
 const details = (profile: VpnProfile, data: VpnData, service: VpnService) => {
-    const connected = profile.connectState === "connected"
-        || profile.connectState === "connecting"
-        || profile.connectState === "disconnecting";
+    const active = isActiveState(profile.connectState);
     return html`
-        <wos-group title=${t("PROFILE NAME")}>
-            <wos-row title=${profile.name} detail=${stateLabel(profile.connectState)}></wos-row>
-        </wos-group>
-        <wos-group title=${t("CONNECTION DETAILS")}>
-            <wos-row title=${stateLabel(profile.connectState) || t("DISCONNECTED")} detail=${t("STATE")}></wos-row>
-            ${profile.remote ? html`<wos-row title=${profile.remote} detail=${t("SERVER")}></wos-row>` : ""}
-            ${profile.userName ? html`<wos-row title=${profile.userName} detail=${t("USERNAME")}></wos-row>` : ""}
-        </wos-group>
+        <div class="wos-group">
+            <div class="wos-group-title">${t("Profile Name")}</div>
+            <div class="wos-list">
+                <wos-row title=${profile.name}
+                        detail=${progressLabel(profile.connectState)}
+                        ?strong=${isActiveState(profile.connectState)}></wos-row>
+            </div>
+        </div>
+        <div class="wos-group">
+            <div class="wos-group-title">${t("Connection Details")}</div>
+            <div class="wos-list">
+                <wos-row title=${stateLabel(profile.connectState)} detail=${t("STATE")}></wos-row>
+                ${profile.remote ? html`<wos-row title=${profile.remote} detail=${t("SERVER")}></wos-row>` : ""}
+                ${profile.userName ? html`<wos-row title=${profile.userName} detail=${t("USERNAME")}></wos-row>` : ""}
+            </div>
+        </div>
         ${data.message ? errorLine(data.message) : ""}
-        <wos-activity-button
-            label=${connected ? t("Disconnect") : t("Connect")}
-            kind=${connected ? "negative" : "affirmative"}
-            ?busy=${data.busy}
-            @press=${() => service.onConnectDisconnect()}></wos-activity-button>
-        <wos-button label=${t("Delete Profile")} kind="negative" ?disabled=${data.busy}
-            @press=${() => service.onDelete()}></wos-button>
+        <div class="wos-group">
+            <wos-activity-button
+                label=${active ? t("Disconnect") : t("Connect")}
+                kind=${active ? "negative" : "affirmative"}
+                ?busy=${data.busy || isBusyState(profile.connectState)}
+                @press=${() => service.onConnectDisconnect()}></wos-activity-button>
+        </div>
+        <div class="wos-group">
+            <wos-button label=${t("Delete Profile")} kind="negative"
+                ?disabled=${data.busy || isBusyState(profile.connectState)}
+                @press=${() => service.onDelete()}></wos-button>
+        </div>
     `;
 };
 
 const view = (state: State<VpnData>, service: VpnService) => {
     const data = state.data;
+    const onList = data.screen === "list";
     const body = data.screen === "add" && data.add
         ? addForm(data.add, data, service)
         : data.screen === "details" && data.details
@@ -105,8 +192,8 @@ const view = (state: State<VpnData>, service: VpnService) => {
             : list(data, service);
     return html`
         <div class="wos-card">
-            <wos-header title=${t("VPN")} ?back=${data.screen !== "list"}
-                @back=${() => service.onBack()}></wos-header>
+            <wos-header title=${t("VPN")} light icon="header-icon-vpn.png"
+                       ?back=${!onList} @back=${() => service.onBack()}></wos-header>
             <div class="wos-body">${body}</div>
         </div>
     `;

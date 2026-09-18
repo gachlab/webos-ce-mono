@@ -1,18 +1,69 @@
-/* VPN card extras on top of the kit. */
+/* What only this card has. Marks beside a profile are drawn, like Wi-Fi's. */
 
-.vpn-state {
-    font-size: 0.75rem;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
-    color: var(--wos-secondary-text, #888);
+.vpn-marks {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    flex: none;
 }
 
-.vpn-state.connected {
-    color: var(--wos-affirmative, #2aa82a);
+.vpn-joined,
+.vpn-plus {
+    flex: none;
+    height: 1.25rem;
 }
 
-.vpn-empty {
-    padding: 1.5rem 1rem;
-    text-align: center;
-    color: var(--wos-secondary-text, #888);
+.vpn-joined { width: 1.6rem; }
+.vpn-plus { width: 0.9rem; height: 0.9rem; opacity: 0.55; color: var(--wos-ink-dim); }
+
+.vpn-joined path {
+    fill: none;
+    stroke: var(--wos-accent);
+    stroke-width: 5.5;
+}
+
+.vpn-plus path { fill: currentColor; }
+
+/* HP's info-icon-sprite.png: the (i) at the right of every profile row. */
+.vpn-info {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.6rem;
+    height: 1.6rem;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: var(--wos-ink-dim);
+    cursor: pointer;
+}
+
+.vpn-info svg {
+    width: 1.15rem;
+    height: 1.15rem;
+}
+
+.vpn-info circle:first-child {
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.6;
+}
+
+.vpn-info-dot { fill: currentColor; stroke: none; }
+
+.vpn-info:active { color: var(--wos-ink); }
+
+/* Same ring as wos-spinner, sized for the marks column. */
+.vpn-spinner {
+    display: inline-block;
+    width: 1.1rem;
+    height: 1.1rem;
+    border: 0.15rem solid var(--wos-spinner-ring);
+    border-top-color: var(--wos-spinner-lead);
+    border-radius: 50%;
+    animation: wos-spin 900ms linear infinite;
+}
+
+.vpn-add {
+    border-top: 1px solid var(--wos-row-line-bottom);
 }

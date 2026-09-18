@@ -21,6 +21,7 @@ export interface VpnData {
     readonly caption: string;
     readonly busy: boolean;
     readonly message: string;
+    readonly swipeOpen?: string | undefined;
     readonly add?: ProfileFields;
     readonly details?: VpnProfile;
 }
@@ -35,6 +36,9 @@ export interface VpnService {
 
     onOpenAdd(): void;
     onOpenDetails(name: string): void;
+    onToggleConnect(name: string): void;
+    onSwipe(name: string, open: boolean): void;
+    onDeleteProfile(name: string): void;
     onAddField(change: Partial<ProfileFields>): void;
     onSaveAdd(): void;
     onConnectDisconnect(): void;
@@ -52,15 +56,36 @@ const emptyFields = (agentGuid: AgentGuid = "com.gachlab.openvpn"): ProfileField
     address: "",
 });
 
+// HP shows the uppercase line under the name only while the tunnel is moving.
+// Connected uses the checkmark instead; disconnected shows nothing.
+export const progressLabel = (state: ConnectState): string => {
+    switch (state) {
+    case "connecting": return "CONNECTING";
+    case "disconnecting": return "DISCONNECTING";
+    case "reconnecting": return "RECONNECTING";
+    default: return "";
+    }
+};
+
 export const stateLabel = (state: ConnectState): string => {
     switch (state) {
     case "connected": return "CONNECTED";
     case "connecting": return "CONNECTING";
     case "disconnecting": return "DISCONNECTING";
+    case "reconnecting": return "RECONNECTING";
     case "connectfailed": return "FAILED";
-    default: return "";
+    default: return "DISCONNECTED";
     }
 };
+
+export const isBusyState = (state: ConnectState): boolean =>
+    state === "connecting" || state === "disconnecting" || state === "reconnecting";
+
+export const isActiveState = (state: ConnectState): boolean =>
+    state === "connected" || isBusyState(state);
+
+const profileNamed = (profiles: VpnProfile[], name: string): VpnProfile | undefined =>
+    profiles.find((p) => p.name === name);
 
 export const createVpnService = (luna: LunaService): VpnService => {
     const vpn = createVpn(luna);
@@ -110,6 +135,25 @@ export const createVpnService = (luna: LunaService): VpnService => {
                 message: "",
             },
         });
+    };
+
+    const deleteNamed = (name: string) => {
+        const profile = profileNamed(state.get().data.profiles, name)
+            ?? state.get().data.details;
+        if (!profile || state.get().data.busy)
+            return;
+        state.patch({ busy: true, message: "", swipeOpen: undefined });
+        const run = async () => {
+            // HP disconnects first when the tunnel is up or still coming up.
+            if (profile.connectState === "connected" || profile.connectState === "connecting"
+                || profile.connectState === "reconnecting") {
+                await vpn.disconnect(profile.name, profile.agentGuid);
+            }
+            await vpn.deleteProfile(profile.name);
+            if (!gone)
+                openList();
+        };
+        void run().catch(fail);
     };
 
     return {
@@ -188,13 +232,38 @@ export const createVpnService = (luna: LunaService): VpnService => {
         },
 
         onOpenDetails(name) {
-            state.patch({ busy: true, message: "" });
+            state.patch({ busy: true, message: "", swipeOpen: undefined });
             void vpn.getProfileDetails(name).then((details) => {
                 if (gone)
                     return;
                 state.patch({ details, busy: false });
                 show("details");
             }).catch(fail);
+        },
+
+        onToggleConnect(name) {
+            const profile = profileNamed(state.get().data.profiles, name);
+            if (!profile || state.get().data.busy || isBusyState(profile.connectState))
+                return;
+            state.patch({ busy: true, message: "", swipeOpen: undefined });
+            const op = profile.connectState === "connected"
+                ? vpn.disconnect(profile.name, profile.agentGuid)
+                : vpn.connect(profile.name, profile.agentGuid);
+            void op.then(() => {
+                if (!gone)
+                    state.patch({ busy: false });
+            }).catch(fail);
+        },
+
+        onSwipe(name, open) {
+            const profile = profileNamed(state.get().data.profiles, name);
+            if (profile && isBusyState(profile.connectState))
+                return;
+            state.patch({ swipeOpen: open ? name : undefined });
+        },
+
+        onDeleteProfile(name) {
+            deleteNamed(name);
         },
 
         onAddField(change) {
@@ -237,13 +306,9 @@ export const createVpnService = (luna: LunaService): VpnService => {
 
         onDelete() {
             const details = state.get().data.details;
-            if (!details || state.get().data.busy)
+            if (!details)
                 return;
-            state.patch({ busy: true, message: "" });
-            void vpn.deleteProfile(details.name).then(() => {
-                if (!gone)
-                    openList();
-            }).catch(fail);
+            deleteNamed(details.name);
         },
     };
 };

@@ -220,10 +220,10 @@ defineElement<{ value: number; label: string }>(
 // enyo's SwipeableItem, whose `confirmRequired` is the same switch: without it
 // the swipe itself deletes, which is how HP's lists that cannot be undone
 // behaved.
-defineElement<{ title: string; detail: string; confirm: string; instant: boolean; open: boolean }>(
+defineElement<{ title: string; detail: string; confirm: string; instant: boolean; open: boolean; strong: boolean }>(
     "wos-swipe-row",
-    { title: String, detail: String, confirm: String, instant: Boolean, open: Boolean },
-    ({ title, detail, confirm, instant, open }, { emit }) => {
+    { title: String, detail: String, confirm: String, instant: Boolean, open: Boolean, strong: Boolean },
+    ({ title, detail, confirm, instant, open, strong }, { emit }) => {
         // A swipe is a drag that got far enough to mean it: the card is told
         // what the user asked for, and decides.
         let from = 0;
@@ -247,7 +247,7 @@ defineElement<{ title: string; detail: string; confirm: string; instant: boolean
                  @pointerdown=${start} @pointerup=${end}>
                 <div class="wos-row">
                     <div class="wos-row-text" @click=${() => emit("select")}>
-                        <div class="wos-row-title">${title}</div>
+                        <div class="wos-row-title ${strong ? "strong" : ""}">${title}</div>
                         ${detail ? html`<div class="wos-row-detail">${detail}</div>` : ""}
                     </div>
                     <slot></slot>
