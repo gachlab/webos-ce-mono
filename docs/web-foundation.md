@@ -150,6 +150,50 @@ single thing this foundation exists not to repeat. So the claim gets a file:
 `apps/example-plain` is a card written with none of our renderer, and
 `tests/plain-card.cpp` fails the day it stops working.
 
+### Measured: the kit from five frameworks
+
+The claim above -- that a card could be written in something that is not our
+renderer -- was an inference until it was measured. It has been, on
+2026-09-18, against the kit exactly as it ships.
+
+The probe is `wos-selector`, chosen because it is the hardest case in the kit:
+its `choices` is an **array**, which no attribute can carry, and it answers with
+custom events. Each framework renders one, and three questions are asked of the
+result: did the property arrive (the control shows "WPA Personal" rather than
+falling back to "wpa"), is it styled (2.6rem of page.css's 20px root = the 52px
+HP's rows were), and does the framework hear the event and repaint.
+
+| | property | styled | event | what it costs |
+|---|---|---|---|---|
+| React 19.3 | yes | 52px | yes | a `ref` and `addEventListener`: JSX has no mapping for custom events |
+| Vue 3.5 | yes | 52px | yes | **nothing** |
+| Solid 1.9 | yes | 52px | yes | `prop:` and `on:`, both first-class |
+| Svelte 5.57 | yes | 52px | yes | **nothing** |
+| Angular 22.1 | yes | 52px | yes | `CUSTOM_ELEMENTS_SCHEMA`, then `[prop]` and `(event)` natively |
+
+The probe was checked against itself first: with `choices` not passed it reads
+`"wpa"`, and with the listeners removed the drawer never opens. It is not a
+tautology.
+
+**The one thing that does not travel: property-only data.** React **18**
+stringifies the array into an attribute --
+`choices="[object Object],[object Object],[object Object]"` -- so the property
+never arrives and the control silently shows its fallback. No error, just the
+wrong content. React 19 fixed it.
+
+That is worth knowing beyond React 18, because **anything that can only write
+markup has the same problem**: HTML by hand, `innerHTML`, a page rendered on a
+server, and the enyo shim of #56, which builds its DOM from JavaScript objects.
+Attributes and custom events travel everywhere; an array does not. Whether the
+kit should accept `choices` as a JSON attribute too is #70.
+
+What this did **not** cover, and it should be said: one control, one
+interaction, in headless Chrome rather than on the device, and the harness
+(five frameworks and their `node_modules`, which needs the network) is not in
+the repository, so this is a measurement taken once and written down -- not a
+test that runs in CI. `apps/example-plain` is the part that does run, on every
+build.
+
 ### The names we publish are `wos-`
 
 The controls used to be `hp-toggle`, `hp-row`, `--hp-accent`. That prefix was
