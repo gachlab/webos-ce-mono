@@ -35,6 +35,8 @@
     --wos-caption-pad: 4px 0 12px 10px;
     --wos-caption-border-width: 0;
     --wos-caption-radius: 0;
+    /* Group.css .enyo-group-label: no letter-spacing. */
+    --wos-caption-letter-spacing: normal;
     --wos-group-labeled-margin: 8px 3px;
     --wos-group-labeled-border-width: 36px 14px 14px 14px;
     --wos-group-labeled-border-image: url(images/group-labeled.png) 36 14 14 14 repeat repeat;
@@ -107,6 +109,8 @@
     --wos-info-raise: none;
     --wos-info-press: none;
     --wos-info-mark-display: none;
+    /* vpn.css .info-icon: square tile, no radius. */
+    --wos-info-radius: 0;
 
     /* radiobutton.png. */
     --wos-choice-off: linear-gradient(to bottom,

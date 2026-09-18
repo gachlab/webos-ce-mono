@@ -68,13 +68,15 @@
     animation: wos-spin 900ms linear infinite;
 }
 
-/* "Add profile..." is a plain enyo.Item (10px pad), not a ProfileListItem. */
+/* "Add profile..." is a plain enyo.Item (10px pad), not a ProfileListItem.
+ * enyo-last: keep the top hairline, drop the bottom (host:last-child).
+ * Gap 0: list-icon-add-item already has padding-right 10px (Main.js). */
 .vpn-add {
-    border-top: 1px solid var(--wos-row-line-bottom);
     --wos-row-pad-top: 0.5rem;
     --wos-row-pad-bottom: 0.5rem;
     --wos-row-pad-x: 0.5rem;
     --wos-row-min-height: 2.6rem;
+    --wos-row-gap: 0;
 }
 
 /* HP's Add/Configure footers: light toolbar with two wide buttons. */

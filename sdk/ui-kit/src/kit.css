@@ -242,7 +242,7 @@
 .wos-row {
     display: flex;
     align-items: center;
-    gap: 0.5rem;
+    gap: var(--wos-row-gap, 0.5rem);
     min-height: var(--wos-row-min-height, 2.6rem);
     padding-top: var(--wos-row-pad-top, var(--wos-row-pad-y, 0.5rem));
     padding-bottom: var(--wos-row-pad-bottom, var(--wos-row-pad-y, 0.5rem));
@@ -257,12 +257,16 @@
  * there by hand. `.wos-row:first-child` was every row: each one is the first
  * child of its own shadow root, so no list had a separator. */
 :host(wos-row:first-child) .wos-row,
-:host(wos-row[first]) .wos-row {
+:host(wos-row[first]) .wos-row,
+:host(wos-swipe-row:first-child) .wos-row,
+:host(wos-swipe-row[first]) .wos-row {
     border-top: 0;
 }
 
 :host(wos-row:last-child) .wos-row,
-:host(wos-row[last]) .wos-row {
+:host(wos-row[last]) .wos-row,
+:host(wos-swipe-row:last-child) .wos-row,
+:host(wos-swipe-row[last]) .wos-row {
     border-bottom: 0;
 }
 
@@ -507,7 +511,7 @@
     margin: 0;
     padding: 0;
     border: 1px solid var(--wos-info-edge);
-    border-radius: 0.3rem;
+    border-radius: var(--wos-info-radius, 0.3rem);
     background: var(--wos-info-face);
     background-size: 100% 100%;
     background-repeat: no-repeat;
