@@ -52,7 +52,8 @@
     display: grid;
     grid-template-columns: 1fr auto 1fr;
     align-items: center;
-    height: 2.65rem;
+    /* enyo's light toolbar is min-height 54px on a 20px root. */
+    height: 2.7rem;
     padding: 0 0.6rem;
     color: var(--wos-header-ink);
     font-size: 1rem;
@@ -62,16 +63,19 @@
     flex: none;
 }
 
-/* HP's other toolbar, the one its settings cards wear. Every number here was
- * read off a screenshot of HP's own Wi-Fi card, row by row: a #b4b4b4 line, a
- * white hair under it, then a fall from #e0e0e0 to #a6a6a6, a #ababab line,
- * and a shadow on the page below. */
+/* HP's other toolbar, the one its settings cards wear. theme-enyo paints it
+ * with Onyx's toolbar-light.png (Apache, from enyo in this tree); theme-modern
+ * keeps the flat gradient. */
 .wos-header.light {
     color: var(--wos-header-light-ink);
     background: var(--wos-header-light-bg);
     border-top: 1px solid var(--wos-header-light-line-top);
     border-bottom: 1px solid var(--wos-header-light-line-bottom);
     box-shadow: var(--wos-header-light-shadow);
+    border-width: var(--wos-header-light-border-width, 1px 0);
+    border-style: solid;
+    -webkit-border-image: var(--wos-header-light-border-image, none);
+    border-image: var(--wos-header-light-border-image, none);
 }
 
 .wos-header.light .wos-header-back {
@@ -85,9 +89,11 @@
     gap: 0.4rem;
 }
 
+/* HP's settings cards put a 48px picture beside the title (vpn-48.png, the
+ * Wi-Fi header icon). 2.4rem is that size on enyo's 20px root. */
 .wos-header-icon {
-    width: 1.6rem;
-    height: 1.6rem;
+    width: 2.4rem;
+    height: 2.4rem;
 }
 
 .wos-header .wos-header-end {
@@ -113,6 +119,11 @@
  * its content cannot hold a control that fills the row. */
 :host(wos-button), :host(wos-header), :host(wos-row), :host(wos-group), :host(wos-spinner) {
     display: block;
+}
+
+:host(wos-info) {
+    display: inline-block;
+    flex: none;
 }
 
 :host(wos-toggle) {
@@ -203,8 +214,8 @@
     display: flex;
     align-items: center;
     gap: 0.5rem;
-    min-height: 2.6rem;
-    padding: 0.5rem;
+    min-height: var(--wos-row-min-height, 2.6rem);
+    padding: var(--wos-row-pad-y, 0.5rem) var(--wos-row-pad-x, 0.5rem);
     border-top: 1px solid var(--wos-row-line-top);
     border-bottom: 1px solid var(--wos-row-line-bottom);
 }
@@ -233,7 +244,7 @@
 }
 
 .wos-row .wos-row-title.strong {
-    font-weight: 600;
+    font-weight: 700;
 }
 
 .wos-row .wos-row-title {
@@ -395,6 +406,62 @@
 
 .wos-check[disabled] {
     opacity: 0.4;
+}
+
+/* §8b Info. HP's info-icon-sprite.png: a 42×46 grey tile with a debossed "i",
+ * used at the right of a VPN (and similar) row to open details without selecting
+ * the row. Drawn rather than shipped, so it scales with the root. */
+.wos-info {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: var(--wos-info-width, 2.1rem);
+    height: var(--wos-info-height, 2.3rem);
+    margin-left: 0.4rem;
+    padding: 0;
+    border: 1px solid var(--wos-info-edge);
+    border-radius: 0.3rem;
+    background: var(--wos-info-face);
+    background-size: 100% 100%;
+    background-repeat: no-repeat;
+    background-position: center;
+    box-shadow: var(--wos-info-raise);
+    color: var(--wos-info-ink);
+    cursor: pointer;
+}
+
+.wos-info:active {
+    background: var(--wos-info-face-down);
+    box-shadow: var(--wos-info-press);
+}
+
+.wos-info[disabled] {
+    opacity: 0.45;
+    pointer-events: none;
+}
+
+.wos-info-mark {
+    display: var(--wos-info-mark-display, flex);
+    flex-direction: column;
+    align-items: center;
+    gap: 0.12rem;
+    /* Debossed "i": a dark lip up-left and a pale lip down-right. */
+    filter: drop-shadow(0.03rem 0.03rem 0 rgba(255, 255, 255, 0.7))
+            drop-shadow(-0.03rem -0.03rem 0 rgba(0, 0, 0, 0.25));
+}
+
+.wos-info-dot {
+    width: 0.28rem;
+    height: 0.28rem;
+    border-radius: 50%;
+    background: currentColor;
+}
+
+.wos-info-stem {
+    width: 0.32rem;
+    height: 0.7rem;
+    border-radius: 0.12rem;
+    background: currentColor;
 }
 
 /* §9 List selectors ------------------------------------------------------- */

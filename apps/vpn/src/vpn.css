@@ -1,9 +1,27 @@
 /* What only this card has. Marks beside a profile are drawn, like Wi-Fi's. */
 
+/*
+ * HP's ProfileListItem is denser than a generic enyo.Item: padding-top 0,
+ * padding-bottom 4px, and a 42×46 info tile. The kit defaults are Wi-Fi's;
+ * these tokens bring the list to that measure without changing other cards.
+ */
+.wos-card {
+    --wos-row-min-height: 2.4rem;
+    --wos-row-pad-y: 0.2rem;
+    --wos-row-pad-x: 0.5rem;
+    --wos-info-width: 2.1rem;
+    --wos-info-height: 2.3rem;
+}
+
+/* HP's Main.js puts 22px under the toolbar (box-center), not the 39px Wi-Fi uses. */
+.wos-body {
+    padding-top: 1.1rem;
+}
+
 .vpn-marks {
     display: flex;
     align-items: center;
-    gap: 0.35rem;
+    gap: 0.1rem;
     flex: none;
 }
 
@@ -14,44 +32,14 @@
 }
 
 .vpn-joined { width: 1.6rem; }
-.vpn-plus { width: 0.9rem; height: 0.9rem; opacity: 0.55; color: var(--wos-ink-dim); }
-
-.vpn-joined path {
-    fill: none;
-    stroke: var(--wos-accent);
-    stroke-width: 5.5;
+.vpn-plus {
+    width: 0.9rem;
+    height: 0.9rem;
+    opacity: 0.5;
+    color: #777;
 }
 
 .vpn-plus path { fill: currentColor; }
-
-/* HP's info-icon-sprite.png: the (i) at the right of every profile row. */
-.vpn-info {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 1.6rem;
-    height: 1.6rem;
-    padding: 0;
-    border: 0;
-    background: transparent;
-    color: var(--wos-ink-dim);
-    cursor: pointer;
-}
-
-.vpn-info svg {
-    width: 1.15rem;
-    height: 1.15rem;
-}
-
-.vpn-info circle:first-child {
-    fill: none;
-    stroke: currentColor;
-    stroke-width: 1.6;
-}
-
-.vpn-info-dot { fill: currentColor; stroke: none; }
-
-.vpn-info:active { color: var(--wos-ink); }
 
 /* Same ring as wos-spinner, sized for the marks column. */
 .vpn-spinner {

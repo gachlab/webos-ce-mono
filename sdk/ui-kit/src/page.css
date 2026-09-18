@@ -96,15 +96,19 @@ body {
 }
 
 /* enyo's RowGroup caption: the bar at the top of the group, which its
- * group-labeled.png drew as translucent black over the page. */
+ * group-labeled.png drew as translucent black over the page. Height and the
+ * etched white text are Group.css's numbers. */
 .wos-group-title,
 .wos-group-caption {
-    padding: 0.3rem 0.5rem;
+    box-sizing: border-box;
+    height: 2.2rem;
+    padding: 0.2rem 0.5rem 0.6rem;
     font-size: 0.7rem;
-    font-weight: 600;
+    font-weight: 700;
     letter-spacing: 0.04em;
     text-transform: uppercase;
     color: var(--wos-caption-ink);
+    text-shadow: var(--wos-caption-shadow, none);
     background: var(--wos-caption-bg);
     /* Three longhands rather than `border` and then `border-bottom: 0`:
      * QtWebEngine loses the colour of the other three sides when that second

@@ -26,7 +26,8 @@ showcase/           every control, in each state -- an app of its own
   used to be `startCard`'s job, which quietly made our renderer compulsory
   (#65). `apps/example-plain` is the card that proves it is not.
 * `kit/kit.ts` — `wos-header`, `wos-button`, `wos-toggle`, `wos-row`, `wos-group`,
-  `wos-spinner`, `wos-field`, `wos-check`, `wos-selector` (the row that opens a
+  `wos-spinner`, `wos-field`, `wos-check`, `wos-info` (the (i) that opens details),
+  `wos-selector` (the row that opens a
   drawer of choices), `wos-choice` (one of a few, in the row itself),
   `wos-dialog`, `wos-progress`, `wos-swipe-row` (swipe to delete, with HP's inline
   confirmation), `wos-app-menu`, `wos-activity-button` (the one that shows it is
@@ -35,6 +36,9 @@ showcase/           every control, in each state -- an app of its own
   (the lifecycle, `stageReady`, the back gesture) plus one line that renders a
   lit-html template on every change of state. A card written in something else
   calls `connectCard` directly and never comes here.
+* `images/` holds the few Onyx chrome tiles theme-enyo still paints with
+  (`toolbar-light.png`, `checkmark.png`, and a redrawn info button) — all
+  either Apache from enyo in this tree or drawn here;
 * `kit.css` reads every colour from a token; `theme-enyo.css` sets those tokens
   to what enyo's Onyx theme measures, and `theme-modern.css` to colours that
   make sense now. Same 69 names, either file. A new class goes in its section

@@ -28,6 +28,7 @@
     --wos-list-bg: transparent;
     --wos-caption-bg: linear-gradient(to bottom, #8f8f8f 0, #9c9c9c 2px, #a2a2a2 3px);
     --wos-caption-ink: #fff;
+    --wos-caption-shadow: #646454 0 1px 0;
 
     /* Item.css: two translucent hairlines, white over black. */
     --wos-row-line-top: rgba(255, 255, 255, 0.5);
@@ -35,19 +36,20 @@
     --wos-row-press: rgba(31, 117, 191, 0.25);
 
     /* Header.css: toolbar.png over #343434, and the light one HP's settings
-     * cards wear, read row by row off a screenshot of its Wi-Fi card. */
+     * cards wear -- Onyx toolbar-light.png, shipped beside this file. */
     --wos-header-bg: linear-gradient(to bottom, #4b4b4b, #2d2d2d);
     --wos-header-ink: #fff;
     --wos-header-line: #000;
     --wos-header-back-ink: #cfcfcf;
-    --wos-header-light-bg: linear-gradient(to bottom,
-        #f2f2f2 0, #f2f2f2 1px, #e0e0e0 1px, #a6a6a6 100%);
+    --wos-header-light-bg: #a9a9a9;
     --wos-header-light-ink: #2b2b2b;
     --wos-header-light-back-ink: #4b4b4b;
-    --wos-header-light-line-top: #b4b4b4;
-    --wos-header-light-line-bottom: #ababab;
-    --wos-header-light-shadow: 0 1px 0 rgba(0, 0, 0, 0.26),
-                              0 0.15rem 0.15rem -0.05rem rgba(0, 0, 0, 0.2);
+    --wos-header-light-line-top: transparent;
+    --wos-header-light-line-bottom: transparent;
+    --wos-header-light-shadow: none;
+    --wos-header-light-border-width: 2px 4px;
+    /* `fill` paints the toolbar face with the slice, as WebKit did for enyo. */
+    --wos-header-light-border-image: url(images/toolbar-light.png) 2 4 fill repeat stretch;
 
     /* Button.css: one sheen, button-up.png, over whatever the kind is
      * painted; button-down.png is the same sheen turned into a shadow. */
@@ -88,6 +90,15 @@
     --wos-check-on: linear-gradient(to bottom, #1a4166, #6ea6cd);
     --wos-check-tick: #dbe9f3;
     --wos-check-edge: rgba(0, 0, 0, 0.35);
+
+    /* info-icon.png: redrawn from Onyx's info-icon-sprite (sampled). */
+    --wos-info-face: url(images/info-icon.png);
+    --wos-info-face-down: url(images/info-icon.png);
+    --wos-info-edge: transparent;
+    --wos-info-ink: transparent;
+    --wos-info-raise: none;
+    --wos-info-press: none;
+    --wos-info-mark-display: none;
 
     /* radiobutton.png. */
     --wos-choice-off: linear-gradient(to bottom,

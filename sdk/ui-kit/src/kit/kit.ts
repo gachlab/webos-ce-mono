@@ -152,6 +152,25 @@ defineElement<{ checked: boolean; disabled: boolean }>(
         </button>`,
 );
 
+// §8b Info. The (i) at the right of a list row that opens details without
+// selecting the row -- HP's info-icon-sprite.png on the VPN card. Emits "press".
+defineElement<{ disabled: boolean }>(
+    "wos-info",
+    { disabled: Boolean },
+    ({ disabled }, { emit }) => html`
+        <button class="wos-info" type="button" ?disabled=${disabled}
+                aria-label="Details"
+                @click=${(event: Event) => {
+                    event.stopPropagation();
+                    emit("press");
+                }}>
+            <span class="wos-info-mark" aria-hidden="true">
+                <span class="wos-info-dot"></span>
+                <span class="wos-info-stem"></span>
+            </span>
+        </button>`,
+);
+
 // §9 List selector: the row that shows the chosen one and opens HP's drawer of
 // choices under it. `choices` is set as a property, not an attribute. Like
 // every other control here, it says what the user asked for -- "open" and

@@ -110,6 +110,11 @@ for id in "${ids[@]}"; do
     cp -f "$src/index.html" "$src/appinfo.json" "$dest/"
     cp -f "$KIT/page.css" "$KIT/kit.css" \
           "$KIT/theme-enyo.css" "$KIT/theme-modern.css" "$dest/"
+    # Theme images the enyo palette paints with (toolbar-light, group chrome).
+    if [ -d "$KIT/images" ]; then
+        mkdir -p "$dest/images"
+        cp -f "$KIT/images"/* "$dest/images/" 2>/dev/null || true
+    fi
     # Whatever else the card ships: its own stylesheet, icons, images.
     for extra in "$src"/*.css "$src"/*.png "$src"/*.jpg "$src"/images; do
         [ -e "$extra" ] && cp -rf "$extra" "$dest/"

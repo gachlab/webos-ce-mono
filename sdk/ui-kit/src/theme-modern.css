@@ -70,6 +70,13 @@
     --wos-check-tick: #fff;
     --wos-check-edge: transparent;
 
+    --wos-info-face: #e7eaee;
+    --wos-info-face-down: #d5d9df;
+    --wos-info-edge: transparent;
+    --wos-info-ink: #5b6570;
+    --wos-info-raise: none;
+    --wos-info-press: none;
+
     --wos-choice-off: #e7eaee;
     --wos-choice-off-ink: #1f2328;
     --wos-choice-on: #2f6fed;

@@ -24,42 +24,24 @@ const agentChoices = (data: VpnData) =>
         { guid: "com.gachlab.wireguard" as AgentGuid, label: "WireGuard", technology: "wireguard" },
     ]).map((a) => ({ value: a.guid, label: a.label }));
 
-// checkmark.png — the only blue mark in HP's list when a profile is up.
+// Onyx checkmark.png (Apache, from enyo in this tree).
 const tick = () => html`
-    <svg class="vpn-joined" viewBox="0 0 32 25" role="img" aria-label=${t("Connected")}>
-        <path d="M8 13.5 14 21 26 4.5"></path>
-    </svg>`;
+    <img class="vpn-joined" src="images/checkmark.png" alt=${t("Connected")}>`;
 
-// list-icon-add-item.png, left of "Add profile...".
+// list-icon-add-item.png: a soft grey plus at the left of "Add profile...".
 const plus = () => html`
     <svg class="vpn-plus" slot="lead" viewBox="0 0 18 18" aria-hidden="true">
         <path d="M7 0h4v7h7v4h-7v7h-4v-7H0V7h7z"></path>
     </svg>`;
-
-// info-icon-sprite.png — the (i) that opens connection details without toggling.
-const info = (name: string, service: VpnService) => html`
-    <button class="vpn-info" type="button" aria-label=${t("Profile details")}
-            @click=${(e: Event) => {
-                e.stopPropagation();
-                service.onOpenDetails(name);
-            }}>
-        <svg viewBox="0 0 24 24" aria-hidden="true">
-            <circle cx="12" cy="12" r="10"></circle>
-            <circle cx="12" cy="7.5" r="1.4" class="vpn-info-dot"></circle>
-            <rect x="10.7" y="10.2" width="2.6" height="7.2" rx="1" class="vpn-info-dot"></rect>
-        </svg>
-    </button>`;
-
-const spinner = () => html`<span class="vpn-spinner" aria-hidden="true"></span>`;
 
 const marks = (profile: VpnProfile, service: VpnService) => {
     const busy = isBusyState(profile.connectState);
     const connected = profile.connectState === "connected";
     return html`
         <span class="vpn-marks">
-            ${busy ? spinner() : ""}
+            ${busy ? html`<span class="vpn-spinner" aria-hidden="true"></span>` : ""}
             ${connected ? tick() : ""}
-            ${info(profile.name, service)}
+            <wos-info @press=${() => service.onOpenDetails(profile.name)}></wos-info>
         </span>`;
 };
 
