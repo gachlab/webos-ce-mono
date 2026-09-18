@@ -14,121 +14,121 @@
 
 :root {
     /* theme.css: the page, and the ink on it. */
-    --hp-page: #d8d8d8;
-    --hp-ink: #333;
-    --hp-ink-dim: #6b6b6b;
-    --hp-ink-faint: grey;
-    --hp-danger: #be0003;
+    --wos-page: #d8d8d8;
+    --wos-ink: #333;
+    --wos-ink-dim: #6b6b6b;
+    --wos-ink-faint: grey;
+    --wos-danger: #be0003;
     /* enyo-button-blue, which it uses for links and for what is chosen. */
-    --hp-accent: #2071bb;
-    --hp-radius: 0.4rem;
+    --wos-accent: #2071bb;
+    --wos-radius: 0.4rem;
 
     /* Group.css: group-labeled.png drew the caption bar and the outline. */
-    --hp-outline: #7c7c7c;
-    --hp-list-bg: transparent;
-    --hp-caption-bg: linear-gradient(to bottom, #8f8f8f 0, #9c9c9c 2px, #a2a2a2 3px);
-    --hp-caption-ink: #fff;
+    --wos-outline: #7c7c7c;
+    --wos-list-bg: transparent;
+    --wos-caption-bg: linear-gradient(to bottom, #8f8f8f 0, #9c9c9c 2px, #a2a2a2 3px);
+    --wos-caption-ink: #fff;
 
     /* Item.css: two translucent hairlines, white over black. */
-    --hp-row-line-top: rgba(255, 255, 255, 0.5);
-    --hp-row-line-bottom: rgba(0, 0, 0, 0.2);
-    --hp-row-press: rgba(31, 117, 191, 0.25);
+    --wos-row-line-top: rgba(255, 255, 255, 0.5);
+    --wos-row-line-bottom: rgba(0, 0, 0, 0.2);
+    --wos-row-press: rgba(31, 117, 191, 0.25);
 
     /* Header.css: toolbar.png over #343434, and the light one HP's settings
      * cards wear, read row by row off a screenshot of its Wi-Fi card. */
-    --hp-header-bg: linear-gradient(to bottom, #4b4b4b, #2d2d2d);
-    --hp-header-ink: #fff;
-    --hp-header-line: #000;
-    --hp-header-back-ink: #cfcfcf;
-    --hp-header-light-bg: linear-gradient(to bottom,
+    --wos-header-bg: linear-gradient(to bottom, #4b4b4b, #2d2d2d);
+    --wos-header-ink: #fff;
+    --wos-header-line: #000;
+    --wos-header-back-ink: #cfcfcf;
+    --wos-header-light-bg: linear-gradient(to bottom,
         #f2f2f2 0, #f2f2f2 1px, #e0e0e0 1px, #a6a6a6 100%);
-    --hp-header-light-ink: #2b2b2b;
-    --hp-header-light-back-ink: #4b4b4b;
-    --hp-header-light-line-top: #b4b4b4;
-    --hp-header-light-line-bottom: #ababab;
-    --hp-header-light-shadow: 0 1px 0 rgba(0, 0, 0, 0.26),
+    --wos-header-light-ink: #2b2b2b;
+    --wos-header-light-back-ink: #4b4b4b;
+    --wos-header-light-line-top: #b4b4b4;
+    --wos-header-light-line-bottom: #ababab;
+    --wos-header-light-shadow: 0 1px 0 rgba(0, 0, 0, 0.26),
                               0 0.15rem 0.15rem -0.05rem rgba(0, 0, 0, 0.2);
 
     /* Button.css: one sheen, button-up.png, over whatever the kind is
      * painted; button-down.png is the same sheen turned into a shadow. */
-    --hp-button-sheen: linear-gradient(to bottom,
+    --wos-button-sheen: linear-gradient(to bottom,
         rgba(247, 247, 247, 0.56) 0, rgba(247, 247, 247, 0.56) 1px,
         rgba(232, 232, 232, 0.35) 1px,
         rgba(92, 92, 92, 0.16) calc(100% - 3px),
         rgba(131, 131, 131, 0.2) calc(100% - 3px),
         rgba(171, 171, 171, 0.26) calc(100% - 2px),
         rgba(220, 220, 220, 0.47) calc(100% - 1px));
-    --hp-button-sheen-down: linear-gradient(to bottom,
+    --wos-button-sheen-down: linear-gradient(to bottom,
         rgba(0, 0, 0, 0.37) 0, rgba(0, 0, 0, 0.37) 1px,
         rgba(3, 3, 3, 0.3) 1px,
         rgba(8, 8, 8, 0.07) 85%,
         rgba(0, 0, 0, 0.17) calc(100% - 1px));
-    --hp-button-edge: rgba(0, 0, 0, 0.25);
-    --hp-button-radius: 0.25rem;
-    --hp-button-light: rgba(255, 255, 255, 0.8);
-    --hp-button-light-ink: #292929;
-    --hp-button-dark: rgba(23, 23, 23, 0.5);
-    --hp-button-affirmative: #2aa100;
-    --hp-button-negative: #be0003;
-    --hp-button-blue: #2071bb;
-    --hp-button-gray: #4b4b4b;
-    --hp-button-loud-ink: #fff;
+    --wos-button-edge: rgba(0, 0, 0, 0.25);
+    --wos-button-radius: 0.25rem;
+    --wos-button-light: rgba(255, 255, 255, 0.8);
+    --wos-button-light-ink: #292929;
+    --wos-button-dark: rgba(23, 23, 23, 0.5);
+    --wos-button-affirmative: #2aa100;
+    --wos-button-negative: #be0003;
+    --wos-button-blue: #2071bb;
+    --wos-button-gray: #4b4b4b;
+    --wos-button-loud-ink: #fff;
 
     /* toggle-button.png: the track that is on is blue, and the knob it carries
      * picks the blue up. Green is the affirmative button, not this. */
-    --hp-toggle-on: linear-gradient(to bottom, #1a3f63, #6195bb);
-    --hp-toggle-off: linear-gradient(to bottom, #606060, #a2a2a2);
-    --hp-toggle-knob: linear-gradient(to bottom, #f6f6f6, #d9d9d9);
-    --hp-toggle-knob-on: linear-gradient(to bottom, #f2f5f8, #b8d4e8);
-    --hp-toggle-edge: rgba(0, 0, 0, 0.35);
-    --hp-toggle-ink: #fff;
+    --wos-toggle-on: linear-gradient(to bottom, #1a3f63, #6195bb);
+    --wos-toggle-off: linear-gradient(to bottom, #606060, #a2a2a2);
+    --wos-toggle-knob: linear-gradient(to bottom, #f6f6f6, #d9d9d9);
+    --wos-toggle-knob-on: linear-gradient(to bottom, #f2f5f8, #b8d4e8);
+    --wos-toggle-edge: rgba(0, 0, 0, 0.35);
+    --wos-toggle-ink: #fff;
 
     /* checkbox.png, which is the toggle's blue with a pale tick. */
-    --hp-check-off: linear-gradient(to bottom, #555555, #b1b1b1);
-    --hp-check-on: linear-gradient(to bottom, #1a4166, #6ea6cd);
-    --hp-check-tick: #dbe9f3;
-    --hp-check-edge: rgba(0, 0, 0, 0.35);
+    --wos-check-off: linear-gradient(to bottom, #555555, #b1b1b1);
+    --wos-check-on: linear-gradient(to bottom, #1a4166, #6ea6cd);
+    --wos-check-tick: #dbe9f3;
+    --wos-check-edge: rgba(0, 0, 0, 0.35);
 
     /* radiobutton.png. */
-    --hp-choice-off: linear-gradient(to bottom,
+    --wos-choice-off: linear-gradient(to bottom,
         rgba(245, 245, 245, 0.79), rgba(200, 200, 200, 0.59));
-    --hp-choice-off-ink: #292929;
-    --hp-choice-on: linear-gradient(to bottom, #1d4872, #6ea6ca);
-    --hp-choice-on-ink: #fff;
-    --hp-choice-line: rgba(0, 0, 0, 0.2);
+    --wos-choice-off-ink: #292929;
+    --wos-choice-on: linear-gradient(to bottom, #1d4872, #6ea6ca);
+    --wos-choice-on-ink: #fff;
+    --wos-choice-line: rgba(0, 0, 0, 0.2);
 
     /* progress-bar.png and its inner, which is a brighter blue than anything
      * else here; slider-track.png, which is flat and never fills. */
-    --hp-progress-track: linear-gradient(to bottom,
+    --wos-progress-track: linear-gradient(to bottom,
         rgba(0, 0, 0, 0.37) 0, rgba(0, 0, 0, 0.37) 1px,
         rgba(125, 125, 125, 0.6) 1px,
         rgba(167, 167, 167, 0.53) calc(100% - 2px),
         rgba(44, 44, 44, 0.4) calc(100% - 2px));
-    --hp-progress-fill: linear-gradient(to bottom, #89c6ff, #076bab);
-    --hp-slider-track: linear-gradient(to bottom,
+    --wos-progress-fill: linear-gradient(to bottom, #89c6ff, #076bab);
+    --wos-slider-track: linear-gradient(to bottom,
         rgba(0, 0, 0, 0.49) 0, rgba(0, 0, 0, 0.49) 1px,
         #828282 1px, #a1a1a1 calc(100% - 1px),
         rgba(0, 0, 0, 0.49) calc(100% - 1px));
-    --hp-slider-fill: none;
-    --hp-slider-knob: linear-gradient(to bottom, #f9f9f9, #c1c1c1 80%, #d8d8d8);
-    --hp-slider-knob-edge: rgba(0, 0, 0, 0.25);
+    --wos-slider-fill: none;
+    --wos-slider-knob: linear-gradient(to bottom, #f9f9f9, #c1c1c1 80%, #d8d8d8);
+    --wos-slider-knob-edge: rgba(0, 0, 0, 0.25);
 
     /* spinner.png turns in grey. */
-    --hp-spinner-ring: rgba(0, 0, 0, 0.18);
-    --hp-spinner-lead: #8b8b8b;
+    --wos-spinner-ring: rgba(0, 0, 0, 0.18);
+    --wos-spinner-lead: #8b8b8b;
 
     /* input-focus.png: a white panel with a soft edge, and no line under the
      * text when it is not focused. */
-    --hp-field-focus-bg: #fff;
-    --hp-field-focus-edge: rgba(0, 0, 0, 0.22);
-    --hp-field-ink: #000;
+    --wos-field-focus-bg: #fff;
+    --wos-field-focus-edge: rgba(0, 0, 0, 0.22);
+    --wos-field-ink: #000;
 
     /* AppMenu.css and Dialog.css. */
-    --hp-menu-bg: linear-gradient(to bottom, #4b4b4b, #333);
-    --hp-menu-ink: #fff;
-    --hp-menu-edge: #000;
-    --hp-menu-press: #2071bb;
-    --hp-dialog-bg: #f4f4f4;
-    --hp-scrim: rgba(0, 0, 0, 0.55);
-    --hp-swipe-bg: #f0d6d6;
+    --wos-menu-bg: linear-gradient(to bottom, #4b4b4b, #333);
+    --wos-menu-ink: #fff;
+    --wos-menu-edge: #000;
+    --wos-menu-press: #2071bb;
+    --wos-dialog-bg: #f4f4f4;
+    --wos-scrim: rgba(0, 0, 0, 0.55);
+    --wos-swipe-bg: #f0d6d6;
 }

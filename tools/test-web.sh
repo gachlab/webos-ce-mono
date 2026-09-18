@@ -29,7 +29,9 @@ fi
 #
 # Verified by mutation: an import of @webos/ui-kit added to any file under
 # sdk/webos-api turns this red.
-leak=$(cd "$ROOT" && grep -rl '@webos/ui-kit\|@webos/app-' sdk/webos-api 2>/dev/null | tr '\n' ' ')
+# Code, not prose: the package's README says out loud that the kit depends on
+# it, and saying so is the point.
+leak=$(cd "$ROOT" && grep -rl --include='*.ts' '@webos/ui-kit\|@webos/app-' sdk/webos-api 2>/dev/null | tr '\n' ' ')
 if [ -n "$leak" ]; then
     echo "FAIL: @webos/api reaches up into the kit or an app: $leak"
     exit 1

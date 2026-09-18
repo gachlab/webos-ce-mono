@@ -3,16 +3,16 @@
 // The web platform defines custom elements as classes, and this is the one
 // place in the tree that has one. Everything above is a function:
 //
-//     defineElement("hp-toggle", { on: Boolean }, ({ on }, { emit }) => html`
-//         <button class="hp-toggle ${on ? "on" : "off"}"
+//     defineElement("wos-toggle", { on: Boolean }, ({ on }, { emit }) => html`
+//         <button class="wos-toggle ${on ? "on" : "off"}"
 //                 @click=${() => emit("change", { on: !on })}></button>`);
 //
-// What comes out is an ordinary element: <hp-toggle on></hp-toggle> works from
+// What comes out is an ordinary element: <wos-toggle on></wos-toggle> works from
 // a card, from plain HTML, and from any framework, and none of them knows what
 // drew it. If lit-html is ever replaced, it is replaced here.
 //
 // Each element draws into its own shadow root, so what a card puts inside it
-// (<hp-group><hp-row>...) is still there after a repaint, and a card's own CSS
+// (<wos-group><wos-row>...) is still there after a repaint, and a card's own CSS
 // cannot reach in and change what a control looks like. HP's look is still one
 // stylesheet: `useStyles` hands kit.css to every element at once, and each
 // root adopts that one sheet rather than carrying a copy.

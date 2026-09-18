@@ -15,35 +15,35 @@ import type { State } from "@webos/api/helpers/create-state.ts";
 import type { TemplateService } from "./template.service.ts";
 
 const device = (state: State<TemplateData>, service: TemplateService) => html`
-    <div class="hp-card">
-        <hp-header title="Template"></hp-header>
-        <div class="hp-body">
-            ${state.name === "template:loading" ? html`<hp-spinner label="Asking the device..."></hp-spinner>` : ""}
+    <div class="wos-card">
+        <wos-header title="Template"></wos-header>
+        <div class="wos-body">
+            ${state.name === "template:loading" ? html`<wos-spinner label="Asking the device..."></wos-spinner>` : ""}
             ${state.name === "template:failed" ? errorText(state.error ?? "") : ""}
             ${state.data.device
                 ? html`
-                    <div class="hp-group">
-                        <div class="hp-group-title">This device</div>
-                        <div class="hp-list">
-                            <hp-row title=${state.data.device.model} detail="Model"></hp-row>
-                            <hp-row title=${state.data.device.version || "unknown"} detail="Software"></hp-row>
-                            <hp-row title=${state.data.device.serial || "unknown"} detail="Device id"></hp-row>
+                    <div class="wos-group">
+                        <div class="wos-group-title">This device</div>
+                        <div class="wos-list">
+                            <wos-row title=${state.data.device.model} detail="Model"></wos-row>
+                            <wos-row title=${state.data.device.version || "unknown"} detail="Software"></wos-row>
+                            <wos-row title=${state.data.device.serial || "unknown"} detail="Device id"></wos-row>
                         </div>
                     </div>`
                 : ""}
-            <div class="hp-group">
-                <div class="hp-group-title">Network</div>
-                <div class="hp-list">
-                    <hp-row title=${state.data.connection?.online ? "Online" : "Offline"}
+            <div class="wos-group">
+                <div class="wos-group-title">Network</div>
+                <div class="wos-list">
+                    <wos-row title=${state.data.connection?.online ? "Online" : "Offline"}
                             detail=${state.data.connection?.through || "Nothing connected"}
-                            @select=${() => service.onOpenNetwork()}></hp-row>
+                            @select=${() => service.onOpenNetwork()}></wos-row>
                 </div>
             </div>
             ${note("This card is the one the others are copied from: the bus, a state machine, two screens and HP's controls.")}
             ${state.name === "template:failed"
-                ? html`<div class="hp-group">
-                           <hp-button label="Try again" kind="affirmative"
-                                      @press=${() => service.onRetry()}></hp-button>
+                ? html`<div class="wos-group">
+                           <wos-button label="Try again" kind="affirmative"
+                                      @press=${() => service.onRetry()}></wos-button>
                        </div>`
                 : ""}
         </div>
@@ -52,15 +52,15 @@ const device = (state: State<TemplateData>, service: TemplateService) => html`
 // The second screen, which the back gesture pops: the card only closes once
 // there is nothing left to go back to.
 const network = (state: State<TemplateData>, service: TemplateService) => html`
-    <div class="hp-card">
-        <hp-header title="Network" back @back=${() => service.onBack()}></hp-header>
-        <div class="hp-body">
-            <div class="hp-group">
-                <div class="hp-list">
-                    <hp-row title=${state.data.connection?.online ? "Online" : "Offline"} detail="Internet"></hp-row>
-                    <hp-row title=${state.data.connection?.through || "none"} detail="Through"></hp-row>
-                    <hp-row title=${state.data.connection?.ssid || "-"} detail="Network"></hp-row>
-                    <hp-row title=${state.data.connection?.ipAddress || "-"} detail="Address"></hp-row>
+    <div class="wos-card">
+        <wos-header title="Network" back @back=${() => service.onBack()}></wos-header>
+        <div class="wos-body">
+            <div class="wos-group">
+                <div class="wos-list">
+                    <wos-row title=${state.data.connection?.online ? "Online" : "Offline"} detail="Internet"></wos-row>
+                    <wos-row title=${state.data.connection?.through || "none"} detail="Through"></wos-row>
+                    <wos-row title=${state.data.connection?.ssid || "-"} detail="Network"></wos-row>
+                    <wos-row title=${state.data.connection?.ipAddress || "-"} detail="Address"></wos-row>
                 </div>
             </div>
             ${note("It follows the connection while the card is on screen, and stops while it is not.")}

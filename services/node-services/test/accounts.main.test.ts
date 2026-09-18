@@ -12,7 +12,7 @@ import { openBus, type Bus, type Payload } from "#kit/luna.ts";
 import { SERVICE_NAME } from "../services/com.palm.service.accounts/service.ts";
 import { startTestBus, type TestBus } from "./hub.ts";
 
-const PROFILE = new URL("../../app-services/account-templates/palmprofile/com.palm.palmprofile/", import.meta.url).pathname;
+const PROFILE = new URL("../../../components/app-services/account-templates/palmprofile/com.palm.palmprofile/", import.meta.url).pathname;
 const MAIN = new URL("../services/com.palm.service.accounts/main.ts", import.meta.url).pathname;
 
 const env: { hub?: TestBus; client?: Bus; service?: ChildProcess; exited?: Promise<number | null> } = {};

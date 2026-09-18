@@ -14,8 +14,8 @@ import type { Schema } from "#kit/json-schema.ts";
 import { createAccountsService, SERVICE_NAME, type RunningService } from "../services/com.palm.service.accounts/service.ts";
 import { CONFIGURATOR, startTestBus, type TestBus } from "./hub.ts";
 
-const HP = new URL("../../app-services/com.palm.service.accounts/", import.meta.url).pathname;
-const PROFILE = new URL("../../app-services/account-templates/palmprofile/com.palm.palmprofile/", import.meta.url).pathname;
+const HP = new URL("../../../components/app-services/com.palm.service.accounts/", import.meta.url).pathname;
+const PROFILE = new URL("../../../components/app-services/account-templates/palmprofile/com.palm.palmprofile/", import.meta.url).pathname;
 const SERVICE = `luna://${SERVICE_NAME}`;
 
 const TRANSPORT = "com.webosce.test.transport";

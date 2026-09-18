@@ -69,9 +69,9 @@ window.__answers["palm://com.palm.deviceprofile/getDeviceProfile"] =
 // What the card shows, reaching into the elements' shadow roots -- which is
 // where a custom element keeps what it drew.
 static const char kRowTitles[] = R"JS(
-Array.prototype.slice.call(document.querySelectorAll("hp-row"))
+Array.prototype.slice.call(document.querySelectorAll("wos-row"))
     .map(function (row) {
-        var t = row.shadowRoot && row.shadowRoot.querySelector(".hp-row-title");
+        var t = row.shadowRoot && row.shadowRoot.querySelector(".wos-row-title");
         return t ? t.textContent : "";
     }).join("|")
 )JS";
@@ -127,22 +127,22 @@ int main(int argc, char** argv)
     check("what came back is shown in HP's rows", js(kRowTitles),
           QStringLiteral("ZBook|webOS-CE-3.0.5|abc|Offline"));
     check("the header is the kit's",
-          js("document.querySelector('hp-header').shadowRoot.querySelector('.hp-header-title').textContent.trim()"),
+          js("document.querySelector('wos-header').shadowRoot.querySelector('.wos-header-title').textContent.trim()"),
           QStringLiteral("Template"));
     // 2.65rem of page.css's 20px root, which is the 53px enyo's header was.
     // The kit is written in rem over that root, so a page that forgets to link
     // page.css gets a card that is silently four fifths of the size -- which is
     // what this measurement is here to catch.
     check("and it is styled by page.css, not by the browser",
-          js("getComputedStyle(document.querySelector('hp-header').shadowRoot.querySelector('.hp-header')).height"),
+          js("getComputedStyle(document.querySelector('wos-header').shadowRoot.querySelector('.wos-header')).height"),
           QStringLiteral("53px"));
     // The colours come from the theme the page links, not from the kit: a card
     // that links page.css and forgets the palette draws a header with no
     // background at all.
     check("and painted by the theme it links",
-          js("getComputedStyle(document.querySelector('hp-header').shadowRoot.querySelector('.hp-header')).backgroundImage.indexOf('gradient') >= 0 ? 'themed' : 'bare'"),
+          js("getComputedStyle(document.querySelector('wos-header').shadowRoot.querySelector('.wos-header')).backgroundImage.indexOf('gradient') >= 0 ? 'themed' : 'bare'"),
           QStringLiteral("themed"));
-    check("with no spinner left running", js("String(document.querySelectorAll('hp-spinner').length)"),
+    check("with no spinner left running", js("String(document.querySelectorAll('wos-spinner').length)"),
           QStringLiteral("0"));
 
     // A service that is not running: the card says so, and offers the way back.
@@ -165,16 +165,16 @@ int main(int argc, char** argv)
     if (!waitFor([&]() { return loaded; }, 20000))
         return 1;
 
-    waitFor([&]() { return !js("document.querySelector('.hp-error') ? document.querySelector('.hp-error').textContent : ''").isEmpty(); }, 5000);
+    waitFor([&]() { return !js("document.querySelector('.wos-error') ? document.querySelector('.wos-error').textContent : ''").isEmpty(); }, 5000);
     check("a service that is not running is said, not swallowed",
-          js("document.querySelector('.hp-error').textContent"),
+          js("document.querySelector('.wos-error').textContent"),
           QStringLiteral("com.palm.deviceprofile is not running"));
 
     // Press "Try again": the card asks once more, and this time it is answered.
     js("window.__answers['palm://com.palm.deviceprofile/getDeviceProfile'] ="
        " { returnValue: true, deviceInfo: { deviceModel: 'Answered', softwareVersion: '', nduId: '' } };"
        "window.__calls = [];"
-       "document.querySelector('hp-button').shadowRoot.querySelector('button').click(); 1");
+       "document.querySelector('wos-button').shadowRoot.querySelector('button').click(); 1");
     waitFor([&]() { return js(kRowTitles).contains("Answered"); }, 5000);
     check("pressing Try again asks the bus once more", js("String(window.__calls.length)"), QStringLiteral("1"));
     check("and what comes back replaces the error", js(kRowTitles),
@@ -182,15 +182,15 @@ int main(int argc, char** argv)
 
     // The second screen, and the way back out of it: the card only closes once
     // there is nothing left to go back to.
-    js("document.querySelectorAll('hp-row')[3].shadowRoot.querySelector('.hp-row-text').click(); 1");
-    waitFor([&]() { return js("document.querySelector('hp-header').getAttribute('title')") == "Network"; }, 3000);
-    check("a row opens the second screen", js("document.querySelector('hp-header').getAttribute('title')"),
+    js("document.querySelectorAll('wos-row')[3].shadowRoot.querySelector('.wos-row-text').click(); 1");
+    waitFor([&]() { return js("document.querySelector('wos-header').getAttribute('title')") == "Network"; }, 3000);
+    check("a row opens the second screen", js("document.querySelector('wos-header').getAttribute('title')"),
           QStringLiteral("Network"));
     js("window.Mojo.handleGesture('back'); 1");
-    waitFor([&]() { return js("document.querySelector('hp-header').getAttribute('title')") == "Template"; }, 3000);
+    waitFor([&]() { return js("document.querySelector('wos-header').getAttribute('title')") == "Template"; }, 3000);
     check("and the back gesture comes out of it",
-          js("document.querySelector('hp-header').getAttribute('title')"), QStringLiteral("Template"));
-    check("with the error gone", js("String(document.querySelectorAll('.hp-error').length)"), QStringLiteral("0"));
+          js("document.querySelector('wos-header').getAttribute('title')"), QStringLiteral("Template"));
+    check("with the error gone", js("String(document.querySelectorAll('.wos-error').length)"), QStringLiteral("0"));
 
     return failures == 0 ? 0 : 1;
 }

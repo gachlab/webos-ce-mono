@@ -48,12 +48,12 @@ body {
     /* Prose sans, as HP's cards used; the device's own family first. */
     font-family: Prelude, "Prelude Medium", Helvetica, Arial, sans-serif;
     font-size: 1rem;
-    color: var(--hp-ink);
+    color: var(--wos-ink);
     /* HP's page, measured off its own card rather than guessed: enyo's body is
      * #d8d8d8 and everything on it -- rows included -- is that same grey, with
      * translucent black and white lines drawn over it. The white panels this
      * had before were not HP's. */
-    background: var(--hp-page);
+    background: var(--wos-page);
     -webkit-user-select: none;
     user-select: none;
     overflow-x: hidden;
@@ -66,7 +66,7 @@ body {
 }
 
 /* The header keeps its height and the body takes what is left. */
-.hp-card {
+.wos-card {
     display: grid;
     grid-template-rows: auto 1fr;
     height: 100%;
@@ -76,7 +76,7 @@ body {
  * tablet: 25rem is the 500px its Wi-Fi card used, and `min` gives way on a
  * screen narrower than that. On the body itself, not on each child: a child
  * with margins of its own would override the centring. */
-.hp-body {
+.wos-body {
     width: min(25rem, 100%);
     margin: 0 auto;
     /* HP's cards put 23px under the header and another 23 at the top of each
@@ -91,56 +91,56 @@ body {
 
 /* §3 Groups and lists ------------------------------------------------------ */
 
-.hp-group {
+.wos-group {
     margin: 0 0 0.9rem;
 }
 
 /* enyo's RowGroup caption: the bar at the top of the group, which its
  * group-labeled.png drew as translucent black over the page. */
-.hp-group-title,
-.hp-group-caption {
+.wos-group-title,
+.wos-group-caption {
     padding: 0.3rem 0.5rem;
     font-size: 0.7rem;
     font-weight: 600;
     letter-spacing: 0.04em;
     text-transform: uppercase;
-    color: var(--hp-caption-ink);
-    background: var(--hp-caption-bg);
+    color: var(--wos-caption-ink);
+    background: var(--wos-caption-bg);
     /* Three longhands rather than `border` and then `border-bottom: 0`:
      * QtWebEngine loses the colour of the other three sides when that second
      * shorthand runs, and the bar comes out with no line at all. */
     border-width: 1px 1px 0;
     border-style: solid;
-    border-color: var(--hp-outline);
-    border-radius: var(--hp-radius) var(--hp-radius) 0 0;
+    border-color: var(--wos-outline);
+    border-radius: var(--wos-radius) var(--wos-radius) 0 0;
 }
 
-.hp-group-title + .hp-list,
-.hp-group-caption + .hp-list {
+.wos-group-title + .wos-list,
+.wos-group-caption + .wos-list {
     border-top: 0;
-    border-radius: 0 0 var(--hp-radius) var(--hp-radius);
+    border-radius: 0 0 var(--wos-radius) var(--wos-radius);
 }
 
 /* The group's own outline. What is inside it is the page: HP's rows have no
  * background of their own, only the lines between them. */
-.hp-list {
-    background: var(--hp-list-bg);
-    border: 1px solid var(--hp-outline);
-    border-radius: var(--hp-radius);
+.wos-list {
+    background: var(--wos-list-bg);
+    border: 1px solid var(--wos-outline);
+    border-radius: var(--wos-radius);
     overflow: hidden;
 }
 
 /* §6 Text ----------------------------------------------------------------- */
 
-.hp-note {
+.wos-note {
     margin: 0 0.4rem 0.6rem;
-    color: var(--hp-ink-dim);
+    color: var(--wos-ink-dim);
     font-size: 0.8rem;
     line-height: 1.35;
 }
 
-.hp-error {
+.wos-error {
     margin: 0 0.4rem 0.6rem;
-    color: var(--hp-danger);
+    color: var(--wos-danger);
     font-size: 0.8rem;
 }

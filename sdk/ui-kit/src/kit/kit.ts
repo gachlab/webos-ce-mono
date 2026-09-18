@@ -3,8 +3,8 @@
 // Each one is an ordinary custom element, so a card uses it as markup and
 // anything else could too:
 //
-//     <hp-header title="Wi-Fi"></hp-header>
-//     <hp-toggle on label-on="On" label-off="Off"></hp-toggle>
+//     <wos-header title="Wi-Fi"></wos-header>
+//     <wos-toggle on label-on="On" label-off="Off"></wos-toggle>
 //
 // What they look like is kit.css, section by section. What they do is here, and
 // it is always the same shape: read the properties, draw, and say what
@@ -17,50 +17,50 @@ import { defineElement, html, type TemplateResult } from "../element.ts";
 // `light` is HP's other toolbar -- the one its settings cards use -- and `icon`
 // is the picture beside the title, as the Wi-Fi card has.
 defineElement<{ title: string; back: boolean; light: boolean; icon: string }>(
-    "hp-header",
+    "wos-header",
     { title: String, back: Boolean, light: Boolean, icon: String },
     ({ title, back, light, icon }, { emit }) => html`
-        <header class="hp-header ${light ? "light" : ""}">
-            ${back ? html`<button class="hp-header-back" @click=${() => emit("back")}>&#9664;</button>` : ""}
-            <span class="hp-header-title">
-                ${icon ? html`<img class="hp-header-icon" src=${icon} alt="">` : ""}
+        <header class="wos-header ${light ? "light" : ""}">
+            ${back ? html`<button class="wos-header-back" @click=${() => emit("back")}>&#9664;</button>` : ""}
+            <span class="wos-header-title">
+                ${icon ? html`<img class="wos-header-icon" src=${icon} alt="">` : ""}
                 <span>${title}</span>
             </span>
-            <span class="hp-header-end"><slot></slot></span>
+            <span class="wos-header-end"><slot></slot></span>
         </header>`,
 );
 
 // §2 Button. "affirmative" and "negative" are HP's two loud kinds.
 defineElement<{ label: string; kind: string; disabled: boolean }>(
-    "hp-button",
+    "wos-button",
     { label: String, kind: String, disabled: Boolean },
     ({ label, kind, disabled }, { emit }) => html`
-        <button class="hp-button ${kind ?? ""}" ?disabled=${disabled}
+        <button class="wos-button ${kind ?? ""}" ?disabled=${disabled}
                 @click=${() => emit("press")}>${label}</button>`,
 );
 
 // §4 Toggle. The card is told what the user asked for; it decides whether that
 // becomes the new state, because on a device the answer comes from a service.
 defineElement<{ on: boolean; labelOn: string; labelOff: string; disabled: boolean }>(
-    "hp-toggle",
+    "wos-toggle",
     { on: Boolean, labelOn: String, labelOff: String, disabled: Boolean },
     ({ on, labelOn, labelOff, disabled }, { emit }) => html`
-        <button class="hp-toggle ${on ? "on" : "off"}" ?disabled=${disabled}
+        <button class="wos-toggle ${on ? "on" : "off"}" ?disabled=${disabled}
                 role="switch" aria-checked=${on ? "true" : "false"}
                 @click=${() => emit("toggle", { on: !on })}>
-            <span class="hp-toggle-knob"></span>
-            <span class="hp-toggle-label">${on ? labelOn || "On" : labelOff || "Off"}</span>
+            <span class="wos-toggle-knob"></span>
+            <span class="wos-toggle-label">${on ? labelOn || "On" : labelOff || "Off"}</span>
         </button>`,
 );
 
 // §5 Spinner, with the line HP always put beside it: a spinner with no words
 // is a card that has stopped answering.
 defineElement<{ label: string }>(
-    "hp-spinner",
+    "wos-spinner",
     { label: String },
     ({ label }) => html`
-        <div class="hp-spinner-row">
-            <span class="hp-spinner"></span>
+        <div class="wos-spinner-row">
+            <span class="wos-spinner"></span>
             <span>${label}</span>
         </div>`,
 );
@@ -68,12 +68,12 @@ defineElement<{ label: string }>(
 // §3 A group of rows under HP's caption bar, which is what enyo's RowGroup
 // drew: the title sits in a grey bar joined to the top of the list.
 defineElement<{ title: string }>(
-    "hp-group",
+    "wos-group",
     { title: String },
     ({ title }) => html`
-        <div class="hp-group ${title ? "captioned" : ""}">
-            ${title ? html`<div class="hp-group-caption">${title}</div>` : ""}
-            <div class="hp-list"><slot></slot></div>
+        <div class="wos-group ${title ? "captioned" : ""}">
+            ${title ? html`<div class="wos-group-caption">${title}</div>` : ""}
+            <div class="wos-list"><slot></slot></div>
         </div>`,
 );
 
@@ -83,18 +83,18 @@ defineElement<{ title: string }>(
 // selects the row: a toggle in a Wi-Fi row would otherwise turn the radio on
 // and open the network at the same time.
 defineElement<{ title: string; detail: string; strong: boolean }>(
-    "hp-row",
+    "wos-row",
     { title: String, detail: String, strong: Boolean },
     ({ title, detail, strong }, { emit }) => html`
-        <div class="hp-row">
+        <div class="wos-row">
             <!-- What goes before the words: the plus HP drew at the left of
                  "Join Network", an avatar, a status light. -->
             <slot name="lead"></slot>
             ${title || detail
                 ? html`
-                    <div class="hp-row-text" @click=${() => emit("select")}>
-                        <div class="hp-row-title ${strong ? "strong" : ""}">${title}</div>
-                        ${detail ? html`<div class="hp-row-detail">${detail}</div>` : ""}
+                    <div class="wos-row-text" @click=${() => emit("select")}>
+                        <div class="wos-row-title ${strong ? "strong" : ""}">${title}</div>
+                        ${detail ? html`<div class="wos-row-detail">${detail}</div>` : ""}
                     </div>`
                 : ""}
             <slot></slot>
@@ -103,18 +103,18 @@ defineElement<{ title: string; detail: string; strong: boolean }>(
 
 // The pieces a card draws itself, where an element of its own would only get
 // in the way.
-export const note = (text: string): TemplateResult => html`<p class="hp-note">${text}</p>`;
-export const error = (text: string): TemplateResult => html`<p class="hp-error">${text}</p>`;
+export const note = (text: string): TemplateResult => html`<p class="wos-note">${text}</p>`;
+export const error = (text: string): TemplateResult => html`<p class="wos-error">${text}</p>`;
 
 // §7 Text field. The card is told what was typed as it is typed, and when the
 // user is done with it.
 defineElement<{ label: string; value: string; placeholder: string; type: string; disabled: boolean }>(
-    "hp-field",
+    "wos-field",
     { label: String, value: String, placeholder: String, type: String, disabled: Boolean },
     ({ label, value, placeholder, type, disabled }, { emit }) => html`
-        <label class="hp-field">
-            ${label ? html`<span class="hp-field-label">${label}</span>` : ""}
-            <input class="hp-field-input" .value=${value} type=${type || "text"}
+        <label class="wos-field">
+            ${label ? html`<span class="wos-field-label">${label}</span>` : ""}
+            <input class="wos-field-input" .value=${value} type=${type || "text"}
                    placeholder=${placeholder} ?disabled=${disabled}
                    @input=${(event: Event) => emit("change", { value: (event.target as HTMLInputElement).value })}
                    @keydown=${(event: KeyboardEvent) => {
@@ -127,13 +127,13 @@ defineElement<{ label: string; value: string; placeholder: string; type: string;
 
 // §8 Checkbox, HP's tick in a rounded square.
 defineElement<{ checked: boolean; disabled: boolean }>(
-    "hp-check",
+    "wos-check",
     { checked: Boolean, disabled: Boolean },
     ({ checked, disabled }, { emit }) => html`
-        <button class="hp-check ${checked ? "checked" : ""}" ?disabled=${disabled}
+        <button class="wos-check ${checked ? "checked" : ""}" ?disabled=${disabled}
                 role="checkbox" aria-checked=${checked ? "true" : "false"}
                 @click=${() => emit("change", { checked: !checked })}>
-            ${checked ? html`<span class="hp-check-tick">&#10003;</span>` : ""}
+            ${checked ? html`<span class="wos-check-tick">&#10003;</span>` : ""}
         </button>`,
 );
 
@@ -142,25 +142,25 @@ defineElement<{ checked: boolean; disabled: boolean }>(
 // every other control here, it says what the user asked for -- "open" and
 // "choose" -- and the card decides what that makes true.
 defineElement<{ label: string; value: string; choices: { value: string; label: string }[]; open: boolean }>(
-    "hp-selector",
+    "wos-selector",
     { label: String, value: String, choices: Object, open: Boolean },
     ({ label, value, choices, open }, { emit }) => {
         const list = Array.isArray(choices) ? choices : [];
         const chosen = list.find((choice) => choice.value === value);
         return html`
-            <div class="hp-selector">
-                <div class="hp-row" @click=${() => emit("open", { open: !open })}>
-                    <div class="hp-row-text"><div class="hp-row-title">${label ?? ""}</div></div>
-                    <span class="hp-selector-value">${chosen?.label ?? value}</span>
-                    <span class="hp-selector-arrow ${open ? "open" : ""}">&#9662;</span>
+            <div class="wos-selector">
+                <div class="wos-row" @click=${() => emit("open", { open: !open })}>
+                    <div class="wos-row-text"><div class="wos-row-title">${label ?? ""}</div></div>
+                    <span class="wos-selector-value">${chosen?.label ?? value}</span>
+                    <span class="wos-selector-arrow ${open ? "open" : ""}">&#9662;</span>
                 </div>
                 ${open
-                    ? html`<div class="hp-selector-drawer">
+                    ? html`<div class="wos-selector-drawer">
                         ${list.map((choice) => html`
-                            <div class="hp-row hp-selector-choice ${choice.value === value ? "chosen" : ""}"
+                            <div class="wos-row wos-selector-choice ${choice.value === value ? "chosen" : ""}"
                                  @click=${() => emit("choose", { value: choice.value })}>
-                                <div class="hp-row-text"><div class="hp-row-title">${choice.label}</div></div>
-                                ${choice.value === value ? html`<span class="hp-selector-tick">&#10003;</span>` : ""}
+                                <div class="wos-row-text"><div class="wos-row-title">${choice.label}</div></div>
+                                ${choice.value === value ? html`<span class="wos-selector-tick">&#10003;</span>` : ""}
                             </div>`)}
                       </div>`
                     : ""}
@@ -171,16 +171,16 @@ defineElement<{ label: string; value: string; choices: { value: string; label: s
 // §10 Dialog: HP's modal, with its title, its message and its buttons. The
 // card says which button was pressed by its value.
 defineElement<{ title: string; message: string; buttons: { value: string; label: string; kind?: string }[] }>(
-    "hp-dialog",
+    "wos-dialog",
     { title: String, message: String, buttons: Object },
     ({ title, message, buttons }, { emit }) => html`
-        <div class="hp-dialog-shade" @click=${() => emit("dismiss")}>
-            <div class="hp-dialog" @click=${(event: Event) => event.stopPropagation()}>
-                ${title ? html`<div class="hp-dialog-title">${title}</div>` : ""}
-                ${message ? html`<div class="hp-dialog-message">${message}</div>` : ""}
-                <div class="hp-dialog-buttons">
+        <div class="wos-dialog-shade" @click=${() => emit("dismiss")}>
+            <div class="wos-dialog" @click=${(event: Event) => event.stopPropagation()}>
+                ${title ? html`<div class="wos-dialog-title">${title}</div>` : ""}
+                ${message ? html`<div class="wos-dialog-message">${message}</div>` : ""}
+                <div class="wos-dialog-buttons">
                     ${(Array.isArray(buttons) ? buttons : []).map((button) => html`
-                        <button class="hp-button ${button.kind ?? ""}"
+                        <button class="wos-button ${button.kind ?? ""}"
                                 @click=${() => emit("choose", { value: button.value })}>${button.label}</button>`)}
                 </div>
             </div>
@@ -190,12 +190,12 @@ defineElement<{ title: string; message: string; buttons: { value: string; label:
 // §11 Progress, for the things that take long enough to show how far along
 // they are.
 defineElement<{ value: number; label: string }>(
-    "hp-progress",
+    "wos-progress",
     { value: Number, label: String },
     ({ value, label }) => html`
-        <div class="hp-progress-row">
-            ${label ? html`<span class="hp-progress-label">${label}</span>` : ""}
-            <span class="hp-progress"><span class="hp-progress-bar"
+        <div class="wos-progress-row">
+            ${label ? html`<span class="wos-progress-label">${label}</span>` : ""}
+            <span class="wos-progress"><span class="wos-progress-bar"
                   style="width: ${Math.max(0, Math.min(100, Number(value) || 0))}%"></span></span>
         </div>`,
 );
@@ -206,7 +206,7 @@ defineElement<{ value: number; label: string }>(
 // the swipe itself deletes, which is how HP's lists that cannot be undone
 // behaved.
 defineElement<{ title: string; detail: string; confirm: string; instant: boolean; open: boolean }>(
-    "hp-swipe-row",
+    "wos-swipe-row",
     { title: String, detail: String, confirm: String, instant: Boolean, open: Boolean },
     ({ title, detail, confirm, instant, open }, { emit }) => {
         // A swipe is a drag that got far enough to mean it: the card is told
@@ -228,21 +228,21 @@ defineElement<{ title: string; detail: string; confirm: string; instant: boolean
             }
         };
         return html`
-            <div class="hp-swipe-row ${open ? "open" : ""}"
+            <div class="wos-swipe-row ${open ? "open" : ""}"
                  @pointerdown=${start} @pointerup=${end}>
-                <div class="hp-row">
-                    <div class="hp-row-text" @click=${() => emit("select")}>
-                        <div class="hp-row-title">${title}</div>
-                        ${detail ? html`<div class="hp-row-detail">${detail}</div>` : ""}
+                <div class="wos-row">
+                    <div class="wos-row-text" @click=${() => emit("select")}>
+                        <div class="wos-row-title">${title}</div>
+                        ${detail ? html`<div class="wos-row-detail">${detail}</div>` : ""}
                     </div>
                     <slot></slot>
                 </div>
                 ${open
                     ? html`
-                        <div class="hp-swipe-confirm">
-                            <button class="hp-button negative"
+                        <div class="wos-swipe-confirm">
+                            <button class="wos-button negative"
                                     @click=${() => emit("remove")}>${confirm || "Delete"}</button>
-                            <button class="hp-button"
+                            <button class="wos-button"
                                     @click=${() => emit("open", { open: false })}>Cancel</button>
                         </div>`
                     : ""}
@@ -255,7 +255,7 @@ defineElement<{ title: string; detail: string; confirm: string; instant: boolean
 // for (Mojo's openAppMenu, which AppService reports), so the card decides
 // whether it is open, as with every other control here.
 defineElement<{ open: boolean; items: { value: string; label: string; disabled?: boolean }[] }>(
-    "hp-app-menu",
+    "wos-app-menu",
     { open: Boolean, items: Object },
     ({ open, items }, { emit }) => {
         if (!open) {
@@ -263,10 +263,10 @@ defineElement<{ open: boolean; items: { value: string; label: string; disabled?:
         }
         const list = Array.isArray(items) ? items : [];
         return html`
-            <div class="hp-menu-shade" @click=${() => emit("close")}>
-                <div class="hp-menu" @click=${(event: Event) => event.stopPropagation()}>
+            <div class="wos-menu-shade" @click=${() => emit("close")}>
+                <div class="wos-menu" @click=${(event: Event) => event.stopPropagation()}>
                     ${list.map((item) => html`
-                        <button class="hp-menu-item" ?disabled=${item.disabled}
+                        <button class="wos-menu-item" ?disabled=${item.disabled}
                                 @click=${() => emit("choose", { value: item.value })}>${item.label}</button>`)}
                 </div>
             </div>`;
@@ -276,30 +276,30 @@ defineElement<{ open: boolean; items: { value: string; label: string; disabled?:
 // §14 A button that shows it is working: enyo's ActivityButton, which is what
 // HP put on "Join" so a network that takes ten seconds does not look ignored.
 defineElement<{ label: string; kind: string; busy: boolean; disabled: boolean }>(
-    "hp-activity-button",
+    "wos-activity-button",
     { label: String, kind: String, busy: Boolean, disabled: Boolean },
     ({ label, kind, busy, disabled }, { emit }) => html`
-        <button class="hp-button ${kind}" ?disabled=${disabled || busy}
+        <button class="wos-button ${kind}" ?disabled=${disabled || busy}
                 @click=${() => emit("press")}>
-            <span class="hp-button-label">${label}</span>
-            ${busy ? html`<span class="hp-button-spinner"></span>` : ""}
+            <span class="wos-button-label">${label}</span>
+            ${busy ? html`<span class="wos-button-spinner"></span>` : ""}
         </button>`,
 );
 
 // §15 One of a few, chosen in the row itself: enyo's ListSelector, which is
 // what HP used for "When Device Sleeps" and for most settings with two or
-// three answers. The drawer of hp-selector is for longer lists.
+// three answers. The drawer of wos-selector is for longer lists.
 defineElement<{ label: string; value: string; choices: { value: string; label: string }[] }>(
-    "hp-choice",
+    "wos-choice",
     { label: String, value: String, choices: Object },
     ({ label, value, choices }, { emit }) => {
         const list = Array.isArray(choices) ? choices : [];
         return html`
-            <div class="hp-row">
-                ${label ? html`<div class="hp-row-text"><div class="hp-row-title">${label}</div></div>` : ""}
-                <div class="hp-choice">
+            <div class="wos-row">
+                ${label ? html`<div class="wos-row-text"><div class="wos-row-title">${label}</div></div>` : ""}
+                <div class="wos-choice">
                     ${list.map((choice) => html`
-                        <button class="hp-choice-one ${choice.value === value ? "chosen" : ""}"
+                        <button class="wos-choice-one ${choice.value === value ? "chosen" : ""}"
                                 @click=${() => emit("choose", { value: choice.value })}>${choice.label}</button>`)}
                 </div>
             </div>`;
@@ -313,7 +313,7 @@ defineElement<{ label: string; value: string; choices: { value: string; label: s
 //
 // Tapping the bar moves it there, as enyo's tapPosition did.
 defineElement<{ value: number; min: number; max: number; disabled: boolean }>(
-    "hp-slider",
+    "wos-slider",
     { value: Number, min: Number, max: Number, disabled: Boolean },
     ({ value, min, max, disabled }, { emit, element }) => {
         const low = Number.isFinite(min) ? min : 0;
@@ -322,7 +322,7 @@ defineElement<{ value: number; min: number; max: number; disabled: boolean }>(
         const part = (at - low) / (high - low);
 
         const valueAt = (clientX: number): number => {
-            const bar = element.shadowRoot?.querySelector(".hp-slider-bar");
+            const bar = element.shadowRoot?.querySelector(".wos-slider-bar");
             const box = bar?.getBoundingClientRect();
             if (!box || box.width === 0) {
                 return at;
@@ -362,12 +362,12 @@ defineElement<{ value: number; min: number; max: number; disabled: boolean }>(
         };
 
         return html`
-            <div class="hp-slider ${disabled ? "disabled" : ""}"
+            <div class="wos-slider ${disabled ? "disabled" : ""}"
                  role="slider" aria-valuenow=${at} aria-valuemin=${low} aria-valuemax=${high}
                  @pointerdown=${down} @pointermove=${move} @pointerup=${up} @pointercancel=${up}>
-                <div class="hp-slider-bar">
-                    <div class="hp-slider-filled" style="width: ${Math.round(part * 100)}%"></div>
-                    <div class="hp-slider-knob" style="left: ${Math.round(part * 100)}%"></div>
+                <div class="wos-slider-bar">
+                    <div class="wos-slider-filled" style="width: ${Math.round(part * 100)}%"></div>
+                    <div class="wos-slider-knob" style="left: ${Math.round(part * 100)}%"></div>
                 </div>
             </div>`;
     },

@@ -10,16 +10,16 @@
 .wifi-caption {
     margin: 0 1rem 0.5rem;
     font-size: 0.9rem;
-    color: var(--hp-ink-dim);
+    color: var(--wos-ink-dim);
 }
 
 .wifi-off {
     margin: 0;
     padding: 0.7rem 0.6rem;
     font-size: 0.9rem;
-    color: var(--hp-ink-dim);
-    border: 1px solid var(--hp-outline);
-    border-radius: var(--hp-radius);
+    color: var(--wos-ink-dim);
+    border: 1px solid var(--wos-outline);
+    border-radius: var(--wos-radius);
 }
 
 /* The marks at the right of a network: joined, secured, and how strong it is. */
@@ -29,7 +29,7 @@
     gap: 0.4rem;
     flex: none;
     font-size: 0.75rem;
-    color: var(--hp-ink-dim);
+    color: var(--wos-ink-dim);
 }
 
 /* The list keeps its height as networks come and go, with Join Network under
@@ -46,7 +46,7 @@
  * last child of the box that scrolls, and has already given its own up. The
  * light half is this row's own top border. */
 .wifi-join {
-    border-top: 1px solid var(--hp-row-line-bottom);
+    border-top: 1px solid var(--wos-row-line-bottom);
 }
 
 /* The marks at the right of a network and the plus beside Join Network. HP
@@ -76,7 +76,7 @@
 .wifi-signal,
 .wifi-lock,
 .wifi-plus {
-    color: var(--hp-ink-dim);
+    color: var(--wos-ink-dim);
 }
 
 .wifi-signal circle { fill: currentColor; opacity: 0.35; }
@@ -104,6 +104,6 @@
 
 .wifi-joined path {
     fill: none;
-    stroke: var(--hp-accent);
+    stroke: var(--wos-accent);
     stroke-width: 5.5;
 }

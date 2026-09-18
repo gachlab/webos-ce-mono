@@ -88,173 +88,173 @@ const wearTheme = (name: string): void => {
 };
 
 const section = (title: string, body: unknown) => html`
-    <div class="hp-group">
-        <div class="hp-group-title">${title}</div>
+    <div class="wos-group">
+        <div class="wos-group-title">${title}</div>
         ${body}
     </div>`;
 
 const view = (state: State<Shown>, service: ShowcaseService) => {
     const shown = state.data;
     return html`
-    <div class="hp-card">
-        <hp-header title="Kit" back></hp-header>
-        <div class="hp-body">
+    <div class="wos-card">
+        <wos-header title="Kit" back></wos-header>
+        <div class="wos-body">
             ${note("Every control, in each state. This card is the kit itself, so it cannot go stale.")}
 
             ${section("Theme", html`
-                <div class="hp-list">
-                    <hp-choice value=${shown.theme}
+                <div class="wos-list">
+                    <wos-choice value=${shown.theme}
                                .choices=${THEMES.map((name) => ({ value: name, label: name === "enyo" ? "enyo" : "Modern" }))}
                                @choose=${(e: CustomEvent<{ value: string }>) => {
                                    wearTheme(e.detail.value);
                                    service.change({ theme: e.detail.value });
                                }}>
-                    </hp-choice>
+                    </wos-choice>
                 </div>
                 ${note(shown.theme === "enyo"
                     ? "HP's own values, read out of enyo's CSS and out of the images its theme draws with."
                     : "The same kit with a palette chosen for a screen somebody is looking at today.")}`)}
 
             ${section("Buttons", html`
-                <div class="hp-list">
+                <div class="wos-list">
                     ${["Plain", "Dark", "Affirmative", "Negative", "Blue", "Gray"].map((name) => html`
-                        <hp-row><hp-button label=${name} kind=${name === "Plain" ? "" : name.toLowerCase()}
-                                           @press=${() => service.change({ pressed: name })}></hp-button></hp-row>`)}
-                    <hp-row><hp-button label="Disabled" disabled></hp-button></hp-row>
+                        <wos-row><wos-button label=${name} kind=${name === "Plain" ? "" : name.toLowerCase()}
+                                           @press=${() => service.change({ pressed: name })}></wos-button></wos-row>`)}
+                    <wos-row><wos-button label="Disabled" disabled></wos-button></wos-row>
                 </div>
                 ${note("The kinds are enyo's own, and so are their colours: plain is the light "
                        + "button its cards use for Cancel and Done, dark the one Wi-Fi signs in with.")}
                 ${shown.pressed ? note(`Last pressed: ${shown.pressed}`) : ""}`)}
 
             ${section("Toggles", html`
-                <div class="hp-list">
-                    <hp-row title="Answers with an event" detail="The card decides whether it becomes the new state">
-                        <hp-toggle ?on=${shown.toggled}
+                <div class="wos-list">
+                    <wos-row title="Answers with an event" detail="The card decides whether it becomes the new state">
+                        <wos-toggle ?on=${shown.toggled}
                                    @toggle=${(e: CustomEvent<{ on: boolean }>) => service.change({ toggled: e.detail.on })}>
-                        </hp-toggle>
-                    </hp-row>
-                    <hp-row title="With its own words">
-                        <hp-toggle on label-on="Yes" label-off="No"></hp-toggle>
-                    </hp-row>
-                    <hp-row title="Disabled"><hp-toggle disabled></hp-toggle></hp-row>
+                        </wos-toggle>
+                    </wos-row>
+                    <wos-row title="With its own words">
+                        <wos-toggle on label-on="Yes" label-off="No"></wos-toggle>
+                    </wos-row>
+                    <wos-row title="Disabled"><wos-toggle disabled></wos-toggle></wos-row>
                 </div>`)}
 
             ${section("Rows", html`
-                <div class="hp-list">
-                    <hp-row title="One line" @select=${() => service.change({ pressed: "the first row" })}></hp-row>
-                    <hp-row title="Two lines" detail="The second one is the detail"></hp-row>
-                    <hp-row title="With something on the right" detail="Tapping the toggle does not select the row">
-                        <hp-toggle on></hp-toggle>
-                    </hp-row>
-                    <hp-row title="A long title that has to be cut rather than pushed off the row"
-                            detail="Ellipsis, not overflow"></hp-row>
+                <div class="wos-list">
+                    <wos-row title="One line" @select=${() => service.change({ pressed: "the first row" })}></wos-row>
+                    <wos-row title="Two lines" detail="The second one is the detail"></wos-row>
+                    <wos-row title="With something on the right" detail="Tapping the toggle does not select the row">
+                        <wos-toggle on></wos-toggle>
+                    </wos-row>
+                    <wos-row title="A long title that has to be cut rather than pushed off the row"
+                            detail="Ellipsis, not overflow"></wos-row>
                 </div>`)}
 
             ${section("Fields and checks", html`
-                <div class="hp-list">
-                    <hp-field label="Network name" placeholder="Type here"
+                <div class="wos-list">
+                    <wos-field label="Network name" placeholder="Type here"
                               @change=${(e: CustomEvent<{ value: string }>) => service.change({ typed: e.detail.value })}>
-                    </hp-field>
-                    <hp-field label="Password" type="password" placeholder="Hidden while typing"></hp-field>
-                    <hp-row title="A checkbox" detail=${shown.checked ? "Ticked" : "Not ticked"}>
-                        <hp-check ?checked=${shown.checked}
+                    </wos-field>
+                    <wos-field label="Password" type="password" placeholder="Hidden while typing"></wos-field>
+                    <wos-row title="A checkbox" detail=${shown.checked ? "Ticked" : "Not ticked"}>
+                        <wos-check ?checked=${shown.checked}
                                   @change=${(e: CustomEvent<{ checked: boolean }>) => service.change({ checked: e.detail.checked })}>
-                        </hp-check>
-                    </hp-row>
-                    <hp-row title="Disabled"><hp-check disabled></hp-check></hp-row>
+                        </wos-check>
+                    </wos-row>
+                    <wos-row title="Disabled"><wos-check disabled></wos-check></wos-row>
                 </div>
                 ${shown.typed ? note(t("Typed: #{what}", { what: shown.typed })) : ""}`)}
 
             ${section("Choosing one of several", html`
-                <div class="hp-list">
-                    <hp-selector label="When to connect" value=${shown.when} .choices=${CHOICES}
+                <div class="wos-list">
+                    <wos-selector label="When to connect" value=${shown.when} .choices=${CHOICES}
                                  ?open=${shown.choosing}
                                  @open=${(e: CustomEvent<{ open: boolean }>) => service.change({ choosing: e.detail.open })}
                                  @choose=${(e: CustomEvent<{ value: string }>) =>
                                      service.change({ when: e.detail.value, choosing: false })}>
-                    </hp-selector>
+                    </wos-selector>
                 </div>`)}
 
             ${section("Swipe to delete", html`
-                <div class="hp-list">
-                    <hp-swipe-row title="Swipe this one to the left" detail=${shown.forgotten || "Then confirm, as HP's lists do"}
+                <div class="wos-list">
+                    <wos-swipe-row title="Swipe this one to the left" detail=${shown.forgotten || "Then confirm, as HP's lists do"}
                                   ?open=${shown.swiped}
                                   @open=${(e: CustomEvent<{ open: boolean }>) => service.change({ swiped: e.detail.open })}
                                   @remove=${() => service.change({ swiped: false, forgotten: "Deleted, and put back for the next swipe" })}>
-                    </hp-swipe-row>
-                    <hp-swipe-row title="This one deletes on the swipe itself" detail="No confirmation" instant
+                    </wos-swipe-row>
+                    <wos-swipe-row title="This one deletes on the swipe itself" detail="No confirmation" instant
                                   @remove=${() => service.change({ forgotten: "Deleted without asking" })}>
-                    </hp-swipe-row>
+                    </wos-swipe-row>
                 </div>`)}
 
             ${section("One of a few", html`
-                <div class="hp-list">
+                <div class="wos-list">
                     <!-- Without a label it takes the whole row, which is the
                          shape enyo's RadioGroup had. -->
-                    <hp-choice value=${shown.sleeps}
+                    <wos-choice value=${shown.sleeps}
                                .choices=${[{ value: "on", label: "Stay on" }, { value: "off", label: "Turn off" }]}
                                @choose=${(e: CustomEvent<{ value: string }>) => service.change({ sleeps: e.detail.value })}>
-                    </hp-choice>
-                    <hp-choice label="When device sleeps" value=${shown.sleeps}
+                    </wos-choice>
+                    <wos-choice label="When device sleeps" value=${shown.sleeps}
                                .choices=${[{ value: "on", label: "Stay on" }, { value: "off", label: "Turn off" }]}
                                @choose=${(e: CustomEvent<{ value: string }>) => service.change({ sleeps: e.detail.value })}>
-                    </hp-choice>
+                    </wos-choice>
                 </div>`)}
 
             ${section("A button that is working", html`
-                <div class="hp-list">
-                    <hp-row>
-                        <hp-activity-button label=${shown.busy ? "Joining..." : "Join"} kind="dark"
+                <div class="wos-list">
+                    <wos-row>
+                        <wos-activity-button label=${shown.busy ? "Joining..." : "Join"} kind="dark"
                                             ?busy=${shown.busy}
-                                            @press=${() => service.change({ busy: true })}></hp-activity-button>
-                    </hp-row>
+                                            @press=${() => service.change({ busy: true })}></wos-activity-button>
+                    </wos-row>
                     <!-- The same one in the light kind: the spinner turns in
                          whatever the button writes in, so it has to be legible
                          on both. -->
-                    <hp-row>
-                        <hp-activity-button label=${shown.busy ? "Saving..." : "Save"}
+                    <wos-row>
+                        <wos-activity-button label=${shown.busy ? "Saving..." : "Save"}
                                             ?busy=${shown.busy}
-                                            @press=${() => service.change({ busy: true })}></hp-activity-button>
-                    </hp-row>
+                                            @press=${() => service.change({ busy: true })}></wos-activity-button>
+                    </wos-row>
                 </div>
                 ${shown.busy ? note("Tap the card's menu to stop it.") : ""}`)}
 
             ${section("Sliders", html`
-                <div class="hp-list">
-                    <hp-row title="Brightness" detail=${`${shown.level}%`}>
-                        <hp-slider value=${shown.level}
+                <div class="wos-list">
+                    <wos-row title="Brightness" detail=${`${shown.level}%`}>
+                        <wos-slider value=${shown.level}
                                    @changing=${(e: CustomEvent<{ value: number }>) =>
                                        service.change({ level: e.detail.value, dragging: shown.dragging + 1 })}
                                    @change=${(e: CustomEvent<{ value: number }>) =>
                                        service.change({ level: e.detail.value })}>
-                        </hp-slider>
-                    </hp-row>
-                    <hp-row title="Disabled"><hp-slider value="30" disabled></hp-slider></hp-row>
+                        </wos-slider>
+                    </wos-row>
+                    <wos-row title="Disabled"><wos-slider value="30" disabled></wos-slider></wos-row>
                 </div>
                 ${note(`While the finger is down it says "changing" (${shown.dragging} so far); when it lifts, "change" -- which is what a card writes to a service.`)}`)}
 
             ${section("Waiting and failing", html`
-                <div class="hp-list">
-                    <hp-spinner label="Always with words beside it"></hp-spinner>
-                    <hp-progress value="40" label="Downloading"></hp-progress>
+                <div class="wos-list">
+                    <wos-spinner label="Always with words beside it"></wos-spinner>
+                    <wos-progress value="40" label="Downloading"></wos-progress>
                 </div>
                 ${error("A failure says what the service said, never the uri.")}`)}
 
             ${section("Asking before doing", html`
-                <div class="hp-list">
-                    <hp-row title="A dialog" detail=${shown.answered || "Nothing chosen yet"}>
-                        <hp-button label="Open" @press=${() => service.change({ dialog: true })}></hp-button>
-                    </hp-row>
+                <div class="wos-list">
+                    <wos-row title="A dialog" detail=${shown.answered || "Nothing chosen yet"}>
+                        <wos-button label="Open" @press=${() => service.change({ dialog: true })}></wos-button>
+                    </wos-row>
                 </div>`)}
 
             ${section("What WebAppMgr says to the card", html`
-                <div class="hp-list">
+                <div class="wos-list">
                     ${shown.life.length === 0
-                        ? html`<hp-row title="Nothing yet" detail="Send the card away and bring it back"></hp-row>`
-                        : shown.life.map((line) => html`<hp-row title=${line}></hp-row>`)}
+                        ? html`<wos-row title="Nothing yet" detail="Send the card away and bring it back"></wos-row>`
+                        : shown.life.map((line) => html`<wos-row title=${line}></wos-row>`)}
                 </div>`)}
 
-            <hp-app-menu ?open=${shown.menu}
+            <wos-app-menu ?open=${shown.menu}
                          .items=${[
                              { value: "stop", label: "Stop the busy button" },
                              { value: "help", label: "Help" },
@@ -263,10 +263,10 @@ const view = (state: State<Shown>, service: ShowcaseService) => {
                          @close=${() => service.change({ menu: false })}
                          @choose=${(e: CustomEvent<{ value: string }>) =>
                              service.change({ menu: false, busy: false, chose: e.detail.value })}>
-            </hp-app-menu>
+            </wos-app-menu>
 
             ${shown.dialog
-                ? html`<hp-dialog title="Forget this network?"
+                ? html`<wos-dialog title="Forget this network?"
                                   message="The password will have to be typed again."
                                   .buttons=${[
                                       { value: "forget", label: "Forget", kind: "negative" },
@@ -275,7 +275,7 @@ const view = (state: State<Shown>, service: ShowcaseService) => {
                                   @choose=${(e: CustomEvent<{ value: string }>) =>
                                       service.change({ dialog: false, answered: `Chose: ${e.detail.value}` })}
                                   @dismiss=${() => service.change({ dialog: false, answered: "Dismissed" })}>
-                       </hp-dialog>`
+                       </wos-dialog>`
                 : ""}
         </div>
     </div>`;

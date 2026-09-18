@@ -78,15 +78,15 @@ const plus = () => html`
 const list = (data: WifiData, service: WifiService) => html`
     ${data.radio
         ? html`
-            <div class="hp-group">
-                <div class="hp-group-title">${t("Choose a network")}</div>
-                <div class="hp-list">
+            <div class="wos-group">
+                <div class="wos-group-title">${t("Choose a network")}</div>
+                <div class="wos-list">
                     <div class="wifi-networks">
                     ${data.scanning && data.networks.length === 0
-                        ? html`<hp-spinner label=${t("Searching for networks...")}></hp-spinner>`
+                        ? html`<wos-spinner label=${t("Searching for networks...")}></wos-spinner>`
                         : ""}
                     ${data.networks.map((network) => html`
-                        <hp-row title=${network.ssid}
+                        <wos-row title=${network.ssid}
                                 detail=${networkStatus(network)}
                                 ?strong=${network.connectState === "ipConfigured"
                                           || network.connectState === "associated"}
@@ -96,68 +96,68 @@ const list = (data: WifiData, service: WifiService) => html`
                                 ${network.security !== "none" ? padlock() : ""}
                                 ${bars(network)}
                             </span>
-                        </hp-row>`)}
+                        </wos-row>`)}
                     </div>
-                    <hp-row class="wifi-join" title=${t("Join Network")}
-                            @select=${() => service.onJoinOther()}>${plus()}</hp-row>
+                    <wos-row class="wifi-join" title=${t("Join Network")}
+                            @select=${() => service.onJoinOther()}>${plus()}</wos-row>
                 </div>
             </div>
             ${note(t("Your device automatically connects to known networks."))}`
-        : html`<div class="hp-group"><p class="wifi-off">${t("Wi-Fi is turned off.")}</p></div>`}`;
+        : html`<div class="wos-group"><p class="wifi-off">${t("Wi-Fi is turned off.")}</p></div>`}`;
 
 const join = (fields: JoinFields, data: WifiData, service: WifiService) => html`
-    <div class="hp-group">
-        <div class="hp-list">
+    <div class="wos-group">
+        <div class="wos-list">
             ${fields.fixed
                 ? ""
                 : html`
-                    <hp-field label=${t("NETWORK NAME")} value=${fields.ssid} placeholder=${t("Enter network name")}
+                    <wos-field label=${t("NETWORK NAME")} value=${fields.ssid} placeholder=${t("Enter network name")}
                               @change=${(e: CustomEvent<{ value: string }>) =>
-                                  service.onJoinField({ ssid: e.detail.value })}></hp-field>
-                    <hp-choice label=${t("NETWORK SECURITY")} value=${fields.security} .choices=${SECURITY}
+                                  service.onJoinField({ ssid: e.detail.value })}></wos-field>
+                    <wos-choice label=${t("NETWORK SECURITY")} value=${fields.security} .choices=${SECURITY}
                                @choose=${(e: CustomEvent<{ value: string }>) =>
-                                   service.onJoinField({ security: e.detail.value as Security })}></hp-choice>`}
+                                   service.onJoinField({ security: e.detail.value as Security })}></wos-choice>`}
             ${fields.security === "enterprise"
-                ? html`<hp-field label=${t("Username")} value=${fields.userName}
+                ? html`<wos-field label=${t("Username")} value=${fields.userName}
                                  @change=${(e: CustomEvent<{ value: string }>) =>
-                                     service.onJoinField({ userName: e.detail.value })}></hp-field>`
+                                     service.onJoinField({ userName: e.detail.value })}></wos-field>`
                 : ""}
             ${fields.security !== "none"
-                ? html`<hp-field label=${t("Password")} type="password" value=${fields.password}
+                ? html`<wos-field label=${t("Password")} type="password" value=${fields.password}
                                  @change=${(e: CustomEvent<{ value: string }>) =>
                                      service.onJoinField({ password: e.detail.value })}
-                                 @done=${() => service.onJoin()}></hp-field>`
+                                 @done=${() => service.onJoin()}></wos-field>`
                 : ""}
         </div>
     </div>
     ${data.joinMessage ? errorLine(data.joinMessage) : ""}
-    <div class="hp-group">
-        <hp-activity-button label=${data.joining ? t("Signing In...") : t("Sign In")} kind="dark"
+    <div class="wos-group">
+        <wos-activity-button label=${data.joining ? t("Signing In...") : t("Sign In")} kind="dark"
                             ?busy=${data.joining} ?disabled=${!canJoin(fields)}
-                            @press=${() => service.onJoin()}></hp-activity-button>
+                            @press=${() => service.onJoin()}></wos-activity-button>
     </div>
-    <div class="hp-group">
-        <hp-button label=${t("Cancel")} @press=${() => service.onCancelJoin()}></hp-button>
+    <div class="wos-group">
+        <wos-button label=${t("Cancel")} @press=${() => service.onCancelJoin()}></wos-button>
     </div>`;
 
 const address = (fields: AddressFields, data: WifiData, service: WifiService) => {
     const field = (label: string, key: keyof AddressFields, placeholder: string) => html`
-        <hp-field label=${label} value=${String(fields[key])} placeholder=${placeholder}
+        <wos-field label=${label} value=${String(fields[key])} placeholder=${placeholder}
                   ?disabled=${fields.automatic}
                   @change=${(e: CustomEvent<{ value: string }>) =>
-                      service.onAddressField({ [key]: e.detail.value } as Partial<AddressFields>)}></hp-field>`;
+                      service.onAddressField({ [key]: e.detail.value } as Partial<AddressFields>)}></wos-field>`;
     return html`
-        <div class="hp-group">
-            <div class="hp-list">
-                <hp-row title=${t("Automatic IP settings")}>
-                    <hp-toggle ?on=${fields.automatic}
+        <div class="wos-group">
+            <div class="wos-list">
+                <wos-row title=${t("Automatic IP settings")}>
+                    <wos-toggle ?on=${fields.automatic}
                                @toggle=${(e: CustomEvent<{ on: boolean }>) =>
-                                   service.onAddressField({ automatic: e.detail.on })}></hp-toggle>
-                </hp-row>
+                                   service.onAddressField({ automatic: e.detail.on })}></wos-toggle>
+                </wos-row>
             </div>
         </div>
-        <div class="hp-group">
-            <div class="hp-list">
+        <div class="wos-group">
+            <div class="wos-list">
                 ${field(t("ADDRESS"), "ip", t("Enter IP address"))}
                 ${field(t("SUBNET"), "subnet", t("Enter subnet mask"))}
                 ${field(t("GATEWAY"), "gateway", t("Enter gateway address"))}
@@ -165,14 +165,14 @@ const address = (fields: AddressFields, data: WifiData, service: WifiService) =>
                 ${field(t("DNS SERVER"), "dns2", t("Enter secondary DNS server (optional)"))}
             </div>
         </div>
-        <div class="hp-group">
-            <hp-button label=${t("Forget Network")} kind="negative"
-                       @press=${() => service.onForget()}></hp-button>
+        <div class="wos-group">
+            <wos-button label=${t("Forget Network")} kind="negative"
+                       @press=${() => service.onForget()}></wos-button>
         </div>
-        <div class="hp-group">
-            <hp-activity-button label=${t("Done")} ?busy=${data.addressBusy}
+        <div class="wos-group">
+            <wos-activity-button label=${t("Done")} ?busy=${data.addressBusy}
                                 ?disabled=${!canSaveAddress(fields)}
-                                @press=${() => service.onSaveAddress()}></hp-activity-button>
+                                @press=${() => service.onSaveAddress()}></wos-activity-button>
         </div>`;
 };
 
@@ -180,26 +180,26 @@ const known = (data: WifiData, service: WifiService) => html`
     ${data.knownUnreadable
         ? note(t("No known networks."))
         : html`
-            <div class="hp-group">
-                <div class="hp-group-title">${t("Known Networks")}</div>
-                <div class="hp-list">
+            <div class="wos-group">
+                <div class="wos-group-title">${t("Known Networks")}</div>
+                <div class="wos-list">
                     ${(data.known ?? []).map((profile) => html`
-                        <hp-swipe-row title=${profile.ssid} detail=${securityLabel(profile.security)}
+                        <wos-swipe-row title=${profile.ssid} detail=${securityLabel(profile.security)}
                                       confirm=${t("Delete")}
                                       @remove=${() => service.onForgetKnown(profile.profileId)}>
-                        </hp-swipe-row>`)}
+                        </wos-swipe-row>`)}
                 </div>
             </div>`}`;
 
 const settings = (data: WifiData, service: WifiService) => html`
-    <div class="hp-group">
-        <div class="hp-group-title">${t("When Device Sleeps")}</div>
-        <div class="hp-list">
-            <hp-choice value=${data.sleep}
+    <div class="wos-group">
+        <div class="wos-group-title">${t("When Device Sleeps")}</div>
+        <div class="wos-list">
+            <wos-choice value=${data.sleep}
                        .choices=${[{ value: "enable", label: t("Keep Wi-Fi On") },
                                    { value: "disable", label: t("Turn Wi-Fi Off") }]}
                        @choose=${(e: CustomEvent<{ value: string }>) => service.onSleep(e.detail.value)}>
-            </hp-choice>
+            </wos-choice>
         </div>
     </div>
     ${note(data.sleep === "disable"
@@ -210,17 +210,17 @@ const view = (state: State<WifiData>, service: WifiService) => {
     const data = state.data;
     const onList = data.screen === "list";
     return html`
-        <div class="hp-card">
-            <hp-header title=${t("Wi-Fi")} light icon="header-icon-wifi.png"
+        <div class="wos-card">
+            <wos-header title=${t("Wi-Fi")} light icon="header-icon-wifi.png"
                        ?back=${!onList} @back=${() => service.onBack()}>
                 ${onList
-                    ? html`<hp-toggle ?on=${data.radioWanted ?? data.radio}
+                    ? html`<wos-toggle ?on=${data.radioWanted ?? data.radio}
                                       ?disabled=${data.radioWanted !== undefined}
                                       @toggle=${(e: CustomEvent<{ on: boolean }>) => service.onRadio(e.detail.on)}>
-                           </hp-toggle>`
+                           </wos-toggle>`
                     : ""}
-            </hp-header>
-            <div class="hp-body">
+            </wos-header>
+            <div class="wos-body">
                 ${data.caption ? html`<p class="wifi-caption">${data.caption}</p>` : ""}
                 ${data.screen === "list" ? list(data, service) : ""}
                 ${data.screen === "join" && data.join ? join(data.join, data, service) : ""}
@@ -228,7 +228,7 @@ const view = (state: State<WifiData>, service: WifiService) => {
                 ${data.screen === "known" ? known(data, service) : ""}
                 ${data.screen === "settings" ? settings(data, service) : ""}
             </div>
-            <hp-app-menu ?open=${service.menuOpen()}
+            <wos-app-menu ?open=${service.menuOpen()}
                          .items=${[
                              { value: "settings", label: t("Settings") },
                              { value: "known", label: t("Known Networks") },
@@ -241,7 +241,7 @@ const view = (state: State<WifiData>, service: WifiService) => {
                              }
                              service.onMenuChoice(e.detail.value);
                          }}>
-            </hp-app-menu>
+            </wos-app-menu>
         </div>`;
 };
 

@@ -24,7 +24,7 @@ five years, when this port is still here and the framework of the day is not.
 enyo answers that question by example: HP's cards cannot be maintained today
 without maintaining a 2011 framework alongside them.
 
-* What a card publishes is `<hp-toggle on></hp-toggle>` — an element, not a
+* What a card publishes is `<wos-toggle on></wos-toggle>` — an element, not a
   component of anyone's framework. A card written in React, or in nothing at
   all, uses the same controls and the same services, and none of them can tell
   what drew them.
@@ -35,7 +35,7 @@ without maintaining a 2011 framework alongside them.
   lit-html's dialect (`?on=`, `@press=`, `.choices=`), so replacing it means
   rewriting them. What it does *not* reach is the consumers: an element's
   contract is its tag, its attributes, its properties and its events, and a
-  card -- or a shim, or another framework -- that uses `<hp-toggle>` cannot
+  card -- or a shim, or another framework -- that uses `<wos-toggle>` cannot
   tell what drew it. That is the part that has to outlive the library, and it
   does.
 * The logic never knew about any of this. `src/lib` is tested with
@@ -119,6 +119,22 @@ apps/<name>/              one package per app
   an empty stack closes the card -- HP's flow, written once
   (`services/navigation.service.ts`).
 
+### The names we publish are `wos-`
+
+The controls used to be `hp-toggle`, `hp-row`, `--hp-accent`. That prefix was
+wrong twice over: it is someone else's brand, and it is a **false claim about
+who wrote the code** -- these are ours, reimplementing a look. It would also
+collide the day a real piece of HP's markup and ours meet on one page.
+
+They are `wos-` now, all 71 tokens and every element and class with them. Not
+`gach-` and not `gl-`: an app's **id** says who publishes it
+(`com.gachlab.app.wifi`), but an **element** says which system it belongs to,
+and somebody else writing a card for this device should be reaching for "the
+system's toggle", not for ours.
+
+`theme-enyo.css` keeps its name. There the word is exact: it is enyo's look,
+measured.
+
 ## What a rewritten card is allowed to look like
 
 **A reimplementation keeps the look of the card it replaces.** New code,
@@ -186,7 +202,7 @@ jump.
   service code goes through that wrapper keeps working while its screens are
   replaced.
 * The controls are custom elements, so enyo's own DOM-driven code can create
-  and use them (`document.createElement("hp-toggle")`) without knowing what
+  and use them (`document.createElement("wos-toggle")`) without knowing what
   they are. The mapping that matters is per control, and only the controls an
   app actually uses have to be covered.
 * The card lifecycle (`AppService`) is the same one enyo's `ApplicationEvents`
