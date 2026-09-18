@@ -1,0 +1,10 @@
+{
+  "name": "@gachlab/app-vpn",
+  "private": true,
+  "description": "The VPN settings card (#21).",
+  "type": "module",
+  "dependencies": {
+    "@webos/api": "*",
+    "@webos/ui-kit": "*"
+  }
+}

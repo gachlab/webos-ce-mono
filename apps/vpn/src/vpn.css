@@ -1,0 +1,18 @@
+/* VPN card extras on top of the kit. */
+
+.vpn-state {
+    font-size: 0.75rem;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--wos-secondary-text, #888);
+}
+
+.vpn-state.connected {
+    color: var(--wos-affirmative, #2aa82a);
+}
+
+.vpn-empty {
+    padding: 1.5rem 1rem;
+    text-align: center;
+    color: var(--wos-secondary-text, #888);
+}
