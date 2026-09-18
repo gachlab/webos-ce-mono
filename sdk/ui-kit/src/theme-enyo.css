@@ -109,8 +109,11 @@
     --wos-info-raise: none;
     --wos-info-press: none;
     --wos-info-mark-display: none;
-    /* vpn.css .info-icon: square tile, no radius. */
+    /* vpn.css .info-icon: square tile, no radius, no border (sprite top-left). */
     --wos-info-radius: 0;
+    --wos-info-border: 0;
+    --wos-info-bg-size: auto;
+    --wos-info-bg-pos: top left;
 
     /* radiobutton.png. */
     --wos-choice-off: linear-gradient(to bottom,

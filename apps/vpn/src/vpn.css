@@ -11,6 +11,10 @@
     --wos-row-pad-top: 0;
     --wos-row-pad-bottom: 0.2rem;
     --wos-row-pad-x: 0.7rem;
+    /* ProfileListItem HFlexBox: name flexes up to the marks; no row gap. */
+    --wos-row-gap: 0;
+    /* Glyph band matches HP when the title sits 1px lower in the flex line. */
+    --wos-row-title-shift: 1px;
     --wos-info-width: 2.1rem;
     --wos-info-height: 2.3rem;
 }
@@ -29,6 +33,8 @@
     --wos-row-pad-x: 0.5rem;
     --wos-row-min-height: 2.8rem;
     --wos-group-labeled-margin: 8px;
+    /* List-only 1px title nudge must not move OpenVPN / field labels. */
+    --wos-row-title-shift: 0;
 }
 
 .vpn-marks {
@@ -70,13 +76,15 @@
 
 /* "Add profile..." is a plain enyo.Item (10px pad), not a ProfileListItem.
  * enyo-last: keep the top hairline, drop the bottom (host:last-child).
- * Gap 0: list-icon-add-item already has padding-right 10px (Main.js). */
+ * Gap 0: list-icon-add-item already has padding-right 10px (Main.js).
+ * flex-start: HP HFlexBox stretch packs the plus/label to the pad edge. */
 .vpn-add {
     --wos-row-pad-top: 0.5rem;
     --wos-row-pad-bottom: 0.5rem;
     --wos-row-pad-x: 0.5rem;
     --wos-row-min-height: 2.6rem;
     --wos-row-gap: 0;
+    --wos-row-align: flex-start;
 }
 
 /* HP's Add/Configure footers: light toolbar with two wide buttons. */

@@ -241,7 +241,7 @@
  */
 .wos-row {
     display: flex;
-    align-items: center;
+    align-items: var(--wos-row-align, center);
     gap: var(--wos-row-gap, 0.5rem);
     min-height: var(--wos-row-min-height, 2.6rem);
     padding-top: var(--wos-row-pad-top, var(--wos-row-pad-y, 0.5rem));
@@ -288,6 +288,8 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+    position: relative;
+    top: var(--wos-row-title-shift, 0);
 }
 
 /* enyo's own second line (`.wifi-message-status`): 12px, grey. */
@@ -510,12 +512,12 @@
     height: var(--wos-info-height, 2.3rem);
     margin: 0;
     padding: 0;
-    border: 1px solid var(--wos-info-edge);
+    border: var(--wos-info-border, 1px solid var(--wos-info-edge));
     border-radius: var(--wos-info-radius, 0.3rem);
     background: var(--wos-info-face);
-    background-size: 100% 100%;
+    background-size: var(--wos-info-bg-size, 100% 100%);
     background-repeat: no-repeat;
-    background-position: center;
+    background-position: var(--wos-info-bg-pos, center);
     box-shadow: var(--wos-info-raise);
     color: var(--wos-info-ink);
     cursor: pointer;
