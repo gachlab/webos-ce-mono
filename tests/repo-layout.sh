@@ -48,14 +48,14 @@ check "and every component it lists is still there" "${missing:-none}" "none"
 
 # Ours are where they say they are. Each of these is a claim about the kind of
 # thing inside, so an empty one means the claim stopped being true.
-for d in adapters services apps reference; do
+for d in adapters services sdk apps reference; do
     n=$(find "$ROOT/$d" -maxdepth 1 -mindepth 1 -type d 2>/dev/null | wc -l)
     check "$d/ exists and is not empty" "$([ "$n" -gt 0 ] && echo yes || echo no)" "yes"
 done
 
 # And none of ours is named after one of HP's, which is what would make the
 # first check pass while the confusion came back.
-ours=$(cd "$ROOT" && find adapters services apps reference -maxdepth 2 -mindepth 1 -type d -printf '%f\n' 2>/dev/null | sort -u)
+ours=$(cd "$ROOT" && find adapters services sdk apps reference -maxdepth 2 -mindepth 1 -type d -printf '%f\n' 2>/dev/null | sort -u)
 clash=$(comm -12 <(echo "$manifest") <(echo "$ours") | tr '\n' ' ')
 check "and none of ours borrows a component's name" "${clash:-none}" "none"
 

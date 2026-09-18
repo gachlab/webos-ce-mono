@@ -75,8 +75,11 @@ What it uses heavily is still alive in Qt6: `QGraphicsView`/`QGraphicsScene`
 path left. The QML1 blocker was real and is closed: the `.qml` files were moved
 to QtQuick 2 and the pieces Qt 6 removed come back through
 `adapters/qt6-compat`. Measured against the `hp-original` tag, the whole of
-HP's code took **206 files and +5,634 −486 lines** to get there; the 28,512
-lines we wrote sit beside it, not in it. See `KNOWN_BUGS.md`.
+HP's code took **206 files and +5,634 −486 lines** to get there; the 28,520
+lines we wrote sit beside it, not in it. README.md has the command -- it needs
+whole-tree rename detection, since the directories that are ours moved out of
+`components/` and a pathspec alone reads half of every rename as a deletion.
+See `KNOWN_BUGS.md`.
 
 ## The web engine is isolated
 

@@ -4,8 +4,7 @@
   "description": "Pinned tooling for the TypeScript in the tree, and the two dependencies the cards build on: lit-html, which is bundled into each card, and esbuild, which bundles it. node runs the services' .ts files by stripping their types, and tsc only checks them.",
   "workspaces": [
     "sdk/*",
-    "apps/wifi",
-    "apps/app-template"
+    "apps/*"
   ],
   "scripts": {
     "typecheck": "tsc -p services/node-services && tsc -p tsconfig.web.json"

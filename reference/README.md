@@ -15,6 +15,6 @@ with **zero references anywhere in the tree** -- it was for cross-compiling to
 the TouchPad, which this build does not do. It is here rather than under
 `adapters/` for the same reason as the above: nothing in `adapters/` is HP's.
 
-Keeping the two out of `components/` is what lets
-`git diff --stat hp-original -- components/` mean exactly one thing: what we
-changed in HP's code. See `tests/repo-layout.sh`.
+Keeping the two out of `components/` is what lets a path tell our code from
+HP's, which is how README.md counts the two apart. See `tests/repo-layout.sh`,
+which is what keeps that true.

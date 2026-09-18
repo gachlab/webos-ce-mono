@@ -38,12 +38,32 @@ while IFS= read -r info; do
     [ -f "$dir/main.ts" ] || continue          # the enyo references are not ours to bundle
     id="$(sed -n 's/.*"id"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$info" | head -1)"
     [ -n "$id" ] || { echo "  $dir: appinfo.json has no id"; exit 1; }
+    # Two cards under one id used to mean the second quietly replaced the first
+    # here and in the rootfs. There is no manifest on our side of the tree the
+    # way MANIFEST.tsv is on HP's, so this is where a collision gets caught --
+    # and #63 is about to add a second id per app.
+    [ -z "${SRC[$id]:-}" ] || {
+        echo "  two cards claim $id: ${SRC[$id]} and $dir"; exit 1
+    }
     SRC["$id"]="$dir"
 done < <(find "$R/apps" "$R/sdk" -name appinfo.json -not -path '*/node_modules/*' | sort)
 
 ids=("$@")
 if [ ${#ids[@]} -eq 0 ]; then
     ids=("${!SRC[@]}")
+    # A full build owns this directory, so a card that no longer exists under
+    # that id goes. It is not tidiness: assemble-rootfs.sh installs every
+    # directory it finds in here, and the id comes out of appinfo.json now --
+    # so renaming an app used to leave the old one built AND installed, quietly
+    # running beside the new one. build/ is never wiped between runs, which is
+    # the same hazard drop_stale_cache() answers on the CMake side.
+    for built in "$OUT"/*/; do
+        [ -d "$built" ] || continue
+        old_id="$(basename "$built")"
+        [ -z "${SRC[$old_id]:-}" ] || continue
+        echo "  $old_id: no card claims this id any more, removing"
+        rm -rf "${built%/}"
+    done
 fi
 
 status=0

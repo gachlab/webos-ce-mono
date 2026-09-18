@@ -1,6 +1,6 @@
 // The Wi-Fi card's state machine, against a fake com.palm.wifi.
 //
-// The scenarios are the ones the card before it had (apps/reference/wifi-enyo on
+// The scenarios are the ones the card before it had (apps/baseline/wifi-enyo on
 // enyo's lib/wifi), and the payloads and replies are the ones
 // services/nm-connectionmanager sends.
 

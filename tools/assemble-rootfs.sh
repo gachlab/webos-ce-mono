@@ -190,7 +190,7 @@ if [ -f "$C/isis-browser/appinfo.json" ]; then
     cp -rf "$C/isis-browser" "$ROOTFS/usr/palm/applications/com.palm.app.browser"
 fi
 
-# The Wi-Fi settings card used to be installed here from apps/reference/wifi-enyo,
+# The Wi-Fi settings card used to be installed here from apps/baseline/wifi-enyo,
 # which is enyo 1.0 on HP's lib/wifi. It is not any more: the card is now one of
 # the cards built from apps/wifi (#38), installed with them just above, under the
 # same id. The old one stays in the tree -- it is ours, and it is what the new
@@ -218,8 +218,16 @@ fi
 # are on screen together -- so this one sits next to com.gachlab.app.kit and the
 # differences become numbers. It is small, and it is the only copy of HP's own
 # look that runs.
-rm -rf "$ROOTFS/usr/palm/applications/com.gachlab.app.kitenyo"
-cp -rf "$AP/reference/kit-enyo" "$ROOTFS/usr/palm/applications/com.gachlab.app.kitenyo"
+# The id comes out of its own appinfo.json, like every other card's: it used to
+# be spelled here as well, which is two places to change and one of them silent.
+KITENYO="$AP/baseline/kit-enyo"
+kitenyo_id=$(sed -n 's/.*"id"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$KITENYO/appinfo.json" | head -1)
+if [ -n "$kitenyo_id" ]; then
+    rm -rf "$ROOTFS/usr/palm/applications/$kitenyo_id"
+    cp -rf "$KITENYO" "$ROOTFS/usr/palm/applications/$kitenyo_id"
+else
+    echo "  kit-enyo: appinfo.json has no id, not installed"
+fi
 
 # Servicios de aplicacion (JS, corren sobre node)
 for SVC in "$C"/app-services/*/; do

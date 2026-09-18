@@ -62,7 +62,7 @@ Changes in this repository
 
 Everything needed to build HP's 2012 sources on a current Linux. Measured
 against the hp-original tag: 206 of HP's files changed, 5,634 lines added and
-486 removed. Beside them, and not inside anything of HP's, 28,512 lines we
+486 removed. Beside them, and not inside anything of HP's, 28,520 lines we
 wrote: the compatibility adapters under adapters/, the services HP never
 released under services/, the SDK under sdk/ and the applications under apps/.
 The scripts under tools/ and the tests under tests/ are ours as well. All of it

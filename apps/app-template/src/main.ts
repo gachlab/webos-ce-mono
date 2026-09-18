@@ -6,7 +6,7 @@
 // stylesheet, the first frame, telling WebAppMgr the card is ready, and the
 // card's own life.
 
-import { openBus } from "@webos/ui-kit/open-bus.ts";
+import { openBus } from "@webos/api/infra/luna/open-bus.ts";
 import { createTemplateService, type TemplateData } from "./template.service.ts";
 import { html } from "@webos/ui-kit/element.ts";
 import { error as errorText, note } from "@webos/ui-kit/kit/kit.ts";

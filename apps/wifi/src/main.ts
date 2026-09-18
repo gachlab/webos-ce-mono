@@ -6,7 +6,7 @@
 // while the machine sleeps. Nothing here decides anything; it draws what the
 // service says and tells it what the user did.
 
-import { openBus } from "@webos/ui-kit/open-bus.ts";
+import { openBus } from "@webos/api/infra/luna/open-bus.ts";
 import { t } from "@webos/api/i18n/translate.ts";
 import { html } from "@webos/ui-kit/element.ts";
 import { error as errorLine, note } from "@webos/ui-kit/kit/kit.ts";

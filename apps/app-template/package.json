@@ -1,5 +1,5 @@
 {
-  "name": "@webos/app-template",
+  "name": "@gachlab/app-template",
   "private": true,
   "description": "The card an app is started from: it asks the bus, shows what came back, fails out loud and offers the way back.",
   "type": "module",

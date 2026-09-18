@@ -9,8 +9,9 @@ Chromium. This is what they stand on, and why it is shaped this way.
 **No UI framework in the cards. The logic is a plain TypeScript library, and
 the controls are custom elements drawn with `lit-html`.**
 
-Two layers, one rule between them: **`src/lib/` never imports anything from the
-UI**, and the UI holds no business logic.
+Two layers, one rule between them: **`@webos/api` never imports anything from
+the UI**, and the UI holds no business logic. It is a package boundary now, and
+`tools/test-web.sh` fails when it is crossed.
 
 | | |
 |---|---|
@@ -38,7 +39,7 @@ without maintaining a 2011 framework alongside them.
   card -- or a shim, or another framework -- that uses `<wos-toggle>` cannot
   tell what drew it. That is the part that has to outlive the library, and it
   does.
-* The logic never knew about any of this. `src/lib` is tested with
+* The logic never knew about any of this. `sdk/webos-api` is tested with
   `node --test`, without a browser, and would survive the UI being thrown away.
 
 Solid was the other candidate, and the nearest miss: fine-grained reactivity,
@@ -117,7 +118,7 @@ apps/<name>/              one package per app
   (`helpers/watch.ts`), which `startCard` wires to the card's own life.
 * **Screens are a stack.** A row opens one, the back gesture pops it, and only
   an empty stack closes the card -- HP's flow, written once
-  (`services/navigation.service.ts`).
+  (`sdk/webos-api/src/services/navigation.service.ts`).
 
 ### The names we publish are `wos-`
 
@@ -184,7 +185,7 @@ links neither has no colours at all, and `tests/template-card.cpp` fails on it.
 
 ### The other side of the A/B
 
-`apps/reference/kit-enyo` is the same kit built out of enyo 1.0 and the Onyx theme,
+`apps/baseline/kit-enyo` is the same kit built out of enyo 1.0 and the Onyx theme,
 installed as `com.gachlab.app.kitenyo`. It is not a card anybody uses: it is the
 reference. Same controls, same order, same captions as `com.gachlab.app.kit`, so
 the two can be photographed at the same scroll offset and compared pixel by

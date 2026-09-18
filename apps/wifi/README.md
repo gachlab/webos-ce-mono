@@ -7,7 +7,7 @@ switch, and the connected network's address settings.
 
 **Ours.** HP's card was never released as source, so this one was written from
 the experience rather than from the code. The enyo card it replaces is
-`apps/reference/wifi-enyo` — kept, not installed, and the other side of the A/B
+`apps/baseline/wifi-enyo` — kept, not installed, and the other side of the A/B
 that says whether this one looks right.
 
 ```

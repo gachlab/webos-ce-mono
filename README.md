@@ -133,9 +133,11 @@ most important distinction in the tree — HP's code, which we patch, against ou
 own, which we rewrite — is visible before opening anything.
 
 - `components/` — **HP's sources**, vendored with `git subtree --squash`. Each
-  carries the source repo and sha in its import commit. This is exactly the 55
-  of `MANIFEST.tsv` and nothing else; `tests/repo-layout.sh` fails if anything
-  of ours drifts back in.
+  carries the source repo and sha in its import commit. Every directory here is
+  one of the 55 `MANIFEST.tsv` lists and nothing else is (51 of them; `cmake`,
+  `leveldb`, `qt4` and `webkit` are built from elsewhere or replaced, and have
+  no directory). `tests/repo-layout.sh` fails if anything of ours drifts back
+  in, or if one the manifest lists goes missing.
 - `adapters/` — **ours**, so HP's code runs here: `qt6-compat` for what Qt 6
   removed, `qtwebkit-compat` for the QtWebKit API WebAppMgr is written against,
   `input-compat`, `node-v8-shim`, `enyo-lib-networkproxy`.
@@ -147,9 +149,10 @@ own, which we rewrite — is visible before opening anything.
 - `sdk/` — what an app is written against: `webos-api` (the bus, the app's own
   life, translation — no DOM) and `ui-kit` (the controls, the stylesheets, the
   two themes, and the showcase).
-- `apps/` — applications. `wifi/` and `app-template/` on the SDK;
-  `reference/` holds the enyo originals they are measured against, which are
-  ours too and are kept for exactly that.
+- `apps/` — applications. `wifi/` and `app-template/` on the SDK; `baseline/`
+  holds the enyo ones a rewrite is measured against — ours too, kept for
+  exactly that, so "does it still look right" is a screenshot rather than an
+  argument.
 - `reference/` — HP's, read and never built. See its README.
 - `patches/` — one build-time helper script. It used to hold portability
   patches; they have all been absorbed into the components themselves, where
@@ -183,16 +186,31 @@ native Wayland client — see `docs/lunasysmgr-on-debian.png`.
 | Listed in the manifest | 55 components |
 | Marked buildable | 35 |
 | Actually built | 26 — the other nine are skipped on purpose, each with its reason in `tools/build.sh` (`qt4` and `webkit` are replaced by Debian's Qt 6 and QtWebEngine; `nodejs` by the official node LTS pinned in `tools/node-version`) |
-| Edits inside HP's own code | **206 files, +5,634 −486** — `git diff --stat hp-original -- components/` |
-| Our own code beside it | 224 files, 28,512 lines — `adapters/` 6,141, `services/` 15,642, `sdk/` 3,719, `apps/` 3,010 |
+| Edits inside HP's own code | **206 files, +5,634 −486** |
+| Our own code beside it | 224 files, 28,520 lines |
 | Toolchain | Debian sid, gcc 16, Qt 6.10 + QtWebEngine, system CMake |
 
-Those two lines are a single `git diff` each, and that is the point of the
-layout above: `components/` holds HP's code and nothing else, so the first
-command means exactly what it says and cannot drift. It used to include
-fourteen directories of ours, which is why the figure quoted here for a long
-time — 230 files and 8,111 lines — was counting our own work as changes to
-HP's.
+Both rows come out of one command, which is the point of the layout above —
+`components/` is HP's code and nothing else, so a path is enough to tell the
+two apart:
+
+```sh
+git diff --numstat -M hp-original | awk -F'\t' '
+    $3 ~ /=>/            { next }                     # skip the renames themselves
+    $3 ~ /^components\//  { hp++;   hpa += $1; hpd += $2; next }
+    $3 ~ /^(adapters|services|sdk|apps)\// { ours++; oursa += $1 }
+    END { print hp" of HP, +"hpa" -"hpd;  print ours" of ours, "oursa" new lines" }'
+```
+
+`-M` is not optional and `-- components/` is not enough: the fourteen
+directories that left `components/` were under it at the `hp-original` tag, and
+a pathspec that sees only one half of a rename counts the other half as 21 MB
+of deletions. Rename detection has to run over the whole tree first, and the
+filtering after.
+
+The figure quoted here for a long time — 230 files, 8,111 lines — was measured
+before this layout existed, when `components/` still held fourteen directories
+of ours, so it was reporting our own work as changes to HP's.
 
 The split matters more than either total: **the work is overwhelmingly new code
 beside HP's, not edits to it** — five lines written next to his for every one

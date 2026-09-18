@@ -6,16 +6,20 @@
 // (tools/build-cards.sh) with false for what is installed, so the fake bus and
 // whatever a card answers with in development are not in the shipped card.
 
-import { createBridgeLuna, openPalmServiceBridge } from "@webos/api/infra/luna/bridge.service.ts";
-import { createFakeLuna } from "@webos/api/infra/luna/fake.service.ts";
-import type { LunaService, Payload } from "@webos/api/infra/luna/service.ts";
+import { createBridgeLuna, openPalmServiceBridge } from "./bridge.service.ts";
+import { createFakeLuna } from "./fake.service.ts";
+import type { LunaService, Payload } from "./service.ts";
 
-declare const WEBOS_CARDS_DEV: boolean;
+// tools/build-cards.sh replaces this. A card bundled by anything else -- which
+// is the whole point of the platform being a package -- simply gets the real
+// bridge, rather than a ReferenceError on the first line of openBus().
+declare const WEBOS_CARDS_DEV: boolean | undefined;
+const devBuild = (): boolean => typeof WEBOS_CARDS_DEV !== "undefined" && WEBOS_CARDS_DEV;
 
 export type DevAnswers = Record<string, (payload: Payload) => Payload>;
 
 export const openBus = (answers: DevAnswers = {}): LunaService => {
-    if (!WEBOS_CARDS_DEV || (globalThis as { PalmServiceBridge?: unknown }).PalmServiceBridge) {
+    if (!devBuild() || (globalThis as { PalmServiceBridge?: unknown }).PalmServiceBridge) {
         return createBridgeLuna({ open: openPalmServiceBridge, log: (message) => console.warn(message) });
     }
     // Only reached in a development build, and only in a browser. The

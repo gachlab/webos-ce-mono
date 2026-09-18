@@ -1,5 +1,5 @@
 {
-  "name": "@webos/app-wifi",
+  "name": "@gachlab/app-wifi",
   "private": true,
   "description": "The Wi-Fi settings card (#38).",
   "type": "module",

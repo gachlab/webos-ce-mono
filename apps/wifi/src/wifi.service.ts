@@ -1,6 +1,6 @@
 // The Wi-Fi settings card: one state machine, five screens.
 //
-// What it does is what the card before it did (apps/reference/wifi-enyo on enyo's
+// What it does is what the card before it did (apps/baseline/wifi-enyo on enyo's
 // lib/wifi), and the vocabulary is HP's: the network list that rescans every
 // twelve seconds, the join screen with its "Sign In" button, the address
 // settings of the joined network, the known networks, and "When Device

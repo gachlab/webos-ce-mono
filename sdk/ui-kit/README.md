@@ -66,5 +66,5 @@ each state it can be in, and a list of what WebAppMgr has said to the card so
 far. It lives **inside this package** on purpose — it is the kit's
 documentation, and documentation that ships somewhere else goes stale. It is
 where a change to `kit.css` is looked at before it reaches a card, and its
-other half is `apps/reference/kit-enyo`, the same controls drawn by enyo, so
+other half is `apps/baseline/kit-enyo`, the same controls drawn by enyo, so
 "does it look the same" is a measurement instead of an argument.
