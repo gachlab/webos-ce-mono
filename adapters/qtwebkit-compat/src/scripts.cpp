@@ -1135,6 +1135,4 @@ const char kRemoteRequests[] = R"JS(
 })();
 )JS";
 
-// The last features string each page announced, by page number, until the
-
 } // namespace qtwebkit_compat_detail

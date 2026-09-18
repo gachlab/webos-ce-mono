@@ -398,8 +398,6 @@ void QWebPage::setPalette(const QPalette& palette)
         m_engine->setBackgroundColor(Qt::transparent);
 }
 
-// An event that carries a position belongs to whatever is painted where it
-
 QWebPage* QWebPage::createWindow(WebWindowType)
 {
     return nullptr;

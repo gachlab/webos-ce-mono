@@ -1,10 +1,8 @@
-#include "detail.h"
+#include "qtwebkit_compat.h"
 
 #include <QCoreApplication>
 #include <QMouseEvent>
 #include <QWebEngineView>
-
-using namespace qtwebkit_compat_detail;
 
 void QWebPage::embedPage(QWebPage* page, const QRect& rect)
 {
@@ -71,6 +69,8 @@ void QWebPage::removeEmbeddedPage(QWebPage* page)
     }
 }
 
+// An event that carries a position belongs to whatever is painted where it
+// landed. WebAppMgr turns the shell's touches into QMouseEvents in the card's
 // coordinates and gives them to the host page (WindowedWebApp.cpp:405), which
 // knows only its own widget -- so with a page embedded in it, the browser drew
 // its content and nothing in it could be clicked or scrolled: every touch was

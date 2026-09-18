@@ -1,11 +1,9 @@
-#include "detail.h"
+#include "qtwebkit_compat.h"
 
 #include <QCoreApplication>
 #include <QFocusEvent>
 #include <QKeyEvent>
 #include <QWebEngineView>
-
-using namespace qtwebkit_compat_detail;
 
 void QWebPage::sendKeyToHostPage(QKeyEvent* event)
 {

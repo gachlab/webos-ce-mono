@@ -47,6 +47,8 @@ void beforeApplication()
 }
 Q_CONSTRUCTOR_FUNCTION(beforeApplication)
 
+// The last features string each page announced, by page number, until the
+// window it was meant for is created.
 QHash<int, QString>& pendingWindowFeatures()
 {
     static QHash<int, QString> table;
