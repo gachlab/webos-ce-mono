@@ -24,6 +24,7 @@
 #include <glib.h>
 
 #include "ApplicationManager.h"
+#include "AppAliases.h"   // ours: who answers to an app id (#63)
 //MDK-LAUNCHER #include "DockPositionManager.h"
 #include "ApplicationDescription.h"
 #include "ApplicationStatus.h"
@@ -864,22 +865,17 @@ ApplicationDescription* ApplicationManager::getAppById( const std::string& appId
 {
 	MutexLocker locker(&m_mutex);
 
-	for( std::vector<ApplicationDescription*>::iterator it=m_registeredApps.begin();
-	it != m_registeredApps.end(); ++it )
-	{
-		ApplicationDescription* app = *it;
-		if( app->id() == appId )
-			return app;
-	}
-
-	for( std::vector<ApplicationDescription*>::iterator it=m_systemApps.begin();
-	it != m_systemApps.end(); ++it )
-	{
-		ApplicationDescription* app = *it;
-		if (app->id() == appId )
-			return app;
-	}
-	return 0;
+	// HP looked for an exact id in m_registeredApps and then in m_systemApps.
+	// It still does -- that is the first half of appAnsweringTo -- and what is
+	// added is the second half: an app that declares this id as one of its
+	// aliases (#63), which is how a rewrite of ours inherits the address of the
+	// app it replaces without a table in the shell.
+	//
+	// The rule and why it is safe are in AppAliases.h; the short of it is that
+	// an alias is only ever reached once both exact passes have failed, so it
+	// can take an address away from nobody. Every way of opening an app by id
+	// comes through here, which is why this is the only place it is resolved.
+	return appAnsweringTo(m_registeredApps, m_systemApps, appId);
 }
 
 ApplicationDescription* ApplicationManager::getAppByIdHardwareCompatibleAppsOnly( const std::string& appId )

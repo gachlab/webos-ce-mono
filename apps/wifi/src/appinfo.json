@@ -1,5 +1,6 @@
 {
     "id": "com.gachlab.app.wifi",
+    "aliases": ["com.palm.app.wifi"],
     "version": "2.0.0",
     "vendor": "webOS CE",
     "type": "web",

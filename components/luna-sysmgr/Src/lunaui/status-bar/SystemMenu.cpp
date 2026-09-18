@@ -58,11 +58,14 @@
 #include "WifiLaunchParams.h"
 
 #define SYS_UI_APP_ID      "com.palm.systemui"
-// Ours, not HP's: the Wi-Fi card in this tree is a rewrite of the one that
-// never shipped as source (#38), and our own packages carry our own id. The
-// menu opens it from here and from the three places below, so this one line is
-// the whole redirection.
-#define WIFI_PREFS_APP_ID  "com.gachlab.app.wifi"
+// HP's id, as HP wrote it. The Wi-Fi card in this tree is a rewrite that
+// carries our own id (com.gachlab.app.wifi, #38), and this line used to be
+// redirected at it by hand. It is not any more: the card declares
+// "aliases": ["com.palm.app.wifi"] in its own appinfo.json and
+// ApplicationManager::getAppById resolves it (#63), so the shell asks for the
+// id it always asked for and the rewrite answers. The next rewrite does not
+// come back here.
+#define WIFI_PREFS_APP_ID  "com.palm.app.wifi"
 #define BLUETOOTH_PREFS_APP_ID  "com.palm.app.bluetooth"
 #define VPN_PREFS_APP_ID   "com.palm.app.vpn"
 
