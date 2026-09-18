@@ -1,0 +1,46 @@
+/* Copyright (c) 2026 webOS CE modern build. Licensed under the Apache License, Version 2.0. */
+
+/*
+ * Only the frame. Everything inside it is enyo's own theme, untouched: that is
+ * the point of this card, and a rule here that dressed a control up would make
+ * the comparison worthless.
+ *
+ * The column is the one HP's settings cards used -- 500px down the middle with
+ * a 23px gap under the header -- so the two showcases line up row for row.
+ */
+
+.kit-enyo-column {
+	width: 500px;
+	margin: 23px auto 0;
+}
+
+.kit-enyo-title {
+	text-align: center;
+}
+
+.kit-enyo-note {
+	font-size: 16px;
+	color: #666;
+	margin: 3px 5px 12px;
+}
+
+.kit-enyo-error {
+	font-size: 16px;
+	color: #be0003;
+	margin: 3px 5px 12px;
+}
+
+/* The second line of a two-line row, as enyo's own cards wrote it. */
+.kit-enyo-detail {
+	font-size: 12px;
+	color: grey;
+	padding-left: 3px;
+}
+
+.kit-enyo-strong {
+	font-weight: bold;
+}
+
+.kit-enyo-dialog-message {
+	padding-bottom: 12px;
+}

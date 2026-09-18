@@ -17,7 +17,8 @@
  * LICENSE@@@ */
 
 //
-// The Wi-Fi settings card, com.palm.app.wifi.
+// The Wi-Fi settings card as it was, on enyo 1.0. Kept as the other side of
+// the A/B; the card that ships is components/cards (com.gachlab.app.wifi).
 //
 // HP's card of the same id was never released as source, so this one is ours.
 // It is built to be the same card to the user: a light header with the Wi-Fi

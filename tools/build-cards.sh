@@ -57,9 +57,10 @@ for id in "${ids[@]}"; do
     fi
     rm -f "$dest/build.log"
     cp -f "$src/index.html" "$src/appinfo.json" "$dest/"
-    cp -f "$CARDS/src/ui/page.css" "$CARDS/src/ui/kit.css" "$dest/"
-    # Whatever else the card ships: icons, images, sounds.
-    for extra in "$src"/*.png "$src"/*.jpg "$src"/images; do
+    cp -f "$CARDS/src/ui/page.css" "$CARDS/src/ui/kit.css" \
+          "$CARDS/src/ui/theme-enyo.css" "$CARDS/src/ui/theme-modern.css" "$dest/"
+    # Whatever else the card ships: its own stylesheet, icons, images.
+    for extra in "$src"/*.css "$src"/*.png "$src"/*.jpg "$src"/images; do
         [ -e "$extra" ] && cp -rf "$extra" "$dest/"
     done
     echo "  $id: $(du -h "$dest/main.js" | cut -f1)"

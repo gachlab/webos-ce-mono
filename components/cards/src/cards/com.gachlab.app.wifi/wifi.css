@@ -1,0 +1,109 @@
+/*
+ * What only this card has. Everything else it draws comes from page.css and
+ * the kit; a control that would be useful to another card belongs there.
+ *
+ * In rem, like the rest: the marks beside a network are drawn rather than
+ * shipped as images, so they grow with the text instead of staying the size
+ * of the PNG somebody exported once.
+ */
+
+.wifi-caption {
+    margin: 0 1rem 0.5rem;
+    font-size: 0.9rem;
+    color: var(--hp-ink-dim);
+}
+
+.wifi-off {
+    margin: 0;
+    padding: 0.7rem 0.6rem;
+    font-size: 0.9rem;
+    color: var(--hp-ink-dim);
+    border: 1px solid var(--hp-outline);
+    border-radius: var(--hp-radius);
+}
+
+/* The marks at the right of a network: joined, secured, and how strong it is. */
+.wifi-marks {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    flex: none;
+    font-size: 0.75rem;
+    color: var(--hp-ink-dim);
+}
+
+/* The list keeps its height as networks come and go, with Join Network under
+ * it rather than moving with them -- as HP's fixed-height list did. It is the
+ * height HP used, except on a screen too short to give it: there the list
+ * takes what there is and Join Network stays where it can be reached. */
+.wifi-networks {
+    height: min(14.5rem, 45vh);
+    overflow-y: auto;
+}
+
+/* The networks scroll and Join Network does not, so the row that closes the
+ * list draws the dark half of the separator itself -- the row above it is the
+ * last child of the box that scrolls, and has already given its own up. The
+ * light half is this row's own top border. */
+.wifi-join {
+    border-top: 1px solid var(--hp-row-line-bottom);
+}
+
+/* The marks at the right of a network and the plus beside Join Network. HP
+ * shipped these as PNGs -- wifi-icon-*.png, secure-icon.png, checkmark.png and
+ * join-plus-icon.png; these are the same shapes at the same sizes, drawn, so
+ * they follow the text when the root size changes. Each colour below is the
+ * middle of the gradient HP baked into its own image.
+ */
+
+.wifi-signal,
+.wifi-lock,
+.wifi-joined,
+.wifi-plus {
+    flex: none;
+    height: 1.25rem;
+}
+
+.wifi-signal { width: 1.65rem; }
+.wifi-lock { width: 0.7rem; }
+.wifi-joined { width: 1.6rem; }
+.wifi-plus { width: 0.9rem; height: 0.9rem; }
+
+/* They are drawn in the ink of the row rather than in colours of their own, so
+ * a card that wears the other theme gets marks that belong to it. What has no
+ * signal is still drawn, fainter -- as HP's own wifi-icon-low.png draws the
+ * arcs it has nothing to report for. */
+.wifi-signal,
+.wifi-lock,
+.wifi-plus {
+    color: var(--hp-ink-dim);
+}
+
+.wifi-signal circle { fill: currentColor; opacity: 0.35; }
+.wifi-signal circle.lit { opacity: 1; }
+
+.wifi-signal path {
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 4.5;
+    opacity: 0.35;
+}
+
+.wifi-signal path.lit { opacity: 1; }
+
+.wifi-lock rect { fill: currentColor; }
+
+.wifi-lock path {
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 3;
+}
+
+.wifi-lock { opacity: 0.45; }
+.wifi-plus { opacity: 0.55; }
+
+.wifi-joined path {
+    fill: none;
+    stroke: var(--hp-accent);
+    stroke-width: 5.5;
+}

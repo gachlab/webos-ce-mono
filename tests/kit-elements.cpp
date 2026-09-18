@@ -119,19 +119,21 @@ int main(int argc, char** argv)
     QApplication app(argc, argv);
 
     const QString built = QString::fromLocal8Bit(qgetenv("WEBOS_CARDS_BUILD"));
-    if (built.isEmpty() || !QFile::exists(built + "/com.palm.app.kit/main.js")) {
+    if (built.isEmpty() || !QFile::exists(built + "/com.gachlab.app.kit/main.js")) {
         std::printf("SKIP: the cards are not built (tools/build-cards.sh)\n");
         return 77;
     }
 
     QTemporaryDir dir;
-    const QString source = built + "/com.palm.app.kit";
-    for (const QString& name : { QStringLiteral("main.js"), QStringLiteral("page.css"), QStringLiteral("kit.css") })
+    const QString source = built + "/com.gachlab.app.kit";
+    for (const QString& name : { QStringLiteral("main.js"), QStringLiteral("page.css"), QStringLiteral("kit.css"),
+                                 QStringLiteral("theme-enyo.css") })
         QFile::copy(source + "/" + name, dir.filePath(name));
     QFile page(dir.filePath("index.html"));
     if (!page.open(QIODevice::WriteOnly))
         return 1;
     page.write("<!DOCTYPE html><html><head><meta charset=\"utf-8\">"
+               "<link rel=\"stylesheet\" href=\"theme-enyo.css\">"
                "<link rel=\"stylesheet\" href=\"page.css\"></head><body><div id=\"card\"></div>"
                "<script>");
     page.write(kBeforeUpgrade);

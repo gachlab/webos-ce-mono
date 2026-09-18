@@ -81,7 +81,7 @@ int main(int argc, char** argv)
     QApplication app(argc, argv);
 
     const QString built = QString::fromLocal8Bit(qgetenv("WEBOS_CARDS_BUILD"));
-    if (built.isEmpty() || !QFile::exists(built + "/com.palm.app.template/main.js")) {
+    if (built.isEmpty() || !QFile::exists(built + "/com.gachlab.app.template/main.js")) {
         std::printf("SKIP: the cards are not built (tools/build-cards.sh)\n");
         return 77;
     }
@@ -89,14 +89,14 @@ int main(int argc, char** argv)
     // The card's own page, with the bridge put there before its bundle runs,
     // which is how WebAppMgr has it.
     QTemporaryDir dir;
-    const QString source = built + "/com.palm.app.template";
-    for (const QString& name : { QStringLiteral("main.js"), QStringLiteral("hp.css") })
+    const QString source = built + "/com.gachlab.app.template";
+    for (const QString& name : { QStringLiteral("main.js"), QStringLiteral("page.css"), QStringLiteral("theme-enyo.css") })
         QFile::copy(source + "/" + name, dir.filePath(name));
     QFile page(dir.filePath("index.html"));
     if (!page.open(QIODevice::WriteOnly))
         return 1;
     page.write("<!DOCTYPE html><html><head><meta charset=\"utf-8\">"
-               "<link rel=\"stylesheet\" href=\"hp.css\"></head><body><div id=\"card\"></div>"
+               "<link rel=\"stylesheet\" href=\"theme-enyo.css\"><link rel=\"stylesheet\" href=\"page.css\"></head><body><div id=\"card\"></div>"
                "<script>");
     page.write(kFakeBridge);
     page.write("</script><script src=\"main.js\"></script></body></html>");
@@ -126,11 +126,22 @@ int main(int argc, char** argv)
     waitFor([&]() { return js(kRowTitles).contains("ZBook"); }, 5000);
     check("what came back is shown in HP's rows", js(kRowTitles),
           QStringLiteral("ZBook|webOS-CE-3.0.5|abc|Offline"));
-    check("the header is the kit's", js("document.querySelector('hp-header').shadowRoot.querySelector('.hp-header span').textContent"),
+    check("the header is the kit's",
+          js("document.querySelector('hp-header').shadowRoot.querySelector('.hp-header-title').textContent.trim()"),
           QStringLiteral("Template"));
-    check("and it is styled by hp.css, not by the browser",
+    // 2.65rem of page.css's 20px root, which is the 53px enyo's header was.
+    // The kit is written in rem over that root, so a page that forgets to link
+    // page.css gets a card that is silently four fifths of the size -- which is
+    // what this measurement is here to catch.
+    check("and it is styled by page.css, not by the browser",
           js("getComputedStyle(document.querySelector('hp-header').shadowRoot.querySelector('.hp-header')).height"),
-          QStringLiteral("48px"));
+          QStringLiteral("53px"));
+    // The colours come from the theme the page links, not from the kit: a card
+    // that links page.css and forgets the palette draws a header with no
+    // background at all.
+    check("and painted by the theme it links",
+          js("getComputedStyle(document.querySelector('hp-header').shadowRoot.querySelector('.hp-header')).backgroundImage.indexOf('gradient') >= 0 ? 'themed' : 'bare'"),
+          QStringLiteral("themed"));
     check("with no spinner left running", js("String(document.querySelectorAll('hp-spinner').length)"),
           QStringLiteral("0"));
 
@@ -143,7 +154,7 @@ int main(int argc, char** argv)
     if (!failing.open(QIODevice::WriteOnly))
         return 1;
     failing.write("<!DOCTYPE html><html><head><meta charset=\"utf-8\">"
-                  "<link rel=\"stylesheet\" href=\"hp.css\"></head><body><div id=\"card\"></div>"
+                  "<link rel=\"stylesheet\" href=\"theme-enyo.css\"><link rel=\"stylesheet\" href=\"page.css\"></head><body><div id=\"card\"></div>"
                   "<script>");
     failing.write(kFakeBridge);
     failing.write("window.__answers['palm://com.palm.deviceprofile/getDeviceProfile'] ="

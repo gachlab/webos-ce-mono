@@ -31,6 +31,7 @@ interface Shown {
     readonly sleeps: string;
     readonly level: number;
     readonly dragging: number;
+    readonly theme: string;
 }
 
 interface ShowcaseService extends CardService<Shown> {
@@ -51,7 +52,7 @@ const createShowcase = (): ShowcaseService => {
             toggled: true, pressed: "", checked: true, typed: "", when: "ask",
             choosing: false, dialog: false, answered: "", life: [],
             swiped: false, forgotten: "", menu: false, chose: "", busy: false, sleeps: "off",
-            level: 60, dragging: 0,
+            level: 60, dragging: 0, theme: "enyo",
         },
     });
     return {
@@ -73,6 +74,19 @@ const createShowcase = (): ShowcaseService => {
     };
 };
 
+// The two palettes are two stylesheets with the same names in them, so the
+// showcase changes how everything looks by pointing one link somewhere else.
+// It is here rather than in the kit because it is a thing to look at, not a
+// thing a card does: a card links the theme it wants and never thinks again.
+const THEMES = ["enyo", "modern"] as const;
+
+const wearTheme = (name: string): void => {
+    const link = document.querySelector<HTMLLinkElement>("link[href^=\"theme-\"]");
+    if (link) {
+        link.href = `theme-${name}.css`;
+    }
+};
+
 const section = (title: string, body: unknown) => html`
     <div class="hp-group">
         <div class="hp-group-title">${title}</div>
@@ -87,16 +101,29 @@ const view = (state: State<Shown>, service: ShowcaseService) => {
         <div class="hp-body">
             ${note("Every control, in each state. This card is the kit itself, so it cannot go stale.")}
 
+            ${section("Theme", html`
+                <div class="hp-list">
+                    <hp-choice value=${shown.theme}
+                               .choices=${THEMES.map((name) => ({ value: name, label: name === "enyo" ? "enyo" : "Modern" }))}
+                               @choose=${(e: CustomEvent<{ value: string }>) => {
+                                   wearTheme(e.detail.value);
+                                   service.change({ theme: e.detail.value });
+                               }}>
+                    </hp-choice>
+                </div>
+                ${note(shown.theme === "enyo"
+                    ? "HP's own values, read out of enyo's CSS and out of the images its theme draws with."
+                    : "The same kit with a palette chosen for a screen somebody is looking at today.")}`)}
+
             ${section("Buttons", html`
                 <div class="hp-list">
-                    <hp-row><hp-button label="Plain"
-                                       @press=${() => service.change({ pressed: "Plain" })}></hp-button></hp-row>
-                    <hp-row><hp-button label="Affirmative" kind="affirmative"
-                                       @press=${() => service.change({ pressed: "Affirmative" })}></hp-button></hp-row>
-                    <hp-row><hp-button label="Negative" kind="negative"
-                                       @press=${() => service.change({ pressed: "Negative" })}></hp-button></hp-row>
+                    ${["Plain", "Dark", "Affirmative", "Negative", "Blue", "Gray"].map((name) => html`
+                        <hp-row><hp-button label=${name} kind=${name === "Plain" ? "" : name.toLowerCase()}
+                                           @press=${() => service.change({ pressed: name })}></hp-button></hp-row>`)}
                     <hp-row><hp-button label="Disabled" disabled></hp-button></hp-row>
                 </div>
+                ${note("The kinds are enyo's own, and so are their colours: plain is the light "
+                       + "button its cards use for Cancel and Done, dark the one Wi-Fi signs in with.")}
                 ${shown.pressed ? note(`Last pressed: ${shown.pressed}`) : ""}`)}
 
             ${section("Toggles", html`
@@ -162,6 +189,12 @@ const view = (state: State<Shown>, service: ShowcaseService) => {
 
             ${section("One of a few", html`
                 <div class="hp-list">
+                    <!-- Without a label it takes the whole row, which is the
+                         shape enyo's RadioGroup had. -->
+                    <hp-choice value=${shown.sleeps}
+                               .choices=${[{ value: "on", label: "Stay on" }, { value: "off", label: "Turn off" }]}
+                               @choose=${(e: CustomEvent<{ value: string }>) => service.change({ sleeps: e.detail.value })}>
+                    </hp-choice>
                     <hp-choice label="When device sleeps" value=${shown.sleeps}
                                .choices=${[{ value: "on", label: "Stay on" }, { value: "off", label: "Turn off" }]}
                                @choose=${(e: CustomEvent<{ value: string }>) => service.change({ sleeps: e.detail.value })}>
@@ -171,7 +204,15 @@ const view = (state: State<Shown>, service: ShowcaseService) => {
             ${section("A button that is working", html`
                 <div class="hp-list">
                     <hp-row>
-                        <hp-activity-button label=${shown.busy ? "Joining..." : "Join"} kind="affirmative"
+                        <hp-activity-button label=${shown.busy ? "Joining..." : "Join"} kind="dark"
+                                            ?busy=${shown.busy}
+                                            @press=${() => service.change({ busy: true })}></hp-activity-button>
+                    </hp-row>
+                    <!-- The same one in the light kind: the spinner turns in
+                         whatever the button writes in, so it has to be legible
+                         on both. -->
+                    <hp-row>
+                        <hp-activity-button label=${shown.busy ? "Saving..." : "Save"}
                                             ?busy=${shown.busy}
                                             @press=${() => service.change({ busy: true })}></hp-activity-button>
                     </hp-row>

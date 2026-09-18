@@ -370,13 +370,16 @@ add_test(NAME number-inputs COMMAND number-inputs)
 set_tests_properties(number-inputs PROPERTIES
     ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
 
-# The Wi-Fi settings card, run as WebAppMgr runs it: its own index.html on the
-# real enyo framework, through the compat layer, with the services stood in for.
+# The Wi-Fi settings card, run as WebAppMgr runs it: the built bundle and the
+# kit's elements, with com.palm.wifi stood in for. It used to load the enyo card
+# and reach into enyo's own objects; the card is ours now (#38) and what is left
+# to check from out here is the wiring -- the calls it sends, the replies it is
+# pushed, and the screen each one leaves behind.
 add_executable(wifi-card wifi-card.cpp)
 target_link_libraries(wifi-card PRIVATE qtwebkit-compat-lib)
 add_test(NAME wifi-card COMMAND wifi-card)
 set_tests_properties(wifi-card PROPERTIES
-    ENVIRONMENT "QT_QPA_PLATFORM=offscreen;WEBOS_SOURCE_DIR=${CMAKE_CURRENT_SOURCE_DIR}/.."
+    ENVIRONMENT "QT_QPA_PLATFORM=offscreen;WEBOS_CARDS_BUILD=${CMAKE_CURRENT_SOURCE_DIR}/../build/cards"
     TIMEOUT 240)
 
 # The prefixed transition events enyo listens for. Without them a Pane's

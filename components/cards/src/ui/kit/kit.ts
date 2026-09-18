@@ -12,14 +12,21 @@
 
 import { defineElement, html, type TemplateResult } from "#ui/element.ts";
 
-// §1 Header. `back` adds HP's back arrow, which emits "back".
-defineElement<{ title: string; back: boolean }>(
+// §1 Header. `back` adds HP's back arrow, which emits "back"; whatever the
+// card puts inside sits at the right, where the Wi-Fi card's radio switch goes.
+// `light` is HP's other toolbar -- the one its settings cards use -- and `icon`
+// is the picture beside the title, as the Wi-Fi card has.
+defineElement<{ title: string; back: boolean; light: boolean; icon: string }>(
     "hp-header",
-    { title: String, back: Boolean },
-    ({ title, back }, { emit }) => html`
-        <header class="hp-header">
+    { title: String, back: Boolean, light: Boolean, icon: String },
+    ({ title, back, light, icon }, { emit }) => html`
+        <header class="hp-header ${light ? "light" : ""}">
             ${back ? html`<button class="hp-header-back" @click=${() => emit("back")}>&#9664;</button>` : ""}
-            <span>${title}</span>
+            <span class="hp-header-title">
+                ${icon ? html`<img class="hp-header-icon" src=${icon} alt="">` : ""}
+                <span>${title}</span>
+            </span>
+            <span class="hp-header-end"><slot></slot></span>
         </header>`,
 );
 
@@ -58,28 +65,35 @@ defineElement<{ label: string }>(
         </div>`,
 );
 
-// §3 A group of rows, with HP's small upper-case title.
+// §3 A group of rows under HP's caption bar, which is what enyo's RowGroup
+// drew: the title sits in a grey bar joined to the top of the list.
 defineElement<{ title: string }>(
     "hp-group",
     { title: String },
     ({ title }) => html`
-        ${title ? html`<div class="hp-group-title">${title}</div>` : ""}
-        <div class="hp-list"><slot></slot></div>`,
+        <div class="hp-group ${title ? "captioned" : ""}">
+            ${title ? html`<div class="hp-group-caption">${title}</div>` : ""}
+            <div class="hp-list"><slot></slot></div>
+        </div>`,
 );
 
 // A row. `title` and `detail` are the two lines HP's lists have; whatever the
-// card puts inside goes to the right of them. Only the row's own part of it
+// card puts inside goes to the right of them, and what it puts in the "lead"
+// slot goes before them. Only the row's own part of it
 // selects the row: a toggle in a Wi-Fi row would otherwise turn the radio on
 // and open the network at the same time.
-defineElement<{ title: string; detail: string }>(
+defineElement<{ title: string; detail: string; strong: boolean }>(
     "hp-row",
-    { title: String, detail: String },
-    ({ title, detail }, { emit }) => html`
+    { title: String, detail: String, strong: Boolean },
+    ({ title, detail, strong }, { emit }) => html`
         <div class="hp-row">
+            <!-- What goes before the words: the plus HP drew at the left of
+                 "Join Network", an avatar, a status light. -->
+            <slot name="lead"></slot>
             ${title || detail
                 ? html`
                     <div class="hp-row-text" @click=${() => emit("select")}>
-                        <div class="hp-row-title">${title}</div>
+                        <div class="hp-row-title ${strong ? "strong" : ""}">${title}</div>
                         ${detail ? html`<div class="hp-row-detail">${detail}</div>` : ""}
                     </div>`
                 : ""}
@@ -267,8 +281,8 @@ defineElement<{ label: string; kind: string; busy: boolean; disabled: boolean }>
     ({ label, kind, busy, disabled }, { emit }) => html`
         <button class="hp-button ${kind}" ?disabled=${disabled || busy}
                 @click=${() => emit("press")}>
+            <span class="hp-button-label">${label}</span>
             ${busy ? html`<span class="hp-button-spinner"></span>` : ""}
-            <span>${label}</span>
         </button>`,
 );
 

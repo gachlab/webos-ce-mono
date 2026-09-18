@@ -3,6 +3,10 @@
  * card writes itself. The controls are kit.css, which the elements adopt into
  * their own shadow roots; this one is only ever linked by the page.
  *
+ * Sizes are in rem, and the root font size below is the one knob that scales
+ * all of them together -- the kit included, since a shadow root inherits it.
+ * Hairlines stay in px: a separator is one line, not a measure.
+ *
  *   §0  Reset and page
  *   §3  Groups and lists -- what a card writes around the controls
  *   §6  Text
@@ -10,7 +14,9 @@
 
 /* §0 Reset and page ------------------------------------------------------- */
 
-* {
+/* The pseudo-elements too: a card draws with them -- the Wi-Fi padlock's
+ * shackle is one -- and `*` on its own does not reach them. */
+*, *::before, *::after {
     box-sizing: border-box;
     -webkit-tap-highlight-color: transparent;
 }
@@ -21,12 +27,33 @@ html, body {
     height: 100%;
 }
 
+/* The scale of everything, and it is enyo's: its theme.css sets `html, body`
+ * to 20px and writes its controls in rem over that root -- `.enyo-item` is
+ * .9rem, a group's caption .7rem. Ours is the same root, so those numbers mean
+ * here what they meant there and a control can be reimplemented by reading
+ * them rather than by measuring a screenshot of it. A screen narrower than a
+ * tablet gets a smaller root, and the whole card follows because nothing under
+ * here is in px. */
+html {
+    font-size: 125%;
+}
+
+@media (max-width: 24rem) {
+    html {
+        font-size: 109%;
+    }
+}
+
 body {
     /* Prose sans, as HP's cards used; the device's own family first. */
     font-family: Prelude, "Prelude Medium", Helvetica, Arial, sans-serif;
-    font-size: 16px;
-    color: #000;
-    background: #f4f4f4;
+    font-size: 1rem;
+    color: var(--hp-ink);
+    /* HP's page, measured off its own card rather than guessed: enyo's body is
+     * #d8d8d8 and everything on it -- rows included -- is that same grey, with
+     * translucent black and white lines drawn over it. The white panels this
+     * had before were not HP's. */
+    background: var(--hp-page);
     -webkit-user-select: none;
     user-select: none;
     overflow-x: hidden;
@@ -38,53 +65,82 @@ body {
     height: 100%;
 }
 
+/* The header keeps its height and the body takes what is left. */
 .hp-card {
-    display: flex;
-    flex-direction: column;
+    display: grid;
+    grid-template-rows: auto 1fr;
     height: 100%;
 }
 
+/* HP's settings cards are a column down the middle, not the whole width of a
+ * tablet: 25rem is the 500px its Wi-Fi card used, and `min` gives way on a
+ * screen narrower than that. On the body itself, not on each child: a child
+ * with margins of its own would override the centring. */
 .hp-body {
-    flex: 1;
+    width: min(25rem, 100%);
+    margin: 0 auto;
+    /* HP's cards put 23px under the header and another 23 at the top of each
+     * view, which is the 46px of air its Wi-Fi card opens with. */
+    padding: 1.95rem 0 1.2rem;
     overflow-y: auto;
-    padding: 12px 0 24px;
+    /* A grid row does not shrink below its content unless it is told it may,
+     * and a body that cannot shrink is one that never scrolls. */
+    min-height: 0;
 }
 
 
 /* §3 Groups and lists ------------------------------------------------------ */
 
 .hp-group {
-    margin: 0 12px 18px;
+    margin: 0 0 0.9rem;
 }
 
-.hp-group-title {
-    padding: 4px 8px;
-    font-size: 12px;
-    font-weight: 500;
+/* enyo's RowGroup caption: the bar at the top of the group, which its
+ * group-labeled.png drew as translucent black over the page. */
+.hp-group-title,
+.hp-group-caption {
+    padding: 0.3rem 0.5rem;
+    font-size: 0.7rem;
+    font-weight: 600;
     letter-spacing: 0.04em;
     text-transform: uppercase;
-    color: #6b6b6b;
+    color: var(--hp-caption-ink);
+    background: var(--hp-caption-bg);
+    /* Three longhands rather than `border` and then `border-bottom: 0`:
+     * QtWebEngine loses the colour of the other three sides when that second
+     * shorthand runs, and the bar comes out with no line at all. */
+    border-width: 1px 1px 0;
+    border-style: solid;
+    border-color: var(--hp-outline);
+    border-radius: var(--hp-radius) var(--hp-radius) 0 0;
 }
 
+.hp-group-title + .hp-list,
+.hp-group-caption + .hp-list {
+    border-top: 0;
+    border-radius: 0 0 var(--hp-radius) var(--hp-radius);
+}
+
+/* The group's own outline. What is inside it is the page: HP's rows have no
+ * background of their own, only the lines between them. */
 .hp-list {
-    border: 1px solid #b6b6b6;
-    border-radius: 8px;
-    background: #fff;
+    background: var(--hp-list-bg);
+    border: 1px solid var(--hp-outline);
+    border-radius: var(--hp-radius);
     overflow: hidden;
 }
 
 /* §6 Text ----------------------------------------------------------------- */
 
 .hp-note {
-    margin: 0 20px 12px;
-    color: #6b6b6b;
-    font-size: 13px;
+    margin: 0 0.4rem 0.6rem;
+    color: var(--hp-ink-dim);
+    font-size: 0.8rem;
     line-height: 1.35;
 }
 
 .hp-error {
-    margin: 0 20px 12px;
-    color: #be0003;
-    font-size: 13px;
+    margin: 0 0.4rem 0.6rem;
+    color: var(--hp-danger);
+    font-size: 0.8rem;
 }
-
