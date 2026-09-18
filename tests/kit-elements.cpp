@@ -126,12 +126,14 @@ int main(int argc, char** argv)
 
     QTemporaryDir dir;
     const QString source = built + "/com.palm.app.kit";
-    for (const QString& name : { QStringLiteral("main.js"), QStringLiteral("page.css"), QStringLiteral("kit.css") })
+    for (const QString& name : { QStringLiteral("main.js"), QStringLiteral("page.css"), QStringLiteral("kit.css"),
+                                 QStringLiteral("theme-enyo.css") })
         QFile::copy(source + "/" + name, dir.filePath(name));
     QFile page(dir.filePath("index.html"));
     if (!page.open(QIODevice::WriteOnly))
         return 1;
     page.write("<!DOCTYPE html><html><head><meta charset=\"utf-8\">"
+               "<link rel=\"stylesheet\" href=\"theme-enyo.css\">"
                "<link rel=\"stylesheet\" href=\"page.css\"></head><body><div id=\"card\"></div>"
                "<script>");
     page.write(kBeforeUpgrade);

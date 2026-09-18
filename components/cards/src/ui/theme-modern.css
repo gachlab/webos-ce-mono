@@ -1,0 +1,100 @@
+/*
+ * The same kit, painted for a screen somebody is looking at today.
+ *
+ * It is the same file as theme-enyo.css with different values: same names,
+ * same structure, so a card changes how it looks by linking this instead and
+ * not by changing a single line of itself. Nothing here is measured off
+ * anything -- these are choices, and that is the point of having two.
+ *
+ * What it changes, and why:
+ *   - the page is lighter and the lists sit on white, so a list is an object
+ *     rather than an area fenced off with a line;
+ *   - one accent, used for everything that is on, chosen or being dragged,
+ *     instead of the four blues HP's images each had their own of;
+ *   - no sheen on anything: a button is its colour;
+ *   - the separators are one soft line rather than a dark one and a lit one,
+ *     which is what you draw when the surface underneath is not a texture.
+ */
+
+:root {
+    --hp-page: #eef0f3;
+    --hp-ink: #1f2328;
+    --hp-ink-dim: #5c6570;
+    --hp-ink-faint: #8a939e;
+    --hp-danger: #c2362f;
+    --hp-accent: #2f6fed;
+    --hp-radius: 0.6rem;
+
+    --hp-outline: #dfe3e8;
+    --hp-list-bg: #fff;
+    --hp-caption-bg: none;
+    --hp-caption-ink: #5c6570;
+
+    --hp-row-line-top: transparent;
+    --hp-row-line-bottom: #e7eaee;
+    --hp-row-press: rgba(47, 111, 237, 0.1);
+
+    --hp-header-bg: #22262c;
+    --hp-header-ink: #fff;
+    --hp-header-line: #14171b;
+    --hp-header-back-ink: #c3c9d1;
+    --hp-header-light-bg: #fff;
+    --hp-header-light-ink: #1f2328;
+    --hp-header-light-back-ink: #2f6fed;
+    --hp-header-light-line-top: transparent;
+    --hp-header-light-line-bottom: #dfe3e8;
+    --hp-header-light-shadow: 0 0.1rem 0.4rem rgba(15, 20, 30, 0.07);
+
+    --hp-button-sheen: none;
+    --hp-button-sheen-down: linear-gradient(rgba(0, 0, 0, 0.12), rgba(0, 0, 0, 0.12));
+    --hp-button-edge: transparent;
+    --hp-button-radius: 0.4rem;
+    --hp-button-light: #e7eaee;
+    --hp-button-light-ink: #1f2328;
+    --hp-button-dark: #3b4150;
+    --hp-button-affirmative: #1f9254;
+    --hp-button-negative: #c2362f;
+    --hp-button-blue: #2f6fed;
+    --hp-button-gray: #5c6570;
+    --hp-button-loud-ink: #fff;
+
+    --hp-toggle-on: #2f6fed;
+    --hp-toggle-off: #c3c9d1;
+    --hp-toggle-knob: #fff;
+    --hp-toggle-knob-on: #fff;
+    --hp-toggle-edge: transparent;
+    --hp-toggle-ink: #fff;
+
+    --hp-check-off: #c3c9d1;
+    --hp-check-on: #2f6fed;
+    --hp-check-tick: #fff;
+    --hp-check-edge: transparent;
+
+    --hp-choice-off: #e7eaee;
+    --hp-choice-off-ink: #1f2328;
+    --hp-choice-on: #2f6fed;
+    --hp-choice-on-ink: #fff;
+    --hp-choice-line: rgba(31, 35, 40, 0.08);
+
+    --hp-progress-track: #e7eaee;
+    --hp-progress-fill: #2f6fed;
+    --hp-slider-track: #e7eaee;
+    --hp-slider-fill: #2f6fed;
+    --hp-slider-knob: #fff;
+    --hp-slider-knob-edge: rgba(15, 20, 30, 0.2);
+
+    --hp-spinner-ring: rgba(31, 35, 40, 0.12);
+    --hp-spinner-lead: #2f6fed;
+
+    --hp-field-focus-bg: #f4f6f9;
+    --hp-field-focus-edge: #2f6fed;
+    --hp-field-ink: #1f2328;
+
+    --hp-menu-bg: #22262c;
+    --hp-menu-ink: #fff;
+    --hp-menu-edge: #14171b;
+    --hp-menu-press: #2f6fed;
+    --hp-dialog-bg: #fff;
+    --hp-scrim: rgba(15, 20, 30, 0.45);
+    --hp-swipe-bg: #fbeceb;
+}

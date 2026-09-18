@@ -187,18 +187,15 @@ if [ -f "$C/isis-browser/appinfo.json" ]; then
     cp -rf "$C/isis-browser" "$ROOTFS/usr/palm/applications/com.palm.app.browser"
 fi
 
-# The Wi-Fi settings card. Ours: HP's was never released as source. Installed
-# under the id the system menu launches.
-if [ -f "$C/wifi-app/appinfo.json" ]; then
-    rm -rf "$ROOTFS/usr/palm/applications/com.palm.app.wifi"
-    mkdir -p "$ROOTFS/usr/palm/applications/com.palm.app.wifi"
-    cp -rf "$C"/wifi-app/{appinfo.json,index.html,depends.js,icon.png,icon-256x256.png,source,stylesheets,images} \
-        "$ROOTFS/usr/palm/applications/com.palm.app.wifi/"
-fi
+# The Wi-Fi settings card used to be installed here from components/wifi-app,
+# which is enyo 1.0 on HP's lib/wifi. It is not any more: the card is now one of
+# the cards in components/cards (#38), installed with them just above, under the
+# same id. The old one stays in the tree -- it is ours, and it is what the new
+# one was written from -- and is simply not installed, the way the stubs are.
 
 # The cards built from components/cards: our own, on the modern web platform
 # (#37). Each one is already a plain web app -- index.html, one bundle, HP's
-# stylesheet -- in build/cards, where tools/build-cards.sh put it; nothing here
+# stylesheets -- in build/cards, where tools/build-cards.sh put it; nothing here
 # builds, so a tree assembled without that step simply has no new cards.
 if [ -d "$R/build/cards" ]; then
     for CARD in "$R"/build/cards/*/; do
@@ -211,6 +208,15 @@ if [ -d "$R/build/cards" ]; then
         rm -f "$ROOTFS/usr/palm/applications/$id/main.js.map"
     done
 fi
+
+# The same kit of controls, built out of enyo 1.0 and HP's Onyx theme. It is
+# not a card anybody uses: it is the other side of the A/B. A rewritten card is
+# meant to look like the one it replaces, and that is an argument until the two
+# are on screen together -- so this one sits next to com.palm.app.kit and the
+# differences become numbers. It is small, and it is the only copy of HP's own
+# look that runs.
+rm -rf "$ROOTFS/usr/palm/applications/com.palm.app.enyokit"
+cp -rf "$C/kit-enyo" "$ROOTFS/usr/palm/applications/com.palm.app.enyokit"
 
 # Servicios de aplicacion (JS, corren sobre node)
 for SVC in "$C"/app-services/*/; do

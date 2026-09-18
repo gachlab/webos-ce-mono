@@ -97,6 +97,62 @@ components/cards/
   an empty stack closes the card -- HP's flow, written once
   (`services/navigation.service.ts`).
 
+## What a rewritten card is allowed to look like
+
+**A reimplementation keeps the look of the card it replaces.** New code,
+new stylesheet, same screen: the rows sit where they sat, at the size they sat
+at, in the colours they were. Nothing here says the 2011 look is the right one
+forever -- it says that a rewrite is not the place to decide that, because
+"is this better?" and "did this break?" cannot be answered in the same
+screenshot. When a card should get a new layout, that is its own ticket.
+
+So the kit is a reimplementation of enyo's Onyx theme in modern CSS. Not an
+impression of it: the values come from enyo's own stylesheets in this tree
+(`components/enyo-1.0/framework/source/palm/themes/Onyx/css`) and, where the
+theme drew with images, from the images themselves -- `button-up.png`,
+`toggle-button.png`, `checkbox.png`, `radiobutton.png`, `progress-bar.png`,
+`slider-track.png` read pixel by pixel. That is how we found that HP's toggle
+is blue and not green, that its slider never fills, and that its checkbox is
+the toggle's blue with a pale tick rather than a white one on green.
+
+Two consequences worth knowing:
+
+* **The root font size is enyo's 20px** (`page.css` sets `125%`). enyo wrote
+  its controls in rem over that root -- `.enyo-item` is `.9rem`, a group's
+  caption `.7rem` -- so on the same root its numbers transfer unchanged. Every
+  size in the kit is in rem for the same reason, and one root moves all of
+  them. The only lengths left in px are hairlines: a separator is one line, not
+  a measure.
+* **The layout is modern even where the look is not.** Grid for the header's
+  three columns, flexbox for rows, `transform` for the toggle's knob and the
+  slider's -- not the absolute positioning enyo needed. What it looks like is
+  2011; how it is written is not.
+
+### Two themes
+
+Every colour in the kit comes from a custom property, and the properties are
+defined in one file:
+
+* `theme-enyo.css` -- HP's values, as described above. The default: a card
+  links it and looks like the card it replaced.
+* `theme-modern.css` -- the same property names with values chosen for a screen
+  somebody is looking at today: lists on white, one accent colour, no sheen on
+  anything, softer separators.
+
+A card links one of them before `page.css` and changes nothing else. The kit
+showcase (`com.palm.app.kit`) switches between them at the top of the card,
+which is also the fastest way to see what a token actually paints. A card that
+links neither has no colours at all, and `tests/template-card.cpp` fails on it.
+
+### The other side of the A/B
+
+`components/kit-enyo` is the same kit built out of enyo 1.0 and the Onyx theme,
+installed as `com.palm.app.enyokit`. It is not a card anybody uses: it is the
+reference. Same controls, same order, same captions as `com.palm.app.kit`, so
+the two can be photographed at the same scroll offset and compared pixel by
+pixel rather than argued about. Every difference listed above was found that
+way, after the rewritten card had already been called finished by eye.
+
 ## Porting HP's cards, rather than rewriting them whole
 
 Nothing here stops an enyo shim being written on top, and that is deliberate:

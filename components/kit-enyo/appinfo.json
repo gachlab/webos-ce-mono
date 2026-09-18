@@ -1,0 +1,12 @@
+{
+	"id": "com.palm.app.enyokit",
+	"title": "Kit (enyo)",
+	"type": "web",
+	"category": "Settings",
+	"main": "index.html",
+	"icon": "icon.png",
+	"uiRevision": 2,
+	"keywords": ["Kit", "enyo", "reference"],
+	"version": "1.0.0",
+	"vendor": "webOS CE"
+}
