@@ -62,4 +62,19 @@ check "scripts.h and bridge-scheme.h are present" \
 check "no catch-all detail.h" \
     "$([ -e "$DIR/src/detail.h" ] && echo present || echo gone)" "gone"
 
+# Include edges: a concern that does not call another must not pay for its
+# header. Verified by mutation: adding `#include "scripts.h"` to embedded.cpp
+# turns this red.
+embedded_includes=$(grep -E '^#include "' "$DIR/src/embedded.cpp" | tr '\n' ' ')
+check "embedded.cpp includes only the public header" \
+    "$(echo "$embedded_includes" | grep -q 'scripts\|bridge-scheme\|detail' && echo leak || echo clean)" "clean"
+input_includes=$(grep -E '^#include "' "$DIR/src/input.cpp" | tr '\n' ' ')
+check "input.cpp includes only the public header" \
+    "$(echo "$input_includes" | grep -q 'scripts\|bridge-scheme\|detail' && echo leak || echo clean)" "clean"
+# The bridge must not include the public façade: downloads go through a hook.
+check "bridge-scheme.cpp does not include qtwebkit_compat.h" \
+    "$(grep -c 'qtwebkit_compat\.h' "$DIR/src/bridge-scheme.cpp" || true)" "0"
+check "scripts.cpp does not include the public façade" \
+    "$(grep -c 'qtwebkit_compat\.h' "$DIR/src/scripts.cpp" || true)" "0"
+
 exit $((failures == 0 ? 0 : 1))

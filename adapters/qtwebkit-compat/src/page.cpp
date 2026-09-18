@@ -55,7 +55,46 @@ QWebEngineSettings::FontFamily engineFont(QWebSettings::FontFamily family)
 
 using qtwebkit_compat::bridge::pendingWindowFeatures;
 using qtwebkit_compat::bridge::sharedProfile;
-using namespace qtwebkit_compat::scripts;
+using qtwebkit_compat::scripts::kAppViewShimScriptName;
+using qtwebkit_compat::scripts::kAppViewShims;
+using qtwebkit_compat::scripts::kBorderImageCompat;
+using qtwebkit_compat::scripts::kBorderImageScriptName;
+using qtwebkit_compat::scripts::kBridgeCore;
+using qtwebkit_compat::scripts::kBrowserView;
+using qtwebkit_compat::scripts::kBrowserViewScriptName;
+using qtwebkit_compat::scripts::kEnyoWheelCompat;
+using qtwebkit_compat::scripts::kEnyoWheelScriptName;
+using qtwebkit_compat::scripts::kFlexWidthCompat;
+using qtwebkit_compat::scripts::kFlexWidthScriptName;
+using qtwebkit_compat::scripts::kFrameCancel;
+using qtwebkit_compat::scripts::kFrameCancelScriptName;
+using qtwebkit_compat::scripts::kInjectedScriptName;
+using qtwebkit_compat::scripts::kNumberInputScriptName;
+using qtwebkit_compat::scripts::kNumberInputs;
+using qtwebkit_compat::scripts::kPrefixedEventScriptName;
+using qtwebkit_compat::scripts::kPrefixedEvents;
+using qtwebkit_compat::scripts::kRemoteRequestScriptName;
+using qtwebkit_compat::scripts::kRemoteRequests;
+using qtwebkit_compat::scripts::kWindowOpen;
+using qtwebkit_compat::scripts::kWindowOpenScriptName;
+
+namespace {
+
+// The bridge cancels engine downloads and calls this; we know they belong to
+// a QWebPage because that is what parented the engine page.
+void forwardDownload(const QUrl& url, const QString& mimeType, QObject* parent)
+{
+    if (auto* page = qobject_cast<QWebPage*>(parent))
+        Q_EMIT page->downloadRequested(url, mimeType);
+}
+
+struct RegisterDownloadHook {
+    RegisterDownloadHook() { qtwebkit_compat::bridge::setDownloadHook(forwardDownload); }
+};
+
+const RegisterDownloadHook registerDownloadHook;
+
+} // namespace
 
 QString qWebKitVersion()
 {

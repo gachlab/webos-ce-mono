@@ -1,5 +1,4 @@
 #include "bridge-scheme.h"
-#include "qtwebkit_compat.h"
 
 #include <QBuffer>
 #include <QCoreApplication>
@@ -12,6 +11,7 @@
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
 #include <QNetworkRequest>
+#include <QPointer>
 #include <QSet>
 #include <QUrlQuery>
 #include <QWebEngineDownloadRequest>
@@ -25,7 +25,22 @@
 namespace qtwebkit_compat {
 namespace bridge {
 
+namespace {
+
 const char kScheme[] = "webos-bridge";
+
+DownloadHook& downloadHookSlot()
+{
+    static DownloadHook hook = nullptr;
+    return hook;
+}
+
+} // namespace
+
+void setDownloadHook(DownloadHook hook)
+{
+    downloadHookSlot() = hook;
+}
 
 // Before QApplication exists: a URL scheme can only be registered then, and
 // QtWebEngine wants shared GL contexts decided before the first one is made.
@@ -415,16 +430,16 @@ QWebEngineProfile* sharedProfile()
     // is the profile's, not the page's. On a device the browser plugin told
     // the app instead (mimeNotSupported), and the app handed it to
     // com.palm.downloadmanager. So the engine's own download is refused and the
-    // page that asked is told. Every page shares this profile; the engine page
-    // belongs to its QWebPage.
+    // page that asked is told. The page concern registers who to tell; this
+    // file does not include QWebPage.
     QObject::connect(profile, &QWebEngineProfile::downloadRequested, profile,
                      [](QWebEngineDownloadRequest* download) {
         const QUrl url = download->url();
         const QString mimeType = download->mimeType();
-        QWebPage* page = download->page() ? qobject_cast<QWebPage*>(download->page()->parent()) : nullptr;
+        QObject* parent = download->page() ? download->page()->parent() : nullptr;
         download->cancel();
-        if (page)
-            Q_EMIT page->downloadRequested(url, mimeType);
+        if (DownloadHook hook = downloadHookSlot())
+            hook(url, mimeType, parent);
     });
     return profile;
 }
