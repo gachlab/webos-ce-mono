@@ -181,11 +181,19 @@ defineElement<{ label: string; value: string; choices: { value: string; label: s
     ({ label, value, choices, open }, { emit }) => {
         const list = Array.isArray(choices) ? choices : [];
         const chosen = list.find((choice) => choice.value === value);
+        const caption = chosen?.label ?? value;
+        // No label → value is the row title (VPN Add). With a label → value at
+        // the right, as Wi-Fi sleep and the showcase do.
+        const named = !!(label && label.length > 0);
         return html`
             <div class="wos-selector">
                 <div class="wos-row" @click=${() => emit("open", { open: !open })}>
-                    <div class="wos-row-text"><div class="wos-row-title">${label ?? ""}</div></div>
-                    <span class="wos-selector-value">${chosen?.label ?? value}</span>
+                    ${named
+                        ? html`
+                            <div class="wos-row-text"><div class="wos-row-title">${label}</div></div>
+                            <span class="wos-selector-value">${caption}</span>`
+                        : html`
+                            <div class="wos-row-text"><div class="wos-row-title">${caption}</div></div>`}
                     <span class="wos-selector-arrow ${open ? "open" : ""}">&#9662;</span>
                 </div>
                 ${open

@@ -82,7 +82,7 @@ describe("the profile list", () => {
         assert.equal(data().agents.length, 2);
     });
 
-    test("opening add puts an empty OpenVPN form on screen", async () => {
+    test("opening add puts the host step on screen", async () => {
         const { service, data } = setup();
         service.onShown();
         await settle();
@@ -90,6 +90,23 @@ describe("the profile list", () => {
         assert.equal(data().screen, "add");
         assert.equal(data().add?.agentGuid, "com.gachlab.openvpn");
         assert.equal(data().add?.name, "");
+        assert.equal(data().add?.remote, "");
+    });
+
+    test("Next needs a server, then opens configure with the host as the name", async () => {
+        const { service, data } = setup();
+        service.onShown();
+        await settle();
+        service.onOpenAdd();
+        service.onNextAdd();
+        assert.match(data().message, /server/i);
+        assert.equal(data().screen, "add");
+
+        service.onAddField({ remote: "vpn.example.com" });
+        service.onNextAdd();
+        assert.equal(data().screen, "configure");
+        assert.equal(data().add?.name, "vpn.example.com");
+        assert.equal(data().add?.remote, "vpn.example.com");
     });
 
     test("tapping a disconnected name connects; tapping connected disconnects", async () => {
@@ -152,13 +169,17 @@ describe("adding a profile", () => {
         assert.equal(payloads(luna, ADD).length, 0);
     });
 
-    test("saves an OpenVPN profile and returns to the list", async () => {
+    test("saves an OpenVPN profile, connects, and returns to the list", async () => {
         const { luna, service, data } = setup();
         luna.answer(ADD, () => ({ returnValue: true }));
+        luna.answer(CONNECT, () => ({ returnValue: true }));
         service.onShown();
         await settle();
         service.onOpenAdd();
-        service.onAddField({ name: "Home", remote: "vpn.example.com", userName: "ana", password: "x" });
+        service.onAddField({ remote: "vpn.example.com" });
+        service.onNextAdd();
+        assert.equal(data().screen, "configure");
+        service.onAddField({ name: "Home", userName: "ana", password: "x" });
         service.onSaveAdd();
         await settle();
         assert.equal(data().screen, "list");
@@ -166,6 +187,7 @@ describe("adding a profile", () => {
         assert.equal(sent.length, 1);
         assert.equal(sent[0]?.vpnProfileName, "Home");
         assert.equal((sent[0]?.vpnProfile as Payload).remote, "vpn.example.com");
+        assert.equal(payloads(luna, CONNECT)[0]?.vpnProfileName, "Home");
     });
 });
 

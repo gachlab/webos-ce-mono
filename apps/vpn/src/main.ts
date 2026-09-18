@@ -1,10 +1,8 @@
 // The VPN settings card.
 //
-// Three screens from the service state: the profile list, add a profile, and
-// connection details. Layout and wording follow HP's card on the TouchPad CE
-// image (spec, not code): light header with the VPN icon, "Choose a Profile",
-// checkmark when connected, (i) for details, tap the name to connect, swipe to
-// delete, and "Add profile..." with the plus.
+// Screens follow HP's card on the TouchPad CE image (spec, not code): the
+// profile list, Add A Profile (type + server, Cancel/Next), Configure A Profile
+// (credentials, Back/Connect), and connection details.
 
 import { openBus } from "@webos/api/infra/luna/open-bus.ts";
 import { t } from "@webos/api/i18n/translate.ts";
@@ -55,7 +53,6 @@ const list = (data: VpnData, service: VpnService) => html`
                 const active = isActiveState(profile.connectState);
                 const detail = progressLabel(profile.connectState);
                 const open = data.swipeOpen === profile.name;
-                // HP disables swipe while the tunnel is moving.
                 if (busy) {
                     return html`
                         <wos-row title=${profile.name} detail=${detail}
@@ -85,20 +82,43 @@ const list = (data: VpnData, service: VpnService) => html`
     ${data.message ? errorLine(data.message) : ""}
 `;
 
-const addForm = (fields: ProfileFields, data: VpnData, service: VpnService) => {
+// HP AddProfileView: two RowGroups and a Cancel/Next footer. The group caption
+// is the field label; the row itself only holds the control.
+const addStep = (fields: ProfileFields, data: VpnData, service: VpnService) => html`
+    <div class="wos-group">
+        <div class="wos-group-title">${t("Connection Type")}</div>
+        <div class="wos-list">
+            <wos-selector label="" value=${fields.agentGuid}
+                .choices=${agentChoices(data)}
+                ?open=${!!data.choosing}
+                @open=${(e: CustomEvent<{ open: boolean }>) => service.onChooseAgent(e.detail.open)}
+                @choose=${(e: CustomEvent<{ value: string }>) =>
+                    service.onAddField({ agentGuid: e.detail.value as AgentGuid })}></wos-selector>
+        </div>
+    </div>
+    <div class="wos-group">
+        <div class="wos-group-title">${t("VPN Server")}</div>
+        <div class="wos-list">
+            <wos-field label="" value=${fields.remote}
+                placeholder=${t("Enter hostname or IP address")}
+                @change=${(e: CustomEvent<{ value: string }>) =>
+                    service.onAddField({ remote: e.detail.value })}
+                @done=${() => service.onNextAdd()}></wos-field>
+        </div>
+    </div>
+    ${data.message ? errorLine(data.message) : ""}
+`;
+
+// HP ConfigureProfileView: profile name + credentials, Back/Connect footer.
+const configureStep = (fields: ProfileFields, data: VpnData, service: VpnService) => {
     const openvpn = fields.agentGuid === "com.gachlab.openvpn";
     return html`
         <div class="wos-group">
-            <div class="wos-group-title">${t("Add a Profile")}</div>
             <div class="wos-list">
                 <wos-field label=${t("Profile Name")} value=${fields.name}
                     @change=${(e: CustomEvent<{ value: string }>) =>
                         service.onAddField({ name: e.detail.value })}></wos-field>
-                <wos-selector label=${t("Connection Type")} value=${fields.agentGuid}
-                    .choices=${agentChoices(data)}
-                    @choose=${(e: CustomEvent<{ value: string }>) =>
-                        service.onAddField({ agentGuid: e.detail.value as AgentGuid })}></wos-selector>
-                <wos-field label=${openvpn ? t("Server") : t("Endpoint")} value=${fields.remote}
+                <wos-field label=${t("VPN Server")} value=${fields.remote}
                     @change=${(e: CustomEvent<{ value: string }>) =>
                         service.onAddField({ remote: e.detail.value })}></wos-field>
                 ${openvpn ? html`
@@ -122,10 +142,6 @@ const addForm = (fields: ProfileFields, data: VpnData, service: VpnService) => {
             </div>
         </div>
         ${data.message ? errorLine(data.message) : ""}
-        <div class="wos-group">
-            <wos-activity-button label=${t("Connect")} kind="affirmative" ?busy=${data.busy}
-                @press=${() => service.onSaveAdd()}></wos-activity-button>
-        </div>
     `;
 };
 
@@ -164,19 +180,57 @@ const details = (profile: VpnProfile, data: VpnData, service: VpnService) => {
     `;
 };
 
+const headerTitle = (screen: VpnData["screen"]): string => {
+    switch (screen) {
+    case "add": return t("Add A Profile");
+    case "configure": return t("Configure A Profile");
+    default: return t("VPN");
+    }
+};
+
+const footer = (data: VpnData, service: VpnService) => {
+    if (data.screen === "add") {
+        const canNext = !!data.add?.remote.trim();
+        return html`
+            <div class="vpn-footer">
+                <wos-button class="vpn-wide" label=${t("Cancel")}
+                    @press=${() => service.onCancelAdd()}></wos-button>
+                <wos-activity-button class="vpn-wide" label=${t("Next")} kind="affirmative"
+                    ?disabled=${!canNext} ?busy=${data.busy}
+                    @press=${() => service.onNextAdd()}></wos-activity-button>
+            </div>`;
+    }
+    if (data.screen === "configure") {
+        return html`
+            <div class="vpn-footer">
+                <wos-button class="vpn-wide" label=${t("Back")}
+                    @press=${() => service.onBack()}></wos-button>
+                <wos-activity-button class="vpn-wide" label=${t("Connect")} kind="affirmative"
+                    ?busy=${data.busy}
+                    @press=${() => service.onSaveAdd()}></wos-activity-button>
+            </div>`;
+    }
+    return "";
+};
+
 const view = (state: State<VpnData>, service: VpnService) => {
     const data = state.data;
     const onList = data.screen === "list";
     const body = data.screen === "add" && data.add
-        ? addForm(data.add, data, service)
-        : data.screen === "details" && data.details
-            ? details(data.details, data, service)
-            : list(data, service);
+        ? addStep(data.add, data, service)
+        : data.screen === "configure" && data.add
+            ? configureStep(data.add, data, service)
+            : data.screen === "details" && data.details
+                ? details(data.details, data, service)
+                : list(data, service);
+    const foot = footer(data, service);
     return html`
-        <div class="wos-card">
-            <wos-header title=${t("VPN")} light icon="header-icon-vpn.png"
-                       ?back=${!onList} @back=${() => service.onBack()}></wos-header>
+        <div class="wos-card ${foot ? "vpn-has-footer" : ""}">
+            <wos-header title=${headerTitle(data.screen)} light icon="header-icon-vpn.png"
+                       ?back=${!onList && data.screen === "details"}
+                       @back=${() => service.onBack()}></wos-header>
             <div class="wos-body">${body}</div>
+            ${foot}
         </div>
     `;
 };

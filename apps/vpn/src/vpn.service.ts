@@ -12,7 +12,7 @@ import {
 import { LunaCallError, errorTextOf, type LunaService, type Subscription } from "@webos/api/infra/luna/service.ts";
 import type { LaunchParams } from "@webos/api/infra/app/service.ts";
 
-export type VpnScreen = "list" | "add" | "details";
+export type VpnScreen = "list" | "add" | "configure" | "details";
 
 export interface VpnData {
     readonly screen: VpnScreen;
@@ -22,6 +22,7 @@ export interface VpnData {
     readonly busy: boolean;
     readonly message: string;
     readonly swipeOpen?: string | undefined;
+    readonly choosing?: boolean;
     readonly add?: ProfileFields;
     readonly details?: VpnProfile;
 }
@@ -40,6 +41,9 @@ export interface VpnService {
     onSwipe(name: string, open: boolean): void;
     onDeleteProfile(name: string): void;
     onAddField(change: Partial<ProfileFields>): void;
+    onChooseAgent(open: boolean): void;
+    onCancelAdd(): void;
+    onNextAdd(): void;
     onSaveAdd(): void;
     onConnectDisconnect(): void;
     onDelete(): void;
@@ -209,7 +213,8 @@ export const createVpnService = (luna: LunaService): VpnService => {
                     busy: false,
                     message: "",
                     ...(screen === "details" && current.details ? { details: current.details } : {}),
-                    ...(screen === "add" && current.add ? { add: current.add } : {}),
+                    ...((screen === "add" || screen === "configure") && current.add
+                        ? { add: current.add } : {}),
                 },
             });
             return true;
@@ -270,7 +275,30 @@ export const createVpnService = (luna: LunaService): VpnService => {
             const add = state.get().data.add;
             if (!add)
                 return;
-            state.patch({ add: { ...add, ...change } });
+            state.patch({ add: { ...add, ...change }, message: "", choosing: false });
+        },
+
+        onChooseAgent(open) {
+            state.patch({ choosing: open });
+        },
+
+        onCancelAdd() {
+            openList();
+        },
+
+        // HP's Next: leave the host/type step for the configure form. Profile
+        // name defaults to the server, as ConfigureProfileView does.
+        onNextAdd() {
+            const add = state.get().data.add;
+            if (!add)
+                return;
+            if (!add.remote.trim()) {
+                state.patch({ message: "Enter a VPN server." });
+                return;
+            }
+            const name = add.name.trim() || add.remote.trim();
+            state.patch({ add: { ...add, name }, message: "" });
+            show("configure");
         },
 
         onSaveAdd() {
@@ -282,7 +310,8 @@ export const createVpnService = (luna: LunaService): VpnService => {
                 return;
             }
             state.patch({ busy: true, message: "" });
-            void vpn.addProfile(add).then(() => {
+            void vpn.addProfile(add).then(async () => {
+                await vpn.connect(add.name, add.agentGuid);
                 if (!gone)
                     openList();
             }).catch(fail);

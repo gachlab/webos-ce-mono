@@ -478,8 +478,20 @@
 }
 
 .wos-selector-arrow {
-    color: var(--wos-ink-faint);
+    flex: none;
+    color: var(--wos-ink);
+    font-size: 0.65rem;
+    line-height: 1;
     transition: transform 120ms ease-out;
+}
+
+/* Unlabeled selector: value is the row title; arrow alone on the right. */
+.wos-field:not(:has(.wos-field-label)) {
+    padding: 0.5rem;
+}
+
+.wos-field:not(:has(.wos-field-label)) .wos-field-input {
+    padding: 0.1rem 0;
 }
 
 .wos-selector-arrow.open {

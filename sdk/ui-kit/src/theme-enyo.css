@@ -23,12 +23,25 @@
     --wos-accent: #2071bb;
     --wos-radius: 0.4rem;
 
-    /* Group.css: group-labeled.png drew the caption bar and the outline. */
+    /* Group.css: group-labeled.png draws the caption bar and the outline. */
     --wos-outline: #7c7c7c;
     --wos-list-bg: transparent;
-    --wos-caption-bg: linear-gradient(to bottom, #8f8f8f 0, #9c9c9c 2px, #a2a2a2 3px);
+    --wos-caption-bg: none;
     --wos-caption-ink: #fff;
     --wos-caption-shadow: #646454 0 1px 0;
+    --wos-caption-height: 44px;
+    --wos-caption-box: content-box;
+    --wos-caption-margin: -34px -12px;
+    --wos-caption-pad: 4px 0 12px 10px;
+    --wos-caption-border-width: 0;
+    --wos-caption-radius: 0;
+    --wos-group-labeled-margin: 8px 3px;
+    --wos-group-labeled-border-width: 36px 14px 14px 14px;
+    --wos-group-labeled-border-image: url(images/group-labeled.png) 36 14 14 14 repeat repeat;
+    --wos-list-under-caption-border: 0;
+    --wos-list-under-caption-top: 0;
+    --wos-list-under-caption-radius: 0;
+    --wos-list-under-caption-margin: -12px;
 
     /* Item.css: two translucent hairlines, white over black. */
     --wos-row-line-top: rgba(255, 255, 255, 0.5);
