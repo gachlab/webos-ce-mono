@@ -80,6 +80,26 @@ bool listProfiles(GDBusConnection* bus, std::vector<NmNet::Profile>& profiles, s
 // The wifi adapter's hardware address.
 bool wifiMacAddress(GDBusConnection* bus, std::string& mac, std::string& error);
 
+// --- vpn (com.palm.vpn) -----------------------------------------------------
+// Saved NetworkManager connections of type "vpn" (OpenVPN) or "wireguard".
+// Profiles that are wifi or ethernet are refused: this is not com.palm.wifi.
+
+bool listVpnProfiles(GDBusConnection* bus, std::vector<NmNet::VpnProfile>& profiles,
+                     std::string& error);
+
+bool getVpnProfile(GDBusConnection* bus, const std::string& name, NmNet::VpnProfile& profile,
+                   std::string& error);
+
+bool addVpnProfile(GDBusConnection* bus, const NmNet::VpnRequest& request, std::string& error);
+
+bool updateVpnProfile(GDBusConnection* bus, const NmNet::VpnRequest& request, std::string& error);
+
+bool deleteVpnProfile(GDBusConnection* bus, const std::string& name, std::string& error);
+
+bool connectVpn(GDBusConnection* bus, const std::string& name, std::string& error);
+
+bool disconnectVpn(GDBusConnection* bus, std::string& error);
+
 } // namespace NmClient
 
 #endif

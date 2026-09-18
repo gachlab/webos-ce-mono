@@ -90,6 +90,11 @@ const char kWifiServiceName[] = "com.palm.wifi";
 // else in the tree answers it, and the Wi-Fi card is its only caller.
 const char kCertificateServiceName[] = "com.palm.certificatemanager";
 
+// The fourth: VPN profiles for the system menu drawer and our VPN card (#21).
+const char kVpnServiceName[] = "com.palm.vpn";
+const char* const kVpnProfileListMethods[] = { "getProfileList", nullptr };
+const char* const kVpnStatusMethods[] = { "getStatus", nullptr };
+
 // For the signal subscriptions only; the calls themselves are in nm_client.cpp.
 const char kNmService[] = "org.freedesktop.NetworkManager";
 const char kNmIface[] = "org.freedesktop.NetworkManager";
@@ -98,10 +103,12 @@ GMainLoop* g_loop = nullptr;
 LSPalmService* g_service = nullptr;
 LSPalmService* g_wifiService = nullptr;
 LSPalmService* g_certificateService = nullptr;
+LSPalmService* g_vpnService = nullptr;
 GDBusConnection* g_system = nullptr;
 NmNet::NetworkState g_state;
 std::string g_lastPayload;
 std::string g_lastWifiKey;
+std::string g_lastVpnPayload;
 guint g_refreshPending = 0;
 // The network the last connect asked for; see NetworkState::attemptedSsid.
 std::string g_attemptedSsid;
@@ -145,6 +152,35 @@ void post(LSPalmService* service, const std::string& payload)
     }
 }
 
+void postMethods(LSPalmService* service, const char* const* methods, const std::string& payload)
+{
+    if (!service)
+        return;
+    LSHandle* const handles[] = {
+        LSPalmServiceGetPrivateConnection(service),
+        LSPalmServiceGetPublicConnection(service),
+    };
+    for (LSHandle* handle : handles) {
+        if (!handle)
+            continue;
+        for (const char* const* method = methods; *method; ++method) {
+            LSError error;
+            LSErrorInit(&error);
+            if (!LSSubscriptionPost(handle, kCategory, *method, payload.c_str(), &error))
+                logAndFree("LSSubscriptionPost", error);
+        }
+    }
+}
+
+std::string vpnListPayload(bool subscribed)
+{
+    std::vector<NmNet::VpnProfile> profiles;
+    std::string error;
+    if (!NmClient::listVpnProfiles(g_system, profiles, error))
+        return NmNet::errorPayload(error);
+    return NmNet::vpnProfileListPayload(profiles, subscribed);
+}
+
 // The state, with what only this process knows added to what NM says.
 NmNet::NetworkState currentState()
 {
@@ -173,9 +209,11 @@ void refresh()
     const std::string payload = NmNet::statusPayload(g_state, true);
     const std::string wifiPayload = NmNet::wifiStatusPayload(g_state, true);
     const std::string wifiKey = NmNet::wifiChangeKey(g_state);
+    const std::string vpnPayload = vpnListPayload(true);
     const bool changed = payload != g_lastPayload;
     const bool wifiChanged = wifiKey != g_lastWifiKey;
-    if (!changed && !wifiChanged)
+    const bool vpnChanged = vpnPayload != g_lastVpnPayload;
+    if (!changed && !wifiChanged && !vpnChanged)
         return;
 
     if (changed) {
@@ -195,6 +233,12 @@ void refresh()
             post(g_wifiService, left);
         g_joinedSsid = NmNet::joinedSsid(g_state);
         post(g_wifiService, wifiPayload);
+    }
+    if (vpnChanged) {
+        g_lastVpnPayload = vpnPayload;
+        postMethods(g_vpnService, kVpnProfileListMethods, vpnPayload);
+        postMethods(g_vpnService, kVpnStatusMethods,
+                    NmNet::vpnStatusPayload(g_state.vpnActive, true));
     }
 }
 
@@ -628,8 +672,228 @@ bool listCertificates(LSHandle* sh, LSMessage* message, void*)
     return true;
 }
 
+// --- com.palm.vpn (#21) -----------------------------------------------------
+
+std::string jsonStringField(json_object* root, const char* key)
+{
+    if (!root)
+        return std::string();
+    json_object* value = json_object_object_get(root, key);
+    if (!value || is_error(value) || !json_object_is_type(value, json_type_string))
+        return std::string();
+    return json_object_get_string(value);
+}
+
+json_object* parsePayload(LSMessage* message)
+{
+    const char* payload = LSMessageGetPayload(message);
+    if (!payload)
+        return nullptr;
+    json_object* root = json_tokener_parse(payload);
+    if (!root || is_error(root))
+        return nullptr;
+    return root;
+}
+
+NmNet::VpnRequest vpnRequestOf(json_object* root)
+{
+    NmNet::VpnRequest request;
+    request.name = jsonStringField(root, "vpnProfileName");
+    request.agentGuid = jsonStringField(root, "vpnAgentGuid");
+    json_object* profile = json_object_object_get(root, "vpnProfile");
+    if (profile && !is_error(profile) && json_object_is_type(profile, json_type_object)) {
+        if (request.name.empty())
+            request.name = jsonStringField(profile, "name");
+        request.remote = jsonStringField(profile, "remote");
+        request.userName = jsonStringField(profile, "userName");
+        request.password = jsonStringField(profile, "password");
+        request.privateKey = jsonStringField(profile, "privateKey");
+        request.peerPublicKey = jsonStringField(profile, "peerPublicKey");
+        request.address = jsonStringField(profile, "address");
+        if (request.agentGuid.empty())
+            request.agentGuid = jsonStringField(profile, "vpnAgentGuid");
+    }
+    // Flat fields the card may send without a nested vpnProfile.
+    if (request.remote.empty())
+        request.remote = jsonStringField(root, "remote");
+    if (request.userName.empty())
+        request.userName = jsonStringField(root, "userName");
+    if (request.password.empty())
+        request.password = jsonStringField(root, "password");
+    if (request.privateKey.empty())
+        request.privateKey = jsonStringField(root, "privateKey");
+    if (request.peerPublicKey.empty())
+        request.peerPublicKey = jsonStringField(root, "peerPublicKey");
+    if (request.address.empty())
+        request.address = jsonStringField(root, "address");
+    return request;
+}
+
+bool getVpnProfileList(LSHandle* sh, LSMessage* message, void*)
+{
+    bool subscribed = false;
+    LSError error;
+    LSErrorInit(&error);
+    if (!LSSubscriptionProcess(sh, message, &subscribed, &error))
+        logAndFree("LSSubscriptionProcess", error);
+    reply(sh, message, vpnListPayload(subscribed));
+    return true;
+}
+
+bool getVpnStatus(LSHandle* sh, LSMessage* message, void*)
+{
+    bool subscribed = false;
+    LSError error;
+    LSErrorInit(&error);
+    if (!LSSubscriptionProcess(sh, message, &subscribed, &error))
+        logAndFree("LSSubscriptionProcess", error);
+    reply(sh, message, NmNet::vpnStatusPayload(g_state.vpnActive, subscribed));
+    return true;
+}
+
+bool getVpnAgents(LSHandle* sh, LSMessage* message, void*)
+{
+    reply(sh, message, NmNet::vpnAgentsPayload(NmNet::builtInVpnAgents()));
+    return true;
+}
+
+bool getVpnProfileDetails(LSHandle* sh, LSMessage* message, void*)
+{
+    json_object* root = parsePayload(message);
+    const std::string name = jsonStringField(root, "vpnProfileName");
+    if (root)
+        json_object_put(root);
+    if (name.empty()) {
+        reply(sh, message, NmNet::errorPayload("vpnProfileName required"));
+        return true;
+    }
+    NmNet::VpnProfile profile;
+    std::string error;
+    if (!NmClient::getVpnProfile(g_system, name, profile, error)) {
+        reply(sh, message, NmNet::errorPayload(error));
+        return true;
+    }
+    reply(sh, message, NmNet::vpnProfileDetailsPayload(profile));
+    return true;
+}
+
+bool getVpnConnectionDetails(LSHandle* sh, LSMessage* message, void*)
+{
+    json_object* root = parsePayload(message);
+    const std::string name = jsonStringField(root, "vpnProfileName");
+    if (root)
+        json_object_put(root);
+    if (name.empty()) {
+        reply(sh, message, NmNet::errorPayload("vpnProfileName required"));
+        return true;
+    }
+    NmNet::VpnProfile profile;
+    std::string error;
+    if (!NmClient::getVpnProfile(g_system, name, profile, error)) {
+        reply(sh, message, NmNet::errorPayload(error));
+        return true;
+    }
+    reply(sh, message, NmNet::vpnConnectionDetailsPayload(profile));
+    return true;
+}
+
+bool addVpnProfile(LSHandle* sh, LSMessage* message, void*)
+{
+    json_object* root = parsePayload(message);
+    const NmNet::VpnRequest request = vpnRequestOf(root);
+    if (root)
+        json_object_put(root);
+    std::string error;
+    if (!NmClient::addVpnProfile(g_system, request, error)) {
+        reply(sh, message, NmNet::errorPayload(error));
+        return true;
+    }
+    scheduleRefresh();
+    reply(sh, message, "{\"returnValue\":true}");
+    return true;
+}
+
+bool updateVpnProfile(LSHandle* sh, LSMessage* message, void*)
+{
+    json_object* root = parsePayload(message);
+    const NmNet::VpnRequest request = vpnRequestOf(root);
+    if (root)
+        json_object_put(root);
+    std::string error;
+    if (!NmClient::updateVpnProfile(g_system, request, error)) {
+        reply(sh, message, NmNet::errorPayload(error));
+        return true;
+    }
+    scheduleRefresh();
+    reply(sh, message, "{\"returnValue\":true}");
+    return true;
+}
+
+bool deleteVpnProfile(LSHandle* sh, LSMessage* message, void*)
+{
+    json_object* root = parsePayload(message);
+    const std::string name = jsonStringField(root, "vpnProfileName");
+    if (root)
+        json_object_put(root);
+    std::string error;
+    if (name.empty() || !NmClient::deleteVpnProfile(g_system, name, error)) {
+        reply(sh, message, NmNet::errorPayload(name.empty() ? "vpnProfileName required" : error));
+        return true;
+    }
+    scheduleRefresh();
+    reply(sh, message, "{\"returnValue\":true}");
+    return true;
+}
+
+bool connectVpn(LSHandle* sh, LSMessage* message, void*)
+{
+    json_object* root = parsePayload(message);
+    // The system menu stringifies the whole list item and sends it back; the
+    // card sends {vpnProfileName, vpnAgentGuid}.
+    const std::string name = jsonStringField(root, "vpnProfileName");
+    if (root)
+        json_object_put(root);
+    std::string error;
+    if (name.empty() || !NmClient::connectVpn(g_system, name, error)) {
+        reply(sh, message, NmNet::errorPayload(name.empty() ? "vpnProfileName required" : error));
+        return true;
+    }
+    scheduleRefresh();
+    reply(sh, message, "{\"returnValue\":true}");
+    return true;
+}
+
+bool disconnectVpn(LSHandle* sh, LSMessage* message, void*)
+{
+    // The menu may pass the profile being switched to, not the one that is up.
+    // Tear down whatever VPN is active.
+    (void)message;
+    std::string error;
+    if (!NmClient::disconnectVpn(g_system, error)) {
+        reply(sh, message, NmNet::errorPayload(error));
+        return true;
+    }
+    scheduleRefresh();
+    reply(sh, message, "{\"returnValue\":true}");
+    return true;
+}
+
 LSMethod kCertificateMethods[] = {
     { "listcertificates", listCertificates },
+    { },
+};
+
+LSMethod kVpnMethods[] = {
+    { "getProfileList", getVpnProfileList },
+    { "getStatus", getVpnStatus },
+    { "getAgents", getVpnAgents },
+    { "getProfileDetails", getVpnProfileDetails },
+    { "getConnectionDetails", getVpnConnectionDetails },
+    { "addProfile", addVpnProfile },
+    { "updateProfile", updateVpnProfile },
+    { "deleteProfile", deleteVpnProfile },
+    { "connect", connectVpn },
+    { "disconnect", disconnectVpn },
     { },
 };
 
@@ -733,6 +997,22 @@ int main()
         }
     }
 
+    // The system menu drawer already calls this; without it the log says the
+    // service does not exist and the drawer stays empty.
+    LSErrorInit(&error);
+    if (!LSRegisterPalmService(kVpnServiceName, &g_vpnService, &error)) {
+        logAndFree("LSRegisterPalmService(com.palm.vpn)", error);
+        g_vpnService = nullptr;
+    } else {
+        LSErrorInit(&error);
+        if (!LSPalmServiceRegisterCategory(g_vpnService, kCategory, kVpnMethods,
+                                           kVpnMethods, nullptr, nullptr, &error)
+            || !LSGmainAttachPalmService(g_vpnService, g_loop, &error)) {
+            logAndFree("com.palm.vpn", error);
+            g_vpnService = nullptr;
+        }
+    }
+
     if (g_system) {
         // Everything NetworkManager says about itself and its objects. The
         // property signal carries the interface it belongs to, but filtering on
@@ -760,6 +1040,7 @@ int main()
     g_state = currentState();
     g_lastPayload = NmNet::statusPayload(g_state, true);
     g_lastWifiKey = NmNet::wifiChangeKey(g_state);
+    g_lastVpnPayload = vpnListPayload(true);
     g_joinedSsid = NmNet::joinedSsid(g_state);
     g_message("nm-connectionmanager: com.palm.connectionmanager up, wifi=%s wired=%s internet=%s",
               NmNet::deviceState(g_state.wifi), NmNet::deviceState(g_state.wired),
@@ -782,6 +1063,11 @@ int main()
         LSErrorInit(&error);
         if (!LSUnregisterPalmService(g_certificateService, &error))
             logAndFree("LSUnregisterPalmService(com.palm.certificatemanager)", error);
+    }
+    if (g_vpnService) {
+        LSErrorInit(&error);
+        if (!LSUnregisterPalmService(g_vpnService, &error))
+            logAndFree("LSUnregisterPalmService(com.palm.vpn)", error);
     }
     g_sleepWatch.reset();
     if (g_system)

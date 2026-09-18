@@ -1047,4 +1047,443 @@ bool wifiMacAddress(GDBusConnection* bus, std::string& mac, std::string& error)
     return true;
 }
 
+// --- vpn --------------------------------------------------------------------
+
+namespace {
+
+const char kActiveIface[] = "org.freedesktop.NetworkManager.Connection.Active";
+
+// A string from vpn.data (a{ss}), which is how OpenVPN stores remote/username.
+std::string vpnDataOf(GVariant* settings, const char* key)
+{
+    GVariant* data = settingOf(settings, "vpn", "data");
+    if (!data)
+        return std::string();
+    std::string out;
+    if (g_variant_is_of_type(data, G_VARIANT_TYPE("a{ss}"))) {
+        const char* value = nullptr;
+        if (g_variant_lookup(data, key, "&s", &value) && value)
+            out = value;
+    } else if (g_variant_is_of_type(data, G_VARIANT_TYPE("a{sv}"))) {
+        GVariant* v = g_variant_lookup_value(data, key, G_VARIANT_TYPE_STRING);
+        if (v) {
+            out = g_variant_get_string(v, nullptr);
+            g_variant_unref(v);
+        }
+    }
+    g_variant_unref(data);
+    return out;
+}
+
+bool isVpnProfile(GVariant* settings)
+{
+    const std::string type = stringSettingOf(settings, "connection", "type");
+    if (type == "wireguard")
+        return true;
+    if (type != "vpn")
+        return false;
+    const std::string service = stringSettingOf(settings, "vpn", "service-type");
+    // Only the agents this port configures. A Cisco profile from the host stays
+    // out of the card rather than being rewritten with the wrong form.
+    return service.empty() || service == NmNet::kNmOpenVpnService;
+}
+
+std::string agentOfSettings(GVariant* settings)
+{
+    if (stringSettingOf(settings, "connection", "type") == "wireguard")
+        return NmNet::kVpnAgentWireGuard;
+    return NmNet::kVpnAgentOpenVpn;
+}
+
+// NM_ACTIVE_CONNECTION_STATE_*: 1 activating, 2 activated, 3 deactivating, 4 deactivated.
+std::string connectStateOf(guint32 state)
+{
+    switch (state) {
+    case 1: return NmNet::kVpnStateConnecting;
+    case 2: return NmNet::kVpnStateConnected;
+    case 3: return NmNet::kVpnStateDisconnecting;
+    default: return NmNet::kVpnStateDisconnected;
+    }
+}
+
+// The active-connection path for a settings path, or empty.
+std::string activePathFor(GDBusConnection* bus, const std::string& settingsPath)
+{
+    GVariant* active = property(bus, kNmPath, kNmIface, "ActiveConnections");
+    if (!active)
+        return std::string();
+    std::string found;
+    GVariantIter iter;
+    const char* path = nullptr;
+    g_variant_iter_init(&iter, active);
+    while (found.empty() && g_variant_iter_next(&iter, "&o", &path)) {
+        if (stringProperty(bus, path, kActiveIface, "Connection") == settingsPath)
+            found = path;
+    }
+    g_variant_unref(active);
+    return found;
+}
+
+void fillVpnProfile(GDBusConnection* bus, const std::string& path, GVariant* settings,
+                    NmNet::VpnProfile& profile)
+{
+    profile.settingsPath = path;
+    profile.name = stringSettingOf(settings, "connection", "id");
+    profile.agentGuid = agentOfSettings(settings);
+    profile.connectState = NmNet::kVpnStateDisconnected;
+    if (profile.agentGuid == NmNet::kVpnAgentWireGuard) {
+        profile.tunnelType = "WireGuard";
+        profile.remote = stringSettingOf(settings, "wireguard", "endpoint");
+        // Peer endpoint lives on the first peer; a simple single-peer form.
+        GVariant* peers = settingOf(settings, "wireguard", "peers");
+        if (peers && g_variant_is_of_type(peers, G_VARIANT_TYPE("aa{sv}"))) {
+            GVariantIter iter;
+            GVariant* peer = nullptr;
+            g_variant_iter_init(&iter, peers);
+            if (g_variant_iter_next(&iter, "@a{sv}", &peer)) {
+                GVariant* endpoint = g_variant_lookup_value(peer, "endpoint", G_VARIANT_TYPE_STRING);
+                if (endpoint) {
+                    profile.remote = g_variant_get_string(endpoint, nullptr);
+                    g_variant_unref(endpoint);
+                }
+                g_variant_unref(peer);
+            }
+        }
+        if (peers)
+            g_variant_unref(peers);
+    } else {
+        profile.tunnelType = "OpenVPN";
+        profile.remote = vpnDataOf(settings, "remote");
+        profile.userName = vpnDataOf(settings, "username");
+    }
+    const std::string active = activePathFor(bus, path);
+    if (!active.empty()) {
+        profile.connectState = connectStateOf(
+            uintProperty(bus, active.c_str(), kActiveIface, "State", 0));
+        // Prefer NM's State; older fakes may only expose Vpn=true.
+        if (profile.connectState == NmNet::kVpnStateDisconnected
+            && boolProperty(bus, active.c_str(), kActiveIface, "Vpn"))
+            profile.connectState = NmNet::kVpnStateConnected;
+    }
+}
+
+GVariant* openVpnSettings(const NmNet::VpnRequest& request)
+{
+    GVariantBuilder all;
+    g_variant_builder_init(&all, G_VARIANT_TYPE("a{sa{sv}}"));
+
+    GVariantBuilder connection;
+    g_variant_builder_init(&connection, G_VARIANT_TYPE("a{sv}"));
+    g_variant_builder_add(&connection, "{sv}", "id", g_variant_new_string(request.name.c_str()));
+    g_variant_builder_add(&connection, "{sv}", "type", g_variant_new_string("vpn"));
+    g_variant_builder_add(&all, "{s@a{sv}}", "connection", g_variant_builder_end(&connection));
+
+    GVariantBuilder vpn;
+    g_variant_builder_init(&vpn, G_VARIANT_TYPE("a{sv}"));
+    g_variant_builder_add(&vpn, "{sv}", "service-type",
+                          g_variant_new_string(NmNet::kNmOpenVpnService));
+    GVariantBuilder data;
+    g_variant_builder_init(&data, G_VARIANT_TYPE("a{ss}"));
+    g_variant_builder_add(&data, "{ss}", "remote", request.remote.c_str());
+    g_variant_builder_add(&data, "{ss}", "connection-type", "password");
+    if (!request.userName.empty())
+        g_variant_builder_add(&data, "{ss}", "username", request.userName.c_str());
+    g_variant_builder_add(&vpn, "{sv}", "data", g_variant_builder_end(&data));
+    if (!request.password.empty()) {
+        GVariantBuilder secrets;
+        g_variant_builder_init(&secrets, G_VARIANT_TYPE("a{ss}"));
+        g_variant_builder_add(&secrets, "{ss}", "password", request.password.c_str());
+        g_variant_builder_add(&vpn, "{sv}", "secrets", g_variant_builder_end(&secrets));
+    }
+    g_variant_builder_add(&all, "{s@a{sv}}", "vpn", g_variant_builder_end(&vpn));
+
+    GVariantBuilder ipv4;
+    g_variant_builder_init(&ipv4, G_VARIANT_TYPE("a{sv}"));
+    g_variant_builder_add(&ipv4, "{sv}", "method", g_variant_new_string("auto"));
+    g_variant_builder_add(&all, "{s@a{sv}}", "ipv4", g_variant_builder_end(&ipv4));
+
+    GVariantBuilder ipv6;
+    g_variant_builder_init(&ipv6, G_VARIANT_TYPE("a{sv}"));
+    g_variant_builder_add(&ipv6, "{sv}", "method", g_variant_new_string("ignore"));
+    g_variant_builder_add(&all, "{s@a{sv}}", "ipv6", g_variant_builder_end(&ipv6));
+    return g_variant_builder_end(&all);
+}
+
+GVariant* wireGuardSettings(const NmNet::VpnRequest& request)
+{
+    GVariantBuilder all;
+    g_variant_builder_init(&all, G_VARIANT_TYPE("a{sa{sv}}"));
+
+    GVariantBuilder connection;
+    g_variant_builder_init(&connection, G_VARIANT_TYPE("a{sv}"));
+    g_variant_builder_add(&connection, "{sv}", "id", g_variant_new_string(request.name.c_str()));
+    g_variant_builder_add(&connection, "{sv}", "type", g_variant_new_string("wireguard"));
+    g_variant_builder_add(&all, "{s@a{sv}}", "connection", g_variant_builder_end(&connection));
+
+    GVariantBuilder wg;
+    g_variant_builder_init(&wg, G_VARIANT_TYPE("a{sv}"));
+    if (!request.privateKey.empty())
+        g_variant_builder_add(&wg, "{sv}", "private-key",
+                              g_variant_new_string(request.privateKey.c_str()));
+    GVariantBuilder peers;
+    g_variant_builder_init(&peers, G_VARIANT_TYPE("aa{sv}"));
+    GVariantBuilder peer;
+    g_variant_builder_init(&peer, G_VARIANT_TYPE("a{sv}"));
+    if (!request.peerPublicKey.empty())
+        g_variant_builder_add(&peer, "{sv}", "public-key",
+                              g_variant_new_string(request.peerPublicKey.c_str()));
+    if (!request.remote.empty())
+        g_variant_builder_add(&peer, "{sv}", "endpoint",
+                              g_variant_new_string(request.remote.c_str()));
+    GVariantBuilder allowed;
+    g_variant_builder_init(&allowed, G_VARIANT_TYPE("as"));
+    g_variant_builder_add(&allowed, "s", "0.0.0.0/0");
+    g_variant_builder_add(&peer, "{sv}", "allowed-ips", g_variant_builder_end(&allowed));
+    g_variant_builder_add(&peers, "a{sv}", &peer);
+    g_variant_builder_add(&wg, "{sv}", "peers", g_variant_builder_end(&peers));
+    g_variant_builder_add(&all, "{s@a{sv}}", "wireguard", g_variant_builder_end(&wg));
+
+    GVariantBuilder ipv4;
+    g_variant_builder_init(&ipv4, G_VARIANT_TYPE("a{sv}"));
+    if (!request.address.empty()) {
+        g_variant_builder_add(&ipv4, "{sv}", "method", g_variant_new_string("manual"));
+        GVariantBuilder addrs;
+        g_variant_builder_init(&addrs, G_VARIANT_TYPE("aa{sv}"));
+        GVariantBuilder addr;
+        g_variant_builder_init(&addr, G_VARIANT_TYPE("a{sv}"));
+        // "10.0.0.2/32" → address + prefix
+        const size_t slash = request.address.find('/');
+        const std::string host = slash == std::string::npos
+            ? request.address : request.address.substr(0, slash);
+        guint32 prefix = 32;
+        if (slash != std::string::npos) {
+            try {
+                const int parsed = std::stoi(request.address.substr(slash + 1));
+                if (parsed > 0 && parsed <= 32)
+                    prefix = static_cast<guint32>(parsed);
+            } catch (...) {
+            }
+        }
+        g_variant_builder_add(&addr, "{sv}", "address", g_variant_new_string(host.c_str()));
+        g_variant_builder_add(&addr, "{sv}", "prefix", g_variant_new_uint32(prefix));
+        g_variant_builder_add(&addrs, "a{sv}", &addr);
+        g_variant_builder_add(&ipv4, "{sv}", "address-data", g_variant_builder_end(&addrs));
+    } else {
+        g_variant_builder_add(&ipv4, "{sv}", "method", g_variant_new_string("auto"));
+    }
+    g_variant_builder_add(&all, "{s@a{sv}}", "ipv4", g_variant_builder_end(&ipv4));
+    return g_variant_builder_end(&all);
+}
+
+GVariant* settingsFor(const NmNet::VpnRequest& request, std::string& error)
+{
+    if (request.name.empty()) {
+        error = "profile name required";
+        return nullptr;
+    }
+    if (!NmNet::knownVpnAgent(request.agentGuid)) {
+        error = "unknown connection type";
+        return nullptr;
+    }
+    if (request.remote.empty()) {
+        error = "server required";
+        return nullptr;
+    }
+    if (request.agentGuid == NmNet::kVpnAgentWireGuard)
+        return wireGuardSettings(request);
+    return openVpnSettings(request);
+}
+
+// Path of a VPN profile by display name, or empty.
+std::string vpnPathByName(GDBusConnection* bus, const std::string& name, std::string& error)
+{
+    GVariant* reply = call(bus, kSettingsPath, kSettingsIface, "ListConnections", nullptr,
+                           G_VARIANT_TYPE("(ao)"), error);
+    if (!reply)
+        return std::string();
+    std::string found;
+    GVariantIter* iter = nullptr;
+    const char* path = nullptr;
+    g_variant_get(reply, "(ao)", &iter);
+    while (found.empty() && g_variant_iter_next(iter, "&o", &path)) {
+        GVariant* settings = settingsOf(bus, path, error);
+        if (!settings)
+            continue;
+        if (isVpnProfile(settings)
+            && stringSettingOf(settings, "connection", "id") == name)
+            found = path;
+        g_variant_unref(settings);
+    }
+    g_variant_iter_free(iter);
+    g_variant_unref(reply);
+    if (found.empty())
+        error = "no such profile";
+    return found;
+}
+
+} // namespace
+
+bool listVpnProfiles(GDBusConnection* bus, std::vector<NmNet::VpnProfile>& profiles,
+                     std::string& error)
+{
+    if (!bus) {
+        error = "no system bus";
+        return false;
+    }
+    profiles.clear();
+    GVariant* reply = call(bus, kSettingsPath, kSettingsIface, "ListConnections", nullptr,
+                           G_VARIANT_TYPE("(ao)"), error);
+    if (!reply)
+        return false;
+    GVariantIter* iter = nullptr;
+    const char* path = nullptr;
+    g_variant_get(reply, "(ao)", &iter);
+    while (g_variant_iter_next(iter, "&o", &path)) {
+        GVariant* settings = settingsOf(bus, path, error);
+        if (!settings)
+            continue;
+        if (isVpnProfile(settings)) {
+            NmNet::VpnProfile profile;
+            fillVpnProfile(bus, path, settings, profile);
+            profiles.push_back(profile);
+        }
+        g_variant_unref(settings);
+    }
+    g_variant_iter_free(iter);
+    g_variant_unref(reply);
+    error.clear();
+    return true;
+}
+
+bool getVpnProfile(GDBusConnection* bus, const std::string& name, NmNet::VpnProfile& profile,
+                   std::string& error)
+{
+    if (!bus) {
+        error = "no system bus";
+        return false;
+    }
+    const std::string path = vpnPathByName(bus, name, error);
+    if (path.empty())
+        return false;
+    GVariant* settings = settingsOf(bus, path, error);
+    if (!settings)
+        return false;
+    fillVpnProfile(bus, path, settings, profile);
+    g_variant_unref(settings);
+    return true;
+}
+
+bool addVpnProfile(GDBusConnection* bus, const NmNet::VpnRequest& request, std::string& error)
+{
+    if (!bus) {
+        error = "no system bus";
+        return false;
+    }
+    std::string ignored;
+    if (!vpnPathByName(bus, request.name, ignored).empty()) {
+        error = "profile with that name already exists";
+        return false;
+    }
+    GVariant* settings = settingsFor(request, error);
+    if (!settings)
+        return false;
+    GVariant* reply = call(bus, kSettingsPath, kSettingsIface, "AddConnection",
+                           g_variant_new_tuple(&settings, 1), G_VARIANT_TYPE("(o)"), error);
+    if (!reply)
+        return false;
+    g_variant_unref(reply);
+    return true;
+}
+
+bool updateVpnProfile(GDBusConnection* bus, const NmNet::VpnRequest& request, std::string& error)
+{
+    if (!bus) {
+        error = "no system bus";
+        return false;
+    }
+    const std::string path = vpnPathByName(bus, request.name, error);
+    if (path.empty())
+        return false;
+    GVariant* settings = settingsFor(request, error);
+    if (!settings)
+        return false;
+    return update(bus, path, settings, error);
+}
+
+bool deleteVpnProfile(GDBusConnection* bus, const std::string& name, std::string& error)
+{
+    if (!bus) {
+        error = "no system bus";
+        return false;
+    }
+    const std::string path = vpnPathByName(bus, name, error);
+    if (path.empty())
+        return false;
+    GVariant* reply = call(bus, path.c_str(), kConnectionIface, "Delete", nullptr, nullptr, error);
+    if (!reply)
+        return false;
+    g_variant_unref(reply);
+    return true;
+}
+
+bool connectVpn(GDBusConnection* bus, const std::string& name, std::string& error)
+{
+    if (!bus) {
+        error = "no system bus";
+        return false;
+    }
+    const std::string path = vpnPathByName(bus, name, error);
+    if (path.empty())
+        return false;
+    // VPN activation does not need a specific device: NetworkManager picks the
+    // default route's interface. "/" is what nmcli passes for that case.
+    return activate(bus, path, "/", "/", error);
+}
+
+bool disconnectVpn(GDBusConnection* bus, std::string& error)
+{
+    if (!bus) {
+        error = "no system bus";
+        return false;
+    }
+    GVariant* active = property(bus, kNmPath, kNmIface, "ActiveConnections");
+    if (!active) {
+        error = "no active vpn";
+        return false;
+    }
+    bool any = false;
+    GVariantIter iter;
+    const char* path = nullptr;
+    g_variant_iter_init(&iter, active);
+    while (g_variant_iter_next(&iter, "&o", &path)) {
+        const bool isVpn = boolProperty(bus, path, kActiveIface, "Vpn");
+        const std::string connection = stringProperty(bus, path, kActiveIface, "Connection");
+        bool wireguard = false;
+        if (!connection.empty()) {
+            std::string ignored;
+            GVariant* settings = settingsOf(bus, connection, ignored);
+            if (settings) {
+                wireguard = stringSettingOf(settings, "connection", "type") == "wireguard";
+                g_variant_unref(settings);
+            }
+        }
+        if (!isVpn && !wireguard)
+            continue;
+        GVariant* reply = call(bus, kNmPath, kNmIface, "DeactivateConnection",
+                               g_variant_new("(o)", path), nullptr, error);
+        if (!reply) {
+            g_variant_unref(active);
+            return false;
+        }
+        g_variant_unref(reply);
+        any = true;
+    }
+    g_variant_unref(active);
+    if (!any) {
+        error = "no active vpn";
+        return false;
+    }
+    return true;
+}
+
 } // namespace NmClient

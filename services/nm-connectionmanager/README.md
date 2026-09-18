@@ -1,8 +1,8 @@
 nm-connectionmanager
 ====================
 
-`com.palm.connectionmanager`, answered from NetworkManager instead of from a
-constant.
+`com.palm.connectionmanager`, `com.palm.wifi`, `com.palm.certificatemanager`,
+and `com.palm.vpn`, answered from NetworkManager instead of from a constant.
 
 This is **ours, not HP's**. The CE drop ships
 `components/pmnetconfigmanager-stub`, whose entire implementation is one

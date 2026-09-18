@@ -723,6 +723,40 @@ int main()
               "including when the network was not in the scan");
     }
 
+    std::printf("vpn payloads\n");
+    {
+        NmNet::VpnProfile p;
+        p.name = "Work";
+        p.connectState = NmNet::kVpnStateDisconnected;
+        p.agentGuid = NmNet::kVpnAgentOpenVpn;
+        const std::string item = NmNet::vpnProfileItem(p);
+        check(has(item, "\"vpnProfileName\":\"Work\""), "list item names the profile");
+        check(has(item, "\"vpnProfileConnectState\":\"disconnected\""), "and its state");
+        check(has(item, "\"vpnAgentGuid\":\"com.gachlab.openvpn\""), "and our agent id");
+        check(item.size() < 255, "and stays under the status bar buffer");
+        check(!has(item, "password") && !has(item, "remote"),
+              "secrets and remotes stay off the list item");
+
+        const std::string list = NmNet::vpnProfileListPayload({ p }, true);
+        check(has(list, "\"returnValue\":true") && has(list, "\"subscribed\":true")
+                  && has(list, "\"vpnProfiles\":["),
+              "getProfileList wraps the items");
+        check(has(NmNet::vpnStatusPayload(true, false), "\"connected\":true")
+                  && has(NmNet::vpnStatusPayload(true, false), "\"subscribed\":false"),
+              "getStatus reports connected");
+
+        const auto agents = NmNet::builtInVpnAgents();
+        check(agents.size() == 2 && agents[0].guid == NmNet::kVpnAgentOpenVpn
+                  && agents[1].guid == NmNet::kVpnAgentWireGuard,
+              "the two agents this port ships");
+        check(has(NmNet::vpnAgentsPayload(agents), "OpenVPN")
+                  && has(NmNet::vpnAgentsPayload(agents), "WireGuard"),
+              "getAgents names them");
+        check(NmNet::knownVpnAgent(NmNet::kVpnAgentOpenVpn)
+                  && !NmNet::knownVpnAgent("com.palm.vpnc"),
+              "only our agents are accepted for add/update");
+    }
+
     std::printf("\n%s\n", g_failures == 0 ? "OK" : "FAILED");
     return g_failures == 0 ? 0 : 1;
 }

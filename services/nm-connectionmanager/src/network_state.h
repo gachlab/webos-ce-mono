@@ -1100,6 +1100,132 @@ inline std::string wakeOnWifiPayload(bool keepOnWhileAsleep)
     return std::string("{\"returnValue\":true,\"mode\":\"") + wakeOnWifiMode(keepOnWhileAsleep) + "\"}";
 }
 
+// --- com.palm.vpn -------------------------------------------------------------
+//
+// The system menu's VPN drawer (#21) subscribes to getProfileList and toggles
+// connect/disconnect with the profile object as the call body. That object is
+// copied into a 255-byte buffer in StatusBarServicesConnector, so the list item
+// must stay small: name, connect state, and agent id -- nothing else.
+
+inline constexpr const char* kVpnAgentOpenVpn = "com.gachlab.openvpn";
+inline constexpr const char* kVpnAgentWireGuard = "com.gachlab.wireguard";
+inline constexpr const char* kNmOpenVpnService = "org.freedesktop.NetworkManager.openvpn";
+
+inline constexpr const char* kVpnStateConnected = "connected";
+inline constexpr const char* kVpnStateConnecting = "connecting";
+inline constexpr const char* kVpnStateDisconnected = "disconnected";
+inline constexpr const char* kVpnStateDisconnecting = "disconnecting";
+inline constexpr const char* kVpnStateFailed = "connectfailed";
+
+struct VpnAgent {
+    std::string guid;
+    std::string label;
+    std::string technology;   // HP's vpnAgentTechnology[0]
+};
+
+struct VpnProfile {
+    std::string name;
+    std::string connectState = kVpnStateDisconnected;
+    std::string agentGuid;
+    std::string settingsPath;
+    // Configure / Connection Details -- not on the list item (255-byte cap).
+    std::string remote;
+    std::string userName;
+    std::string clientAddress;
+    std::string serverAddress;
+    std::string tunnelType;
+};
+
+struct VpnRequest {
+    std::string name;
+    std::string agentGuid;
+    std::string remote;
+    std::string userName;
+    std::string password;
+    // WireGuard
+    std::string privateKey;
+    std::string peerPublicKey;
+    std::string address;      // client tunnel address, e.g. 10.0.0.2/32
+};
+
+inline std::string vpnProfileItem(const VpnProfile& profile)
+{
+    return std::string("{\"vpnProfileName\":\"") + jsonEscape(profile.name)
+           + "\",\"vpnProfileConnectState\":\"" + jsonEscape(profile.connectState)
+           + "\",\"vpnAgentGuid\":\"" + jsonEscape(profile.agentGuid) + "\"}";
+}
+
+inline std::string vpnProfileListPayload(const std::vector<VpnProfile>& profiles, bool subscribed)
+{
+    std::string out = "{\"returnValue\":true,\"subscribed\":";
+    out += subscribed ? "true" : "false";
+    out += ",\"vpnProfiles\":[";
+    for (size_t i = 0; i < profiles.size(); ++i) {
+        if (i)
+            out += ',';
+        out += vpnProfileItem(profiles[i]);
+    }
+    out += "]}";
+    return out;
+}
+
+inline std::string vpnStatusPayload(bool connected, bool subscribed)
+{
+    std::string out = "{\"returnValue\":true,\"subscribed\":";
+    out += subscribed ? "true" : "false";
+    out += ",\"connected\":";
+    out += connected ? "true" : "false";
+    out += "}";
+    return out;
+}
+
+inline std::string vpnAgentsPayload(const std::vector<VpnAgent>& agents)
+{
+    std::string out = "{\"returnValue\":true,\"vpnAgents\":[";
+    for (size_t i = 0; i < agents.size(); ++i) {
+        if (i)
+            out += ',';
+        const VpnAgent& a = agents[i];
+        out += "{\"vpnAgentGuid\":\"" + jsonEscape(a.guid)
+               + "\",\"vpnAgentLabel\":\"" + jsonEscape(a.label)
+               + "\",\"vpnAgentTechnology\":[\"" + jsonEscape(a.technology) + "\"]}";
+    }
+    out += "]}";
+    return out;
+}
+
+inline std::string vpnProfileDetailsPayload(const VpnProfile& profile)
+{
+    std::string out = "{\"returnValue\":true,\"vpnProfileName\":\"" + jsonEscape(profile.name)
+                      + "\",\"vpnAgentGuid\":\"" + jsonEscape(profile.agentGuid)
+                      + "\",\"vpnProfileConnectState\":\"" + jsonEscape(profile.connectState)
+                      + "\",\"vpnProfile\":{\"remote\":\"" + jsonEscape(profile.remote)
+                      + "\",\"userName\":\"" + jsonEscape(profile.userName) + "\"}}";
+    return out;
+}
+
+inline std::string vpnConnectionDetailsPayload(const VpnProfile& profile)
+{
+    std::string out = "{\"returnValue\":true,\"serverHostname\":\"" + jsonEscape(profile.remote)
+                      + "\",\"serverIpAddress\":\"" + jsonEscape(profile.serverAddress)
+                      + "\",\"clientIpAddress\":\"" + jsonEscape(profile.clientAddress)
+                      + "\",\"tunnelType\":\"" + jsonEscape(profile.tunnelType) + "\"}";
+    return out;
+}
+
+inline std::vector<VpnAgent> builtInVpnAgents()
+{
+    return {
+        { kVpnAgentOpenVpn, "OpenVPN", "ssl" },
+        { kVpnAgentWireGuard, "WireGuard", "wireguard" },
+    };
+}
+
+inline bool knownVpnAgent(const std::string& guid)
+{
+    return guid == kVpnAgentOpenVpn || guid == kVpnAgentWireGuard;
+}
+
 }  // namespace NmNet
 
 #endif  // NM_CONNECTIONMANAGER_NETWORK_STATE_H
