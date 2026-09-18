@@ -1,6 +1,6 @@
 ---
 description: Functional TypeScript — no classes; DI via functions returning functions
-globs: "{sdk,apps,services}/**/*.{ts,tsx,mts}"
+globs: sdk/**/*.ts,apps/**/*.ts,services/**/*.ts,services/**/*.mts
 alwaysApply: false
 ---
 
