@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Networking header / launcher icon: globe with a link arc. Drawn for this
+     card so we do not ship HP's artwork. -->
+<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 48 48">
+  <defs>
+    <radialGradient id="g" cx="32%" cy="28%" r="70%">
+      <stop offset="0%" stop-color="#d4f0ff"/>
+      <stop offset="40%" stop-color="#3a9ad4"/>
+      <stop offset="100%" stop-color="#0d4a7a"/>
+    </radialGradient>
+    <linearGradient id="shine" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#fff" stop-opacity="0.65"/>
+      <stop offset="40%" stop-color="#fff" stop-opacity="0.12"/>
+      <stop offset="100%" stop-color="#fff" stop-opacity="0"/>
+    </linearGradient>
+    <clipPath id="ball"><circle cx="24" cy="22" r="15"/></clipPath>
+  </defs>
+  <path d="M8 35 L24 43 L40 35 L24 27 Z" fill="#4a4a4a"/>
+  <path d="M8 35 L24 43 L24 45.5 L8 37.5 Z" fill="#2e2e2e"/>
+  <path d="M40 35 L24 43 L24 45.5 L40 37.5 Z" fill="#1a1a1a"/>
+  <circle cx="24" cy="22" r="15" fill="url(#g)"/>
+  <g clip-path="url(#ball)" fill="none" stroke="#e8f6ff" stroke-width="1.2" opacity="0.8">
+    <ellipse cx="24" cy="22" rx="6.5" ry="14.5"/>
+    <ellipse cx="24" cy="22" rx="14.5" ry="5.8"/>
+    <path d="M10 16.5 Q24 12 38 16.5"/>
+    <path d="M10 27.5 Q24 32 38 27.5"/>
+  </g>
+  <ellipse cx="24" cy="22" rx="15" ry="15" fill="url(#shine)"/>
+  <path d="M30 28 Q36 24 38 18" fill="none" stroke="#f0c040" stroke-width="2.2"
+        stroke-linecap="round"/>
+  <circle cx="38" cy="17" r="2.2" fill="#f0c040"/>
+</svg>

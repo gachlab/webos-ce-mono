@@ -1,0 +1,15 @@
+/* What only this card has. */
+
+.wos-body {
+    padding-top: 1.1rem;
+}
+
+.network-footer {
+    display: flex;
+    gap: 0.5rem;
+    padding: 0.6rem 0.7rem 0.9rem;
+}
+
+.network-footer .network-wide {
+    flex: 1;
+}

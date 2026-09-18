@@ -133,6 +133,17 @@ target_include_directories(certificates PRIVATE ${CONNMGR} ${GIO_INCLUDE_DIRS})
 target_link_libraries(certificates PRIVATE ${GIO_LIBRARIES})
 add_test(NAME certificates COMMAND certificates)
 
+# Per-network proxies for getNwProxiesConfig / configureNwProxies (#23).
+add_executable(network-proxies network-proxies.cpp ${CONNMGR}/network_proxies.cpp)
+target_include_directories(network-proxies PRIVATE
+    ${CONNMGR} ${GIO_INCLUDE_DIRS}
+    "${WEBOS_STAGING}/include" "${WEBOS_STAGING}/usr/include")
+target_link_directories(network-proxies PRIVATE
+    "${WEBOS_STAGING}/lib" "${WEBOS_STAGING}/usr/lib")
+target_link_libraries(network-proxies PRIVATE ${GIO_LIBRARIES} cjson)
+add_test(NAME network-proxies COMMAND network-proxies
+         ENVIRONMENT "LD_LIBRARY_PATH=${WEBOS_STAGING}/lib:${WEBOS_STAGING}/usr/lib")
+
 # --- which coordinate space a touch point arrives in --------------------------
 add_executable(touch-coordinate-spaces touch-coordinate-spaces.cpp)
 target_link_libraries(touch-coordinate-spaces PRIVATE Qt::Core Qt::Gui Qt::Widgets Qt::GuiPrivate)
