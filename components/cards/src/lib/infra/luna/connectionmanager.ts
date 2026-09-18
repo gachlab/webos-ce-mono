@@ -42,6 +42,11 @@ export const statusOf = (reply: StatusReply): ConnectionStatus => {
 };
 
 export interface ConnectionManager {
+    // What the radio does while the machine sleeps: "enable" keeps Wi-Fi on,
+    // "disable" turns it off. HP's phone setting, kept for a laptop.
+    wakeOnWifi(): Promise<string>;
+    // Answers the mode now in force, which is what the card shows.
+    setWakeOnWifi(mode: string): Promise<string>;
     // The status now, once.
     status(): Promise<ConnectionStatus>;
     // The status now and on every change, until the subscription is cancelled.
@@ -50,8 +55,14 @@ export interface ConnectionManager {
 }
 
 const GET_STATUS = "luna://com.palm.connectionmanager/getstatus";
+const GET_WAKE = "luna://com.palm.connectionmanager/getWakeOnWiFiMode";
+const SET_WAKE = "luna://com.palm.connectionmanager/setWakeOnWiFiMode";
+
+const modeOf = (reply: Payload): string => (reply.mode === "enable" || reply.mode === "disable" ? reply.mode : "");
 
 export const createConnectionManager = (luna: LunaService): ConnectionManager => ({
+    wakeOnWifi: async () => modeOf(await luna.call(GET_WAKE, {})),
+    setWakeOnWifi: async (mode) => modeOf(await luna.call(SET_WAKE, { mode })),
     status: async () => statusOf(await luna.call<StatusReply>(GET_STATUS)),
     watchStatus: (onStatus, onError) =>
         luna.subscribe<StatusReply>(GET_STATUS, {}, (reply) => onStatus(statusOf(reply)), onError),
