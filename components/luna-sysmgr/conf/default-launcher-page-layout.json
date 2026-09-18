@@ -46,7 +46,7 @@
             "com.palm.app.updates_default",
             "com.palm.app.textassist_default",
             "com.palm.app.vpn_default",
-            "com.palm.app.wifi_default" 
+            "com.gachlab.app.wifi_default" 
         ] 
     }
 ]

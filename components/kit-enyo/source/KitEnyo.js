@@ -8,7 +8,7 @@
  * It is a measuring stick, not a card anybody uses. The rewritten cards are
  * meant to look like the ones they replace, and "look like" is a thing you can
  * only argue about until the two are side by side; this one is the other side.
- * Put it next to com.palm.app.kit, take both screenshots, and the differences
+ * Put it next to com.gachlab.app.kit, take both screenshots, and the differences
  * are numbers rather than opinions.
  *
  * It talks to no service and remembers nothing on purpose: every control is

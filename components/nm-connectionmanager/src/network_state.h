@@ -566,7 +566,7 @@ inline std::string wifiChangeKey(const NetworkState& state)
 // --- com.palm.wifi, phase 3: scanning, joining, profiles ---------------------
 //
 // The callers, measured: the system menu's wifi drawer (findnetworks, connect,
-// setstate) and enyo's wifi library, which com.palm.app.wifi is built on
+// setstate) and enyo's wifi library, which the Wi-Fi card was built on
 // (all of those plus getprofile, deleteprofile and getinfo).
 
 // What an access point asks for. Personal WPA and SAE are one choice to the

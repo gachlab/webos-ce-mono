@@ -1,7 +1,7 @@
 wifi-app
 ========
 
-`com.palm.app.wifi`, the Wi-Fi settings card. **Ours.** HP's card of the same id
+`com.gachlab.app.wifienyo`, the Wi-Fi settings card as it was. **Ours.** HP's card
 was never released as source — it is not in the Apache-licensed core apps — so
 it is not redistributed here. This one was written to give the same experience:
 

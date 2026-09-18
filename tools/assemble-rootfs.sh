@@ -212,11 +212,11 @@ fi
 # The same kit of controls, built out of enyo 1.0 and HP's Onyx theme. It is
 # not a card anybody uses: it is the other side of the A/B. A rewritten card is
 # meant to look like the one it replaces, and that is an argument until the two
-# are on screen together -- so this one sits next to com.palm.app.kit and the
+# are on screen together -- so this one sits next to com.gachlab.app.kit and the
 # differences become numbers. It is small, and it is the only copy of HP's own
 # look that runs.
-rm -rf "$ROOTFS/usr/palm/applications/com.palm.app.enyokit"
-cp -rf "$C/kit-enyo" "$ROOTFS/usr/palm/applications/com.palm.app.enyokit"
+rm -rf "$ROOTFS/usr/palm/applications/com.gachlab.app.kitenyo"
+cp -rf "$C/kit-enyo" "$ROOTFS/usr/palm/applications/com.gachlab.app.kitenyo"
 
 # Servicios de aplicacion (JS, corren sobre node)
 for SVC in "$C"/app-services/*/; do

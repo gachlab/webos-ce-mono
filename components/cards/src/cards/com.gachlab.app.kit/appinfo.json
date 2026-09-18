@@ -1,10 +1,10 @@
 {
-    "id": "com.palm.app.template",
+    "id": "com.gachlab.app.kit",
     "version": "1.0.0",
     "vendor": "webOS CE",
     "type": "web",
     "main": "index.html",
-    "title": "Template",
+    "title": "Kit",
     "icon": "icon.png",
     "uiRevision": "2",
     "removable": false,

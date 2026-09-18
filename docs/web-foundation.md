@@ -140,15 +140,15 @@ defined in one file:
   anything, softer separators.
 
 A card links one of them before `page.css` and changes nothing else. The kit
-showcase (`com.palm.app.kit`) switches between them at the top of the card,
+showcase (`com.gachlab.app.kit`) switches between them at the top of the card,
 which is also the fastest way to see what a token actually paints. A card that
 links neither has no colours at all, and `tests/template-card.cpp` fails on it.
 
 ### The other side of the A/B
 
 `components/kit-enyo` is the same kit built out of enyo 1.0 and the Onyx theme,
-installed as `com.palm.app.enyokit`. It is not a card anybody uses: it is the
-reference. Same controls, same order, same captions as `com.palm.app.kit`, so
+installed as `com.gachlab.app.kitenyo`. It is not a card anybody uses: it is the
+reference. Same controls, same order, same captions as `com.gachlab.app.kit`, so
 the two can be photographed at the same scroll offset and compared pixel by
 pixel rather than argued about. Every difference listed above was found that
 way, after the rewritten card had already been called finished by eye.

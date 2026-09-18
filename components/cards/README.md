@@ -68,7 +68,7 @@ Writing a card
 // lib/services/wifi.service.ts -- the logic, with no idea what draws it
 export const createWifiService = (deps: { luna: LunaService }): WifiService => { ... };
 
-// cards/com.palm.app.wifi/main.ts -- where it is wired up
+// cards/com.gachlab.app.wifi/main.ts -- where it is wired up
 startCard({
     service: createWifiService({ luna: openBus() }),
     view: (state, service) => html`...`,
@@ -90,7 +90,7 @@ Building and running
 
 ```sh
 tools/build-cards.sh                 # all of them, into build/cards/<app id>/
-tools/build-cards.sh com.palm.app.template
+tools/build-cards.sh com.gachlab.app.template
 tools/assemble-rootfs.sh             # installs them as web apps
 components/cards/test/run.sh         # type check (TypeScript 7) and the tests
 ```
@@ -102,12 +102,12 @@ and looked at without a session.
 The two cards that come with it
 -------------------------------
 
-`src/cards/com.palm.app.kit` is the showcase: every control, in each state it
+`src/cards/com.gachlab.app.kit` is the showcase: every control, in each state it
 can be in, and a list of what WebAppMgr has said to the card so far. It is the
 kit itself, so it cannot go stale, and it is where a change to `kit.css` is
 looked at before it reaches a card.
 
-`src/cards/com.palm.app.template` is the one the others are copied from, and it
+`src/cards/com.gachlab.app.template` is the one the others are copied from, and it
 does everything a card does: it asks `com.palm.deviceprofile` who this device
 is, watches `com.palm.connectionmanager` while it is on screen and stops while
 it is not, shows what came back in HP's rows, says so when a service is not

@@ -58,7 +58,11 @@
 #include "WifiLaunchParams.h"
 
 #define SYS_UI_APP_ID      "com.palm.systemui"
-#define WIFI_PREFS_APP_ID  "com.palm.app.wifi"
+// Ours, not HP's: the Wi-Fi card in this tree is a rewrite of the one that
+// never shipped as source (#38), and our own packages carry our own id. The
+// menu opens it from here and from the three places below, so this one line is
+// the whole redirection.
+#define WIFI_PREFS_APP_ID  "com.gachlab.app.wifi"
 #define BLUETOOTH_PREFS_APP_ID  "com.palm.app.bluetooth"
 #define VPN_PREFS_APP_ID   "com.palm.app.vpn"
 

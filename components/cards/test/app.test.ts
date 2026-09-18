@@ -28,7 +28,7 @@ const fakePage = (system: Record<string, unknown> = {}, mojo: Record<string, unk
         },
         PalmSystem: {
             launchParams: JSON.stringify({ target: "wifi" }),
-            identifier: "com.palm.app.kit 1234",
+            identifier: "com.gachlab.app.kit 1234",
             locale: "es_VE",
             stageReady: () => { page.ready = true; },
             addBannerMessage: (message: string) => {
@@ -53,7 +53,7 @@ describe("the card's life", () => {
         const page = fakePage();
         const app = createPalmSystemApp({ window: page as never });
         assert.deepEqual(app.launchParams(), { target: "wifi" });
-        assert.equal(app.identifier(), "com.palm.app.kit 1234");
+        assert.equal(app.identifier(), "com.gachlab.app.kit 1234");
         assert.equal(app.locale(), "es_VE");
     });
 

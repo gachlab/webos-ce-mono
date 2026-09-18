@@ -81,7 +81,7 @@ int main(int argc, char** argv)
     QApplication app(argc, argv);
 
     const QString built = QString::fromLocal8Bit(qgetenv("WEBOS_CARDS_BUILD"));
-    if (built.isEmpty() || !QFile::exists(built + "/com.palm.app.template/main.js")) {
+    if (built.isEmpty() || !QFile::exists(built + "/com.gachlab.app.template/main.js")) {
         std::printf("SKIP: the cards are not built (tools/build-cards.sh)\n");
         return 77;
     }
@@ -89,7 +89,7 @@ int main(int argc, char** argv)
     // The card's own page, with the bridge put there before its bundle runs,
     // which is how WebAppMgr has it.
     QTemporaryDir dir;
-    const QString source = built + "/com.palm.app.template";
+    const QString source = built + "/com.gachlab.app.template";
     for (const QString& name : { QStringLiteral("main.js"), QStringLiteral("page.css"), QStringLiteral("theme-enyo.css") })
         QFile::copy(source + "/" + name, dir.filePath(name));
     QFile page(dir.filePath("index.html"));
