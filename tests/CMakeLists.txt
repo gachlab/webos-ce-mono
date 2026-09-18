@@ -245,6 +245,9 @@ set_tests_properties(web-sdk PROPERTIES SKIP_RETURN_CODE 77)
 add_test(NAME repo-layout COMMAND "${CMAKE_CURRENT_SOURCE_DIR}/repo-layout.sh")
 set_tests_properties(repo-layout PROPERTIES SKIP_RETURN_CODE 77)
 
+add_test(NAME qtwebkit-compat-split COMMAND "${CMAKE_CURRENT_SOURCE_DIR}/qtwebkit-compat-split.sh")
+set_tests_properties(qtwebkit-compat-split PROPERTIES SKIP_RETURN_CODE 77)
+
 add_executable(kit-elements kit-elements.cpp)
 target_link_libraries(kit-elements PRIVATE qtwebkit-compat-lib)
 add_test(NAME kit-elements COMMAND kit-elements)
