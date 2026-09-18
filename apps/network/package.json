@@ -1,0 +1,10 @@
+{
+  "name": "@gachlab/app-network",
+  "private": true,
+  "description": "The Networking card: captive portals and proxy settings (#23).",
+  "type": "module",
+  "dependencies": {
+    "@webos/api": "*",
+    "@webos/ui-kit": "*"
+  }
+}

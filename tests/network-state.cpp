@@ -112,7 +112,8 @@ int main()
         std::printf("\nbehind a captive portal\n");
         check(has(p, "\"isInternetConnectionAvailable\":false"), "the internet is NOT available");
         check(has(p, "\"wifi\":{\"state\":\"connected\""), "but the wifi is still connected");
-        check(has(p, "\"onInternet\":\"no\""), "and known not to reach the internet");
+        check(has(p, "\"onInternet\":\"captivePortal\""),
+              "and the portal is visible as captivePortal, as HP's Networking card expects");
         checkNeverCrashesTheStatusBar(p, "captive portal");
     }
 

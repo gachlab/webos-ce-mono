@@ -55,6 +55,7 @@
 
 #include "network_state.h"
 #include "certificates.h"
+#include "network_proxies.h"
 #include "nm_client.h"
 #include "sleep_watch.h"
 
@@ -129,6 +130,8 @@ void logAndFree(const char* where, LSError& error)
               error.message ? error.message : "(no message)");
     LSErrorFree(&error);
 }
+
+void reply(LSHandle* sh, LSMessage* message, const std::string& payload);
 
 // --- telling webOS ----------------------------------------------------------
 
@@ -375,6 +378,102 @@ bool getWakeOnWifiMode(LSHandle* sh, LSMessage* message, void*)
     return true;
 }
 
+// --- proxies and connectivity (#23) -----------------------------------------
+
+NmNet::ProxyInfo proxyInfoOf(json_object* root)
+{
+    NmNet::ProxyInfo info;
+    if (!root)
+        return info;
+    json_object* nested = json_object_object_get(root, "proxyInfo");
+    json_object* object = (nested && !is_error(nested) && json_object_is_type(nested, json_type_object))
+                          ? nested : root;
+    json_object* value = nullptr;
+    value = json_object_object_get(object, "networkTechnology");
+    if (value && !is_error(value) && json_object_is_type(value, json_type_string))
+        info.networkTechnology = json_object_get_string(value);
+    value = json_object_object_get(object, "proxyScope");
+    if (value && !is_error(value)) {
+        if (json_object_is_type(value, json_type_string))
+            info.proxyScope = json_object_get_string(value);
+        else if (json_object_is_type(value, json_type_int))
+            info.proxyScope = std::to_string(json_object_get_int(value));
+    }
+    value = json_object_object_get(object, "proxyConfigType");
+    if (value && !is_error(value) && json_object_is_type(value, json_type_string))
+        info.proxyConfigType = json_object_get_string(value);
+    value = json_object_object_get(object, "proxyServer");
+    if (value && !is_error(value) && json_object_is_type(value, json_type_string))
+        info.proxyServer = json_object_get_string(value);
+    value = json_object_object_get(object, "proxyAutoConfigUrl");
+    if (value && !is_error(value) && json_object_is_type(value, json_type_string))
+        info.proxyAutoConfigUrl = json_object_get_string(value);
+    value = json_object_object_get(object, "proxyPort");
+    if (value && !is_error(value) && json_object_is_type(value, json_type_int)) {
+        info.proxyPort = json_object_get_int(value);
+        info.hasPort = true;
+    }
+    value = json_object_object_get(object, "isProxySecured");
+    if (value && !is_error(value) && json_object_is_type(value, json_type_boolean)) {
+        info.isProxySecured = json_object_get_boolean(value);
+        info.hasSecured = true;
+    }
+    return info;
+}
+
+bool getNwProxiesConfig(LSHandle* sh, LSMessage* message, void*)
+{
+    (void)message;
+    reply(sh, message, NmNet::proxiesConfigPayload(NetworkProxies::load(NetworkProxies::path())));
+    return true;
+}
+
+bool configureNwProxies(LSHandle* sh, LSMessage* message, void*)
+{
+    json_object* root = nullptr;
+    if (const char* payload = LSMessageGetPayload(message)) {
+        root = json_tokener_parse(payload);
+        if (root && is_error(root))
+            root = nullptr;
+    }
+    std::string action;
+    if (root) {
+        json_object* value = json_object_object_get(root, "action");
+        if (value && !is_error(value) && json_object_is_type(value, json_type_string))
+            action = json_object_get_string(value);
+    }
+    const NmNet::ProxyInfo info = proxyInfoOf(root);
+    if (root)
+        json_object_put(root);
+
+    std::vector<NmNet::ProxyInfo> list = NetworkProxies::load(NetworkProxies::path());
+    const std::string problem = NmNet::configureProxies(list, action, info);
+    if (!problem.empty()) {
+        reply(sh, message, NmNet::errorPayload(problem));
+        return true;
+    }
+    std::string error;
+    if (!NetworkProxies::save(NetworkProxies::path(), list, error)) {
+        reply(sh, message, NmNet::errorPayload(error));
+        return true;
+    }
+    reply(sh, message, "{\"returnValue\":true}");
+    return true;
+}
+
+// Ours: answer from the last NetworkManager read kept in g_state. HP's card
+// asked this after the captive login page; live updates still come from a
+// getStatus subscription.
+bool checkNetworkConnectivity(LSHandle* sh, LSMessage* message, void*)
+{
+    (void)message;
+    const bool online = NmNet::internetAvailable(g_state);
+    reply(sh, message,
+          std::string("{\"returnValue\":true,\"isInternetConnectionAvailable\":")
+              + (online ? "true" : "false") + "}");
+    return true;
+}
+
 // {"mode": "enable" | "disable"}, answered with the mode now in force, which
 // is what HP's card reads back to set its list.
 bool setWakeOnWifiMode(LSHandle* sh, LSMessage* message, void*)
@@ -414,6 +513,9 @@ LSMethod kMethods[] = {
     { "setWiredState", setWiredState },
     { "getWakeOnWiFiMode", getWakeOnWifiMode },
     { "setWakeOnWiFiMode", setWakeOnWifiMode },
+    { "getNwProxiesConfig", getNwProxiesConfig },
+    { "configureNwProxies", configureNwProxies },
+    { "checkNetworkConnectivity", checkNetworkConnectivity },
     { },
 };
 

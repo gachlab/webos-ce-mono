@@ -166,6 +166,10 @@ const address = (fields: AddressFields, data: WifiData, service: WifiService) =>
             </div>
         </div>
         <div class="wos-group">
+            <wos-button label=${t("Configure Proxy")}
+                       @press=${() => openProxy(data.addressProfile?.profileId)}></wos-button>
+        </div>
+        <div class="wos-group">
             <wos-button label=${t("Forget Network")} kind="negative"
                        @press=${() => service.onForget()}></wos-button>
         </div>
@@ -253,6 +257,18 @@ const openHelp = () => {
     void luna.call("luna://com.palm.applicationManager/open",
                    { target: "https://help.webosarchive.org/en-us/" })
         .catch((error: unknown) => console.warn(String(error)));
+};
+
+// Per-network proxy settings live in the Networking card (#23). Captive-portal
+// login is watched there from connectionmanager; this only offers Configure
+// Proxy from the joined network's address screen.
+const openProxy = (profileId: number | undefined) => {
+    if (profileId === undefined)
+        return;
+    void luna.call("luna://com.palm.applicationManager/open", {
+        id: "com.palm.app.network",
+        params: { mode: "proxy", networkTechnology: "wifi", proxyScope: String(profileId) },
+    }).catch((error: unknown) => console.warn(String(error)));
 };
 
 const service = createWifiService({

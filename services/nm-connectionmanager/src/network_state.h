@@ -180,10 +180,18 @@ inline const char* deviceState(const Device& device)
 
 // Per interface, not global: a device that is up on a network with no way out
 // says "no" here while still being "connected" above, which is exactly how the
-// status bar tells a usable wifi from a joined-but-useless one.
+// status bar tells a usable wifi from a joined-but-useless one. A captive
+// portal (#23) is the third value HP used: joined, not on the internet, and
+// the Networking card / FirstUse should open the sign-in page.
 inline const char* onInternet(const Device& device, const NetworkState& state)
 {
-    return (device.activated() && internetAvailable(state)) ? "yes" : "no";
+    if (!device.activated())
+        return "no";
+    if (internetAvailable(state))
+        return "yes";
+    if (state.connectivity == kConnectivityPortal)
+        return "captivePortal";
+    return "no";
 }
 
 // Only four strings exist as far as activitymanager is concerned; see the note
