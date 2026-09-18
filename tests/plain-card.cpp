@@ -117,9 +117,21 @@ int main(int argc, char** argv)
           js("String(window.__calls.some(function (u) { return u.indexOf('connectionmanager') >= 0; }))"),
           QStringLiteral("true"));
 
-    // The controls are real custom elements, built with createElement.
-    check("the kit's elements answer to document.createElement",
-          js("document.querySelector('wos-row') ? 'yes' : 'no'"), QStringLiteral("yes"));
+    // The controls are real custom elements, and they were UPGRADED --
+    // createElement of a tag nobody defined also puts an element in the DOM,
+    // so the presence of the node proves only that main.js did not throw.
+    check("the kit defined its elements, and the card's were upgraded",
+          js("String(customElements.get('wos-row') !== undefined"
+             " && document.querySelector('wos-row') instanceof customElements.get('wos-row'))"),
+          QStringLiteral("true"));
+
+    // A control reads its properties, not its light DOM. This is the mistake
+    // the first version of this card made -- textContent on a wos-button,
+    // which has no <slot>, so the button came out blank -- and the card that
+    // exists to show how the kit is driven from outside has to get it right.
+    check("a control shows what its property says, not its light DOM",
+          js("document.querySelector('wos-button').shadowRoot.querySelector('button').textContent.trim()"),
+          QStringLiteral("Close"));
 
     // THE ONE THIS TEST EXISTS FOR. Nothing in this card hands the kit a
     // stylesheet: importing the kit is what styles it. 2.6rem of page.css's
@@ -143,7 +155,7 @@ int main(int argc, char** argv)
     // both without our renderer in between.
     js("document.querySelector('wos-button').shadowRoot.querySelector('button').click(); 1");
     waitFor([&]() { return js("String(window.__closed)") == "true"; }, 3000);
-    check("a control's click reaches the card, and app.close() closes it",
+    check("the kit's own event reaches the card, and app.close() closes it",
           js("String(window.__closed)"), QStringLiteral("true"));
 
     return failures == 0 ? 0 : 1;

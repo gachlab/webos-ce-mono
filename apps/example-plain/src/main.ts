@@ -64,8 +64,15 @@ header.setAttribute("title", "Plain");
 const row = document.createElement("wos-row");
 const button = document.createElement("wos-button");
 button.setAttribute("kind", "affirmative");
-button.textContent = "Close";
-button.addEventListener("click", () => card.app.close());
+// `label`, not textContent: wos-button draws into its own shadow root and has
+// no <slot>, so a text node in the light DOM would never be shown. Every
+// control in the kit is read the same way -- properties in, events out.
+button.setAttribute("label", "Close");
+// "press", not "click". A native click happens to reach the host here because
+// it is composed, but that is luck: wos-toggle answers with "toggle",
+// wos-row with "select", and neither of those is a click. The kit's contract
+// is the event it names.
+button.addEventListener("press", () => card.app.close());
 
 root.append(header, row, button);
 

@@ -14,7 +14,7 @@
 //
 // That split is the whole point (#65). enyo's mistake was not having layers,
 // it was making the top one compulsory, which is why porting an HP app today
-// means rewriting it. Our runtime is 342 lines and it stays optional.
+// means rewriting it. Our renderer is 316 lines and it stays optional.
 //
 // The kit styles itself, at the moment its elements are defined -- see
 // kit/kit.ts. Nothing here has to hand it a stylesheet, and a control put on a

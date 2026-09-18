@@ -76,11 +76,13 @@ sdk/webos-api/            @webos/api -- no DOM. Nothing here knows there is a sc
   src/services/           navigation: which screen the card is showing
   src/infra/luna/         the bus: the port, the PalmServiceBridge adapter, a
                           fake, and one file per webOS service, typed
-  src/infra/app/          the card's own life, on window.Mojo and PalmSystem
+  src/infra/app/          the card's own life, on window.Mojo and PalmSystem,
+                          and connectCard: everything being a card means
+                          except what draws
 
 sdk/ui-kit/               @webos/ui-kit -- depends on @webos/api, never the reverse
   src/element.ts          defineElement: functions in, custom elements out
-  src/start-card.ts       how a card starts: styles, first frame, its own life
+  src/start-card.ts       connectCard, plus a lit-html render. The optional half.
   src/kit/                HP's controls (16 of them; the rest is #58)
   src/kit.css             the controls' look; every element adopts this one sheet
   src/page.css            the page a card lives on, and the text it writes
@@ -134,7 +136,8 @@ The line that matters is not between the packages, it is **inside `ui-kit`**.
 Its controls are ordinary custom elements: `document.createElement("wos-row")`
 from React, from an enyo shim (#56), from nothing at all, and the control comes
 out looking right — because importing the kit is what styles it, at definition
-time. Our renderer is 342 lines and it is **optional by construction**.
+time. Our renderer is 316 lines (`element.ts` 252 + `start-card.ts` 64) and
+it is **optional by construction**.
 
 `startCard` is `connectCard` plus one line that renders a lit-html template.
 Everything that makes something a card on this device — the lifecycle,
