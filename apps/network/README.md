@@ -35,5 +35,6 @@ tools/build-cards.sh com.gachlab.app.network
 tools/test-web.sh
 ```
 
-QtWebEngine does not yet apply the proxy store as the application proxy; see
+WebAppMgr applies the active wifi entry from this store as Qt's application
+proxy (manual immediately; PAC via Chromium flags when the engine starts). See
 `services/nm-connectionmanager/README.md`.

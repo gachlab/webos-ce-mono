@@ -149,9 +149,12 @@ Wifi scopes are the `profileId` as a string. Types:
 `checkNetworkConnectivity` returns `{ isInternetConnectionAvailable }` from the
 last NetworkManager read (the same flag as `getStatus`).
 
-**TODO:** the browser and other QtWebEngine cards do not yet take this store as
-Qt's application proxy. Luna + the Networking card persist and edit settings;
-honouring them in the browser is still open.
+WebAppMgr installs `NetworkAppProxy` on its private bus handle: it subscribes to
+`getstatus` (wifi `profileId`) and `getNwProxiesConfig`, and sets Qt's
+`QNetworkProxy::applicationProxy` for a manual host:port. PAC URLs are passed
+as Chromium's `--proxy-pac-url` in `QTWEBENGINE_CHROMIUM_FLAGS` (honoured when
+the engine starts; a later PAC change needs a WebAppMgr restart to take effect
+in Chromium, while manual proxies update immediately through QNetworkProxy).
 
 When Device Sleeps
 ------------------
@@ -185,7 +188,7 @@ Testing it
 ----------
 
 ```sh
-ctest --test-dir build/tests -R 'network-state|network-proxies|nm-client' --output-on-failure
+ctest --test-dir build/tests -R 'network-state|network-proxies|network-app-proxy|nm-client' --output-on-failure
 ```
 
 `nm-client` needs `dbus-daemon`: GLib's `GTestDBus` starts a private one for the

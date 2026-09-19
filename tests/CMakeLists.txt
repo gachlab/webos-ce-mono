@@ -386,6 +386,18 @@ add_test(NAME geolocation COMMAND geolocation)
 set_tests_properties(geolocation PROPERTIES
     ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
 
+# Per-network proxies become Qt's application proxy for WebAppMgr / the browser.
+set(NETWORK_APP_PROXY_ADAPTER
+    "${CMAKE_CURRENT_SOURCE_DIR}/../components/webappmanager/Src/webbase/NetworkAppProxyAdapter.cpp")
+add_executable(network-app-proxy network-app-proxy.cpp ${NETWORK_APP_PROXY_ADAPTER})
+target_include_directories(network-app-proxy PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/../components/webappmanager/Src/webbase"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../services/nm-connectionmanager/src")
+target_link_libraries(network-app-proxy PRIVATE Qt::Core Qt::Network)
+add_test(NAME network-app-proxy COMMAND network-app-proxy)
+set_tests_properties(network-app-proxy PROPERTIES
+    ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
 # The WebView methods the mail app calls on a plain view. Without them its
 # rendered() threw on setRedirects and the card never switched views.
 add_executable(app-view-shims app-view-shims.cpp)

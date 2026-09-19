@@ -23,8 +23,9 @@
 // HP's Networking card and enyo's lib/networkproxy speak this shape. The store
 // is a JSON file ($WEBOS_NETWORK_PROXIES, or webos-ce/network-proxies.json in
 // the user's data directory). Scope for wifi is the profileId as a string.
-// Wiring the store into Qt's application proxy is a separate step; see the
-// service README.
+// WebAppMgr turns the entry for the active wifi profile into Qt's application
+// proxy (see NetworkAppProxyAdapter); the pure pick lives here so tests need
+// no Qt and no bus.
 //
 
 #ifndef NETWORK_PROXIES_H
@@ -80,9 +81,11 @@ inline std::string proxyInfoObject(const ProxyInfo& info)
     return out;
 }
 
-inline std::string proxiesConfigPayload(const std::vector<ProxyInfo>& list)
+inline std::string proxiesConfigPayload(const std::vector<ProxyInfo>& list, bool subscribed = false)
 {
-    std::string out = "{\"returnValue\":true,\"proxyInfoList\":[";
+    std::string out = "{\"returnValue\":true,\"subscribed\":";
+    out += subscribed ? "true" : "false";
+    out += ",\"proxyInfoList\":[";
     for (size_t i = 0; i < list.size(); ++i) {
         if (i)
             out += ",";
@@ -134,6 +137,62 @@ inline std::string configureProxies(std::vector<ProxyInfo>& list,
     }
     list.push_back(info);
     return {};
+}
+
+// The entry that applies while wifi profile `wifiProfileId` is up. nullptr
+// when the radio is idle or that scope has no saved proxy.
+inline const ProxyInfo* activeWifiProxy(const std::vector<ProxyInfo>& list, int wifiProfileId)
+{
+    if (wifiProfileId <= 0)
+        return nullptr;
+    const std::string scope = std::to_string(wifiProfileId);
+    for (const ProxyInfo& entry : list) {
+        if (entry.networkTechnology == "wifi" && entry.proxyScope == scope)
+            return &entry;
+    }
+    return nullptr;
+}
+
+// What WebAppMgr hands Qt / Chromium. Pac is carried for the chromium flag
+// path; QNetworkProxy itself only has host+port (manual).
+struct AppProxy {
+    enum class Kind { None, Manual, Pac } kind = Kind::None;
+    std::string host;
+    int port = 0;
+    bool secure = false;
+    std::string pacUrl;
+};
+
+inline bool operator==(const AppProxy& a, const AppProxy& b)
+{
+    return a.kind == b.kind && a.host == b.host && a.port == b.port && a.secure == b.secure
+           && a.pacUrl == b.pacUrl;
+}
+
+inline AppProxy appProxyOf(const ProxyInfo* info)
+{
+    AppProxy out;
+    if (!info)
+        return out;
+    if (info->proxyConfigType == kProxyManual && !info->proxyServer.empty()) {
+        out.kind = AppProxy::Kind::Manual;
+        out.host = info->proxyServer;
+        // Optional in the card; HTTP proxies default to 8080 when omitted.
+        out.port = info->hasPort ? info->proxyPort : 8080;
+        out.secure = info->isProxySecured;
+        return out;
+    }
+    if (info->proxyConfigType == kProxyPac && !info->proxyAutoConfigUrl.empty()) {
+        out.kind = AppProxy::Kind::Pac;
+        out.pacUrl = info->proxyAutoConfigUrl;
+        return out;
+    }
+    return out;
+}
+
+inline AppProxy appProxyFor(const std::vector<ProxyInfo>& list, int wifiProfileId)
+{
+    return appProxyOf(activeWifiProxy(list, wifiProfileId));
 }
 
 } // namespace NmNet

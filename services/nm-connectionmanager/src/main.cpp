@@ -95,6 +95,7 @@ const char kCertificateServiceName[] = "com.palm.certificatemanager";
 const char kVpnServiceName[] = "com.palm.vpn";
 const char* const kVpnProfileListMethods[] = { "getProfileList", nullptr };
 const char* const kVpnStatusMethods[] = { "getStatus", nullptr };
+const char* const kProxyMethods[] = { "getNwProxiesConfig", nullptr };
 
 // For the signal subscriptions only; the calls themselves are in nm_client.cpp.
 const char kNmService[] = "org.freedesktop.NetworkManager";
@@ -423,8 +424,14 @@ NmNet::ProxyInfo proxyInfoOf(json_object* root)
 
 bool getNwProxiesConfig(LSHandle* sh, LSMessage* message, void*)
 {
-    (void)message;
-    reply(sh, message, NmNet::proxiesConfigPayload(NetworkProxies::load(NetworkProxies::path())));
+    bool subscribed = false;
+    LSError error;
+    LSErrorInit(&error);
+    if (!LSSubscriptionProcess(sh, message, &subscribed, &error))
+        logAndFree("LSSubscriptionProcess", error);
+
+    reply(sh, message,
+          NmNet::proxiesConfigPayload(NetworkProxies::load(NetworkProxies::path()), subscribed));
     return true;
 }
 
@@ -458,6 +465,9 @@ bool configureNwProxies(LSHandle* sh, LSMessage* message, void*)
         return true;
     }
     reply(sh, message, "{\"returnValue\":true}");
+    // WebAppMgr (and anyone else) subscribed to getNwProxiesConfig so a save
+    // reaches Qt's application proxy without waiting for a network change.
+    postMethods(g_service, kProxyMethods, NmNet::proxiesConfigPayload(list, true));
     return true;
 }
 

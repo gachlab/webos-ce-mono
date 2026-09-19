@@ -84,6 +84,7 @@ int main()
         NmNet::NetworkState s;
         s.connectivity = NmNet::kConnectivityFull;
         s.wifi = wifiDevice(NmNet::kDeviceActivated, 81, "GachWLAN");
+        s.wifiProfileId = 12;
         s.wired = wiredDevice(20);
         const std::string p = NmNet::statusPayload(s, true);
 
@@ -94,6 +95,7 @@ int main()
         check(has(p, "\"ssid\":\"GachWLAN\""), "the real ssid is carried");
         check(has(p, "\"ipAddress\":\"192.168.1.66\""), "so is the real address");
         check(has(p, "\"networkConfidenceLevel\":\"excellent\""), "81% of signal is excellent");
+        check(has(p, "\"profileId\":12"), "profileId is what per-network proxies key on");
         check(has(p, "\"wired\":{\"state\":\"disconnected\""), "the cable is out, and says so");
         check(has(p, "\"wan\":{\"state\":\"disconnected\"}"), "wan is always disconnected here");
         check(has(p, "\"subscribed\":true"), "the subscription is acknowledged");

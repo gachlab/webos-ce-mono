@@ -51,6 +51,7 @@
 //#include "Preferences.h"
 #include "EventReporter.h"
 #include "GeolocationAdapter.h"
+#include "NetworkAppProxyAdapter.h"
 #include <WebKitEventListener.h>
 #include <BackupManager.h>
 #include "Utils.h"
@@ -833,6 +834,9 @@ void WebAppManager::threadStarting()
 
 				// webOS CE: web pages' location comes from com.palm.location (#10).
 				Geolocation::install(m_servicePrivate);
+
+				// webOS CE: per-network proxies from connectionmanager (#23).
+				NetworkAppProxy::install(m_servicePrivate);
 
 				r = LSCall(m_servicePrivate, "palm://com.palm.lunabus/signal/registerServerStatus",
 						   "{\"serviceName\":\"com.palm.systemservice\"}",

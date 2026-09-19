@@ -275,6 +275,11 @@ inline std::string statusPayload(const NetworkState& state, bool subscribed)
     if (!state.wifi.ssid.empty()) {
         out += ",\"ssid\":\"" + jsonEscape(state.wifi.ssid) + "\"";
     }
+    // profileId is what per-network proxies key on (wifi scope). com.palm.wifi
+    // already carries it; connectionmanager needs it too so WebAppMgr can pick
+    // the active proxy from one getstatus subscription (#23).
+    if (state.wifi.activated() && state.wifiProfileId > 0)
+        out += ",\"profileId\":" + std::to_string(state.wifiProfileId);
     out += "}";
 
     // wired: the same shape. HP's stub had no such key, because a phone had no

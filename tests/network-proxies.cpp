@@ -95,7 +95,7 @@ int main()
     list.clear();
     list.push_back(manual);
     const std::string payload = NmNet::proxiesConfigPayload(list);
-    check(payload == "{\"returnValue\":true,\"proxyInfoList\":["
+    check(payload == "{\"returnValue\":true,\"subscribed\":false,\"proxyInfoList\":["
                      "{\"networkTechnology\":\"wifi\",\"proxyScope\":\"12\","
                      "\"proxyConfigType\":\"manualProxy\",\"proxyServer\":\"proxy.example.com\","
                      "\"proxyPort\":8080,\"isProxySecured\":true}]}",
@@ -129,6 +129,34 @@ int main()
     g_unlink(file.c_str());
     g_rmdir(dir);
     g_free(dir);
+
+    std::printf("which one is active\n");
+    list.clear();
+    list.push_back(manual);
+    list.push_back(other);
+    check(NmNet::activeWifiProxy(list, 12) == &list[0]
+              && NmNet::activeWifiProxy(list, 13) == &list[1],
+          "the scope matches the joined wifi profileId");
+    check(NmNet::activeWifiProxy(list, 0) == nullptr
+              && NmNet::activeWifiProxy(list, 99) == nullptr,
+          "idle radio and unknown scope apply nothing");
+    const NmNet::AppProxy applied = NmNet::appProxyFor(list, 12);
+    check(applied.kind == NmNet::AppProxy::Kind::Manual && applied.host == "proxy.example.com"
+              && applied.port == 8080 && applied.secure,
+          "manual becomes host:port for Qt");
+    NmNet::ProxyInfo noPort = manual;
+    noPort.hasPort = false;
+    noPort.proxyPort = 0;
+    list[0] = noPort;
+    check(NmNet::appProxyFor(list, 12).port == 8080, "a missing port defaults to 8080");
+    list.clear();
+    list.push_back(pac);
+    const NmNet::AppProxy pacApply = NmNet::appProxyFor(list, 12);
+    check(pacApply.kind == NmNet::AppProxy::Kind::Pac
+              && pacApply.pacUrl == "http://wpad/proxy.pac",
+          "PAC becomes a pac URL for Chromium");
+    check(NmNet::appProxyFor(list, 13).kind == NmNet::AppProxy::Kind::None,
+          "a scope without a proxy clears the application proxy");
 
     std::printf("\n%s\n", g_failures == 0 ? "OK" : "FAILED");
     return g_failures == 0 ? 0 : 1;
