@@ -70,8 +70,9 @@ Two things are worth knowing, both measured on the machine this was written for:
   32 loopback — are not transports webOS has any notion of.
 * **A captive portal is not the internet.** `isInternetConnectionAvailable`
   follows NM's `Connectivity`, so a portal reads as connected wifi with
-  `onInternet: "no"` and no internet, which is what stops the email app from
-  syncing against a login page.
+  `onInternet: "captivePortal"` and no internet, which is what stops the email
+  app from syncing against a login page and what the Networking card (#23)
+  watches to open the sign-in screen.
 
 com.palm.wifi
 -------------
@@ -132,6 +133,31 @@ Three guards that are deliberate:
   after the network being joined, because the library ignores a failure that
   does not name it.
 
+Proxies and captive portals (#23)
+---------------------------------
+
+`getNwProxiesConfig` and `configureNwProxies` keep per-network proxy settings
+for HP's Networking card and enyo's `lib/networkproxy`. The store is
+`$WEBOS_NETWORK_PROXIES` or `~/.local/share/webos-ce/network-proxies.json`.
+Wifi scopes are the `profileId` as a string. Types:
+
+| `proxyConfigType` | Meaning |
+|---|---|
+| `manualProxy` | host (+ optional port / `isProxySecured`) |
+| `autoConfigUrl` | PAC URL |
+| `autoDetectFromNetwork` | accepted; the store is left unchanged |
+| `noProxy` | or `action: "rmv"` — drop that technology+scope |
+
+`checkNetworkConnectivity` returns `{ isInternetConnectionAvailable }` from the
+last NetworkManager read (the same flag as `getStatus`).
+
+WebAppMgr installs `NetworkAppProxy` on its private bus handle: it subscribes to
+`getstatus` (wifi `profileId`) and `getNwProxiesConfig`, and sets Qt's
+`QNetworkProxy::applicationProxy` for a manual host:port. PAC URLs are passed
+as Chromium's `--proxy-pac-url` in `QTWEBENGINE_CHROMIUM_FLAGS` (honoured when
+the engine starts; a later PAC change needs a WebAppMgr restart to take effect
+in Chromium, while manual proxies update immediately through QNetworkProxy).
+
 When Device Sleeps
 ------------------
 
@@ -164,7 +190,7 @@ Testing it
 ----------
 
 ```sh
-ctest --test-dir build/tests -R 'network-state|nm-client' --output-on-failure
+ctest --test-dir build/tests -R 'network-state|network-proxies|network-app-proxy|nm-client' --output-on-failure
 ```
 
 `nm-client` needs `dbus-daemon`: GLib's `GTestDBus` starts a private one for the

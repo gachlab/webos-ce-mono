@@ -133,6 +133,17 @@ target_include_directories(certificates PRIVATE ${CONNMGR} ${GIO_INCLUDE_DIRS})
 target_link_libraries(certificates PRIVATE ${GIO_LIBRARIES})
 add_test(NAME certificates COMMAND certificates)
 
+# Per-network proxies for getNwProxiesConfig / configureNwProxies (#23).
+add_executable(network-proxies network-proxies.cpp ${CONNMGR}/network_proxies.cpp)
+target_include_directories(network-proxies PRIVATE
+    ${CONNMGR} ${GIO_INCLUDE_DIRS}
+    "${WEBOS_STAGING}/include" "${WEBOS_STAGING}/usr/include")
+target_link_directories(network-proxies PRIVATE
+    "${WEBOS_STAGING}/lib" "${WEBOS_STAGING}/usr/lib")
+target_link_libraries(network-proxies PRIVATE ${GIO_LIBRARIES} cjson)
+add_test(NAME network-proxies COMMAND network-proxies
+         ENVIRONMENT "LD_LIBRARY_PATH=${WEBOS_STAGING}/lib:${WEBOS_STAGING}/usr/lib")
+
 # --- which coordinate space a touch point arrives in --------------------------
 add_executable(touch-coordinate-spaces touch-coordinate-spaces.cpp)
 target_link_libraries(touch-coordinate-spaces PRIVATE Qt::Core Qt::Gui Qt::Widgets Qt::GuiPrivate)
@@ -373,6 +384,18 @@ target_include_directories(geolocation PRIVATE
 target_link_libraries(geolocation PRIVATE qtwebkit-compat-lib Qt::Network Qt::Positioning)
 add_test(NAME geolocation COMMAND geolocation)
 set_tests_properties(geolocation PROPERTIES
+    ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
+# Per-network proxies become Qt's application proxy for WebAppMgr / the browser.
+set(NETWORK_APP_PROXY_ADAPTER
+    "${CMAKE_CURRENT_SOURCE_DIR}/../components/webappmanager/Src/webbase/NetworkAppProxyAdapter.cpp")
+add_executable(network-app-proxy network-app-proxy.cpp ${NETWORK_APP_PROXY_ADAPTER})
+target_include_directories(network-app-proxy PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/../components/webappmanager/Src/webbase"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../services/nm-connectionmanager/src")
+target_link_libraries(network-app-proxy PRIVATE Qt::Core Qt::Network)
+add_test(NAME network-app-proxy COMMAND network-app-proxy)
+set_tests_properties(network-app-proxy PROPERTIES
     ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
 
 # The WebView methods the mail app calls on a plain view. Without them its

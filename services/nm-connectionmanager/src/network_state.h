@@ -180,10 +180,18 @@ inline const char* deviceState(const Device& device)
 
 // Per interface, not global: a device that is up on a network with no way out
 // says "no" here while still being "connected" above, which is exactly how the
-// status bar tells a usable wifi from a joined-but-useless one.
+// status bar tells a usable wifi from a joined-but-useless one. A captive
+// portal (#23) is the third value HP used: joined, not on the internet, and
+// the Networking card / FirstUse should open the sign-in page.
 inline const char* onInternet(const Device& device, const NetworkState& state)
 {
-    return (device.activated() && internetAvailable(state)) ? "yes" : "no";
+    if (!device.activated())
+        return "no";
+    if (internetAvailable(state))
+        return "yes";
+    if (state.connectivity == kConnectivityPortal)
+        return "captivePortal";
+    return "no";
 }
 
 // Only four strings exist as far as activitymanager is concerned; see the note
@@ -267,6 +275,11 @@ inline std::string statusPayload(const NetworkState& state, bool subscribed)
     if (!state.wifi.ssid.empty()) {
         out += ",\"ssid\":\"" + jsonEscape(state.wifi.ssid) + "\"";
     }
+    // profileId is what per-network proxies key on (wifi scope). com.palm.wifi
+    // already carries it; connectionmanager needs it too so WebAppMgr can pick
+    // the active proxy from one getstatus subscription (#23).
+    if (state.wifi.activated() && state.wifiProfileId > 0)
+        out += ",\"profileId\":" + std::to_string(state.wifiProfileId);
     out += "}";
 
     // wired: the same shape. HP's stub had no such key, because a phone had no

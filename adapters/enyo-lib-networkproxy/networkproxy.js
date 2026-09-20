@@ -23,16 +23,45 @@
 // defined.
 //
 // lib/wifi reaches two functions. openProxyConfigUi is behind a "Configure
-// Proxy" button that HP's own wifi.js leaves commented out; removeProxyConfig
-// runs when a network is forgotten, to drop that network's proxy. This port
-// keeps no per-network proxy -- NetworkManager's connection carries its own --
-// so there is nothing to drop, and nothing to configure from here.
+// Proxy" button; removeProxyConfig runs when a network is forgotten. Both talk
+// to com.palm.connectionmanager and the Networking card (#23).
 //
 
 var NetworkProxyConfigLib = {
 	openProxyConfigUi: function (proxyConfig, owner) {
-		console.log("NetworkProxyConfigLib: per-network proxy settings are not available");
+		var technology = (proxyConfig && proxyConfig.networkTechnology) || "wifi";
+		var scope = proxyConfig && proxyConfig.proxyScope;
+		if (scope === undefined || scope === null || scope === "") {
+			console.log("NetworkProxyConfigLib: proxyScope required");
+			return;
+		}
+		var bridge = new PalmServiceBridge();
+		bridge.onservicecallback = function () {};
+		bridge.call("palm://com.palm.applicationManager/open",
+			JSON.stringify({
+				id: "com.palm.app.network",
+				params: {
+					mode: "proxy",
+					networkTechnology: technology,
+					proxyScope: String(scope)
+				}
+			}));
 	},
 	removeProxyConfig: function (proxyConfig, owner) {
+		var technology = (proxyConfig && proxyConfig.networkTechnology) || "wifi";
+		var scope = proxyConfig && proxyConfig.proxyScope;
+		if (scope === undefined || scope === null || scope === "") {
+			return;
+		}
+		var bridge = new PalmServiceBridge();
+		bridge.onservicecallback = function () {};
+		bridge.call("palm://com.palm.connectionmanager/configureNwProxies",
+			JSON.stringify({
+				action: "rmv",
+				proxyInfo: {
+					networkTechnology: technology,
+					proxyScope: String(scope)
+				}
+			}));
 	}
 };

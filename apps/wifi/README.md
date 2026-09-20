@@ -3,7 +3,9 @@ wifi
 
 `com.gachlab.app.wifi`, the Wi-Fi settings card (#38), on the web foundation:
 the network list, joining a secured network, joining one by name, the radio
-switch, and the connected network's address settings.
+switch, and the connected network's address settings (including **Configure
+Proxy**, which opens the Networking card). Captive-portal login is handled by
+`com.gachlab.app.network`, which watches `com.palm.connectionmanager` itself.
 
 **Ours.** HP's card was never released as source, so this one was written from
 the experience rather than from the code. The enyo card it replaces is

@@ -57,6 +57,8 @@ add_executable(WebAppMgr
     Src/webbase/BrowserViewAdapter.cpp
     Src/webbase/GeolocationAdapter.cpp
     Src/webbase/GeolocationBus.cpp
+    Src/webbase/NetworkAppProxyAdapter.cpp
+    Src/webbase/NetworkAppProxyBus.cpp
     Src/webbase/MemoryWatcher.cpp
     Src/webbase/PalmServiceBridgeAdapter.cpp
     Src/webbase/PalmSystem.cpp
@@ -97,6 +99,7 @@ target_include_directories(WebAppMgr PRIVATE
     Src/lunaui/dock
     Src/minimalui
     Src/lunaui/status-bar
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../services/nm-connectionmanager/src
     ${WEBOS_STAGING}/include
     ${WEBOS_STAGING}/include/cjson
     ${WEBOS_STAGING}/include/luna-service2
