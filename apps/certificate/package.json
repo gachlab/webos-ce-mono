@@ -1,0 +1,10 @@
+{
+  "name": "@gachlab/app-certificate",
+  "private": true,
+  "description": "The Certificate Manager settings card (#22).",
+  "type": "module",
+  "dependencies": {
+    "@webos/api": "*",
+    "@webos/ui-kit": "*"
+  }
+}

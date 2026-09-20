@@ -41,6 +41,16 @@ std::string directory();
 // Files that are not certificates are skipped.
 std::vector<NmNet::Certificate> list(const std::string& dir);
 
+// Copy a PEM/CRT at sourcePath into dir. Returns the new entry, or sets error
+// (missing file, not a certificate, cannot write). Passphrase is accepted for
+// HP's addcertificate shape; encrypted keys are refused — the store keeps
+// plaintext PEM only, as list() already assumes.
+bool add(const std::string& dir, const std::string& sourcePath,
+         const std::string& passphrase, NmNet::Certificate& out, std::string& error);
+
+// Remove the certificate with this id from dir. Unknown ids fail.
+bool remove(const std::string& dir, int certificateId, std::string& error);
+
 } // namespace Certificates
 
 #endif

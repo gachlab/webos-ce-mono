@@ -665,7 +665,7 @@ bool getWifiInfo(LSHandle* sh, LSMessage* message, void*)
     return true;
 }
 
-// com.palm.certificatemanager/listcertificates; see certificates.h.
+// com.palm.certificatemanager; see certificates.h. (#22)
 bool listCertificates(LSHandle* sh, LSMessage* message, void*)
 {
     reply(sh, message, NmNet::certificateListPayload(Certificates::list(Certificates::directory())));
@@ -684,6 +684,16 @@ std::string jsonStringField(json_object* root, const char* key)
     return json_object_get_string(value);
 }
 
+int jsonIntField(json_object* root, const char* key)
+{
+    if (!root)
+        return 0;
+    json_object* value = json_object_object_get(root, key);
+    if (!value || is_error(value) || !json_object_is_type(value, json_type_int))
+        return 0;
+    return json_object_get_int(value);
+}
+
 json_object* parsePayload(LSMessage* message)
 {
     const char* payload = LSMessageGetPayload(message);
@@ -693,6 +703,63 @@ json_object* parsePayload(LSMessage* message)
     if (!root || is_error(root))
         return nullptr;
     return root;
+}
+
+bool addCertificate(LSHandle* sh, LSMessage* message, void*)
+{
+    json_object* root = parsePayload(message);
+    const std::string path = jsonStringField(root, "certificateFilename");
+    const std::string passphrase = jsonStringField(root, "passphrase");
+    if (root)
+        json_object_put(root);
+    NmNet::Certificate entry;
+    std::string error;
+    if (!Certificates::add(Certificates::directory(), path, passphrase, entry, error)) {
+        reply(sh, message, NmNet::errorPayload(error));
+        return true;
+    }
+    reply(sh, message,
+          "{\"returnValue\":true,\"certificateId\":" + std::to_string(entry.certificateId)
+              + ",\"certificateFilename\":\"" + NmNet::jsonEscape(entry.path) + "\"}");
+    return true;
+}
+
+bool deleteCertificate(LSHandle* sh, LSMessage* message, void*)
+{
+    json_object* root = parsePayload(message);
+    const int id = jsonIntField(root, "certificateId");
+    if (root)
+        json_object_put(root);
+    std::string error;
+    if (!Certificates::remove(Certificates::directory(), id, error)) {
+        reply(sh, message, NmNet::errorPayload(error));
+        return true;
+    }
+    reply(sh, message, "{\"returnValue\":true}");
+    return true;
+}
+
+bool getCertificateDetails(LSHandle* sh, LSMessage* message, void*)
+{
+    json_object* root = parsePayload(message);
+    const int id = jsonIntField(root, "certificateId");
+    if (root)
+        json_object_put(root);
+    const std::vector<NmNet::Certificate> found = Certificates::list(Certificates::directory());
+    for (const NmNet::Certificate& c : found) {
+        if (c.certificateId != id)
+            continue;
+        std::string out = "{\"returnValue\":true,\"certificateId\":" + std::to_string(c.certificateId);
+        if (!c.commonName.empty())
+            out += ",\"commonname\":\"" + NmNet::jsonEscape(c.commonName) + "\"";
+        if (!c.organization.empty())
+            out += ",\"organization\":\"" + NmNet::jsonEscape(c.organization) + "\"";
+        out += ",\"certificateFilename\":\"" + NmNet::jsonEscape(c.path) + "\"}";
+        reply(sh, message, out);
+        return true;
+    }
+    reply(sh, message, NmNet::errorPayload("certificate not found"));
+    return true;
 }
 
 NmNet::VpnRequest vpnRequestOf(json_object* root)
@@ -880,6 +947,9 @@ bool disconnectVpn(LSHandle* sh, LSMessage* message, void*)
 
 LSMethod kCertificateMethods[] = {
     { "listcertificates", listCertificates },
+    { "addcertificate", addCertificate },
+    { "deletecertificate", deleteCertificate },
+    { "getcertificatedetails", getCertificateDetails },
     { },
 };
 

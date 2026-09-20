@@ -1,0 +1,10 @@
+{
+  "name": "@gachlab/app-help",
+  "private": true,
+  "description": "The Help settings card (#22).",
+  "type": "module",
+  "dependencies": {
+    "@webos/api": "*",
+    "@webos/ui-kit": "*"
+  }
+}

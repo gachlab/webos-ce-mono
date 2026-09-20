@@ -111,7 +111,9 @@ gateway and DNS servers given — and the profile brought up again.
 `com.palm.certificatemanager/listcertificates` — a third name owned by the same
 process — lists the certificates a TLS login can use: the PEM files, each with
 its unencrypted key, in `$WEBOS_CERTIFICATE_DIR` or
-`~/.local/share/webos-ce/certificates`.
+`~/.local/share/webos-ce/certificates`. `#22` also answers `addcertificate`
+(copy a PEM into that store), `deletecertificate` (by `certificateId`), and
+`getcertificatedetails`.
 
 Three guards that are deliberate:
 
