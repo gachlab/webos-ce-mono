@@ -382,6 +382,10 @@ if(TARGET wpe-webcontent-lib)
 
     # Many-card load A/B (#81). Not a ctest default: 150 Chromium views is a
     # bench, run by hand (or CI job with a high timeout). Small n smoke below.
+    add_executable(engine-heavy-stack engine-heavy-stack.cpp)
+    set_target_properties(engine-heavy-stack PROPERTIES AUTOMOC OFF AUTOUIC OFF AUTORCC OFF)
+    target_link_libraries(engine-heavy-stack PRIVATE
+        wpe-webcontent-lib qtwebkit-compat-lib Qt6::Gui Qt6::Widgets)
     add_executable(engine-card-load engine-card-load.cpp)
     set_target_properties(engine-card-load PROPERTIES AUTOMOC OFF AUTOUIC OFF AUTORCC OFF)
     target_link_libraries(engine-card-load PRIVATE
