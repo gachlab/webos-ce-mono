@@ -379,6 +379,19 @@ if(TARGET wpe-webcontent-lib)
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
         TIMEOUT 120
         RESOURCE_LOCK wpe)
+
+    # Many-card load A/B (#81). Not a ctest default: 150 Chromium views is a
+    # bench, run by hand (or CI job with a high timeout). Small n smoke below.
+    add_executable(engine-card-load engine-card-load.cpp)
+    set_target_properties(engine-card-load PROPERTIES AUTOMOC OFF AUTOUIC OFF AUTORCC OFF)
+    target_link_libraries(engine-card-load PRIVATE
+        wpe-webcontent-lib qtwebkit-compat-lib Qt6::Gui Qt6::Widgets)
+    add_test(NAME engine-card-load-smoke-wpe COMMAND engine-card-load wpe 3)
+    add_test(NAME engine-card-load-smoke-qt COMMAND engine-card-load qtwebengine 3)
+    set_tests_properties(engine-card-load-smoke-wpe engine-card-load-smoke-qt PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+        TIMEOUT 120
+        RESOURCE_LOCK wpe)
 endif()
 
 # What a dashboard window needs: its window.open attributes, a transparent
