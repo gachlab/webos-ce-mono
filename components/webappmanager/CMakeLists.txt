@@ -23,14 +23,35 @@ set(WEBOS_STAGING "${CMAKE_INSTALL_PREFIX}")
 # with QOpenGLWidget, and adapters/qt6-compat puts QGLWidget back on top of it.
 #
 # There is no QtWebKit here: the API WebAppMgr is written against comes from
-# adapters/qtwebkit-compat, on QtWebEngine.
+# adapters/qtwebkit-compat (QtWebEngine) or adapters/wpewebkit-compat (WPE).
+# Switch with -DWEBOS_WEB_ENGINE=wpe|qtwebengine (default qtwebengine).
+set(WEBOS_WEB_ENGINE "qtwebengine" CACHE STRING "Web engine behind the QtWebKit API: qtwebengine|wpe")
+set_property(CACHE WEBOS_WEB_ENGINE PROPERTY STRINGS qtwebengine wpe)
+
 find_package(Qt6 REQUIRED COMPONENTS Core Gui Network Widgets Quick OpenGL OpenGLWidgets Positioning)
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../../adapters/qt6-compat ${CMAKE_CURRENT_BINARY_DIR}/qt6-compat)
-add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../../adapters/qtwebkit-compat ${CMAKE_CURRENT_BINARY_DIR}/qtwebkit-compat)
-# The other end of the scroll the shell packs; see adapters/input-compat.
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../../adapters/input-compat ${CMAKE_CURRENT_BINARY_DIR}/input-compat)
+
+if(WEBOS_WEB_ENGINE STREQUAL "wpe")
+    find_package(PkgConfig REQUIRED)
+    pkg_check_modules(WPE REQUIRED wpe-webkit-2.0 wpe-platform-headless-2.0)
+    add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../../adapters/wpewebkit-compat
+                     ${CMAKE_CURRENT_BINARY_DIR}/wpewebkit-compat)
+    set(WEBOS_WEBKIT_COMPAT_LIB wpewebkit-compat-lib)
+    set(WEBOS_WEB_ENGINE_IS_WPE TRUE)
+    message(STATUS "WebAppMgr web engine: WPE WebKit (adapters/wpewebkit-compat)")
+elseif(WEBOS_WEB_ENGINE STREQUAL "qtwebengine")
+    add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../../adapters/qtwebkit-compat
+                     ${CMAKE_CURRENT_BINARY_DIR}/qtwebkit-compat)
+    set(WEBOS_WEBKIT_COMPAT_LIB qtwebkit-compat-lib)
+    set(WEBOS_WEB_ENGINE_IS_WPE FALSE)
+    message(STATUS "WebAppMgr web engine: QtWebEngine (adapters/qtwebkit-compat)")
+else()
+    message(FATAL_ERROR "WEBOS_WEB_ENGINE must be qtwebengine or wpe (got '${WEBOS_WEB_ENGINE}')")
+endif()
+
 set(WEBOS_WAM_QT_LIBS Qt::Core Qt::Gui Qt::Network Qt::Widgets Qt::Quick Qt::OpenGL
-    Qt::OpenGLWidgets Qt::Positioning qt6compat-gl qtwebkit-compat-lib input-compat)
+    Qt::OpenGLWidgets Qt::Positioning qt6compat-gl ${WEBOS_WEBKIT_COMPAT_LIB} input-compat)
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(GLIB REQUIRED glib-2.0 gthread-2.0)
 pkg_check_modules(SQLITE REQUIRED sqlite3)
@@ -119,6 +140,9 @@ target_compile_definitions(WebAppMgr PRIVATE
     QT_NO_KEYWORDS          # CONFIG += no_keywords: webOS uses "signal" as a name
     FIX_FOR_QT
 )
+if(WEBOS_WEB_ENGINE_IS_WPE)
+    target_compile_definitions(WebAppMgr PRIVATE WEBOS_WEB_ENGINE_WPE)
+endif()
 
 target_compile_options(WebAppMgr PRIVATE
     -fno-rtti -fno-exceptions

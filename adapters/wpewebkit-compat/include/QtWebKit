@@ -1,0 +1,2 @@
+// QtWebKit-shaped umbrella include for the WPE backend (#81).
+#include "wpewebkit_compat.h"

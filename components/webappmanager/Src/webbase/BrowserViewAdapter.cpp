@@ -7,12 +7,14 @@
 #include <QWebFrame>
 #include <QWebPage>
 
+#ifndef WEBOS_WEB_ENGINE_WPE
 #include <QWebEngineFullScreenRequest>
 #include <QWebEngineCookieStore>
 #include <QWebEngineHistory>
 #include <QWebEngineProfile>
 #include <QWebEnginePage>
 #include <QWebEngineSettings>
+#endif
 
 #include <atomic>
 
@@ -22,6 +24,7 @@ BrowserViewAdapter::BrowserViewAdapter(QWebPage* host, QObject* parent)
     , m_view(new QWebPage(this))
     , m_fullScreen(false)
 {
+#ifndef WEBOS_WEB_ENGINE_WPE
     // Without this the request is never made: QtWebEngine does not emit
     // fullScreenRequested at all unless the page is allowed to ask, so the
     // handler below was correct and could never have run. Nothing in this tree
@@ -45,15 +48,12 @@ BrowserViewAdapter::BrowserViewAdapter(QWebPage* host, QObject* parent)
                 m_host->embedPage(m_view, m_rectBeforeFullScreen);
         }
     });
+#endif
 
-    // Straight through to the engine. Our QWebPage::triggerAction only carries
-    // the editing actions QtWebKit's callers used, so navigation goes to
-    // QWebEnginePage, which has all four.
     connect(m_view, &QWebPage::loadStarted, this, [this]() { Q_EMIT loadStarted(); });
     connect(m_view, &QWebPage::loadProgress, this, [this](int p) { Q_EMIT loadProgress(p); });
     connect(m_view, &QWebPage::loadFinished, this, [this](bool ok) { Q_EMIT loadFinished(ok); });
 
-    // The compat layer forwards these onto the frame, not the page.
     connect(m_view->mainFrame(), &QWebFrame::titleChanged, this,
             [this](const QString& title) { Q_EMIT titleChanged(title); });
     connect(m_view->mainFrame(), &QWebFrame::urlChanged, this,
@@ -72,14 +72,8 @@ void BrowserViewAdapter::setGeometry(int x, int y, int width, int height)
     m_rect = QRect(x, y, width, height);
     if (!m_host || !m_view)
         return;
-    // While a video is fullscreen the app keeps reporting the geometry of its
-    // ordinary content area, which would put the hole straight back and end the
-    // fullscreen a frame after it started. Remember it, do not apply it.
     if (m_fullScreen)
         return;
-    // An empty rect is not a mistake: it is the page saying "not now", because
-    // the hole is hidden or the app has opened something over it. It goes
-    // through, so the host stops blitting until a real rect arrives.
     m_host->embedPage(m_view, m_rect);
 }
 
@@ -99,9 +93,6 @@ void BrowserViewAdapter::setUrl(const QString& url)
 {
     if (!m_view)
         return;
-    // QUrl::fromUserInput, not QUrl: what arrives here came from an address
-    // bar, so "example.com" has to mean http://example.com rather than a
-    // relative path.
     m_view->mainFrame()->load(QUrl::fromUserInput(url));
 }
 
@@ -112,70 +103,110 @@ QString BrowserViewAdapter::url() const
 
 void BrowserViewAdapter::goBack()
 {
+#ifndef WEBOS_WEB_ENGINE_WPE
     if (m_view)
         m_view->enginePage()->triggerAction(QWebEnginePage::Back);
+#else
+    if (m_view)
+        m_view->mainFrame()->evaluateJavaScript(QStringLiteral("history.back()"));
+#endif
 }
 
 void BrowserViewAdapter::goForward()
 {
+#ifndef WEBOS_WEB_ENGINE_WPE
     if (m_view)
         m_view->enginePage()->triggerAction(QWebEnginePage::Forward);
+#else
+    if (m_view)
+        m_view->mainFrame()->evaluateJavaScript(QStringLiteral("history.forward()"));
+#endif
 }
 
 void BrowserViewAdapter::reload()
 {
+#ifndef WEBOS_WEB_ENGINE_WPE
     if (m_view)
         m_view->enginePage()->triggerAction(QWebEnginePage::Reload);
+#else
+    if (m_view)
+        m_view->mainFrame()->evaluateJavaScript(QStringLiteral("location.reload()"));
+#endif
 }
 
 void BrowserViewAdapter::stop()
 {
+#ifndef WEBOS_WEB_ENGINE_WPE
     if (m_view)
         m_view->enginePage()->triggerAction(QWebEnginePage::Stop);
+#else
+    if (m_view)
+        m_view->mainFrame()->evaluateJavaScript(QStringLiteral("window.stop()"));
+#endif
 }
 
 void BrowserViewAdapter::findInPage(const QString& text)
 {
+#ifndef WEBOS_WEB_ENGINE_WPE
     if (m_view)
         m_view->enginePage()->findText(text);
+#else
+    Q_UNUSED(text);
+#endif
 }
 
 bool BrowserViewAdapter::canGoBack() const
 {
+#ifndef WEBOS_WEB_ENGINE_WPE
     return m_view && m_view->enginePage()->history()->canGoBack();
+#else
+    return false;
+#endif
 }
 
 bool BrowserViewAdapter::canGoForward() const
 {
+#ifndef WEBOS_WEB_ENGINE_WPE
     return m_view && m_view->enginePage()->history()->canGoForward();
+#else
+    return false;
+#endif
 }
 
 void BrowserViewAdapter::setEnableJavaScript(bool enable)
 {
+#ifndef WEBOS_WEB_ENGINE_WPE
     if (m_view)
         m_view->enginePage()->settings()->setAttribute(QWebEngineSettings::JavascriptEnabled, enable);
+#else
+    if (m_view)
+        m_view->settings()->setAttribute(QWebSettings::JavascriptEnabled, enable);
+#endif
 }
 
 void BrowserViewAdapter::setBlockPopups(bool block)
 {
-    // What QtWebKit's JavascriptCanOpenWindows was for the plugin. Chromium
-    // still lets a page open a window the user asked for with a tap.
+#ifndef WEBOS_WEB_ENGINE_WPE
     if (m_view)
         m_view->enginePage()->settings()->setAttribute(QWebEngineSettings::JavascriptCanOpenWindows, !block);
+#else
+    if (m_view)
+        m_view->settings()->setAttribute(QWebSettings::JavascriptCanOpenWindows, !block);
+#endif
 }
 
 bool BrowserViewAdapter::blocksPopups() const
 {
+#ifndef WEBOS_WEB_ENGINE_WPE
     return m_view && !m_view->enginePage()->settings()->testAttribute(QWebEngineSettings::JavascriptCanOpenWindows);
+#else
+    return m_view && !m_view->settings()->testAttribute(QWebSettings::JavascriptCanOpenWindows);
+#endif
 }
 
-// The browser's "Accept Cookies". Every app's pages share one profile, and so
-// one cookie store, so the switch cannot be per view. It applies to web pages
-// only -- a first party on http or https -- which is what the browser shows;
-// the apps' own documents are file:// and keep their cookies whatever the
-// browser says. The filter may run off the main thread, hence the atomic.
 static std::atomic<bool> s_acceptCookies(true);
 
+#ifndef WEBOS_WEB_ENGINE_WPE
 static bool cookieAllowed(const QWebEngineCookieStore::FilterRequest& request)
 {
     if (s_acceptCookies.load())
@@ -183,10 +214,12 @@ static bool cookieAllowed(const QWebEngineCookieStore::FilterRequest& request)
     const QString scheme = request.firstPartyUrl.scheme();
     return scheme != QLatin1String("http") && scheme != QLatin1String("https");
 }
+#endif
 
 void BrowserViewAdapter::setAcceptCookies(bool accept)
 {
     s_acceptCookies.store(accept);
+#ifndef WEBOS_WEB_ENGINE_WPE
     if (!m_view)
         return;
     static QWebEngineCookieStore* filtered = nullptr;
@@ -195,6 +228,9 @@ void BrowserViewAdapter::setAcceptCookies(bool accept)
         store->setCookieFilter(cookieAllowed);
         filtered = store;
     }
+#else
+    Q_UNUSED(accept);
+#endif
 }
 
 bool BrowserViewAdapter::acceptsCookies() const
@@ -204,13 +240,21 @@ bool BrowserViewAdapter::acceptsCookies() const
 
 void BrowserViewAdapter::setZoom(double factor)
 {
+#ifndef WEBOS_WEB_ENGINE_WPE
     if (m_view && factor > 0)
         m_view->enginePage()->setZoomFactor(factor);
+#else
+    Q_UNUSED(factor);
+#endif
 }
 
 double BrowserViewAdapter::zoom() const
 {
+#ifndef WEBOS_WEB_ENGINE_WPE
     return m_view ? m_view->enginePage()->zoomFactor() : 1.0;
+#else
+    return 1.0;
+#endif
 }
 
 void BrowserViewAdapter::close()

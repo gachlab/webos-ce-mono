@@ -311,6 +311,52 @@ add_test(NAME webengine-capabilities COMMAND webengine-capabilities)
 set_tests_properties(webengine-capabilities PROPERTIES
     ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
 
+# Same five capabilities against WPE WebKit + WPEPlatform headless (#81).
+# Distro packages only — no engine build. Skip cleanly when -dev is absent.
+pkg_check_modules(WPE_CAPABILITIES wpe-webkit-2.0 wpe-platform-headless-2.0)
+if(WPE_CAPABILITIES_FOUND)
+    add_executable(wpe-capabilities wpe-capabilities.cpp)
+    set_target_properties(wpe-capabilities PROPERTIES AUTOMOC OFF AUTOUIC OFF AUTORCC OFF)
+    target_include_directories(wpe-capabilities PRIVATE ${WPE_CAPABILITIES_INCLUDE_DIRS})
+    target_compile_options(wpe-capabilities PRIVATE ${WPE_CAPABILITIES_CFLAGS_OTHER})
+    target_link_libraries(wpe-capabilities PRIVATE ${WPE_CAPABILITIES_LIBRARIES})
+    add_test(NAME wpe-capabilities COMMAND wpe-capabilities)
+    # WPEProcess / headless display: one suite at a time (parallel runs race on first frame).
+    set_tests_properties(wpe-capabilities PROPERTIES RESOURCE_LOCK wpe)
+
+    # WPE frame blit into the ARGB32_Premultiplied surface WebAppMgr paints to.
+    add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/../adapters/wpe-webcontent"
+                     "${CMAKE_CURRENT_BINARY_DIR}/wpe-webcontent-lib")
+    add_executable(wpe-paint-path wpe-paint-path.cpp)
+    set_target_properties(wpe-paint-path PROPERTIES AUTOMOC OFF AUTOUIC OFF AUTORCC OFF)
+    target_link_libraries(wpe-paint-path PRIVATE wpe-webcontent-lib Qt6::Gui)
+    add_test(NAME wpe-paint-path COMMAND wpe-paint-path)
+    set_tests_properties(wpe-paint-path PROPERTIES RESOURCE_LOCK wpe)
+
+    add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/../adapters/wpewebkit-compat"
+                     "${CMAKE_CURRENT_BINARY_DIR}/wpewebkit-compat-lib")
+    add_executable(wpewebkit-compat wpewebkit-compat.cpp)
+    set_target_properties(wpewebkit-compat PROPERTIES AUTOMOC ON)
+    target_compile_options(wpewebkit-compat PRIVATE -fno-rtti)
+    target_link_libraries(wpewebkit-compat PRIVATE wpewebkit-compat-lib)
+    add_test(NAME wpewebkit-compat COMMAND wpewebkit-compat)
+    set_tests_properties(wpewebkit-compat PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+        RESOURCE_LOCK wpe)
+
+    # Same plain-card contract as qtwebkit-compat, on the WPE backend (#81).
+    add_executable(wpe-plain-card plain-card.cpp)
+    target_compile_options(wpe-plain-card PRIVATE -fno-rtti)
+    target_link_libraries(wpe-plain-card PRIVATE wpewebkit-compat-lib)
+    add_test(NAME wpe-plain-card COMMAND wpe-plain-card)
+    set_tests_properties(wpe-plain-card PROPERTIES
+        SKIP_RETURN_CODE 77
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen;WEBOS_CARDS_BUILD=${CMAKE_CURRENT_SOURCE_DIR}/../build/cards"
+        RESOURCE_LOCK wpe)
+else()
+    message(STATUS "wpe-capabilities / wpe-paint-path / engine-scroll-load / wpewebkit-compat / wpe-plain-card: skipped (install libwpewebkit-2.0-dev)")
+endif()
+
 # QtWebKit's API as WebAppMgr uses it, on QtWebEngine.
 add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/../adapters/qtwebkit-compat"
                  "${CMAKE_CURRENT_BINARY_DIR}/qtwebkit-compat-lib")
@@ -321,6 +367,19 @@ target_compile_options(qtwebkit-compat PRIVATE -fno-rtti)
 add_test(NAME qtwebkit-compat COMMAND qtwebkit-compat)
 set_tests_properties(qtwebkit-compat PROPERTIES
     ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
+# Under-load scroll with image-diff (#81); WPE vs qtwebkit-compat paint path.
+if(TARGET wpe-webcontent-lib)
+    add_executable(engine-scroll-load engine-scroll-load.cpp)
+    set_target_properties(engine-scroll-load PROPERTIES AUTOMOC OFF AUTOUIC OFF AUTORCC OFF)
+    target_link_libraries(engine-scroll-load PRIVATE
+        wpe-webcontent-lib qtwebkit-compat-lib Qt6::Gui Qt6::Widgets)
+    add_test(NAME engine-scroll-load COMMAND engine-scroll-load)
+    set_tests_properties(engine-scroll-load PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+        TIMEOUT 120
+        RESOURCE_LOCK wpe)
+endif()
 
 # What a dashboard window needs: its window.open attributes, a transparent
 # render, and its clipped layers left clipped.

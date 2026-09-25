@@ -50,7 +50,7 @@ declare -A SKIP=(
     [cmake]="it is the tool itself; we use the system one"
     [cmake-modules-webos]="CMake modules, consumed via CMAKE_MODULE_PATH"
     [qt4]="replaced by Debian's Qt 6"
-    [webkit]="replaced by QtWebEngine; WebAppMgr reaches it through adapters/qtwebkit-compat"
+    [webkit]="replaced by QtWebEngine or WPE; WebAppMgr reaches either through adapters/*webkit-compat (-DWEBOS_WEB_ENGINE=)"
     [nodejs]="the official node LTS ships instead (tools/node-version); HP's needs Python 2 and SCons"
     # The three addons are built from adapters/node-v8-shim/addons, which
     # compiles HP's sources against the shim. Their own CMakeLists are HP's and
@@ -208,6 +208,12 @@ stage_cmake() {
         # keyboard-efigs installs its plugins into the rootfs, not staging: they
         # are loaded at runtime by IMEManager from /usr/lib/luna, not linked
         # against.
+        # WEBOS_WEB_ENGINE selects qtwebkit-compat (default) or wpewebkit-compat
+        # for webappmanager only; other components ignore the cache entry.
+        local engine_args=()
+        if [ "$c" = webappmanager ]; then
+            engine_args=(-DWEBOS_WEB_ENGINE="${WEBOS_WEB_ENGINE:-qtwebengine}")
+        fi
         if ! cmake "$R/components/$c" -B "$d" -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
              -DCMAKE_BUILD_TYPE="$BUILD_TYPE" \
              -DWEBOS_ROOTFS="$B/rootfs" \
@@ -215,7 +221,8 @@ stage_cmake() {
              -DWEBOS_INSTALL_ROOT="$WEBOS_PREFIX" -DCMAKE_INSTALL_PREFIX="$WEBOS_PREFIX" \
              -DCMAKE_INSTALL_RPATH='$ORIGIN:$ORIGIN/..' \
              -DCMAKE_EXE_LINKER_FLAGS='-Wl,--disable-new-dtags' \
-             -DCMAKE_SHARED_LINKER_FLAGS='-Wl,--disable-new-dtags' > "$d/cfg.log" 2>&1; then
+             -DCMAKE_SHARED_LINKER_FLAGS='-Wl,--disable-new-dtags' \
+             "${engine_args[@]}" > "$d/cfg.log" 2>&1; then
             printf "%-24s CONFIG FAILED %s\n" "$c" "$(grep -m1 -E 'Could NOT find|No package|CMake Error' "$d/cfg.log" | cut -c1-72)"
             failed=1; continue
         fi
