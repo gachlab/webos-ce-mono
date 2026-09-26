@@ -4,6 +4,10 @@
 
 #include <QJsonArray>
 #include <QJsonDocument>
+#include <QNetworkRequest>
+#include <QQuickRenderTarget>
+#include <QQuickWidget>
+#include <QQuickWindow>
 #include <QWebEnginePage>
 #include <QWebEnginePermission>
 #include <QWebEngineProfile>
@@ -11,8 +15,6 @@
 #include <QWebEngineScriptCollection>
 #include <QWebEngineSettings>
 #include <QWebEngineView>
-#include <QQuickWidget>
-#include <QNetworkRequest>
 
 namespace {
 
@@ -388,6 +390,20 @@ QWebPage::~QWebPage()
 QWebEnginePage* QWebPage::enginePage() const
 {
     return m_engine;
+}
+
+bool QWebPage::bindPresentTexture(unsigned textureId, const QSize& pixelSize)
+{
+    if (!textureId || !pixelSize.isValid())
+        return false;
+    followRenderSurface();
+    QQuickWidget* surface = qobject_cast<QQuickWidget*>(m_view->focusProxy());
+    if (!surface || !surface->quickWindow())
+        return false;
+    QQuickRenderTarget rt = QQuickRenderTarget::fromOpenGLTexture(textureId, pixelSize);
+    surface->quickWindow()->setRenderTarget(rt);
+    surface->quickWindow()->update();
+    return true;
 }
 
 void QWebPage::followRenderSurface()

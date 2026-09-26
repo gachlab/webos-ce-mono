@@ -20,9 +20,10 @@ engine’s present path instead of cutting over.
   forcing offscreen — offscreen freezes GPU scroll even with ANGLE. Native
   `--use-gl=egl` under Wayland still floods context-loss; ANGLE+gl keeps Mesa
   hardware GL. `tests/webengine-gpu-boot` + `tests/webengine-gpu-scroll` cover
-  boot/paint and scroll-under-GPU (SwiftShader under offscreen CI). The **card
-  buffer** for `WEBOS_DMABUF=1` is still an EGL FBO with a staging `QImage`
-  upload — engine GPU frames are not wired into that path yet.
+  boot/paint and scroll-under-GPU (SwiftShader under offscreen CI).
+  With `WEBOS_DMABUF=1`, Remote tries `QQuickWindow::setRenderTarget` into the
+  card's dma-buf texture (no staging `QImage`); falls back to upload if the
+  Quick surface is not ready. Contract: `tests/webengine-gpu-fbo-present`.
 Phase 1–2 modernize the **WebAppMgr → HostWindowData** buffer path, not the
 shell’s OpenGL or its Wayland-client role.
 
@@ -74,16 +75,18 @@ Default without the env var is still SysV shm. Opt in deliberately.
 
 ### Remote paint → GPU buffer
 
-`RemoteWindowDataDmaBuf` does **not** `gbm_bo_map` for present. Flow:
+`RemoteWindowDataDmaBuf` prefers redirecting QtWebEngine's `QQuickWindow` into
+the card FBO texture (`QWebPage::bindPresentTexture` / #84). Flow when bound:
 
-1. `QPainter` draws into a staging `QImage` (QtWebEngine view snapshot;
-   painting straight into a second GL context fights Chromium’s RHI).
-2. `GlRenderTarget::uploadArgb32` into an EGL FBO (`GL_TEXTURE_2D`).
-3. `eglExportDMABUFImageMESA` once → handoff fd for Host.
-4. Host `paintContents` imports via `EXTERNAL_OES` (no CPU readback).
+1. `GlRenderTarget` creates an EGL FBO and exports dma-buf once.
+2. Engine Quick renders straight into that texture (shared GL context).
+3. Host `paintContents` imports via `EXTERNAL_OES` (no CPU readback).
 
-Contract: `tests/dmabuf-gl-paint` (FBO clear → export → OES sample).
-Engine GPU boot/paint: `tests/webengine-gpu-boot` (#84).
+Fallback while the Quick surface is not ready yet: staging `QImage` →
+`uploadArgb32` (same as pre-#84).
+
+Contract: `tests/dmabuf-gl-paint` (FBO clear → export → OES sample);
+`tests/webengine-gpu-fbo-present` (engine scroll into redirected texture).
 
 Import paths on Host (`HostWindowDataDmaBuf`):
 

@@ -32,6 +32,7 @@ class PIpcChannel;
 class PGContext;
 class PIpcBuffer;
 class QPainter;
+class QWebPage;
 namespace Palm {
 	class WebGLES2Context;
 }
@@ -67,6 +68,12 @@ public:
 	virtual void beginPaint() = 0;
 	virtual void endPaint(bool preserveOnFlip, const QRect& rect, bool flipBuffers = true) = 0;
 	virtual void sendWindowUpdate(int x, int y, int w, int h) = 0;
+
+	// #84: when true, the engine already paints into the shared buffer (dma-buf
+	// texture via QQuickWindow::setRenderTarget); WindowedWebApp must not
+	// QPainter-render a staging snapshot on top.
+	virtual bool engineOwnsPresent() const { return false; }
+	virtual bool ensureEnginePresent(QWebPage*) { return false; }
 
 	virtual bool hasDirectRendering() const { return false; }
 	virtual bool directRenderingAllowed(bool val) = 0;

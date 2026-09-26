@@ -199,6 +199,12 @@ public:
     QWebEnginePage* enginePage() const;
     QWebEngineView* engineView() const { return m_view; }
 
+    // NOT QtWebKit API (#84): redirect the engine's QQuickWindow into an
+    // OpenGL texture (typically a dma-buf-backed GlRenderTarget) so present
+    // needs no staging QImage upload. Requires AA_ShareOpenGLContexts and a
+    // share-group texture. Returns false until the QQuickWidget exists.
+    bool bindPresentTexture(unsigned textureId, const QSize& pixelSize);
+
     // NOT QtWebKit API: an extension of this layer.
     //
     // A page painted inside another, at a rect the host chooses. It is what the

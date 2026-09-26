@@ -169,6 +169,7 @@ public:
     bool valid() const { return m_fbo != 0 && m_export.fd >= 0; }
     uint32_t width() const { return m_width; }
     uint32_t height() const { return m_height; }
+    unsigned colorTexture() const { return m_colorTex; }
     const Export& exportDesc() const { return m_export; }
 
     // Bind FBO for drawing (color attachment = m_colorTex).

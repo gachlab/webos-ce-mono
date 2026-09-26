@@ -680,6 +680,17 @@ set_tests_properties(engine-scroll-load PROPERTIES
     ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QTWEBENGINE_CHROMIUM_FLAGS=--disable-gpu"
     TIMEOUT 180)
 
+# #84 spike / contract (manual under Wayland): QQuickWindow→dma-buf texture.
+# Offscreen cannot redirect; SKIP (77) so default ctest stays green in CI.
+add_executable(webengine-gpu-fbo-present webengine-gpu-fbo-present.cpp)
+target_link_libraries(webengine-gpu-fbo-present PRIVATE qtwebkit-compat-lib dmabuf-window
+                      Qt6::OpenGL Qt6::OpenGLWidgets Qt6::QuickWidgets)
+add_test(NAME webengine-gpu-fbo-present COMMAND webengine-gpu-fbo-present)
+set_tests_properties(webengine-gpu-fbo-present PROPERTIES
+    ENVIRONMENT "QT_QPA_PLATFORM=wayland;QTWEBENGINE_CHROMIUM_FLAGS=--use-gl=angle --use-angle=gl --enable-gpu-rasterization"
+    SKIP_RETURN_CODE 77
+    TIMEOUT 90)
+
 add_executable(engine-card-load engine-card-load.cpp)
 target_link_libraries(engine-card-load PRIVATE qtwebkit-compat-lib)
 # Smoke only in ctest; full n=25 is a bench (run by hand).
