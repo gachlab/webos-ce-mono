@@ -56,11 +56,14 @@ void beforeApplication()
 
     QCoreApplication::setAttribute(Qt::AA_ShareOpenGLContexts);
 
-    // WebAppMgr only ever draws pages offscreen and reads them back; Chromium's
-    // GPU process loses its context there ("Context lost during MakeCurrent").
-    // An explicit choice in the environment still wins.
+    // Prefer Chromium GPU raster (#84). An explicit QTWEBENGINE_CHROMIUM_FLAGS
+    // in the environment still wins (CI sets --no-sandbox; product can force
+    // --disable-gpu if a host regresses). Historically we defaulted to
+    // --disable-gpu because WebAppMgr's offscreen path lost the GPU context;
+    // tests/webengine-gpu-boot proves load+paint with --use-gl=egl today.
     if (qEnvironmentVariableIsEmpty("QTWEBENGINE_CHROMIUM_FLAGS"))
-        qputenv("QTWEBENGINE_CHROMIUM_FLAGS", "--disable-gpu");
+        qputenv("QTWEBENGINE_CHROMIUM_FLAGS",
+                "--use-gl=egl --enable-gpu-rasterization");
 }
 Q_CONSTRUCTOR_FUNCTION(beforeApplication)
 

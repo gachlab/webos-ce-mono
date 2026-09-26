@@ -15,10 +15,10 @@ engine’s present path instead of cutting over.
 
 - **LunaSysMgr** already hardware-composites (`QOpenGLWidget` + Mesa) as one
   Wayland client surface to the host.
-- **Web content** still rasterizes in Chromium with `--disable-gpu` (load-bearing:
-  lifting it SIGSEGVs WebAppMgr — see KNOWN_BUGS). The **card buffer** for
-  `WEBOS_DMABUF=1` is now an EGL FBO exported as dma-buf, not a CPU-mapped GBM BO.
-
+- **Web content** defaults to Chromium GPU raster (`--use-gl=egl
+  --enable-gpu-rasterization`, #84 / `tests/webengine-gpu-boot`). Override with
+  `QTWEBENGINE_CHROMIUM_FLAGS` (including `--disable-gpu`) if a host regresses.
+  The **card buffer** for `WEBOS_DMABUF=1` is an EGL FBO exported as dma-buf.
 Phase 1–2 modernize the **WebAppMgr → HostWindowData** buffer path, not the
 shell’s OpenGL or its Wayland-client role.
 
@@ -72,16 +72,14 @@ Default without the env var is still SysV shm. Opt in deliberately.
 
 `RemoteWindowDataDmaBuf` does **not** `gbm_bo_map` for present. Flow:
 
-1. `QPainter` draws into a staging `QImage` (QtWebEngine + `--disable-gpu`;
+1. `QPainter` draws into a staging `QImage` (QtWebEngine view snapshot;
    painting straight into a second GL context fights Chromium’s RHI).
 2. `GlRenderTarget::uploadArgb32` into an EGL FBO (`GL_TEXTURE_2D`).
 3. `eglExportDMABUFImageMESA` once → handoff fd for Host.
 4. Host `paintContents` imports via `EXTERNAL_OES` (no CPU readback).
 
 Contract: `tests/dmabuf-gl-paint` (FBO clear → export → OES sample).
-
-True Chromium GPU raster (no staging upload) needs a safe flag set that does
-not SIGSEGV WebAppMgr — still blocked; not enabled by default.
+Engine GPU boot/paint: `tests/webengine-gpu-boot` (#84).
 
 Import paths on Host (`HostWindowDataDmaBuf`):
 

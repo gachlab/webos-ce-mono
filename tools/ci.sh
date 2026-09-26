@@ -140,16 +140,12 @@ run_target() {                  # run_target <release>
     # content, and these tests load setHtml with strings written in this
     # repository, in a throwaway container with no network at all.
     #
-    # --disable-gpu is repeated alongside it because qtwebkit-compat's
-    # beforeApplication sets it only when QTWEBENGINE_CHROMIUM_FLAGS is empty,
-    # so naming the variable here would otherwise drop it -- and without it
-    # WebAppMgr dies with SIGSEGV at startup.
-    #
-    # These comments live above the pipeline, not inside it: a line continuation
-    # cannot carry a comment, and putting them there is what broke this script.
+    # --disable-gpu used to be required (WebAppMgr SIGSEGV). #84 /
+    # tests/webengine-gpu-boot paints with --use-gl=egl; keep --no-sandbox for
+    # the container and prefer GPU raster in CI too.
     if ! git -C "$R" archive --format=tar HEAD \
         | "$RUNNER" run --rm -i --network none \
-            -e QTWEBENGINE_CHROMIUM_FLAGS="--no-sandbox --disable-gpu" \
+            -e QTWEBENGINE_CHROMIUM_FLAGS="--no-sandbox --use-gl=egl --enable-gpu-rasterization" \
             -e WEBOS_NODE_HOME=/opt/node-dist/current \
             -w /src "$tag" \
             sh -c 'mkdir -p /src && tar -x -C /src && \

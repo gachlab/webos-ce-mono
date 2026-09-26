@@ -314,6 +314,28 @@ set_tests_properties(webengine-capabilities PROPERTIES
 # QtWebKit's API as WebAppMgr uses it, on QtWebEngine.
 add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/../adapters/qtwebkit-compat"
                  "${CMAKE_CURRENT_BINARY_DIR}/qtwebkit-compat-lib")
+
+# #84: Chromium GPU flags + qtwebkit-compat paint (not --disable-gpu).
+add_executable(webengine-gpu-boot webengine-gpu-boot.cpp)
+target_link_libraries(webengine-gpu-boot PRIVATE qtwebkit-compat-lib)
+add_test(NAME webengine-gpu-boot-egl COMMAND webengine-gpu-boot)
+set_tests_properties(webengine-gpu-boot-egl PROPERTIES
+    ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QTWEBENGINE_CHROMIUM_FLAGS=--use-gl=egl --enable-gpu-rasterization"
+    TIMEOUT 60)
+add_test(NAME webengine-gpu-boot-angle COMMAND webengine-gpu-boot)
+set_tests_properties(webengine-gpu-boot-angle PROPERTIES
+    ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QTWEBENGINE_CHROMIUM_FLAGS=--use-gl=angle --use-angle=swiftshader-webgl"
+    TIMEOUT 60)
+add_test(NAME webengine-gpu-boot-in-process COMMAND webengine-gpu-boot)
+set_tests_properties(webengine-gpu-boot-in-process PROPERTIES
+    ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QTWEBENGINE_CHROMIUM_FLAGS=--in-process-gpu --use-gl=egl --enable-gpu-rasterization"
+    TIMEOUT 60)
+# Default path: empty env → qtwebkit-compat beforeApplication sets egl+raster.
+add_test(NAME webengine-gpu-boot-default COMMAND webengine-gpu-boot)
+set_tests_properties(webengine-gpu-boot-default PROPERTIES
+    ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+    TIMEOUT 60)
+
 add_executable(qtwebkit-compat qtwebkit-compat.cpp)
 target_link_libraries(qtwebkit-compat PRIVATE qtwebkit-compat-lib)
 # As WebAppMgr is built; see the test for why it matters.
@@ -639,7 +661,10 @@ add_executable(engine-scroll-load engine-scroll-load.cpp)
 target_link_libraries(engine-scroll-load PRIVATE qtwebkit-compat-lib dmabuf-window Qt6::OpenGL Qt6::OpenGLWidgets)
 add_test(NAME engine-scroll-load COMMAND engine-scroll-load)
 set_tests_properties(engine-scroll-load PROPERTIES
-    ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+    # Offscreen + Chromium GPU does not refresh QWidget snapshots after
+    # scrollBy (#84); force software raster for this harness. Real xcb/wayland
+    # sessions use the product GPU default from qtwebkit-compat.
+    ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QTWEBENGINE_CHROMIUM_FLAGS=--disable-gpu"
     TIMEOUT 180)
 
 add_executable(engine-card-load engine-card-load.cpp)
@@ -648,5 +673,5 @@ target_link_libraries(engine-card-load PRIVATE qtwebkit-compat-lib)
 add_test(NAME engine-card-load-smoke-direct COMMAND engine-card-load direct 3)
 add_test(NAME engine-card-load-smoke-grab COMMAND engine-card-load grab 3)
 set_tests_properties(engine-card-load-smoke-direct engine-card-load-smoke-grab PROPERTIES
-    ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+    ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QTWEBENGINE_CHROMIUM_FLAGS=--disable-gpu"
     TIMEOUT 120)
