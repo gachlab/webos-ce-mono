@@ -671,12 +671,14 @@ target_link_libraries(present-cost PRIVATE qtwebkit-compat-lib dmabuf-window)
 
 # Product-shaped A/B from #81, axis = present path (grab|direct|dmabuf).
 add_executable(engine-scroll-load engine-scroll-load.cpp)
-target_link_libraries(engine-scroll-load PRIVATE qtwebkit-compat-lib dmabuf-window Qt6::OpenGL Qt6::OpenGLWidgets)
-add_test(NAME engine-scroll-load COMMAND engine-scroll-load)
+target_link_libraries(engine-scroll-load PRIVATE qtwebkit-compat-lib dmabuf-window
+                      Qt6::OpenGL Qt6::OpenGLWidgets Qt6::QuickWidgets)
+add_test(NAME engine-scroll-load COMMAND engine-scroll-load direct)
 set_tests_properties(engine-scroll-load PROPERTIES
     # Offscreen + Chromium GPU does not refresh QWidget snapshots after
     # scrollBy (#84); force software raster for this harness. Real xcb/wayland
-    # sessions use the product GPU default from qtwebkit-compat.
+    # sessions use the product GPU default from qtwebkit-compat. dmabuf-gl
+    # redirect needs Wayland — run manually / webengine-gpu-fbo-present.
     ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QTWEBENGINE_CHROMIUM_FLAGS=--disable-gpu"
     TIMEOUT 180)
 

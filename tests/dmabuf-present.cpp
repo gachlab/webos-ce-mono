@@ -105,9 +105,10 @@ int main()
     }
 
     if (!dmabuf_window::wantFactoryBackend()) {
-        // Factories stay off unless WEBOS_DMABUF=1; the ctest sets it.
+        // Default is on when a render node exists; ctest sets WEBOS_DMABUF=1.
         std::fprintf(stderr,
-                     "dmabuf-present: wantFactoryBackend false (set WEBOS_DMABUF=1)\n");
+                     "dmabuf-present: wantFactoryBackend false "
+                     "(need render node / WEBOS_DMABUF!=0)\n");
         return 1;
     }
 
