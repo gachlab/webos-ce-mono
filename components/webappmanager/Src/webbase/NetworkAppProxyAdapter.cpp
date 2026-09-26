@@ -18,8 +18,8 @@ Apply& applySlot()
 
 NmNet::AppProxy g_last;
 
-# Chromium reads QTWEBENGINE_CHROMIUM_FLAGS at engine start. Keep GPU defaults
-# from qtwebkit-compat (#84) and replace only our proxy flags.
+// Chromium reads QTWEBENGINE_CHROMIUM_FLAGS at engine start. Keep GPU defaults
+// from qtwebkit-compat (#84) and replace only our proxy flags.
 void setChromiumProxyFlags(const NmNet::AppProxy& proxy)
 {
     QByteArray flags = qgetenv("QTWEBENGINE_CHROMIUM_FLAGS");
