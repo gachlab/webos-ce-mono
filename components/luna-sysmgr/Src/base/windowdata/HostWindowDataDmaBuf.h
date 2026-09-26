@@ -29,8 +29,9 @@
 
 #include <dmabuf_window.h>
 
-// CE present path (#79): import a Remote's dma-buf. Prefer GL
-// (EXTERNAL_OES → FBO → QImage); fall back to mmap if GL is unavailable.
+// CE present path (#79): import a Remote's dma-buf.
+// Hot path: paintContents() → EXTERNAL_OES blit → textured quad (no CPU readback).
+// acquirePixmap() falls back to mmap for screenshot / non-GL callers.
 class HostWindowDataDmaBuf : public HostWindowData
 {
 public:
@@ -49,6 +50,7 @@ public:
 	virtual PIpcBuffer* metaDataBuffer() const { return m_metaDataBuffer; }
 	virtual void initializePixmap(QPixmap& screenPixmap) {}
 	virtual QPixmap* acquirePixmap(QPixmap& screenPixmap);
+	virtual bool paintContents(QPainter* painter, const QRectF& target);
 	virtual void allowUpdates(bool) {}
 	virtual void onUpdateRegion(QPixmap& screenPixmap, int x, int y, int w, int h);
 	virtual void onUpdateWindowRequest() {}
@@ -59,8 +61,8 @@ private:
 	HostWindowDataDmaBuf(int key, int metaDataKey, int width, int height,
 						 bool hasAlpha, const dmabuf_window::Export& desc);
 
-	bool acquireViaGl(QPixmap& screenPixmap);
 	bool acquireViaMmap(QPixmap& screenPixmap);
+	bool ensureAttachedGl();
 
 	int m_key;
 	PIpcBuffer* m_metaDataBuffer;

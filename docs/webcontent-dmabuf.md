@@ -69,14 +69,15 @@ Default without the env var is still SysV shm. Opt in deliberately.
 
 Import paths on Host (`HostWindowDataDmaBuf`):
 
-1. **GL** — `GlImporter`: `EGLImage` + `GL_TEXTURE_EXTERNAL_OES` → blit to
-   RGBA FBO → `glReadPixels` into `QPixmap` (`tests/dmabuf-gl-present`).
-   Mesa rejects `GL_TEXTURE_2D` for these linear BOs.
-2. **CPU fallback** — `gbm_bo_import` / `mmap` → `QImage` copy.
+1. **Texture compose (hot path)** — `paintContents()` attaches to the shell’s
+   current EGL context, `importFrame` (`EGLImage` + `EXTERNAL_OES` → RGBA
+   texture), then draws a textured quad via `QPainter::beginNativePainting`
+   (`HostWindow::paint` / `CardWindow::paintBase`). No CPU readback.
+2. **acquirePixmap fallback** — `mmap` → `QImage` copy for screenshot / non-GL
+   callers.
 
-Neither path is zero-copy into the card compositor yet: both still end in a
-CPU `QPixmap`. True win needs CardWindow to sample the OES texture (or a
-shared GL texture) without a readback round-trip.
+Contract tests: `tests/dmabuf-gl-present` (OES → pixel); scroll harness times
+GPU blit without readback on the present sample.
 
 ## Phase 2 present path
 
@@ -86,22 +87,22 @@ shared GL texture) without a readback round-trip.
 Product-shaped harnesses (same family as #81’s WPE↔Qt tables; axis is present
 path, engine fixed to QtWebEngine via qtwebkit-compat):
 
-**`tests/engine-scroll-load`** — under-load scroll, image-diff proof the page
-moved (400×600, 20 steps). Measured this machine (2026-09-25, GL import
-wired):
+**`tests/engine-scroll-load`** — under-load scroll, image-diff (or FBO sample +
+final readback for `dmabuf-gl`) proof the page moved (400×600, 20 steps).
+Measured this machine (2026-09-25, texture compose / blit-only present):
 
 | present | moved | median present ms | scroll wall ms | VmHWM |
 |---|---|---:|---:|---:|
-| grab | yes | 0.263 | 429 | ~264 MB |
-| direct (QImage) | yes | **0.188** | 449 | ~265 MB |
-| dmabuf + mmap Host | yes | 4.267 | 327 | ~266 MB |
-| dmabuf + GL readback Host | yes | 3.456 | 634 | ~439 MB |
+| grab | yes | 0.245 | 426 | ~265 MB |
+| direct (QImage) | yes | **0.182** | 410 | ~265 MB |
+| dmabuf + mmap Host | yes | 3.773 | 617 | ~266 MB |
+| dmabuf + GL blit (no readback) | yes | 0.551 | 383 | ~370 MB |
 
-**Verdict:** while Host still materializes a `QPixmap`, dma-buf loses to
-painting into a normal `QImage`. GL import beats mmap slightly on present
-median but costs RSS and wall time; default card path stays **direct**.
-Keep `WEBOS_DMABUF=1` opt-in for transport/factory work and the next
-texture-compose spike.
+**Verdict:** GPU blit without readback is ~7× faster than mmap Host import on
+this harness, but still slower than painting into a normal `QImage` (GBM map
+write cost dominates). Default card path stays **direct**. `WEBOS_DMABUF=1`
+opts into the factory + texture compose path for live cards; keep measuring
+as Remote paint moves off CPU-mapped BOs.
 
 **`tests/engine-card-load`** — 25 local browser-like cards, proof = title + paint
 (grab vs direct only; no Host import in this harness):
@@ -117,4 +118,5 @@ remain for isolation; the scroll harness is the go/no-go for Host import cost.
 ## Adapters
 
 Primitives: `adapters/dmabuf-window` (`Device` / `Frame` / `Importer` /
-`GlImporter` / registry). CE windowdata classes beside HP’s factories.
+`GlImporter` / registry). CE windowdata + thin `HostWindow` / `CardWindow`
+hooks for `paintContents`.

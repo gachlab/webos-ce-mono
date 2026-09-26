@@ -145,6 +145,12 @@ bool Importer::samplePixel(const Export& desc, int x, int y, uint32_t* argb)
 
 // --- GL Importer (EXTERNAL_OES) ---------------------------------------------
 
+static bool hasExternalOes()
+{
+    const char* exts = reinterpret_cast<const char*>(glGetString(GL_EXTENSIONS));
+    return exts && std::strstr(exts, "GL_OES_EGL_image_external");
+}
+
 std::unique_ptr<GlImporter> GlImporter::create()
 {
     EGLDisplay dpy = openSurfacelessDisplay();
@@ -191,8 +197,7 @@ std::unique_ptr<GlImporter> GlImporter::create()
         return {};
     }
 
-    const char* exts = reinterpret_cast<const char*>(glGetString(GL_EXTENSIONS));
-    if (!exts || !std::strstr(exts, "GL_OES_EGL_image_external")) {
+    if (!hasExternalOes()) {
         eglMakeCurrent(dpy, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
         eglDestroyContext(dpy, ctx);
         eglTerminate(dpy);
@@ -202,7 +207,28 @@ std::unique_ptr<GlImporter> GlImporter::create()
     auto importer = std::unique_ptr<GlImporter>(new GlImporter);
     importer->m_display = dpy;
     importer->m_context = ctx;
-    if (!importer->ensureProgram()) {
+    importer->m_ownsContext = true;
+    if (!importer->ensureExtProgram()) {
+        importer.reset();
+        return {};
+    }
+    return importer;
+}
+
+std::unique_ptr<GlImporter> GlImporter::createAttached()
+{
+    EGLDisplay dpy = eglGetCurrentDisplay();
+    EGLContext ctx = eglGetCurrentContext();
+    if (dpy == EGL_NO_DISPLAY || ctx == EGL_NO_CONTEXT)
+        return {};
+    if (!hasExternalOes())
+        return {};
+
+    auto importer = std::unique_ptr<GlImporter>(new GlImporter);
+    importer->m_display = dpy;
+    importer->m_context = ctx;
+    importer->m_ownsContext = false;
+    if (!importer->ensureExtProgram()) {
         importer.reset();
         return {};
     }
@@ -213,17 +239,24 @@ GlImporter::~GlImporter()
 {
     auto* dpy = static_cast<EGLDisplay>(m_display);
     auto* ctx = static_cast<EGLContext>(m_context);
-    if (dpy && ctx)
+    if (dpy && ctx && m_ownsContext)
         eglMakeCurrent(dpy, EGL_NO_SURFACE, EGL_NO_SURFACE, ctx);
+    else if (dpy && ctx && !m_ownsContext) {
+        // Attached: only delete GL objects if this context is still current.
+        if (eglGetCurrentContext() != ctx)
+            return;
+    }
     if (m_fbo)
         glDeleteFramebuffers(1, &m_fbo);
     if (m_colorTex)
         glDeleteTextures(1, &m_colorTex);
     if (m_extTex)
         glDeleteTextures(1, &m_extTex);
-    if (m_program)
-        glDeleteProgram(m_program);
-    if (dpy) {
+    if (m_extProgram)
+        glDeleteProgram(m_extProgram);
+    if (m_drawProgram)
+        glDeleteProgram(m_drawProgram);
+    if (m_ownsContext && dpy) {
         eglMakeCurrent(dpy, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
         if (ctx)
             eglDestroyContext(dpy, ctx);
@@ -233,7 +266,18 @@ GlImporter::~GlImporter()
     m_context = nullptr;
 }
 
-bool GlImporter::ensureProgram()
+bool GlImporter::makeCurrent() const
+{
+    auto* dpy = static_cast<EGLDisplay>(m_display);
+    auto* ctx = static_cast<EGLContext>(m_context);
+    if (!dpy || !ctx)
+        return false;
+    if (!m_ownsContext)
+        return eglGetCurrentContext() == ctx;
+    return eglMakeCurrent(dpy, EGL_NO_SURFACE, EGL_NO_SURFACE, ctx);
+}
+
+bool GlImporter::ensureExtProgram()
 {
     static const char kVs[] =
         "attribute vec2 aPos;\n"
@@ -258,27 +302,74 @@ bool GlImporter::ensureProgram()
             glDeleteShader(fs);
         return false;
     }
-    m_program = glCreateProgram();
-    glAttachShader(m_program, vs);
-    glAttachShader(m_program, fs);
-    glBindAttribLocation(m_program, 0, "aPos");
-    glLinkProgram(m_program);
+    m_extProgram = glCreateProgram();
+    glAttachShader(m_extProgram, vs);
+    glAttachShader(m_extProgram, fs);
+    glBindAttribLocation(m_extProgram, 0, "aPos");
+    glLinkProgram(m_extProgram);
     glDeleteShader(vs);
     glDeleteShader(fs);
     GLint linked = 0;
-    glGetProgramiv(m_program, GL_LINK_STATUS, &linked);
+    glGetProgramiv(m_extProgram, GL_LINK_STATUS, &linked);
     if (!linked) {
-        glDeleteProgram(m_program);
-        m_program = 0;
+        glDeleteProgram(m_extProgram);
+        m_extProgram = 0;
         return false;
     }
     glGenTextures(1, &m_extTex);
     return true;
 }
 
+bool GlImporter::ensureDrawProgram()
+{
+    if (m_drawProgram)
+        return true;
+    static const char kVs[] =
+        "attribute vec2 aPos;\n"
+        "attribute vec2 aUv;\n"
+        "varying vec2 vUv;\n"
+        "void main(){\n"
+        "  vUv = aUv;\n"
+        "  gl_Position = vec4(aPos, 0.0, 1.0);\n"
+        "}\n";
+    static const char kFs[] =
+        "precision mediump float;\n"
+        "uniform sampler2D uTex;\n"
+        "varying vec2 vUv;\n"
+        "void main(){ gl_FragColor = texture2D(uTex, vUv); }\n";
+
+    GLuint vs = compileShader(GL_VERTEX_SHADER, kVs);
+    GLuint fs = compileShader(GL_FRAGMENT_SHADER, kFs);
+    if (!vs || !fs) {
+        if (vs)
+            glDeleteShader(vs);
+        if (fs)
+            glDeleteShader(fs);
+        return false;
+    }
+    m_drawProgram = glCreateProgram();
+    glAttachShader(m_drawProgram, vs);
+    glAttachShader(m_drawProgram, fs);
+    glBindAttribLocation(m_drawProgram, 0, "aPos");
+    glBindAttribLocation(m_drawProgram, 1, "aUv");
+    glLinkProgram(m_drawProgram);
+    glDeleteShader(vs);
+    glDeleteShader(fs);
+    GLint linked = 0;
+    glGetProgramiv(m_drawProgram, GL_LINK_STATUS, &linked);
+    if (!linked) {
+        glDeleteProgram(m_drawProgram);
+        m_drawProgram = 0;
+        return false;
+    }
+    return true;
+}
+
 bool GlImporter::blitToFbo(const Export& desc)
 {
     if (!valid() || desc.fd < 0 || desc.width == 0 || desc.height == 0)
+        return false;
+    if (!makeCurrent())
         return false;
 
     auto createImage = getCreateImage();
@@ -288,9 +379,6 @@ bool GlImporter::blitToFbo(const Export& desc)
         return false;
 
     auto* dpy = static_cast<EGLDisplay>(m_display);
-    auto* ctx = static_cast<EGLContext>(m_context);
-    if (!eglMakeCurrent(dpy, EGL_NO_SURFACE, EGL_NO_SURFACE, ctx))
-        return false;
 
     EGLint attrs[20];
     int i = 0;
@@ -354,10 +442,10 @@ bool GlImporter::blitToFbo(const Export& desc)
     }
 
     glViewport(0, 0, static_cast<GLsizei>(desc.width), static_cast<GLsizei>(desc.height));
-    glUseProgram(m_program);
+    glUseProgram(m_extProgram);
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_EXTERNAL_OES, m_extTex);
-    glUniform1i(glGetUniformLocation(m_program, "uTex"), 0);
+    glUniform1i(glGetUniformLocation(m_extProgram, "uTex"), 0);
     static const GLfloat verts[] = { -1.f, -1.f, 1.f, -1.f, -1.f, 1.f, 1.f, 1.f };
     glEnableVertexAttribArray(0);
     glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 0, verts);
@@ -368,35 +456,100 @@ bool GlImporter::blitToFbo(const Export& desc)
     return true;
 }
 
+bool GlImporter::importFrame(const Export& desc)
+{
+    return blitToFbo(desc);
+}
+
+bool GlImporter::sampleImportedPixel(int x, int y, uint32_t* argb)
+{
+    if (!argb || !m_fbo || m_fboW == 0 || m_fboH == 0)
+        return false;
+    if (x < 0 || y < 0 || static_cast<uint32_t>(x) >= m_fboW
+        || static_cast<uint32_t>(y) >= m_fboH)
+        return false;
+    if (!makeCurrent())
+        return false;
+
+    glBindFramebuffer(GL_FRAMEBUFFER, m_fbo);
+    GLubyte px[4] = {0, 0, 0, 0};
+    // FBO blit used vUv = aPos*0.5+0.5 with Y increasing up in clip space, so
+    // row 0 in the texture is the bottom of the source. Match samplePixel.
+    glReadPixels(x, y, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, px);
+    *argb = (uint32_t(px[3]) << 24) | (uint32_t(px[0]) << 16)
+            | (uint32_t(px[1]) << 8) | uint32_t(px[2]);
+    return true;
+}
+
+bool GlImporter::drawColorTexture(int fbWidth, int fbHeight,
+                                  int destX, int destY, int destW, int destH)
+{
+    if (!m_colorTex || fbWidth <= 0 || fbHeight <= 0 || destW <= 0 || destH <= 0)
+        return false;
+    if (!makeCurrent() || !ensureDrawProgram())
+        return false;
+
+    // Top-left dest → GL NDC (Y up).
+    const float x0 = 2.f * float(destX) / float(fbWidth) - 1.f;
+    const float x1 = 2.f * float(destX + destW) / float(fbWidth) - 1.f;
+    const float y0 = 1.f - 2.f * float(destY + destH) / float(fbHeight);
+    const float y1 = 1.f - 2.f * float(destY) / float(fbHeight);
+
+    const GLfloat verts[] = {
+        x0, y0, x1, y0, x0, y1, x1, y1,
+    };
+    // Texture was filled with GL clip Y-up; flip V so top-left of card is top.
+    const GLfloat uvs[] = {
+        0.f, 1.f, 1.f, 1.f, 0.f, 0.f, 1.f, 0.f,
+    };
+
+    GLint prevFbo = 0;
+    glGetIntegerv(GL_FRAMEBUFFER_BINDING, &prevFbo);
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    glViewport(0, 0, fbWidth, fbHeight);
+    glDisable(GL_DEPTH_TEST);
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
+
+    glUseProgram(m_drawProgram);
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, m_colorTex);
+    glUniform1i(glGetUniformLocation(m_drawProgram, "uTex"), 0);
+    glEnableVertexAttribArray(0);
+    glEnableVertexAttribArray(1);
+    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 0, verts);
+    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 0, uvs);
+    glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+    glDisableVertexAttribArray(0);
+    glDisableVertexAttribArray(1);
+
+    glBindFramebuffer(GL_FRAMEBUFFER, prevFbo);
+    return true;
+}
+
 bool GlImporter::samplePixel(const Export& desc, int x, int y, uint32_t* argb)
 {
     if (!argb || x < 0 || y < 0
         || static_cast<uint32_t>(x) >= desc.width
         || static_cast<uint32_t>(y) >= desc.height)
         return false;
-    if (!blitToFbo(desc))
+    if (!importFrame(desc))
         return false;
-
-    GLubyte px[4] = {0, 0, 0, 0};
-    glReadPixels(x, y, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, px);
-    // RGBA readback → 0xAARRGGBB (matches DRM ARGB8888 CPU fill on LE).
-    *argb = (uint32_t(px[3]) << 24) | (uint32_t(px[0]) << 16)
-            | (uint32_t(px[1]) << 8) | uint32_t(px[2]);
-    return true;
+    return sampleImportedPixel(x, y, argb);
 }
 
 bool GlImporter::copyToArgb32(const Export& desc, std::vector<uint32_t>* out)
 {
-    if (!out || !blitToFbo(desc))
+    if (!out || !importFrame(desc))
         return false;
 
     const size_t n = static_cast<size_t>(desc.width) * desc.height;
     std::vector<uint8_t> rgba(n * 4);
+    glBindFramebuffer(GL_FRAMEBUFFER, m_fbo);
     glReadPixels(0, 0, static_cast<GLsizei>(desc.width), static_cast<GLsizei>(desc.height),
                  GL_RGBA, GL_UNSIGNED_BYTE, rgba.data());
 
     out->resize(n);
-    // GLES read is bottom-up; flip to top-left origin like QImage.
     for (uint32_t y = 0; y < desc.height; ++y) {
         const uint32_t srcY = desc.height - 1 - y;
         const uint8_t* row = rgba.data() + static_cast<size_t>(srcY) * desc.width * 4;

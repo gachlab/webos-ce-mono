@@ -1692,7 +1692,7 @@ void CardWindow::paintBase(QPainter* painter, bool maximized)
         if(m_adjustmentAngle)
             painter->rotate(m_adjustmentAngle);
 
-        Window::paint(painter, 0, 0);
+        HostWindow::paint(painter, 0, 0);
 
         if(m_adjustmentAngle)
             painter->rotate(-m_adjustmentAngle);
@@ -1700,10 +1700,29 @@ void CardWindow::paintBase(QPainter* painter, bool maximized)
         painter->setRenderHint(QPainter::SmoothPixmapTransform, true);
     }
     else {
+        QRectF brect = boundingRect();
+        QRectF dest;
+        if (m_adjustmentAngle == 90 || m_adjustmentAngle == -90)
+            dest = QRectF(-brect.height()/2, -brect.width()/2, brect.height(), brect.width());
+        else
+            dest = QRectF(-brect.width()/2, -brect.height()/2, brect.width(), brect.height());
+
+        // dma-buf (#79): compose the imported texture without a QPixmap round-trip.
+        if (m_data) {
+            if (m_adjustmentAngle)
+                painter->rotate(m_adjustmentAngle);
+            if (m_data->paintContents(painter, dest)) {
+                if (m_adjustmentAngle)
+                    painter->rotate(-m_adjustmentAngle);
+                return;
+            }
+            if (m_adjustmentAngle)
+                painter->rotate(-m_adjustmentAngle);
+        }
+
         // draw with rounded corners
         const QPixmap* pix = acquireScreenPixmap();
         if (pix) {
-            QRectF brect = boundingRect();
 #if defined(USE_ROUNDEDCORNER_SHADER)
             if(G_LIKELY(!m_isResizing)) {
 

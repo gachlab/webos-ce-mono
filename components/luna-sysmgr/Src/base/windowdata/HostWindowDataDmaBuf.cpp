@@ -24,9 +24,9 @@
 #include <sys/mman.h>
 #include <unistd.h>
 
-#include <vector>
-
 #include <QImage>
+#include <QPainter>
+#include <QRectF>
 #include <PIpcBuffer.h>
 
 #include "Logging.h"
@@ -88,7 +88,6 @@ HostWindowDataDmaBuf::HostWindowDataDmaBuf(int key, int metaDataKey, int width, 
 	, m_hasAlpha(hasAlpha)
 	, m_dirty(true)
 	, m_desc(desc)
-	, m_gl(dmabuf_window::GlImporter::create())
 {
 	if (metaDataKey >= 0)
 		m_metaDataBuffer = PIpcBuffer::attach(metaDataKey);
@@ -96,6 +95,7 @@ HostWindowDataDmaBuf::HostWindowDataDmaBuf(int key, int metaDataKey, int width, 
 
 HostWindowDataDmaBuf::~HostWindowDataDmaBuf()
 {
+	m_gl.reset();
 	if (m_desc.fd >= 0) {
 		::close(m_desc.fd);
 		m_desc.fd = -1;
@@ -122,21 +122,35 @@ void HostWindowDataDmaBuf::onUpdateRegion(QPixmap&, int, int, int, int)
 	m_dirty = true;
 }
 
-bool HostWindowDataDmaBuf::acquireViaGl(QPixmap& screenPixmap)
+bool HostWindowDataDmaBuf::ensureAttachedGl()
 {
-	if (!m_gl || !m_gl->valid())
+	if (m_gl && m_gl->valid())
+		return true;
+	m_gl = dmabuf_window::GlImporter::createAttached();
+	return m_gl && m_gl->valid();
+}
+
+bool HostWindowDataDmaBuf::paintContents(QPainter* painter, const QRectF& target)
+{
+	if (!painter || m_desc.fd < 0)
 		return false;
 
-	std::vector<uint32_t> pixels;
-	if (!m_gl->copyToArgb32(m_desc, &pixels))
-		return false;
-	if (pixels.size() != static_cast<size_t>(m_width) * static_cast<size_t>(m_height))
-		return false;
-
-	QImage image(reinterpret_cast<const uchar*>(pixels.data()), m_width, m_height,
-				 m_width * 4, QImage::Format_ARGB32_Premultiplied);
-	screenPixmap = QPixmap::fromImage(image.copy());
-	return true;
+	painter->beginNativePainting();
+	bool ok = false;
+	if (ensureAttachedGl() && m_gl->importFrame(m_desc)) {
+		const QRect device = painter->deviceTransform().mapRect(target).toAlignedRect();
+		const QPaintDevice* dev = painter->device();
+		const int fbW = dev ? dev->width() : 0;
+		const int fbH = dev ? dev->height() : 0;
+		if (fbW > 0 && fbH > 0 && device.width() > 0 && device.height() > 0) {
+			ok = m_gl->drawColorTexture(fbW, fbH, device.x(), device.y(),
+										device.width(), device.height());
+		}
+	}
+	painter->endNativePainting();
+	if (ok)
+		m_dirty = false;
+	return ok;
 }
 
 bool HostWindowDataDmaBuf::acquireViaMmap(QPixmap& screenPixmap)
@@ -161,8 +175,6 @@ QPixmap* HostWindowDataDmaBuf::acquirePixmap(QPixmap& screenPixmap)
 	if (!m_dirty)
 		return &screenPixmap;
 	m_dirty = false;
-
-	if (!acquireViaGl(screenPixmap))
-		acquireViaMmap(screenPixmap);
+	acquireViaMmap(screenPixmap);
 	return &screenPixmap;
 }

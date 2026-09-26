@@ -10,8 +10,9 @@
 //   QT_QPA_PLATFORM=offscreen ./engine-scroll-load dmabuf-gl
 //
 // Modes flip WEBOS_GRAB_PRESENT and optionally paint into a GBM dma-buf.
-// dmabuf-gl: paint into dma-buf then Host-style GL import (EXTERNAL_OES).
-// No movement → FAIL (ctest).
+// dmabuf-gl: paint into dma-buf then Host-style GL import (EXTERNAL_OES blit).
+// Present time is paint + GPU blit only (no readback); movement proof samples
+// the imported FBO, and final diff_pixels uses one full readback at the ends.
 
 #include "dmabuf_window.h"
 
@@ -197,9 +198,16 @@ static RunResult runMode(PresentMode mode, int width, int height, int steps, dou
         page.mainFrame()->render(&ctxt, QWebFrame::ContentsLayer, QRect(0, 0, width, height));
     };
 
-    auto hostCompose = [&](QImage* composed) -> bool {
-        if (mode != PresentMode::DmabufGl)
-            return false;
+    auto glImportOnly = [&]() -> bool {
+        return mode == PresentMode::DmabufGl && glImporter
+            && glImporter->importFrame(dmaExport);
+    };
+
+    auto glSampleCenter = [&](uint32_t* argb) -> bool {
+        return glImporter && glImporter->sampleImportedPixel(width / 2, height / 2, argb);
+    };
+
+    auto glFullImage = [&](QImage* composed) -> bool {
         std::vector<uint32_t> pixels;
         if (!glImporter->copyToArgb32(dmaExport, &pixels))
             return false;
@@ -210,6 +218,18 @@ static RunResult runMode(PresentMode mode, int width, int height, int steps, dou
 
     if (!waitFor([&] {
             paintOnce();
+            if (mode == PresentMode::DmabufGl) {
+                if (!glImportOnly())
+                    return false;
+                uint32_t px = 0;
+                if (!glSampleCenter(&px))
+                    return false;
+                const int r = (px >> 16) & 0xff;
+                const int g = (px >> 8) & 0xff;
+                const int b = px & 0xff;
+                const int a = (px >> 24) & 0xff;
+                return a > 0 && (r > 10 || g > 10 || b > 10);
+            }
             const QColor c = surface->pixelColor(width / 2, height / 2);
             return c.alpha() > 0 && (c.red() > 10 || c.green() > 10 || c.blue() > 10);
         }, 15000)) {
@@ -220,8 +240,9 @@ static RunResult runMode(PresentMode mode, int width, int height, int steps, dou
     }
 
     QImage before;
+    uint32_t beforeSample = 0;
     if (mode == PresentMode::DmabufGl) {
-        if (!hostCompose(&before)) {
+        if (!glFullImage(&before) || !glSampleCenter(&beforeSample)) {
             std::printf("%s: FAIL first GL compose\n", modeName(mode));
             ::close(dmaExport.fd);
             return out;
@@ -233,6 +254,7 @@ static RunResult runMode(PresentMode mode, int width, int height, int steps, dou
     std::vector<double> presentMs;
     presentMs.reserve(static_cast<size_t>(steps));
     QImage previous = before;
+    uint32_t previousSample = beforeSample;
     QElapsedTimer wall;
     wall.start();
     for (int i = 0; i < steps; ++i) {
@@ -241,13 +263,15 @@ static RunResult runMode(PresentMode mode, int width, int height, int steps, dou
 
         if (!waitFor([&] {
                 paintOnce();
-                QImage cur;
                 if (mode == PresentMode::DmabufGl) {
-                    if (!hostCompose(&cur))
+                    if (!glImportOnly())
                         return false;
-                } else {
-                    cur = surface->copy();
+                    uint32_t cur = 0;
+                    if (!glSampleCenter(&cur))
+                        return false;
+                    return cur != previousSample;
                 }
+                QImage cur = surface->copy();
                 return differingPixels(previous, cur) > (width * height) / 100;
             }, 10000)) {
             std::printf("%s: FAIL no paint change after scroll step %d\n", modeName(mode), i);
@@ -259,24 +283,41 @@ static RunResult runMode(PresentMode mode, int width, int height, int steps, dou
         QElapsedTimer present;
         present.start();
         paintOnce();
-        QImage cur;
         if (mode == PresentMode::DmabufGl) {
-            if (!hostCompose(&cur)) {
-                std::printf("%s: FAIL GL compose step %d\n", modeName(mode), i);
+            if (!glImportOnly()) {
+                std::printf("%s: FAIL GL import step %d\n", modeName(mode), i);
                 ::close(dmaExport.fd);
                 return out;
             }
         } else {
-            cur = surface->copy();
+            previous = surface->copy();
         }
         presentMs.push_back(present.nsecsElapsed() / 1e6);
-        previous = cur;
+        if (mode == PresentMode::DmabufGl) {
+            uint32_t cur = 0;
+            if (!glSampleCenter(&cur)) {
+                std::printf("%s: FAIL GL sample step %d\n", modeName(mode), i);
+                ::close(dmaExport.fd);
+                return out;
+            }
+            previousSample = cur;
+        }
     }
     out.scrollWallMs = wall.elapsed();
     out.medianPresentMs = medianMs(presentMs);
     out.peakRssKb = readVmHwmKb();
 
-    out.diffPixels = differingPixels(before, previous);
+    if (mode == PresentMode::DmabufGl) {
+        QImage after;
+        if (!glFullImage(&after)) {
+            std::printf("%s: FAIL final GL readback\n", modeName(mode));
+            ::close(dmaExport.fd);
+            return out;
+        }
+        out.diffPixels = differingPixels(before, after);
+    } else {
+        out.diffPixels = differingPixels(before, previous);
+    }
     const int minDiff = (width * height) / 20;
     out.moved = out.diffPixels >= minDiff;
 

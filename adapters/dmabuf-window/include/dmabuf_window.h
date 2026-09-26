@@ -106,29 +106,50 @@ private:
     std::shared_ptr<Device> m_device;
 };
 
-// GL path: EGLImage + TEXTURE_EXTERNAL_OES → blit to RGBA FBO → readback.
-// Matches the shell's OpenGL compose stack; avoids mmap of the BO on import.
+// GL path: EGLImage + TEXTURE_EXTERNAL_OES → blit to RGBA texture.
+// create() owns a surfaceless context (tests). createAttached() uses the
+// caller's current EGL context (shell QOpenGLWidget paint).
 class GlImporter {
 public:
     static std::unique_ptr<GlImporter> create();
+    static std::unique_ptr<GlImporter> createAttached();
     ~GlImporter();
 
     bool valid() const { return m_display != nullptr; }
 
-    // 0xAARRGGBB at (x,y).
+    // GPU blit only — no CPU readback. Leaves colorTexture() ready to sample.
+    bool importFrame(const Export& desc);
+
+    unsigned colorTexture() const { return m_colorTex; }
+    uint32_t textureWidth() const { return m_fboW; }
+    uint32_t textureHeight() const { return m_fboH; }
+
+    // Read one pixel from the imported FBO (0xAARRGGBB). Requires importFrame.
+    bool sampleImportedPixel(int x, int y, uint32_t* argb);
+
+    // Draw colorTexture into the current framebuffer at dest (top-left origin,
+    // framebuffer pixel coords; fbH is used to flip to GL's bottom-left).
+    bool drawColorTexture(int fbWidth, int fbHeight,
+                          int destX, int destY, int destW, int destH);
+
+    // 0xAARRGGBB at (x,y) — importFrame + sample (tests).
     bool samplePixel(const Export& desc, int x, int y, uint32_t* argb);
 
-    // Full frame as tightly packed ARGB32 premultiplied (width*height uint32_t).
+    // Full frame ARGB32 (tests / screenshot fallback).
     bool copyToArgb32(const Export& desc, std::vector<uint32_t>* out);
 
 private:
     GlImporter() = default;
-    bool ensureProgram();
+    bool ensureExtProgram();
+    bool ensureDrawProgram();
     bool blitToFbo(const Export& desc);
+    bool makeCurrent() const;
 
     void* m_display = nullptr; // EGLDisplay
     void* m_context = nullptr; // EGLContext
-    unsigned m_program = 0;
+    bool m_ownsContext = true;
+    unsigned m_extProgram = 0;
+    unsigned m_drawProgram = 0;
     unsigned m_extTex = 0;
     unsigned m_colorTex = 0;
     unsigned m_fbo = 0;
