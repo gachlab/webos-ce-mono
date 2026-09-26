@@ -11,6 +11,7 @@
 #include <QPixmap>
 #include <QStyleOptionGraphicsItem>
 #include <QTimer>
+#include <QtGlobal>
 #include <QWebEngineScript>
 #include <QWebEngineScriptCollection>
 #include <QWebEngineSettings>
@@ -55,6 +56,15 @@ QString QWebFrame::title() const
 // the palette's window colour first, which is invisible under an opaque page
 // and shows through a transparent one: dashboards, whose page is transparent
 // so the shell's dark menu is their background, came out light grey.
+//
+// Default (#79 phase 2): paint straight into the destination QPainter (the
+// card's shm or dma-buf surface). WEBOS_GRAB_PRESENT=1 restores the old
+// grab→drawPixmap path for A/B measurement (tests/present-cost).
+static bool useGrabPresent()
+{
+    return qEnvironmentVariableIntValue("WEBOS_GRAB_PRESENT") == 1;
+}
+
 static QPixmap grabView(QWebEngineView* view, bool transparent)
 {
     if (!transparent)
@@ -66,13 +76,29 @@ static QPixmap grabView(QWebEngineView* view, bool transparent)
     return frame;
 }
 
+static void paintViewInto(QPainter* painter, QWebEngineView* view, bool transparent,
+                          const QPoint& offset, const QRegion& clip)
+{
+    if (useGrabPresent()) {
+        const QPixmap frame = grabView(view, transparent);
+        if (!clip.isEmpty())
+            painter->setClipRegion(clip, Qt::IntersectClip);
+        painter->drawPixmap(offset, frame);
+        return;
+    }
+
+    // Destination already cleared by WindowedWebApp for the dirty rect.
+    // DrawChildren avoids the opaque palette fill that made dashboards grey.
+    QRegion source = clip.isEmpty() ? QRegion(view->rect()) : clip.translated(-offset);
+    view->render(painter, offset, source, QWidget::DrawChildren);
+}
+
 void QWebFrame::render(QPainter* painter, RenderLayer, const QRegion& clip)
 {
-    const QPixmap frame = grabView(m_page->m_view, m_page->m_transparent);
     painter->save();
     if (!clip.isEmpty())
         painter->setClipRegion(clip, Qt::IntersectClip);
-    painter->drawPixmap(0, 0, frame);
+    paintViewInto(painter, m_page->m_view, m_page->m_transparent, QPoint(0, 0), clip);
 
     // Then the pages embedded in this one, each over its own hole. This is what
     // BrowserAdapter did with the buffer BrowserServer had filled, without the
@@ -83,13 +109,11 @@ void QWebFrame::render(QPainter* painter, RenderLayer, const QRegion& clip)
     for (const QWebPage::EmbeddedPage& embedded : m_page->m_embedded) {
         if (embedded.page.isNull() || embedded.rect.isEmpty())
             continue;
-        const QPixmap content = grabView(embedded.page->m_view, embedded.page->m_transparent);
-        if (content.isNull())
-            continue;
         painter->save();
         // Whatever the host has over the hole stays on top.
         painter->setClipRegion(QRegion(embedded.rect).subtracted(embedded.cutouts), Qt::IntersectClip);
-        painter->drawPixmap(embedded.rect.topLeft(), content);
+        paintViewInto(painter, embedded.page->m_view, embedded.page->m_transparent,
+                      embedded.rect.topLeft(), QRegion(embedded.rect));
         painter->restore();
     }
 

@@ -34,9 +34,26 @@
 
 #include "HostWindowDataSoftware.h"
 
+#if defined(HAVE_DMABUF)
+#include "HostWindowDataDmaBuf.h"
+#include <dmabuf_window.h>
+#endif
+
 HostWindowData* HostWindowDataFactory::generate(int key, int metaDataKey, int width, int height, bool hasAlpha)
 {
 	HostWindowData* data = 0;
+
+#if defined(HAVE_DMABUF)
+	// Opt-in: WEBOS_DMABUF=1. Resolves the Remote's dma-buf from the
+	// in-process registry (tests/dmabuf-present). Not for live sessions yet.
+	if (dmabuf_window::wantFactoryBackend()) {
+		data = HostWindowDataDmaBuf::createIfRegistered(key, metaDataKey, width, height, hasAlpha);
+		if (data && data->isValid())
+			return data;
+		delete data;
+		data = 0;
+	}
+#endif
 
 	if (Settings::LunaSettings()->forceSoftwareRendering) {
 		data = new HostWindowDataSoftware(key, metaDataKey, width, height, hasAlpha);

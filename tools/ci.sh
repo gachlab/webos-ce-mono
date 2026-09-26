@@ -140,13 +140,9 @@ run_target() {                  # run_target <release>
     # content, and these tests load setHtml with strings written in this
     # repository, in a throwaway container with no network at all.
     #
-    # --disable-gpu is repeated alongside it because qtwebkit-compat's
-    # beforeApplication sets it only when QTWEBENGINE_CHROMIUM_FLAGS is empty,
-    # so naming the variable here would otherwise drop it -- and without it
-    # WebAppMgr dies with SIGSEGV at startup.
-    #
-    # These comments live above the pipeline, not inside it: a line continuation
-    # cannot carry a comment, and putting them there is what broke this script.
+    # --disable-gpu remains the product default (#84 session smoke: egl GPU
+    # loses context in WebAppMgr). webengine-gpu-boot still exercises egl under
+    # offscreen with its own ENVIRONMENT.
     if ! git -C "$R" archive --format=tar HEAD \
         | "$RUNNER" run --rm -i --network none \
             -e QTWEBENGINE_CHROMIUM_FLAGS="--no-sandbox --disable-gpu" \

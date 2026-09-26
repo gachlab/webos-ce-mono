@@ -275,6 +275,16 @@ const QPixmap* HostWindow::acquireScreenPixmap()
 	return m_data ? m_data->acquirePixmap(m_screenPixmap) : Window::acquireScreenPixmap();
 }
 
+void HostWindow::paint(QPainter* painter, const QStyleOptionGraphicsItem* option, QWidget* widget)
+{
+	if (m_data) {
+		const QRectF dest(m_visibleBounds);
+		if (m_data->paintContents(painter, dest))
+			return;
+	}
+	Window::paint(painter, option, widget);
+}
+
 void HostWindow::slotAboutToSendSyncMessage()
 {
 	if (m_data)

@@ -82,6 +82,9 @@ public:
 
 	virtual const HostWindowData* hostWindowData() const { return m_data; }
 
+	// QGraphicsItem::paint — tries dma-buf GL compose before pixmap blit.
+	virtual void paint(QPainter* painter, const QStyleOptionGraphicsItem* option, QWidget* widget);
+
 private Q_SLOTS:
 
 	void slotAboutToSendSyncMessage();

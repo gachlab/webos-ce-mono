@@ -56,9 +56,10 @@ void beforeApplication()
 
     QCoreApplication::setAttribute(Qt::AA_ShareOpenGLContexts);
 
-    // WebAppMgr only ever draws pages offscreen and reads them back; Chromium's
-    // GPU process loses its context there ("Context lost during MakeCurrent").
-    // An explicit choice in the environment still wins.
+    // Default stays --disable-gpu: live WebAppMgr with --use-gl=egl floods
+    // "context is marked as lost" / Failed to make current (#84 smoke 2026-09-25)
+    // even though tests/webengine-gpu-boot paints under offscreen. Explicit
+    // QTWEBENGINE_CHROMIUM_FLAGS in the environment still wins.
     if (qEnvironmentVariableIsEmpty("QTWEBENGINE_CHROMIUM_FLAGS"))
         qputenv("QTWEBENGINE_CHROMIUM_FLAGS", "--disable-gpu");
 }

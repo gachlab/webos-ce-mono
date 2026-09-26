@@ -29,8 +29,9 @@ add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../../adapters/qt6-compat ${CMAKE_C
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../../adapters/qtwebkit-compat ${CMAKE_CURRENT_BINARY_DIR}/qtwebkit-compat)
 # The other end of the scroll the shell packs; see adapters/input-compat.
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../../adapters/input-compat ${CMAKE_CURRENT_BINARY_DIR}/input-compat)
+add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../../adapters/dmabuf-window ${CMAKE_CURRENT_BINARY_DIR}/dmabuf-window)
 set(WEBOS_WAM_QT_LIBS Qt::Core Qt::Gui Qt::Network Qt::Widgets Qt::Quick Qt::OpenGL
-    Qt::OpenGLWidgets Qt::Positioning qt6compat-gl qtwebkit-compat-lib input-compat)
+    Qt::OpenGLWidgets Qt::Positioning qt6compat-gl qtwebkit-compat-lib input-compat dmabuf-window)
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(GLIB REQUIRED glib-2.0 gthread-2.0)
 pkg_check_modules(SQLITE REQUIRED sqlite3)
@@ -64,6 +65,7 @@ add_executable(WebAppMgr
     Src/webbase/PalmSystem.cpp
     Src/webbase/ProcessManager.cpp
     Src/webbase/RemoteWindowData.cpp
+    Src/webbase/RemoteWindowDataDmaBuf.cpp
     Src/webbase/RemoteWindowDataOpenGLQt.cpp
     Src/webbase/RemoteWindowDataSoftwareQt.cpp
     Src/webbase/SysMgrWebBridge.cpp
@@ -115,6 +117,7 @@ target_compile_definitions(WebAppMgr PRIVATE
     SHIPPING_VERSION=0
     TARGET_DESKTOP
     HAVE_OPENGL
+    HAVE_DMABUF
     P_BACKEND=P_BACKEND_SOFT
     QT_NO_KEYWORDS          # CONFIG += no_keywords: webOS uses "signal" as a name
     FIX_FOR_QT

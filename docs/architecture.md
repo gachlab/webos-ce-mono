@@ -81,3 +81,9 @@ ratio is.
 `media-api`, `hid` and `hal` live — the libraries HP never released. The diagram
 draws the boxes; in the CE release they are empty. See
 [code-survey.md](code-survey.md).
+
+## Web content buffer path (#79)
+
+Lean desktop present path (dma-buf factories, QtWebEngine retained after #81):
+see [webcontent-dmabuf.md](webcontent-dmabuf.md). WebContent port boundary:
+[webcontent.md](webcontent.md).

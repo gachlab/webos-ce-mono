@@ -48,6 +48,7 @@
 //#include "WebAppManager.h"
 #include "Settings.h"
 #include "ApplicationDescription.h"
+#include <dmabuf_window.h>
 #include "ApplicationManager.h"
 #include "CoreNaviManager.h"
 #include "BannerMessageHandler.h"
@@ -312,6 +313,7 @@ void WebAppMgrProxy::onPrepareAddWindow(int key, int type, int width, int height
 			break;
 	}
 
+	dmabuf_window::setPeerPid(pid());
 	HostWindowData* data = HostWindowDataFactory::generate(key, -1, width, height, hasAlpha);
 	if (!data || !data->isValid()) {
 		g_critical("%s (%d): Failed to generate HostWindowData for key: %d\n",
@@ -345,6 +347,7 @@ void WebAppMgrProxy::onPrepareAddWindowWithMetaData(int key, int metaDataKey, in
 			break;
 	}
 
+	dmabuf_window::setPeerPid(pid());
 	HostWindowData* data = HostWindowDataFactory::generate(key, metaDataKey, width, height, hasAlpha);
 	if (!data || !data->isValid()) {
 		g_critical("%s (%d): Failed to generate HostWindowData for key: %d\n",
