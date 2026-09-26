@@ -221,19 +221,21 @@ WebAppManager::WebAppManager()
 
 #if defined(TARGET_DEVICE)
     static const char *argv[] = { "./WebAppManager", "-platform", "webos", NULL };
-#else
-    // This was "minimal". On Qt5 that plugin ships no font database: 0
-    // families, and QFontInfo(qGuiApp->font()).family() comes back empty.
-    // RenderThemeQt hands that empty family straight to QtWebKit while
-    // resolving "font: <system>" in its own user-agent stylesheet, and hashing
-    // it segfaults. "offscreen" serves the same purpose -- WebAppMgr opens no
-    // windows, it draws into shared memory and LunaSysMgr composites -- but it
-    // does have fonts. HP's Qt 4.8 had no QPA and ignored -platform, so this
-    // was never a problem for them.
-    static const char *argv[] = { "./WebAppManager", "-platform", "offscreen", NULL };
-#endif
-
     static int argc = 3;
+#else
+    // Do not force "-platform offscreen". That QPA freezes Chromium GPU scroll
+    // and floods context-loss under ANGLE/EGL (#84). Inherit QT_QPA_PLATFORM
+    // from the session (wayland by default in run-lunasysmgr) so never-shown
+    // QWebEngineViews still get a real GL display; LunaSysMgr composites the
+    // card buffer. "minimal" is still unfit (no font database → segfault on
+    // "font: <system>"). Explicit QT_QPA_PLATFORM=offscreen remains available
+    // for headless harnesses that set --disable-gpu.
+    const char* qpa = getenv("QT_QPA_PLATFORM");
+    if (!qpa || !*qpa)
+        setenv("QT_QPA_PLATFORM", "wayland", 0);
+    static const char *argv[] = { "./WebAppManager", NULL };
+    static int argc = 1;
+#endif
 
     m_Application = new QApplication(argc, (char **)argv);
 	sInstance = this;

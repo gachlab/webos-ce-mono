@@ -56,12 +56,14 @@ void beforeApplication()
 
     QCoreApplication::setAttribute(Qt::AA_ShareOpenGLContexts);
 
-    // Default stays --disable-gpu: live WebAppMgr with --use-gl=egl floods
-    // "context is marked as lost" / Failed to make current (#84 smoke 2026-09-25)
-    // even though tests/webengine-gpu-boot paints under offscreen. Explicit
-    // QTWEBENGINE_CHROMIUM_FLAGS in the environment still wins.
+    // Default: ANGLE wrapping native GL. Under the product Wayland QPA,
+    // --use-gl=egl floods "context is marked as lost" and freezes scroll;
+    // ANGLE+gl keeps hardware GL (Intel/Mesa) and updates frames (#84).
+    // Offscreen ctest scroll uses SwiftShader via explicit flags — native
+    // ANGLE+gl still freezes under QT_QPA_PLATFORM=offscreen. Env wins.
     if (qEnvironmentVariableIsEmpty("QTWEBENGINE_CHROMIUM_FLAGS"))
-        qputenv("QTWEBENGINE_CHROMIUM_FLAGS", "--disable-gpu");
+        qputenv("QTWEBENGINE_CHROMIUM_FLAGS",
+                "--use-gl=angle --use-angle=gl --enable-gpu-rasterization");
 }
 Q_CONSTRUCTOR_FUNCTION(beforeApplication)
 

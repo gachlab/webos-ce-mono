@@ -15,10 +15,17 @@ engine’s present path instead of cutting over.
 
 - **LunaSysMgr** already hardware-composites (`QOpenGLWidget` + Mesa) as one
   Wayland client surface to the host.
-- **Web content** still defaults to `--disable-gpu`. #84 / `tests/webengine-gpu-boot`
-  paints under offscreen with `--use-gl=egl`, but a live WebAppMgr session with
-  those flags logs repeated GPU context loss — not a product win yet. The
-  **card buffer** for `WEBOS_DMABUF=1` is an EGL FBO exported as dma-buf.
+- **Web content** defaults to `--use-gl=angle --use-angle=gl --enable-gpu-rasterization`
+  (#84). WebAppMgr inherits the session `QT_QPA_PLATFORM` (wayland) instead of
+  forcing offscreen — offscreen freezes GPU scroll even with ANGLE. Native
+  `--use-gl=egl` under Wayland still floods context-loss; ANGLE+gl keeps Mesa
+  hardware GL. `tests/webengine-gpu-boot` + `tests/webengine-gpu-scroll` cover
+  boot/paint and scroll-under-GPU (SwiftShader under offscreen CI).
+  Card buffers default to dma-buf when a render node works (`WEBOS_DMABUF=0`
+  opts out). Remote prefers a **GBM linear** BO bound as `TEXTURE_2D` (Mesa
+  `glTexImage2D` export is often tiled and Host mmap then scanlines). Host OES
+  blit restores Qt's FBO; `drawColorTexture` paints there (not FBO 0). Contract:
+  `tests/webengine-gpu-fbo-present`.
 Phase 1–2 modernize the **WebAppMgr → HostWindowData** buffer path, not the
 shell’s OpenGL or its Wayland-client role.
 
@@ -58,7 +65,8 @@ WebContent port.
 
 ## Phase 1–2 transport
 
-Factories select `*DmaBuf` when `WEBOS_DMABUF=1` and a render node is usable.
+Factories select `*DmaBuf` when a render node is usable (default; `WEBOS_DMABUF=0`
+opts out).
 
 - **In-process:** registry keyed by `key()`.
 - **Cross-process:** Remote writes a `Handoff` (fd number + layout) into the
@@ -70,16 +78,18 @@ Default without the env var is still SysV shm. Opt in deliberately.
 
 ### Remote paint → GPU buffer
 
-`RemoteWindowDataDmaBuf` does **not** `gbm_bo_map` for present. Flow:
+`RemoteWindowDataDmaBuf` prefers redirecting QtWebEngine's `QQuickWindow` into
+the card FBO texture (`QWebPage::bindPresentTexture` / #84). Flow when bound:
 
-1. `QPainter` draws into a staging `QImage` (QtWebEngine view snapshot;
-   painting straight into a second GL context fights Chromium’s RHI).
-2. `GlRenderTarget::uploadArgb32` into an EGL FBO (`GL_TEXTURE_2D`).
-3. `eglExportDMABUFImageMESA` once → handoff fd for Host.
-4. Host `paintContents` imports via `EXTERNAL_OES` (no CPU readback).
+1. `GlRenderTarget` creates an EGL FBO and exports dma-buf once.
+2. Engine Quick renders straight into that texture (shared GL context).
+3. Host `paintContents` imports via `EXTERNAL_OES` (no CPU readback).
 
-Contract: `tests/dmabuf-gl-paint` (FBO clear → export → OES sample).
-Engine GPU boot/paint: `tests/webengine-gpu-boot` (#84).
+Fallback while the Quick surface is not ready yet: staging `QImage` →
+`uploadArgb32` (same as pre-#84).
+
+Contract: `tests/dmabuf-gl-paint` (FBO clear → export → OES sample);
+`tests/webengine-gpu-fbo-present` (engine scroll into redirected texture).
 
 Import paths on Host (`HostWindowDataDmaBuf`):
 
@@ -100,7 +110,15 @@ path, engine fixed to QtWebEngine via qtwebkit-compat):
 
 **`tests/engine-scroll-load`** — under-load scroll, image-diff (or FBO sample +
 final readback for `dmabuf-gl`) proof the page moved (400×600, 20 steps).
-Measured this machine (2026-09-25, Remote upload + Host OES):
+Measured this machine (2026-09-26, Wayland + ANGLE+gl; Remote redirect + Host OES
+where noted):
+
+| present | moved | median present ms | scroll wall ms | VmHWM |
+|---|---|---:|---:|---:|
+| direct (QImage) | yes | 2.764 | 327 | ~458 MB |
+| dmabuf-gl (redirect) | yes | **0.057** | 335 | ~460 MB |
+
+Earlier (2026-09-25, Chromium still CPU-raster + staging upload):
 
 | present | moved | median present ms | scroll wall ms | VmHWM |
 |---|---|---:|---:|---:|
@@ -109,10 +127,10 @@ Measured this machine (2026-09-25, Remote upload + Host OES):
 | dmabuf + mmap Host | yes | 2.509 | 591 | ~267 MB |
 | dmabuf-gl (upload+OES) | yes | 3.325 | 600 | ~383 MB |
 
-**Verdict:** with Chromium still CPU-rasterizing, the dma-buf path pays an
-extra upload into the EGL FBO and does not beat **direct**. It does establish
-the GPU buffer + Host texture compose contract for when engine GPU raster is
-safe. Default stays **direct**; `WEBOS_DMABUF=1` is opt-in.
+**Verdict:** with GPU raster + Quick→dma-buf redirect, present drops ~50× vs
+direct snapshot. Default is **dma-buf** when a render node exists;
+`WEBOS_DMABUF=0` restores SysV shm / direct. Host must draw into the active
+Qt FBO under `beginNativePainting` (not framebuffer 0).
 
 **`tests/engine-card-load`** — 25 local browser-like cards, proof = title + paint
 (grab vs direct only; no Host import in this harness):

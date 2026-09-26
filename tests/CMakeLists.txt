@@ -326,14 +326,27 @@ add_test(NAME webengine-gpu-boot-angle COMMAND webengine-gpu-boot)
 set_tests_properties(webengine-gpu-boot-angle PROPERTIES
     ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QTWEBENGINE_CHROMIUM_FLAGS=--use-gl=angle --use-angle=swiftshader-webgl"
     TIMEOUT 60)
+add_test(NAME webengine-gpu-boot-angle-gl COMMAND webengine-gpu-boot)
+set_tests_properties(webengine-gpu-boot-angle-gl PROPERTIES
+    ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QTWEBENGINE_CHROMIUM_FLAGS=--use-gl=angle --use-angle=gl --enable-gpu-rasterization"
+    TIMEOUT 60)
 add_test(NAME webengine-gpu-boot-in-process COMMAND webengine-gpu-boot)
 set_tests_properties(webengine-gpu-boot-in-process PROPERTIES
     ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QTWEBENGINE_CHROMIUM_FLAGS=--in-process-gpu --use-gl=egl --enable-gpu-rasterization"
     TIMEOUT 60)
-# Default path: empty env → qtwebkit-compat beforeApplication sets egl+raster.
+# Default path: empty env → qtwebkit-compat beforeApplication sets ANGLE+gl.
 add_test(NAME webengine-gpu-boot-default COMMAND webengine-gpu-boot)
 set_tests_properties(webengine-gpu-boot-default PROPERTIES
     ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+    TIMEOUT 60)
+
+# #84: GPU path must update after scroll (frozen frames = context-loss mode).
+# Offscreen cannot exercise product ANGLE+gl scroll; SwiftShader stands in for CI.
+add_executable(webengine-gpu-scroll webengine-gpu-scroll.cpp)
+target_link_libraries(webengine-gpu-scroll PRIVATE qtwebkit-compat-lib)
+add_test(NAME webengine-gpu-scroll-angle-sw COMMAND webengine-gpu-scroll)
+set_tests_properties(webengine-gpu-scroll-angle-sw PROPERTIES
+    ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QTWEBENGINE_CHROMIUM_FLAGS=--use-gl=angle --use-angle=swiftshader-webgl"
     TIMEOUT 60)
 
 add_executable(qtwebkit-compat qtwebkit-compat.cpp)
@@ -658,14 +671,27 @@ target_link_libraries(present-cost PRIVATE qtwebkit-compat-lib dmabuf-window)
 
 # Product-shaped A/B from #81, axis = present path (grab|direct|dmabuf).
 add_executable(engine-scroll-load engine-scroll-load.cpp)
-target_link_libraries(engine-scroll-load PRIVATE qtwebkit-compat-lib dmabuf-window Qt6::OpenGL Qt6::OpenGLWidgets)
-add_test(NAME engine-scroll-load COMMAND engine-scroll-load)
+target_link_libraries(engine-scroll-load PRIVATE qtwebkit-compat-lib dmabuf-window
+                      Qt6::OpenGL Qt6::OpenGLWidgets Qt6::QuickWidgets)
+add_test(NAME engine-scroll-load COMMAND engine-scroll-load direct)
 set_tests_properties(engine-scroll-load PROPERTIES
     # Offscreen + Chromium GPU does not refresh QWidget snapshots after
     # scrollBy (#84); force software raster for this harness. Real xcb/wayland
-    # sessions use the product GPU default from qtwebkit-compat.
+    # sessions use the product GPU default from qtwebkit-compat. dmabuf-gl
+    # redirect needs Wayland — run manually / webengine-gpu-fbo-present.
     ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QTWEBENGINE_CHROMIUM_FLAGS=--disable-gpu"
     TIMEOUT 180)
+
+# #84 spike / contract (manual under Wayland): QQuickWindow→dma-buf texture.
+# Offscreen cannot redirect; SKIP (77) so default ctest stays green in CI.
+add_executable(webengine-gpu-fbo-present webengine-gpu-fbo-present.cpp)
+target_link_libraries(webengine-gpu-fbo-present PRIVATE qtwebkit-compat-lib dmabuf-window
+                      Qt6::OpenGL Qt6::OpenGLWidgets Qt6::QuickWidgets)
+add_test(NAME webengine-gpu-fbo-present COMMAND webengine-gpu-fbo-present)
+set_tests_properties(webengine-gpu-fbo-present PROPERTIES
+    ENVIRONMENT "QT_QPA_PLATFORM=wayland;QTWEBENGINE_CHROMIUM_FLAGS=--use-gl=angle --use-angle=gl --enable-gpu-rasterization"
+    SKIP_RETURN_CODE 77
+    TIMEOUT 90)
 
 add_executable(engine-card-load engine-card-load.cpp)
 target_link_libraries(engine-card-load PRIVATE qtwebkit-compat-lib)

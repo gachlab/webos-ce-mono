@@ -47,8 +47,7 @@ RemoteWindowData* RemoteWindowDataFactory::generate(int width, int height, bool 
 {
 	RemoteWindowData* data = 0;
 #if defined(HAVE_DMABUF)
-	// Opt-in: WEBOS_DMABUF=1. In-process registry only — not for live
-	// two-process sessions until SCM_RIGHTS (docs/webcontent-dmabuf.md).
+	// Default when a render node works (#84). WEBOS_DMABUF=0 opts out.
 	if (dmabuf_window::wantFactoryBackend()) {
 		data = new RemoteWindowDataDmaBuf(width, height, hasAlpha);
 		if (data->isValid())

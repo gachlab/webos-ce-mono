@@ -35,9 +35,9 @@ namespace dmabuf_window {
 class GlRenderTarget;
 }
 
-// CE present path (#79): QPainter fills a staging QImage (QtWebEngine is still
-// --disable-gpu), then uploadArgb32 into an EGL FBO exported as dma-buf.
-// Host imports via EXTERNAL_OES — no GBM mapWrite on the hot path.
+// CE present path (#79 / #84): EGL FBO exported as dma-buf. Prefer redirecting
+// QtWebEngine's QQuickWindow into the FBO texture (no staging QImage). Falls
+// back to staging uploadArgb32 when bindPresentTexture is not ready yet.
 class RemoteWindowDataDmaBuf : public RemoteWindowData
 {
 public:
@@ -61,6 +61,9 @@ public:
 	virtual void endPaint(bool preserveOnFlip, const QRect& rect, bool flipBuffers = true);
 	virtual void sendWindowUpdate(int x, int y, int w, int h);
 
+	virtual bool engineOwnsPresent() const { return m_enginePresent; }
+	virtual bool ensureEnginePresent(QWebPage* page);
+
 	virtual bool hasDirectRendering() const { return false; }
 	virtual bool directRenderingAllowed(bool val) { return false; }
 
@@ -76,6 +79,7 @@ private:
 	int m_width;
 	int m_height;
 	bool m_hasAlpha;
+	bool m_enginePresent;
 	QPainter* m_context;
 	QImage m_staging;
 	QOpenGLContext* m_glContext;

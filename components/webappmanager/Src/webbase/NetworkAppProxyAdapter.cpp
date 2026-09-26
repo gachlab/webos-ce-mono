@@ -38,7 +38,11 @@ void setChromiumProxyFlags(const NmNet::AppProxy& proxy)
     } else if (proxy.kind == NmNet::AppProxy::Kind::Pac) {
         kept.append("--proxy-pac-url=" + QByteArray::fromStdString(proxy.pacUrl));
     }
-    qputenv("QTWEBENGINE_CHROMIUM_FLAGS", kept.join(' '));
+    // Never qputenv("") — that drops GPU defaults after Chromium has already
+    // read the flags (and can race the qtwebkit-compat beforeApplication set).
+    const QByteArray next = kept.join(' ');
+    if (!next.isEmpty())
+        qputenv("QTWEBENGINE_CHROMIUM_FLAGS", next);
 }
 
 } // namespace

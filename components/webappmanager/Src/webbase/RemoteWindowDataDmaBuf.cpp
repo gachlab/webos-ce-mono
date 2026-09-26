@@ -30,6 +30,7 @@
 #include <QOpenGLContext>
 #include <QPainter>
 #include <QSurfaceFormat>
+#include <QWebPage>
 
 #include <dmabuf_window.h>
 
@@ -44,6 +45,7 @@ RemoteWindowDataDmaBuf::RemoteWindowDataDmaBuf(int width, int height, bool hasAl
 	, m_width(width)
 	, m_height(height)
 	, m_hasAlpha(hasAlpha)
+	, m_enginePresent(false)
 	, m_context(0)
 	, m_glContext(0)
 	, m_glSurface(0)
@@ -74,7 +76,7 @@ RemoteWindowDataDmaBuf::~RemoteWindowDataDmaBuf()
 bool RemoteWindowDataDmaBuf::isValid() const
 {
 	return m_keyBuffer && m_target && m_target->valid() && m_heldFd >= 0
-		&& !m_staging.isNull();
+		&& (m_enginePresent || !m_staging.isNull());
 }
 
 int RemoteWindowDataDmaBuf::key() const
@@ -112,6 +114,10 @@ bool RemoteWindowDataDmaBuf::ensureGl()
 			delete m_glContext;
 			m_glContext = new QOpenGLContext;
 			m_glContext->setFormat(fmt);
+			// Share with QtWebEngine's Quick RHI so bindPresentTexture can
+			// redirect into our dma-buf-backed texture (#84).
+			if (QOpenGLContext* share = QOpenGLContext::globalShareContext())
+				m_glContext->setShareContext(share);
 			return m_glContext->create();
 		};
 
@@ -197,6 +203,8 @@ void RemoteWindowDataDmaBuf::flip()
 
 QPainter* RemoteWindowDataDmaBuf::qtRenderingContext()
 {
+	if (m_enginePresent)
+		return 0;
 	if (m_context)
 		return m_context;
 	if (m_staging.isNull() || !ensureGl())
@@ -205,14 +213,43 @@ QPainter* RemoteWindowDataDmaBuf::qtRenderingContext()
 	return m_context;
 }
 
+bool RemoteWindowDataDmaBuf::ensureEnginePresent(QWebPage* page)
+{
+	if (m_enginePresent)
+		return true;
+	if (!page || !ensureGl())
+		return false;
+	if (!m_glContext->makeCurrent(m_glSurface))
+		return false;
+	m_enginePresent = page->bindPresentTexture(m_target->colorTexture(),
+											   QSize(m_width, m_height));
+	m_glContext->doneCurrent();
+	if (m_enginePresent) {
+		delete m_context;
+		m_context = 0;
+		m_staging = QImage();
+	}
+	return m_enginePresent;
+}
+
 void RemoteWindowDataDmaBuf::beginPaint()
 {
+	if (m_enginePresent)
+		return;
 	luna_assert(m_context && !m_staging.isNull());
 	m_context->begin(&m_staging);
 }
 
 void RemoteWindowDataDmaBuf::endPaint(bool, const QRect&, bool)
 {
+	if (m_enginePresent) {
+		if (m_glContext && m_glSurface && m_target && m_glContext->makeCurrent(m_glSurface)) {
+			m_target->end();
+			m_glContext->doneCurrent();
+		}
+		return;
+	}
+
 	if (m_context && m_context->isActive())
 		m_context->end();
 
@@ -243,6 +280,7 @@ void RemoteWindowDataDmaBuf::resize(int newWidth, int newHeight)
 
 	m_width = newWidth;
 	m_height = newHeight;
+	m_enginePresent = false;
 	m_staging = QImage(newWidth, newHeight, QImage::Format_ARGB32_Premultiplied);
 
 	delete m_context;
@@ -260,6 +298,10 @@ void RemoteWindowDataDmaBuf::resize(int newWidth, int newHeight)
 
 void RemoteWindowDataDmaBuf::clear()
 {
+	if (m_enginePresent) {
+		sendWindowUpdate(0, 0, m_width, m_height);
+		return;
+	}
 	if (!qtRenderingContext())
 		return;
 	beginPaint();

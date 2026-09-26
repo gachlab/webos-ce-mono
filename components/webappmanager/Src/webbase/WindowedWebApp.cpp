@@ -369,19 +369,28 @@ void WindowedWebApp::paint()
     if (m_paintRect.isEmpty())
         return;
 
-    QPainter* ctxt = m_data->qtRenderingContext();
+    // #84: dma-buf may redirect the engine's Quick window into the shared
+    // texture; then we must not snapshot via QPainter.
+    if (page() && page()->page())
+        m_data->ensureEnginePresent(page()->page());
+
+    const int px = m_paintRect.x();
+    const int py = m_paintRect.y();
+    const int pw = m_paintRect.width();
+    const int ph = m_paintRect.height();
+
     m_data->beginPaint();
-    ctxt->setCompositionMode(QPainter::CompositionMode_Source);
-
-    int px = m_paintRect.x();
-    int py = m_paintRect.y();
-    int pw = m_paintRect.width();
-    int ph = m_paintRect.height();
-
-    ctxt->setClipRect(px, py, pw, ph);
-    ctxt->fillRect(m_paintRect,  Qt::transparent);
-
-    page()->page()->mainFrame()->render(ctxt, QWebFrame::ContentsLayer, m_paintRect);
+    if (!m_data->engineOwnsPresent()) {
+        QPainter* ctxt = m_data->qtRenderingContext();
+        if (!ctxt) {
+            m_data->endPaint(false, QRect());
+            return;
+        }
+        ctxt->setCompositionMode(QPainter::CompositionMode_Source);
+        ctxt->setClipRect(px, py, pw, ph);
+        ctxt->fillRect(m_paintRect, Qt::transparent);
+        page()->page()->mainFrame()->render(ctxt, QWebFrame::ContentsLayer, m_paintRect);
+    }
 
     m_paintRect.setRect(0, 0, 0, 0);
 
