@@ -85,4 +85,5 @@ draws the boxes; in the CE release they are empty. See
 ## Web content buffer path (#79)
 
 Lean desktop present path (dma-buf factories, QtWebEngine retained after #81):
-see [webcontent-dmabuf.md](webcontent-dmabuf.md).
+see [webcontent-dmabuf.md](webcontent-dmabuf.md). WebContent port boundary:
+[webcontent.md](webcontent.md).

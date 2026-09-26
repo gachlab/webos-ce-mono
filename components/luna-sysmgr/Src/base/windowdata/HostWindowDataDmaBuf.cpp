@@ -20,20 +20,60 @@
 
 #include "HostWindowDataDmaBuf.h"
 
+#include <string.h>
 #include <sys/mman.h>
 #include <unistd.h>
 
 #include <QImage>
+#include <PIpcBuffer.h>
 
 #include "Logging.h"
+
+namespace {
+
+bool exportFromHandoffBuffer(int key, dmabuf_window::Export* out)
+{
+	PIpcBuffer* buf = PIpcBuffer::attach(key);
+	if (!buf || !buf->data()) {
+		delete buf;
+		return false;
+	}
+
+	dmabuf_window::Handoff handoff;
+	memcpy(&handoff, buf->data(), sizeof(handoff));
+	delete buf;
+
+	if (handoff.magic != dmabuf_window::Handoff::kMagic || handoff.fd < 0)
+		return false;
+
+	const int peer = dmabuf_window::peerPid();
+	const int fd = (peer > 0)
+		? dmabuf_window::duplicateFdFromPeer(peer, handoff.fd)
+		: -1;
+	if (fd < 0)
+		return false;
+
+	out->fd = fd;
+	out->width = handoff.width;
+	out->height = handoff.height;
+	out->stride = handoff.stride;
+	out->offset = handoff.offset;
+	out->fourcc = handoff.fourcc;
+	out->modifier = handoff.modifier;
+	return true;
+}
+
+} // namespace
 
 HostWindowDataDmaBuf* HostWindowDataDmaBuf::createIfRegistered(int key, int metaDataKey,
 															   int width, int height,
 															   bool hasAlpha)
 {
 	dmabuf_window::Export desc;
-	if (!dmabuf_window::registryTake(key, &desc))
-		return 0;
+	if (!dmabuf_window::registryTake(key, &desc)) {
+		if (!exportFromHandoffBuffer(key, &desc))
+			return 0;
+	}
 	return new HostWindowDataDmaBuf(key, metaDataKey, width, height, hasAlpha, desc);
 }
 

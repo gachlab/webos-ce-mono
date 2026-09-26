@@ -13,7 +13,7 @@
 #include <vector>
 
 static const uint32_t kFillArgb = 0xFFCC3311u;
-static const uint32_t kExpectedArgb = 0xFF0000FFu;
+static const uint32_t kExpectedArgb = 0xFFCC3311u;
 
 static bool fillSolid(dmabuf_window::Frame* frame, uint32_t argb)
 {

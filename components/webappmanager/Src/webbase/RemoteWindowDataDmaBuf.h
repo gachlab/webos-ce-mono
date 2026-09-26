@@ -71,6 +71,7 @@ private:
 	void* m_frame;  // dmabuf_window::Frame*
 	uint32_t m_mapStride;
 	void* m_mapPtr;
+	int m_heldFd;
 
 	RemoteWindowDataDmaBuf(const RemoteWindowDataDmaBuf&);
 	RemoteWindowDataDmaBuf& operator=(const RemoteWindowDataDmaBuf&);

@@ -24,6 +24,20 @@
 
 namespace dmabuf_window {
 
+// Written into the Remote's identity PIpcBuffer so the Host can pidfd_getfd
+// the dma-buf without touching the PIpc byte stream (SCM_RIGHTS later).
+struct Handoff {
+    static constexpr uint32_t kMagic = 0x42414d44u; // 'DMAB' LE
+    uint32_t magic = 0;
+    int32_t fd = -1;
+    uint32_t width = 0;
+    uint32_t height = 0;
+    uint32_t stride = 0;
+    uint32_t offset = 0;
+    uint32_t fourcc = 0;
+    uint64_t modifier = 0;
+};
+
 // DRM_FORMAT_ARGB8888 little-endian matches QImage::Format_ARGB32_Premultiplied
 // byte order on little-endian hosts (B,G,R,A in memory).
 struct Export {
@@ -61,11 +75,9 @@ public:
     uint32_t height() const { return m_height; }
     uint32_t stride() const { return m_stride; }
 
-    // CPU map for writing ARGB32 premultiplied rows. One map at a time.
     void* mapWrite(uint32_t* strideOut);
     void unmap();
 
-    // Dup of the dma-buf fd plus layout. Caller closes Export::fd.
     bool exportDesc(Export* out) const;
 
     void* bo() const { return m_bo; }
@@ -82,8 +94,6 @@ private:
     uint32_t m_mapStride = 0;
 };
 
-// Import a dma-buf and sample a pixel (test / Host path). Phase 1 uses
-// gbm_bo_import + CPU map; EGLImage→GL texture is the later compose step.
 class Importer {
 public:
     static std::unique_ptr<Importer> create();
@@ -91,8 +101,6 @@ public:
 
     bool valid() const { return static_cast<bool>(m_device); }
 
-    // Returns false on import failure. On success, *argb is packed
-    // 0xAARRGGBB for the sample at (x, y).
     bool samplePixel(const Export& desc, int x, int y, uint32_t* argb);
 
 private:
@@ -100,16 +108,17 @@ private:
     std::shared_ptr<Device> m_device;
 };
 
-// WEBOS_DMABUF=1 and a usable render node. Live two-process sessions must not
-// set this until SCM_RIGHTS fd passing exists (see docs/webcontent-dmabuf.md).
 bool wantFactoryBackend();
 bool available();
 
-// Process-local handoff so HostWindowDataFactory can resolve a Remote's
-// dma-buf from the integer key() (in-process tests only).
 void registryPut(int key, const Export& desc);
 bool registryTake(int key, Export* out);
 void registryClear(int key);
+
+int duplicateFdFromPeer(int peerPid, int remoteFd);
+
+void setPeerPid(int pid);
+int peerPid();
 
 } // namespace dmabuf_window
 

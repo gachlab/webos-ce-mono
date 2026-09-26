@@ -66,8 +66,9 @@ RemoteWindowDataDmaBuf::RemoteWindowDataDmaBuf(int width, int height, bool hasAl
 	, m_frame(0)
 	, m_mapStride(0)
 	, m_mapPtr(0)
+	, m_heldFd(-1)
 {
-	m_keyBuffer = PIpcBuffer::create(64);
+	m_keyBuffer = PIpcBuffer::create(static_cast<int>(sizeof(dmabuf_window::Handoff)));
 	if (!m_keyBuffer)
 		return;
 
@@ -90,6 +91,10 @@ RemoteWindowDataDmaBuf::~RemoteWindowDataDmaBuf()
 	if (m_keyBuffer)
 		dmabuf_window::registryClear(m_keyBuffer->key());
 	discardSurface();
+	if (m_heldFd >= 0) {
+		::close(m_heldFd);
+		m_heldFd = -1;
+	}
 	delete asFrame(m_frame);
 	m_frame = 0;
 	delete asDevice(m_device);
@@ -100,7 +105,7 @@ RemoteWindowDataDmaBuf::~RemoteWindowDataDmaBuf()
 
 bool RemoteWindowDataDmaBuf::isValid() const
 {
-	return m_keyBuffer && m_frame;
+	return m_keyBuffer && m_frame && m_heldFd >= 0;
 }
 
 int RemoteWindowDataDmaBuf::key() const
@@ -117,11 +122,27 @@ bool RemoteWindowDataDmaBuf::publishRegistry()
 {
 	if (!m_frame || !m_keyBuffer)
 		return false;
+
 	dmabuf_window::Export desc;
 	if (!asFrame(m_frame)->exportDesc(&desc))
 		return false;
+
+	if (m_heldFd >= 0)
+		::close(m_heldFd);
+	m_heldFd = desc.fd;
+
+	dmabuf_window::Handoff handoff;
+	handoff.magic = dmabuf_window::Handoff::kMagic;
+	handoff.fd = m_heldFd;
+	handoff.width = desc.width;
+	handoff.height = desc.height;
+	handoff.stride = desc.stride;
+	handoff.offset = desc.offset;
+	handoff.fourcc = desc.fourcc;
+	handoff.modifier = desc.modifier;
+	memcpy(m_keyBuffer->data(), &handoff, sizeof(handoff));
+
 	dmabuf_window::registryPut(m_keyBuffer->key(), desc);
-	::close(desc.fd);
 	return true;
 }
 
@@ -194,6 +215,10 @@ void RemoteWindowDataDmaBuf::resize(int newWidth, int newHeight)
 	discardSurface();
 	delete asFrame(m_frame);
 	m_frame = 0;
+	if (m_heldFd >= 0) {
+		::close(m_heldFd);
+		m_heldFd = -1;
+	}
 
 	m_width = newWidth;
 	m_height = newHeight;
