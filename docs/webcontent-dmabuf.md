@@ -21,9 +21,9 @@ engine’s present path instead of cutting over.
   `--use-gl=egl` under Wayland still floods context-loss; ANGLE+gl keeps Mesa
   hardware GL. `tests/webengine-gpu-boot` + `tests/webengine-gpu-scroll` cover
   boot/paint and scroll-under-GPU (SwiftShader under offscreen CI).
-  Card buffers default to dma-buf when a render node works (`WEBOS_DMABUF=0`
-  opts out). Remote redirects `QQuickWindow` into the card FBO
-  (`setRenderTarget`); staging `QImage` upload is fallback only. Contract:
+  Card buffers stay SysV shm by default (`WEBOS_DMABUF=1` opt-in): live
+  Quick→dma-buf redirect showed card scanlines on seat0 and is gated off in
+  product until Host OES compose is fixed. Contract for the redirect spike:
   `tests/webengine-gpu-fbo-present`.
 Phase 1–2 modernize the **WebAppMgr → HostWindowData** buffer path, not the
 shell’s OpenGL or its Wayland-client role.
@@ -64,8 +64,7 @@ WebContent port.
 
 ## Phase 1–2 transport
 
-Factories select `*DmaBuf` when a render node is usable (default; `WEBOS_DMABUF=0`
-opts out).
+Factories select `*DmaBuf` when `WEBOS_DMABUF=1` and a render node is usable.
 
 - **In-process:** registry keyed by `key()`.
 - **Cross-process:** Remote writes a `Handoff` (fd number + layout) into the
@@ -126,9 +125,10 @@ Earlier (2026-09-25, Chromium still CPU-raster + staging upload):
 | dmabuf + mmap Host | yes | 2.509 | 591 | ~267 MB |
 | dmabuf-gl (upload+OES) | yes | 3.325 | 600 | ~383 MB |
 
-**Verdict:** with GPU raster + Quick→dma-buf redirect, present drops ~50× vs
-direct snapshot. Default is **dma-buf** when a render node exists;
-`WEBOS_DMABUF=0` restores SysV shm / direct.
+**Verdict:** redirect present is ~50× cheaper in the harness, but seat0 with
+default dma-buf showed card-wide scanlines — keep **direct** as product default
+and `WEBOS_DMABUF=1` opt-in until Host compose of the redirected texture is fixed.
+GPU raster (ANGLE+gl under Wayland) stays on.
 
 **`tests/engine-card-load`** — 25 local browser-like cards, proof = title + paint
 (grab vs direct only; no Host import in this harness):
