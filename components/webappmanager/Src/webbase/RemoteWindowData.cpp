@@ -38,9 +38,25 @@
 #include "RemoteWindowDataSoftwareQt.h"
 #endif
 
+#if defined(HAVE_DMABUF)
+#include "RemoteWindowDataDmaBuf.h"
+#include <dmabuf_window.h>
+#endif
+
 RemoteWindowData* RemoteWindowDataFactory::generate(int width, int height, bool hasAlpha)
 {
 	RemoteWindowData* data = 0;
+#if defined(HAVE_DMABUF)
+	// Opt-in: WEBOS_DMABUF=1. In-process registry only — not for live
+	// two-process sessions until SCM_RIGHTS (docs/webcontent-dmabuf.md).
+	if (dmabuf_window::wantFactoryBackend()) {
+		data = new RemoteWindowDataDmaBuf(width, height, hasAlpha);
+		if (data->isValid())
+			return data;
+		delete data;
+		data = 0;
+	}
+#endif
 #if defined(HAVE_TEXTURESHARING)
 	data = new RemoteWindowDataSoftwareTextureShared(width, height, hasAlpha);
 #elif defined(OPENGLCOMPOSITED)

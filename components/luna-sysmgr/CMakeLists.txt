@@ -30,6 +30,7 @@ add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../../adapters/qt6-compat ${CMAKE_C
 # Input modern hardware produces that webOS's catalogue never had -- the wheel,
 # so far -- packed into HP's Event without changing it.
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../../adapters/input-compat ${CMAKE_CURRENT_BINARY_DIR}/input-compat)
+add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../../adapters/dmabuf-window ${CMAKE_CURRENT_BINARY_DIR}/dmabuf-window)
 # Qt 6's moc needs the complete type behind every pointer-typed property.
 # icon.h declares Q_PROPERTY(LayoutItem * ...) with LayoutItem only forward
 # declared, which Qt 5 accepted. -b puts the definition in front of every
@@ -92,6 +93,7 @@ add_executable(LunaSysMgr
     Src/base/visual/TouchToShareGlow.cpp
     Src/base/visual/WSOverlayScreenShotAnimation.cpp
     Src/base/windowdata/HostWindowData.cpp
+    Src/base/windowdata/HostWindowDataDmaBuf.cpp
     Src/base/windowdata/HostWindowDataOpenGL.cpp
     Src/base/windowdata/HostWindowDataSoftware.cpp
     Src/core/KeywordMap.cpp
@@ -337,6 +339,7 @@ target_compile_definitions(LunaSysMgr PRIVATE
     SHIPPING_VERSION=0
     TARGET_DESKTOP
     HAVE_OPENGL
+    HAVE_DMABUF
     P_BACKEND=P_BACKEND_SOFT
     QT_NO_KEYWORDS          # CONFIG += no_keywords: webOS uses "signal" as a name
     FIX_FOR_QT
@@ -359,7 +362,7 @@ find_package(Threads REQUIRED)
 target_link_libraries(LunaSysMgr PRIVATE
     Qt::Core Qt::Gui Qt::Network Qt::Widgets
     Qt::Quick Qt::Qml Qt::OpenGL Qt::Sql
-    Qt::OpenGLWidgets Qt::StateMachine Qt::GuiPrivate qt6compat-gl input-compat
+    Qt::OpenGLWidgets Qt::StateMachine Qt::GuiPrivate qt6compat-gl input-compat dmabuf-window
     ${GLIB_LDFLAGS} ${SQLITE_LDFLAGS} OpenGL::GL
     OpenSSL::SSL OpenSSL::Crypto Threads::Threads
     -L${WEBOS_STAGING}/lib -L${WEBOS_STAGING}/usr/lib

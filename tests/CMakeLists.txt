@@ -611,3 +611,13 @@ if (PBNJSON_C AND PBNJSON_INCLUDE)
 else ()
     message(WARNING "pbnjson not found under ${WEBOS_STAGING}; its tests are not built")
 endif ()
+
+# --- #79 phase 1: dma-buf present path (GBM CPU blit → EGLImage sample) -----
+# Does not need the staging tree or a display: surfaceless EGL + a render node.
+add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/../adapters/dmabuf-window"
+                 "${CMAKE_CURRENT_BINARY_DIR}/dmabuf-window")
+add_executable(dmabuf-present dmabuf-present.cpp)
+target_link_libraries(dmabuf-present PRIVATE dmabuf-window)
+add_test(NAME dmabuf-present COMMAND dmabuf-present)
+set_tests_properties(dmabuf-present PROPERTIES
+    ENVIRONMENT "WEBOS_DMABUF=1")
