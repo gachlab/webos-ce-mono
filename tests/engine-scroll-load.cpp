@@ -10,9 +10,8 @@
 //   QT_QPA_PLATFORM=offscreen ./engine-scroll-load dmabuf-gl
 //
 // Modes flip WEBOS_GRAB_PRESENT and optionally paint into a GBM dma-buf.
-// dmabuf-gl: paint into dma-buf then Host-style GL import (EXTERNAL_OES blit).
-// Present time is paint + GPU blit only (no readback); movement proof samples
-// the imported FBO, and final diff_pixels uses one full readback at the ends.
+// dmabuf-gl: staging QImage → GlRenderTarget (EGL FBO export) → Host OES.
+// Matches RemoteWindowDataDmaBuf. Present includes upload+import cost.
 
 #include "dmabuf_window.h"
 
@@ -31,9 +30,13 @@
 #include <cstdlib>
 #include <cstring>
 #include <functional>
+#include <memory>
 #include <string>
 #include <unistd.h>
 #include <vector>
+
+#include <EGL/egl.h>
+#include <EGL/eglext.h>
 
 static const char kScrollPage[] = R"HTML(<!doctype html>
 <html><head><style>
@@ -150,14 +153,16 @@ static RunResult runMode(PresentMode mode, int width, int height, int steps, dou
     QImage qimageSurface(width, height, QImage::Format_ARGB32_Premultiplied);
     std::unique_ptr<dmabuf_window::Frame> dmaFrame;
     std::unique_ptr<dmabuf_window::GlImporter> glImporter;
+    std::unique_ptr<dmabuf_window::GlRenderTarget> glTarget;
+    EGLDisplay surfDpy = EGL_NO_DISPLAY;
+    EGLContext surfCtx = EGL_NO_CONTEXT;
     QImage dmaSurface;
     uint32_t dmaStride = 0;
     void* dmaPtr = nullptr;
     dmabuf_window::Export dmaExport{};
 
     QImage* surface = &qimageSurface;
-    const bool useDma = (mode == PresentMode::Dmabuf || mode == PresentMode::DmabufGl);
-    if (useDma) {
+    if (mode == PresentMode::Dmabuf) {
         if (!dmabuf_window::available()) {
             std::printf("%s: FAIL no GBM\n", modeName(mode));
             return out;
@@ -181,18 +186,72 @@ static RunResult runMode(PresentMode mode, int width, int height, int steps, dou
             std::printf("%s: FAIL exportDesc\n", modeName(mode));
             return out;
         }
-        if (mode == PresentMode::DmabufGl) {
-            glImporter = dmabuf_window::GlImporter::create();
-            if (!glImporter) {
-                std::printf("%s: FAIL GlImporter\n", modeName(mode));
-                ::close(dmaExport.fd);
-                dmaExport.fd = -1;
-                return out;
-            }
+    } else if (mode == PresentMode::DmabufGl) {
+        // Match RemoteWindowDataDmaBuf: staging QImage → GlRenderTarget upload →
+        // dma-buf. (QPainter→FBO fights QtWebEngine's RHI on xcb.)
+        auto getDisplay = reinterpret_cast<PFNEGLGETPLATFORMDISPLAYEXTPROC>(
+            eglGetProcAddress("eglGetPlatformDisplayEXT"));
+        if (!getDisplay) {
+            std::printf("%s: FAIL no eglGetPlatformDisplayEXT\n", modeName(mode));
+            return out;
         }
+        EGLDisplay dpy = getDisplay(EGL_PLATFORM_SURFACELESS_MESA, EGL_DEFAULT_DISPLAY,
+                                    nullptr);
+        if (dpy == EGL_NO_DISPLAY || !eglInitialize(dpy, nullptr, nullptr)
+            || !eglBindAPI(EGL_OPENGL_ES_API)) {
+            std::printf("%s: FAIL surfaceless EGL\n", modeName(mode));
+            return out;
+        }
+        EGLint n = 0;
+        eglGetConfigs(dpy, nullptr, 0, &n);
+        std::vector<EGLConfig> configs(static_cast<size_t>(n));
+        eglGetConfigs(dpy, configs.data(), n, &n);
+        EGLConfig config = configs[0];
+        static const EGLint attrs[] = { EGL_CONTEXT_CLIENT_VERSION, 2, EGL_NONE };
+        EGLContext ctx = eglCreateContext(dpy, config, EGL_NO_CONTEXT, attrs);
+        if (ctx == EGL_NO_CONTEXT
+            || !eglMakeCurrent(dpy, EGL_NO_SURFACE, EGL_NO_SURFACE, ctx)) {
+            std::printf("%s: FAIL EGL context\n", modeName(mode));
+            return out;
+        }
+        surfDpy = dpy;
+        surfCtx = ctx;
+        glTarget = dmabuf_window::GlRenderTarget::create(static_cast<uint32_t>(width),
+                                                         static_cast<uint32_t>(height));
+        if (!glTarget) {
+            std::printf("%s: FAIL GlRenderTarget\n", modeName(mode));
+            return out;
+        }
+        dmaExport = glTarget->exportDesc();
+        dmaExport.fd = ::dup(dmaExport.fd);
+        if (dmaExport.fd < 0) {
+            std::printf("%s: FAIL dup export fd\n", modeName(mode));
+            return out;
+        }
+        glImporter = dmabuf_window::GlImporter::create();
+        if (!glImporter) {
+            std::printf("%s: FAIL GlImporter\n", modeName(mode));
+            ::close(dmaExport.fd);
+            dmaExport.fd = -1;
+            return out;
+        }
+        eglMakeCurrent(surfDpy, EGL_NO_SURFACE, EGL_NO_SURFACE, surfCtx);
     }
 
     auto paintOnce = [&] {
+        if (mode == PresentMode::DmabufGl) {
+            eglMakeCurrent(surfDpy, EGL_NO_SURFACE, EGL_NO_SURFACE, surfCtx);
+            QImage tmp(width, height, QImage::Format_ARGB32_Premultiplied);
+            tmp.fill(Qt::transparent);
+            {
+                QPainter ctxt(&tmp);
+                page.mainFrame()->render(&ctxt, QWebFrame::ContentsLayer,
+                                         QRect(0, 0, width, height));
+            }
+            glTarget->uploadArgb32(reinterpret_cast<const uint32_t*>(tmp.constBits()),
+                                   static_cast<uint32_t>(tmp.bytesPerLine() / 4));
+            return;
+        }
         surface->fill(Qt::transparent);
         QPainter ctxt(surface);
         page.mainFrame()->render(&ctxt, QWebFrame::ContentsLayer, QRect(0, 0, width, height));
@@ -325,6 +384,11 @@ static RunResult runMode(PresentMode mode, int width, int height, int steps, dou
         dmaFrame->unmap();
     if (dmaExport.fd >= 0)
         ::close(dmaExport.fd);
+    if (surfDpy != EGL_NO_DISPLAY && surfCtx != EGL_NO_CONTEXT) {
+        eglMakeCurrent(surfDpy, EGL_NO_SURFACE, EGL_NO_SURFACE, surfCtx);
+        glTarget.reset();
+        eglMakeCurrent(surfDpy, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
+    }
     return out;
 }
 

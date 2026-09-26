@@ -24,12 +24,12 @@
 #include <string.h>
 #include <unistd.h>
 
-#include <memory>
-
 #include <PIpcBuffer.h>
 #include <PIpcChannel.h>
-#include <QImage>
+#include <QOffscreenSurface>
+#include <QOpenGLContext>
 #include <QPainter>
+#include <QSurfaceFormat>
 
 #include <dmabuf_window.h>
 
@@ -39,50 +39,22 @@
 #include "Logging.h"
 #include "WindowMetaData.h"
 
-namespace {
-
-using DevicePtr = std::shared_ptr<dmabuf_window::Device>;
-
-DevicePtr* asDevice(void* p)
-{
-	return static_cast<DevicePtr*>(p);
-}
-
-dmabuf_window::Frame* asFrame(void* p)
-{
-	return static_cast<dmabuf_window::Frame*>(p);
-}
-
-} // namespace
-
 RemoteWindowDataDmaBuf::RemoteWindowDataDmaBuf(int width, int height, bool hasAlpha)
 	: m_keyBuffer(0)
 	, m_width(width)
 	, m_height(height)
 	, m_hasAlpha(hasAlpha)
 	, m_context(0)
-	, m_surface(0)
-	, m_device(0)
-	, m_frame(0)
-	, m_mapStride(0)
-	, m_mapPtr(0)
+	, m_glContext(0)
+	, m_glSurface(0)
 	, m_heldFd(-1)
 {
 	m_keyBuffer = PIpcBuffer::create(static_cast<int>(sizeof(dmabuf_window::Handoff)));
 	if (!m_keyBuffer)
 		return;
-
-	auto device = dmabuf_window::Device::openDefault();
-	if (!device || !device->valid())
+	m_staging = QImage(width, height, QImage::Format_ARGB32_Premultiplied);
+	if (!ensureGl())
 		return;
-
-	auto frame = dmabuf_window::Frame::create(device,
-		static_cast<uint32_t>(width), static_cast<uint32_t>(height));
-	if (!frame)
-		return;
-
-	m_device = new DevicePtr(device);
-	m_frame = frame.release();
 	publishRegistry();
 }
 
@@ -95,17 +67,14 @@ RemoteWindowDataDmaBuf::~RemoteWindowDataDmaBuf()
 		::close(m_heldFd);
 		m_heldFd = -1;
 	}
-	delete asFrame(m_frame);
-	m_frame = 0;
-	delete asDevice(m_device);
-	m_device = 0;
 	delete m_keyBuffer;
 	m_keyBuffer = 0;
 }
 
 bool RemoteWindowDataDmaBuf::isValid() const
 {
-	return m_keyBuffer && m_frame && m_heldFd >= 0;
+	return m_keyBuffer && m_target && m_target->valid() && m_heldFd >= 0
+		&& !m_staging.isNull();
 }
 
 int RemoteWindowDataDmaBuf::key() const
@@ -118,45 +87,104 @@ void RemoteWindowDataDmaBuf::setWindowMetaDataBuffer(PIpcBuffer* metaDataBuffer)
 	m_metaDataBuffer = metaDataBuffer;
 }
 
+bool RemoteWindowDataDmaBuf::ensureGl()
+{
+	if (m_target && m_target->valid())
+		return true;
+
+	if (!m_glContext) {
+		auto tryCreate = [&](QSurfaceFormat::RenderableType rt, int maj, int min) -> bool {
+			QSurfaceFormat fmt;
+			fmt.setRenderableType(rt);
+			fmt.setVersion(maj, min);
+			fmt.setAlphaBufferSize(8);
+			fmt.setRedBufferSize(8);
+			fmt.setGreenBufferSize(8);
+			fmt.setBlueBufferSize(8);
+
+			delete m_glSurface;
+			m_glSurface = new QOffscreenSurface;
+			m_glSurface->setFormat(fmt);
+			m_glSurface->create();
+			if (!m_glSurface->isValid())
+				return false;
+
+			delete m_glContext;
+			m_glContext = new QOpenGLContext;
+			m_glContext->setFormat(fmt);
+			return m_glContext->create();
+		};
+
+		if (!tryCreate(QSurfaceFormat::OpenGLES, 2, 0)
+			&& !tryCreate(QSurfaceFormat::OpenGL, 2, 1)) {
+			g_critical("%s: QOpenGLContext::create failed (GLES2 and GL2.1)\n",
+					   __PRETTY_FUNCTION__);
+			return false;
+		}
+	}
+
+	if (!m_glContext->makeCurrent(m_glSurface)) {
+		g_critical("%s: makeCurrent failed\n", __PRETTY_FUNCTION__);
+		return false;
+	}
+
+	m_target = dmabuf_window::GlRenderTarget::create(
+		static_cast<uint32_t>(m_width), static_cast<uint32_t>(m_height));
+	if (!m_target) {
+		g_critical("%s: GlRenderTarget::create failed\n", __PRETTY_FUNCTION__);
+		m_glContext->doneCurrent();
+		return false;
+	}
+	m_glContext->doneCurrent();
+	return true;
+}
+
 bool RemoteWindowDataDmaBuf::publishRegistry()
 {
-	if (!m_frame || !m_keyBuffer)
+	if (!m_target || !m_keyBuffer)
 		return false;
 
-	dmabuf_window::Export desc;
-	if (!asFrame(m_frame)->exportDesc(&desc))
+	const dmabuf_window::Export& desc = m_target->exportDesc();
+	if (desc.fd < 0)
 		return false;
 
-	if (m_heldFd >= 0)
+	if (m_heldFd >= 0 && m_heldFd != desc.fd)
 		::close(m_heldFd);
-	m_heldFd = desc.fd;
+	m_heldFd = ::dup(desc.fd);
+	if (m_heldFd < 0)
+		return false;
+
+	dmabuf_window::Export published = desc;
+	published.fd = m_heldFd;
 
 	dmabuf_window::Handoff handoff;
 	handoff.magic = dmabuf_window::Handoff::kMagic;
 	handoff.fd = m_heldFd;
-	handoff.width = desc.width;
-	handoff.height = desc.height;
-	handoff.stride = desc.stride;
-	handoff.offset = desc.offset;
-	handoff.fourcc = desc.fourcc;
-	handoff.modifier = desc.modifier;
+	handoff.width = published.width;
+	handoff.height = published.height;
+	handoff.stride = published.stride;
+	handoff.offset = published.offset;
+	handoff.fourcc = published.fourcc;
+	handoff.modifier = published.modifier;
 	memcpy(m_keyBuffer->data(), &handoff, sizeof(handoff));
 
-	dmabuf_window::registryPut(m_keyBuffer->key(), desc);
+	dmabuf_window::registryPut(m_keyBuffer->key(), published);
 	return true;
 }
 
 void RemoteWindowDataDmaBuf::discardSurface()
 {
+	if (m_glContext && m_glSurface)
+		m_glContext->makeCurrent(m_glSurface);
 	delete m_context;
 	m_context = 0;
-	delete m_surface;
-	m_surface = 0;
-	if (m_frame && m_mapPtr) {
-		asFrame(m_frame)->unmap();
-		m_mapPtr = 0;
-		m_mapStride = 0;
-	}
+	m_target.reset();
+	if (m_glContext)
+		m_glContext->doneCurrent();
+	delete m_glContext;
+	m_glContext = 0;
+	delete m_glSurface;
+	m_glSurface = 0;
 }
 
 void RemoteWindowDataDmaBuf::flip()
@@ -171,32 +199,31 @@ QPainter* RemoteWindowDataDmaBuf::qtRenderingContext()
 {
 	if (m_context)
 		return m_context;
-	if (!m_frame)
+	if (m_staging.isNull() || !ensureGl())
 		return 0;
-
-	uint32_t stride = 0;
-	void* ptr = asFrame(m_frame)->mapWrite(&stride);
-	if (!ptr)
-		return 0;
-	m_mapPtr = ptr;
-	m_mapStride = stride;
-	m_surface = new QImage(reinterpret_cast<uchar*>(ptr), m_width, m_height,
-						   static_cast<int>(stride),
-						   QImage::Format_ARGB32_Premultiplied);
 	m_context = new QPainter;
 	return m_context;
 }
 
 void RemoteWindowDataDmaBuf::beginPaint()
 {
-	luna_assert(m_context && m_surface);
-	m_context->begin(m_surface);
+	luna_assert(m_context && !m_staging.isNull());
+	m_context->begin(&m_staging);
 }
 
 void RemoteWindowDataDmaBuf::endPaint(bool, const QRect&, bool)
 {
-	if (m_context)
+	if (m_context && m_context->isActive())
 		m_context->end();
+
+	if (!m_target || !m_glContext || !m_glSurface)
+		return;
+	if (!m_glContext->makeCurrent(m_glSurface))
+		return;
+	const auto* bits = reinterpret_cast<const uint32_t*>(m_staging.constBits());
+	const uint32_t stride = static_cast<uint32_t>(m_staging.bytesPerLine() / 4);
+	m_target->uploadArgb32(bits, stride);
+	m_glContext->doneCurrent();
 }
 
 void RemoteWindowDataDmaBuf::sendWindowUpdate(int x, int y, int w, int h)
@@ -207,14 +234,8 @@ void RemoteWindowDataDmaBuf::sendWindowUpdate(int x, int y, int w, int h)
 
 void RemoteWindowDataDmaBuf::resize(int newWidth, int newHeight)
 {
-	if (!m_device || !asDevice(m_device) || !*asDevice(m_device))
-		return;
-
 	if (m_keyBuffer)
 		dmabuf_window::registryClear(m_keyBuffer->key());
-	discardSurface();
-	delete asFrame(m_frame);
-	m_frame = 0;
 	if (m_heldFd >= 0) {
 		::close(m_heldFd);
 		m_heldFd = -1;
@@ -222,11 +243,18 @@ void RemoteWindowDataDmaBuf::resize(int newWidth, int newHeight)
 
 	m_width = newWidth;
 	m_height = newHeight;
-	auto frame = dmabuf_window::Frame::create(*asDevice(m_device),
-		static_cast<uint32_t>(newWidth), static_cast<uint32_t>(newHeight));
-	if (!frame)
+	m_staging = QImage(newWidth, newHeight, QImage::Format_ARGB32_Premultiplied);
+
+	delete m_context;
+	m_context = 0;
+	if (m_glContext && m_glSurface)
+		m_glContext->makeCurrent(m_glSurface);
+	m_target.reset();
+	if (m_glContext)
+		m_glContext->doneCurrent();
+
+	if (!ensureGl())
 		return;
-	m_frame = frame.release();
 	publishRegistry();
 }
 
@@ -235,7 +263,9 @@ void RemoteWindowDataDmaBuf::clear()
 	if (!qtRenderingContext())
 		return;
 	beginPaint();
-	m_surface->fill(m_hasAlpha ? Qt::transparent : Qt::white);
+	m_context->setCompositionMode(QPainter::CompositionMode_Source);
+	m_context->fillRect(QRect(0, 0, m_width, m_height),
+						m_hasAlpha ? Qt::transparent : Qt::white);
 	endPaint(false, QRect(), false);
 	sendWindowUpdate(0, 0, m_width, m_height);
 }

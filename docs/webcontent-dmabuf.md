@@ -15,8 +15,9 @@ engine’s present path instead of cutting over.
 
 - **LunaSysMgr** already hardware-composites (`QOpenGLWidget` + Mesa) as one
   Wayland client surface to the host.
-- **Web content** is still CPU-rasterized (`--disable-gpu`) into a buffer the
-  shell reads. Present no longer defaults to `QWidget::grab()` (see phase 2).
+- **Web content** still rasterizes in Chromium with `--disable-gpu` (load-bearing:
+  lifting it SIGSEGVs WebAppMgr — see KNOWN_BUGS). The **card buffer** for
+  `WEBOS_DMABUF=1` is now an EGL FBO exported as dma-buf, not a CPU-mapped GBM BO.
 
 Phase 1–2 modernize the **WebAppMgr → HostWindowData** buffer path, not the
 shell’s OpenGL or its Wayland-client role.
@@ -67,6 +68,21 @@ Factories select `*DmaBuf` when `WEBOS_DMABUF=1` and a render node is usable.
 
 Default without the env var is still SysV shm. Opt in deliberately.
 
+### Remote paint → GPU buffer
+
+`RemoteWindowDataDmaBuf` does **not** `gbm_bo_map` for present. Flow:
+
+1. `QPainter` draws into a staging `QImage` (QtWebEngine + `--disable-gpu`;
+   painting straight into a second GL context fights Chromium’s RHI).
+2. `GlRenderTarget::uploadArgb32` into an EGL FBO (`GL_TEXTURE_2D`).
+3. `eglExportDMABUFImageMESA` once → handoff fd for Host.
+4. Host `paintContents` imports via `EXTERNAL_OES` (no CPU readback).
+
+Contract: `tests/dmabuf-gl-paint` (FBO clear → export → OES sample).
+
+True Chromium GPU raster (no staging upload) needs a safe flag set that does
+not SIGSEGV WebAppMgr — still blocked; not enabled by default.
+
 Import paths on Host (`HostWindowDataDmaBuf`):
 
 1. **Texture compose (hot path)** — `paintContents()` attaches to the shell’s
@@ -75,9 +91,6 @@ Import paths on Host (`HostWindowDataDmaBuf`):
    (`HostWindow::paint` / `CardWindow::paintBase`). No CPU readback.
 2. **acquirePixmap fallback** — `mmap` → `QImage` copy for screenshot / non-GL
    callers.
-
-Contract tests: `tests/dmabuf-gl-present` (OES → pixel); scroll harness times
-GPU blit without readback on the present sample.
 
 ## Phase 2 present path
 
@@ -89,20 +102,19 @@ path, engine fixed to QtWebEngine via qtwebkit-compat):
 
 **`tests/engine-scroll-load`** — under-load scroll, image-diff (or FBO sample +
 final readback for `dmabuf-gl`) proof the page moved (400×600, 20 steps).
-Measured this machine (2026-09-25, texture compose / blit-only present):
+Measured this machine (2026-09-25, Remote upload + Host OES):
 
 | present | moved | median present ms | scroll wall ms | VmHWM |
 |---|---|---:|---:|---:|
-| grab | yes | 0.245 | 426 | ~265 MB |
-| direct (QImage) | yes | **0.182** | 410 | ~265 MB |
-| dmabuf + mmap Host | yes | 3.773 | 617 | ~266 MB |
-| dmabuf + GL blit (no readback) | yes | 0.551 | 383 | ~370 MB |
+| grab | yes | 0.305 | 475 | ~265 MB |
+| direct (QImage) | yes | **0.229** | 478 | ~265 MB |
+| dmabuf + mmap Host | yes | 2.509 | 591 | ~267 MB |
+| dmabuf-gl (upload+OES) | yes | 3.325 | 600 | ~383 MB |
 
-**Verdict:** GPU blit without readback is ~7× faster than mmap Host import on
-this harness, but still slower than painting into a normal `QImage` (GBM map
-write cost dominates). Default card path stays **direct**. `WEBOS_DMABUF=1`
-opts into the factory + texture compose path for live cards; keep measuring
-as Remote paint moves off CPU-mapped BOs.
+**Verdict:** with Chromium still CPU-rasterizing, the dma-buf path pays an
+extra upload into the EGL FBO and does not beat **direct**. It does establish
+the GPU buffer + Host texture compose contract for when engine GPU raster is
+safe. Default stays **direct**; `WEBOS_DMABUF=1` is opt-in.
 
 **`tests/engine-card-load`** — 25 local browser-like cards, proof = title + paint
 (grab vs direct only; no Host import in this harness):
@@ -112,11 +124,11 @@ as Remote paint moves off CPU-mapped BOs.
 | grab | 25/0 | 755 | ~2.99 GB | 0.145 |
 | direct | 25/0 | 711 | ~2.95 GB | **0.105** |
 
-Microbench `tests/present-cost` / `dmabuf-present` / `dmabuf-gl-present`
-remain for isolation; the scroll harness is the go/no-go for Host import cost.
+Microbench `tests/present-cost` / `dmabuf-present` / `dmabuf-gl-present` /
+`dmabuf-gl-paint` remain for isolation.
 
 ## Adapters
 
 Primitives: `adapters/dmabuf-window` (`Device` / `Frame` / `Importer` /
-`GlImporter` / registry). CE windowdata + thin `HostWindow` / `CardWindow`
-hooks for `paintContents`.
+`GlImporter` / `GlRenderTarget` / registry). CE windowdata + thin `HostWindow` /
+`CardWindow` hooks for `paintContents`.

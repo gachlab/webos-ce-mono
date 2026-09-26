@@ -23,7 +23,7 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_AUTOMOC ON)
 
-find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets Qml Quick Test)
+find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets Qml Quick Test OpenGL OpenGLWidgets)
 # Touch points are built through QMutableEventPoint -- here in touch-events.h,
 # and in MouseToTouch and QmlSceneItem, which these tests compile: private API.
 find_package(Qt6 REQUIRED COMPONENTS GuiPrivate)
@@ -626,13 +626,17 @@ add_executable(dmabuf-gl-present dmabuf-gl-present.cpp)
 target_link_libraries(dmabuf-gl-present PRIVATE dmabuf-window)
 add_test(NAME dmabuf-gl-present COMMAND dmabuf-gl-present)
 
+add_executable(dmabuf-gl-paint dmabuf-gl-paint.cpp)
+target_link_libraries(dmabuf-gl-paint PRIVATE dmabuf-window)
+add_test(NAME dmabuf-gl-paint COMMAND dmabuf-gl-paint)
+
 # #79 phase 2: present-vs-grab A/B (and optional --dmabuf). Not add_test.
 add_executable(present-cost present-cost.cpp)
 target_link_libraries(present-cost PRIVATE qtwebkit-compat-lib dmabuf-window)
 
 # Product-shaped A/B from #81, axis = present path (grab|direct|dmabuf).
 add_executable(engine-scroll-load engine-scroll-load.cpp)
-target_link_libraries(engine-scroll-load PRIVATE qtwebkit-compat-lib dmabuf-window)
+target_link_libraries(engine-scroll-load PRIVATE qtwebkit-compat-lib dmabuf-window Qt6::OpenGL Qt6::OpenGLWidgets)
 add_test(NAME engine-scroll-load COMMAND engine-scroll-load)
 set_tests_properties(engine-scroll-load PROPERTIES
     ENVIRONMENT "QT_QPA_PLATFORM=offscreen"

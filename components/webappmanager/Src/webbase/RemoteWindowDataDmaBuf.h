@@ -22,12 +22,22 @@
 #include "Common.h"
 #include "RemoteWindowData.h"
 
+#include <memory>
+
+#include <QImage>
+
 class QPainter;
-class QImage;
+class QOpenGLContext;
+class QOffscreenSurface;
 class PIpcBuffer;
 
-// CE present path (#79): pixels in a GBM dma-buf; key() is a small PIpcBuffer
-// used only as the window identity for IPC / the in-process registry.
+namespace dmabuf_window {
+class GlRenderTarget;
+}
+
+// CE present path (#79): QPainter fills a staging QImage (QtWebEngine is still
+// --disable-gpu), then uploadArgb32 into an EGL FBO exported as dma-buf.
+// Host imports via EXTERNAL_OES — no GBM mapWrite on the hot path.
 class RemoteWindowDataDmaBuf : public RemoteWindowData
 {
 public:
@@ -58,6 +68,7 @@ public:
 	virtual void clear();
 
 private:
+	bool ensureGl();
 	bool publishRegistry();
 	void discardSurface();
 
@@ -66,11 +77,10 @@ private:
 	int m_height;
 	bool m_hasAlpha;
 	QPainter* m_context;
-	QImage* m_surface;
-	void* m_device; // dmabuf_window::Device* shared via heap shared_ptr
-	void* m_frame;  // dmabuf_window::Frame*
-	uint32_t m_mapStride;
-	void* m_mapPtr;
+	QImage m_staging;
+	QOpenGLContext* m_glContext;
+	QOffscreenSurface* m_glSurface;
+	std::unique_ptr<dmabuf_window::GlRenderTarget> m_target;
 	int m_heldFd;
 
 	RemoteWindowDataDmaBuf(const RemoteWindowDataDmaBuf&);

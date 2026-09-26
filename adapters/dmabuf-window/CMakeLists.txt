@@ -13,6 +13,7 @@ add_library(dmabuf-window STATIC
     src/device.cpp
     src/frame.cpp
     src/egl_import.cpp
+    src/egl_target.cpp
     src/registry.cpp)
 set_target_properties(dmabuf-window PROPERTIES
     POSITION_INDEPENDENT_CODE ON

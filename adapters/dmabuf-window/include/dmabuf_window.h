@@ -157,6 +157,44 @@ private:
     uint32_t m_fboH = 0;
 };
 
+// GPU paint destination: RGBA texture + FBO in the caller's current EGL
+// context, exported once as dma-buf via EGL_MESA_image_dma_buf_export.
+// QPainter (QOpenGLPaintDevice) draws here; Host imports the same fd.
+class GlRenderTarget {
+public:
+    // Requires a current EGL GLES2 context.
+    static std::unique_ptr<GlRenderTarget> create(uint32_t width, uint32_t height);
+    ~GlRenderTarget();
+
+    bool valid() const { return m_fbo != 0 && m_export.fd >= 0; }
+    uint32_t width() const { return m_width; }
+    uint32_t height() const { return m_height; }
+    const Export& exportDesc() const { return m_export; }
+
+    // Bind FBO for drawing (color attachment = m_colorTex).
+    bool begin();
+    // glFinish so the exported dma-buf sees the new pixels.
+    void end();
+
+    // Solid clear (0xAARRGGBB) — used by contract tests without Qt.
+    bool clearArgb(uint32_t argb);
+
+    // Upload tightly packed ARGB32 (top-left origin) into the color texture.
+    // Used when QPainter/OpenGL is unavailable (QT_QPA_PLATFORM=offscreen).
+    bool uploadArgb32(const uint32_t* pixels, uint32_t stridePixels);
+
+private:
+    GlRenderTarget() = default;
+    bool exportDmaBuf();
+
+    void* m_display = nullptr; // EGLDisplay at create
+    unsigned m_colorTex = 0;
+    unsigned m_fbo = 0;
+    uint32_t m_width = 0;
+    uint32_t m_height = 0;
+    Export m_export;
+};
+
 bool wantFactoryBackend();
 bool available();
 
