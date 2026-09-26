@@ -625,3 +625,20 @@ set_tests_properties(dmabuf-present PROPERTIES
 # #79 phase 2: present-vs-grab A/B (and optional --dmabuf). Not add_test.
 add_executable(present-cost present-cost.cpp)
 target_link_libraries(present-cost PRIVATE qtwebkit-compat-lib dmabuf-window)
+
+# Product-shaped A/B from #81, axis = present path (grab|direct|dmabuf).
+add_executable(engine-scroll-load engine-scroll-load.cpp)
+target_link_libraries(engine-scroll-load PRIVATE qtwebkit-compat-lib dmabuf-window)
+add_test(NAME engine-scroll-load COMMAND engine-scroll-load)
+set_tests_properties(engine-scroll-load PROPERTIES
+    ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+    TIMEOUT 180)
+
+add_executable(engine-card-load engine-card-load.cpp)
+target_link_libraries(engine-card-load PRIVATE qtwebkit-compat-lib)
+# Smoke only in ctest; full n=25 is a bench (run by hand).
+add_test(NAME engine-card-load-smoke-direct COMMAND engine-card-load direct 3)
+add_test(NAME engine-card-load-smoke-grab COMMAND engine-card-load grab 3)
+set_tests_properties(engine-card-load-smoke-direct engine-card-load-smoke-grab PROPERTIES
+    ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+    TIMEOUT 120)

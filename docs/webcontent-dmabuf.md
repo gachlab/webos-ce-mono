@@ -76,13 +76,27 @@ Import samples via `gbm_bo_import` / `mmap`. Zero-copy `EGLImage` →
 `QWebFrame::render` paints with `QWidget::render` into the destination painter
 (the card buffer). `WEBOS_GRAB_PRESENT=1` restores grab→drawPixmap for A/B.
 
-Measured on this machine (`tests/present-cost`, 1024×768, 40 frames, offscreen):
+Product-shaped harnesses (same family as #81’s WPE↔Qt tables; axis is present
+path, engine fixed to QtWebEngine via qtwebkit-compat):
 
-| Path | median ms | notes |
-|---|---:|---|
-| QImage + grab→drawPixmap | 1.11 | `WEBOS_GRAB_PRESENT=1` |
-| QImage + direct render | 0.72 | default |
-| dma-buf + direct render | 0.44 | `--dmabuf` |
+**`tests/engine-scroll-load`** — under-load scroll, image-diff proof the page
+moved (400×600, 20 steps). Measured this machine:
+
+| present | moved | median present ms | scroll wall ms | VmHWM |
+|---|---|---:|---:|---:|
+| grab | yes | 0.353 | 390 | ~257 MB |
+| direct | yes | **0.150** | 324 | ~258 MB |
+| dmabuf + direct | yes | 0.254 | 644 | ~260 MB |
+
+**`tests/engine-card-load`** — 25 local browser-like cards, proof = title + paint:
+
+| present | ok/fail | wall ms | peak tree RSS | median present ms |
+|---|---|---:|---:|---:|
+| grab | 25/0 | 755 | ~2.99 GB | 0.145 |
+| direct | 25/0 | 711 | ~2.95 GB | **0.105** |
+
+Microbench `tests/present-cost` (full-viewport into QImage / dma-buf) remains
+available for isolation; the scroll/card harnesses are the go/no-go numbers.
 
 ## Adapters
 
