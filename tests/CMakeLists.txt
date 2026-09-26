@@ -622,6 +622,10 @@ add_test(NAME dmabuf-present COMMAND dmabuf-present)
 set_tests_properties(dmabuf-present PROPERTIES
     ENVIRONMENT "WEBOS_DMABUF=1")
 
+add_executable(dmabuf-gl-present dmabuf-gl-present.cpp)
+target_link_libraries(dmabuf-gl-present PRIVATE dmabuf-window)
+add_test(NAME dmabuf-gl-present COMMAND dmabuf-gl-present)
+
 # #79 phase 2: present-vs-grab A/B (and optional --dmabuf). Not add_test.
 add_executable(present-cost present-cost.cpp)
 target_link_libraries(present-cost PRIVATE qtwebkit-compat-lib dmabuf-window)

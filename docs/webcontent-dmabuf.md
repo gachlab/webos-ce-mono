@@ -67,9 +67,16 @@ Factories select `*DmaBuf` when `WEBOS_DMABUF=1` and a render node is usable.
 
 Default without the env var is still SysV shm. Opt in deliberately.
 
-Import samples via `gbm_bo_import` / `mmap`. Zero-copy `EGLImage` →
-`GL_TEXTURE_2D` is not used yet (Mesa rejects that target for these linear BOs;
-`GL_TEXTURE_EXTERNAL_OES` + blit is a follow-up for shell compose).
+Import paths on Host (`HostWindowDataDmaBuf`):
+
+1. **GL** — `GlImporter`: `EGLImage` + `GL_TEXTURE_EXTERNAL_OES` → blit to
+   RGBA FBO → `glReadPixels` into `QPixmap` (`tests/dmabuf-gl-present`).
+   Mesa rejects `GL_TEXTURE_2D` for these linear BOs.
+2. **CPU fallback** — `gbm_bo_import` / `mmap` → `QImage` copy.
+
+Neither path is zero-copy into the card compositor yet: both still end in a
+CPU `QPixmap`. True win needs CardWindow to sample the OES texture (or a
+shared GL texture) without a readback round-trip.
 
 ## Phase 2 present path
 
@@ -80,24 +87,34 @@ Product-shaped harnesses (same family as #81’s WPE↔Qt tables; axis is presen
 path, engine fixed to QtWebEngine via qtwebkit-compat):
 
 **`tests/engine-scroll-load`** — under-load scroll, image-diff proof the page
-moved (400×600, 20 steps). Measured this machine:
+moved (400×600, 20 steps). Measured this machine (2026-09-25, GL import
+wired):
 
 | present | moved | median present ms | scroll wall ms | VmHWM |
 |---|---|---:|---:|---:|
-| grab | yes | 0.353 | 390 | ~257 MB |
-| direct | yes | **0.150** | 324 | ~258 MB |
-| dmabuf + direct | yes | 0.254 | 644 | ~260 MB |
+| grab | yes | 0.263 | 429 | ~264 MB |
+| direct (QImage) | yes | **0.188** | 449 | ~265 MB |
+| dmabuf + mmap Host | yes | 4.267 | 327 | ~266 MB |
+| dmabuf + GL readback Host | yes | 3.456 | 634 | ~439 MB |
 
-**`tests/engine-card-load`** — 25 local browser-like cards, proof = title + paint:
+**Verdict:** while Host still materializes a `QPixmap`, dma-buf loses to
+painting into a normal `QImage`. GL import beats mmap slightly on present
+median but costs RSS and wall time; default card path stays **direct**.
+Keep `WEBOS_DMABUF=1` opt-in for transport/factory work and the next
+texture-compose spike.
+
+**`tests/engine-card-load`** — 25 local browser-like cards, proof = title + paint
+(grab vs direct only; no Host import in this harness):
 
 | present | ok/fail | wall ms | peak tree RSS | median present ms |
 |---|---|---:|---:|---:|
 | grab | 25/0 | 755 | ~2.99 GB | 0.145 |
 | direct | 25/0 | 711 | ~2.95 GB | **0.105** |
 
-Microbench `tests/present-cost` (full-viewport into QImage / dma-buf) remains
-available for isolation; the scroll/card harnesses are the go/no-go numbers.
+Microbench `tests/present-cost` / `dmabuf-present` / `dmabuf-gl-present`
+remain for isolation; the scroll harness is the go/no-go for Host import cost.
 
 ## Adapters
 
-Primitives: `adapters/dmabuf-window`. CE windowdata classes beside HP’s factories.
+Primitives: `adapters/dmabuf-window` (`Device` / `Frame` / `Importer` /
+`GlImporter` / registry). CE windowdata classes beside HP’s factories.

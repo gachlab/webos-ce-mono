@@ -22,12 +22,15 @@
 #include "Common.h"
 #include "HostWindowData.h"
 
+#include <memory>
+
 #include <QPixmap>
 #include <PIpcBuffer.h>
 
 #include <dmabuf_window.h>
 
-// CE present path (#79): import a Remote's dma-buf via the in-process registry.
+// CE present path (#79): import a Remote's dma-buf. Prefer GL
+// (EXTERNAL_OES → FBO → QImage); fall back to mmap if GL is unavailable.
 class HostWindowDataDmaBuf : public HostWindowData
 {
 public:
@@ -56,6 +59,9 @@ private:
 	HostWindowDataDmaBuf(int key, int metaDataKey, int width, int height,
 						 bool hasAlpha, const dmabuf_window::Export& desc);
 
+	bool acquireViaGl(QPixmap& screenPixmap);
+	bool acquireViaMmap(QPixmap& screenPixmap);
+
 	int m_key;
 	PIpcBuffer* m_metaDataBuffer;
 	int m_width;
@@ -63,6 +69,7 @@ private:
 	bool m_hasAlpha;
 	bool m_dirty;
 	dmabuf_window::Export m_desc;
+	std::unique_ptr<dmabuf_window::GlImporter> m_gl;
 
 	HostWindowDataDmaBuf(const HostWindowDataDmaBuf&);
 	HostWindowDataDmaBuf& operator=(const HostWindowDataDmaBuf&);

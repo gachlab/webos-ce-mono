@@ -24,6 +24,8 @@
 #include <sys/mman.h>
 #include <unistd.h>
 
+#include <vector>
+
 #include <QImage>
 #include <PIpcBuffer.h>
 
@@ -86,6 +88,7 @@ HostWindowDataDmaBuf::HostWindowDataDmaBuf(int key, int metaDataKey, int width, 
 	, m_hasAlpha(hasAlpha)
 	, m_dirty(true)
 	, m_desc(desc)
+	, m_gl(dmabuf_window::GlImporter::create())
 {
 	if (metaDataKey >= 0)
 		m_metaDataBuffer = PIpcBuffer::attach(metaDataKey);
@@ -119,23 +122,47 @@ void HostWindowDataDmaBuf::onUpdateRegion(QPixmap&, int, int, int, int)
 	m_dirty = true;
 }
 
+bool HostWindowDataDmaBuf::acquireViaGl(QPixmap& screenPixmap)
+{
+	if (!m_gl || !m_gl->valid())
+		return false;
+
+	std::vector<uint32_t> pixels;
+	if (!m_gl->copyToArgb32(m_desc, &pixels))
+		return false;
+	if (pixels.size() != static_cast<size_t>(m_width) * static_cast<size_t>(m_height))
+		return false;
+
+	QImage image(reinterpret_cast<const uchar*>(pixels.data()), m_width, m_height,
+				 m_width * 4, QImage::Format_ARGB32_Premultiplied);
+	screenPixmap = QPixmap::fromImage(image.copy());
+	return true;
+}
+
+bool HostWindowDataDmaBuf::acquireViaMmap(QPixmap& screenPixmap)
+{
+	if (m_desc.fd < 0 || m_desc.stride == 0 || m_desc.height == 0)
+		return false;
+
+	const size_t bytes = static_cast<size_t>(m_desc.stride) * m_desc.height;
+	void* ptr = ::mmap(nullptr, bytes, PROT_READ, MAP_SHARED, m_desc.fd, 0);
+	if (ptr == MAP_FAILED)
+		return false;
+
+	QImage image(static_cast<const uchar*>(ptr), m_width, m_height,
+				 static_cast<int>(m_desc.stride), QImage::Format_ARGB32_Premultiplied);
+	screenPixmap = QPixmap::fromImage(image.copy());
+	::munmap(ptr, bytes);
+	return true;
+}
+
 QPixmap* HostWindowDataDmaBuf::acquirePixmap(QPixmap& screenPixmap)
 {
 	if (!m_dirty)
 		return &screenPixmap;
 	m_dirty = false;
 
-	if (m_desc.fd < 0 || m_desc.stride == 0 || m_desc.height == 0)
-		return &screenPixmap;
-
-	const size_t bytes = static_cast<size_t>(m_desc.stride) * m_desc.height;
-	void* ptr = ::mmap(nullptr, bytes, PROT_READ, MAP_SHARED, m_desc.fd, 0);
-	if (ptr == MAP_FAILED)
-		return &screenPixmap;
-
-	QImage image(static_cast<const uchar*>(ptr), m_width, m_height,
-				 static_cast<int>(m_desc.stride), QImage::Format_ARGB32_Premultiplied);
-	screenPixmap = QPixmap::fromImage(image.copy());
-	::munmap(ptr, bytes);
+	if (!acquireViaGl(screenPixmap))
+		acquireViaMmap(screenPixmap);
 	return &screenPixmap;
 }

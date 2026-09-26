@@ -21,11 +21,10 @@
 
 #include <cstdint>
 #include <memory>
+#include <vector>
 
 namespace dmabuf_window {
 
-// Written into the Remote's identity PIpcBuffer so the Host can pidfd_getfd
-// the dma-buf without touching the PIpc byte stream (SCM_RIGHTS later).
 struct Handoff {
     static constexpr uint32_t kMagic = 0x42414d44u; // 'DMAB' LE
     uint32_t magic = 0;
@@ -38,10 +37,8 @@ struct Handoff {
     uint64_t modifier = 0;
 };
 
-// DRM_FORMAT_ARGB8888 little-endian matches QImage::Format_ARGB32_Premultiplied
-// byte order on little-endian hosts (B,G,R,A in memory).
 struct Export {
-    int fd = -1; // caller owns; close when done
+    int fd = -1;
     uint32_t width = 0;
     uint32_t height = 0;
     uint32_t stride = 0;
@@ -94,6 +91,7 @@ private:
     uint32_t m_mapStride = 0;
 };
 
+// CPU path: gbm_bo_import + map (phase 1).
 class Importer {
 public:
     static std::unique_ptr<Importer> create();
@@ -106,6 +104,36 @@ public:
 private:
     Importer() = default;
     std::shared_ptr<Device> m_device;
+};
+
+// GL path: EGLImage + TEXTURE_EXTERNAL_OES → blit to RGBA FBO → readback.
+// Matches the shell's OpenGL compose stack; avoids mmap of the BO on import.
+class GlImporter {
+public:
+    static std::unique_ptr<GlImporter> create();
+    ~GlImporter();
+
+    bool valid() const { return m_display != nullptr; }
+
+    // 0xAARRGGBB at (x,y).
+    bool samplePixel(const Export& desc, int x, int y, uint32_t* argb);
+
+    // Full frame as tightly packed ARGB32 premultiplied (width*height uint32_t).
+    bool copyToArgb32(const Export& desc, std::vector<uint32_t>* out);
+
+private:
+    GlImporter() = default;
+    bool ensureProgram();
+    bool blitToFbo(const Export& desc);
+
+    void* m_display = nullptr; // EGLDisplay
+    void* m_context = nullptr; // EGLContext
+    unsigned m_program = 0;
+    unsigned m_extTex = 0;
+    unsigned m_colorTex = 0;
+    unsigned m_fbo = 0;
+    uint32_t m_fboW = 0;
+    uint32_t m_fboH = 0;
 };
 
 bool wantFactoryBackend();

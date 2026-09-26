@@ -7,8 +7,10 @@
 //   QT_QPA_PLATFORM=offscreen ./engine-scroll-load grab
 //   QT_QPA_PLATFORM=offscreen ./engine-scroll-load direct
 //   QT_QPA_PLATFORM=offscreen ./engine-scroll-load dmabuf
+//   QT_QPA_PLATFORM=offscreen ./engine-scroll-load dmabuf-gl
 //
 // Modes flip WEBOS_GRAB_PRESENT and optionally paint into a GBM dma-buf.
+// dmabuf-gl: paint into dma-buf then Host-style GL import (EXTERNAL_OES).
 // No movement → FAIL (ctest).
 
 #include "dmabuf_window.h"
@@ -29,6 +31,7 @@
 #include <cstring>
 #include <functional>
 #include <string>
+#include <unistd.h>
 #include <vector>
 
 static const char kScrollPage[] = R"HTML(<!doctype html>
@@ -44,7 +47,7 @@ static const char kScrollPage[] = R"HTML(<!doctype html>
 <body><div id="strip"></div></body></html>
 )HTML";
 
-enum class PresentMode { Grab, Direct, Dmabuf };
+enum class PresentMode { Grab, Direct, Dmabuf, DmabufGl };
 
 static const char* modeName(PresentMode m)
 {
@@ -52,6 +55,7 @@ static const char* modeName(PresentMode m)
     case PresentMode::Grab: return "grab";
     case PresentMode::Direct: return "direct";
     case PresentMode::Dmabuf: return "dmabuf";
+    case PresentMode::DmabufGl: return "dmabuf-gl";
     }
     return "?";
 }
@@ -144,12 +148,15 @@ static RunResult runMode(PresentMode mode, int width, int height, int steps, dou
 
     QImage qimageSurface(width, height, QImage::Format_ARGB32_Premultiplied);
     std::unique_ptr<dmabuf_window::Frame> dmaFrame;
+    std::unique_ptr<dmabuf_window::GlImporter> glImporter;
     QImage dmaSurface;
     uint32_t dmaStride = 0;
     void* dmaPtr = nullptr;
+    dmabuf_window::Export dmaExport{};
 
     QImage* surface = &qimageSurface;
-    if (mode == PresentMode::Dmabuf) {
+    const bool useDma = (mode == PresentMode::Dmabuf || mode == PresentMode::DmabufGl);
+    if (useDma) {
         if (!dmabuf_window::available()) {
             std::printf("%s: FAIL no GBM\n", modeName(mode));
             return out;
@@ -169,6 +176,19 @@ static RunResult runMode(PresentMode mode, int width, int height, int steps, dou
         dmaSurface = QImage(static_cast<uchar*>(dmaPtr), width, height,
                             static_cast<int>(dmaStride), QImage::Format_ARGB32_Premultiplied);
         surface = &dmaSurface;
+        if (!dmaFrame->exportDesc(&dmaExport)) {
+            std::printf("%s: FAIL exportDesc\n", modeName(mode));
+            return out;
+        }
+        if (mode == PresentMode::DmabufGl) {
+            glImporter = dmabuf_window::GlImporter::create();
+            if (!glImporter) {
+                std::printf("%s: FAIL GlImporter\n", modeName(mode));
+                ::close(dmaExport.fd);
+                dmaExport.fd = -1;
+                return out;
+            }
+        }
     }
 
     auto paintOnce = [&] {
@@ -177,51 +197,93 @@ static RunResult runMode(PresentMode mode, int width, int height, int steps, dou
         page.mainFrame()->render(&ctxt, QWebFrame::ContentsLayer, QRect(0, 0, width, height));
     };
 
+    auto hostCompose = [&](QImage* composed) -> bool {
+        if (mode != PresentMode::DmabufGl)
+            return false;
+        std::vector<uint32_t> pixels;
+        if (!glImporter->copyToArgb32(dmaExport, &pixels))
+            return false;
+        *composed = QImage(reinterpret_cast<const uchar*>(pixels.data()), width, height,
+                           width * 4, QImage::Format_ARGB32_Premultiplied).copy();
+        return true;
+    };
+
     if (!waitFor([&] {
             paintOnce();
             const QColor c = surface->pixelColor(width / 2, height / 2);
             return c.alpha() > 0 && (c.red() > 10 || c.green() > 10 || c.blue() > 10);
         }, 15000)) {
         std::printf("%s: FAIL first paint\n", modeName(mode));
+        if (dmaExport.fd >= 0)
+            ::close(dmaExport.fd);
         return out;
     }
-    const QImage before = surface->copy();
+
+    QImage before;
+    if (mode == PresentMode::DmabufGl) {
+        if (!hostCompose(&before)) {
+            std::printf("%s: FAIL first GL compose\n", modeName(mode));
+            ::close(dmaExport.fd);
+            return out;
+        }
+    } else {
+        before = surface->copy();
+    }
 
     std::vector<double> presentMs;
     presentMs.reserve(static_cast<size_t>(steps));
-    QImage previous = surface->copy();
+    QImage previous = before;
     QElapsedTimer wall;
     wall.start();
     for (int i = 0; i < steps; ++i) {
-        // Offscreen QtWebEngine does not reliably apply synthetic QWheelEvent
-        // (measured on #81). Drive scroll via sync JS; bar is image-diff + present.
         page.mainFrame()->evaluateJavaScript(
             QStringLiteral("window.scrollBy(0, %1)").arg(qAbs(deltaY)));
 
         if (!waitFor([&] {
                 paintOnce();
-                return differingPixels(previous, *surface) > (width * height) / 100;
+                QImage cur;
+                if (mode == PresentMode::DmabufGl) {
+                    if (!hostCompose(&cur))
+                        return false;
+                } else {
+                    cur = surface->copy();
+                }
+                return differingPixels(previous, cur) > (width * height) / 100;
             }, 10000)) {
             std::printf("%s: FAIL no paint change after scroll step %d\n", modeName(mode), i);
+            if (dmaExport.fd >= 0)
+                ::close(dmaExport.fd);
             return out;
         }
 
         QElapsedTimer present;
         present.start();
         paintOnce();
+        QImage cur;
+        if (mode == PresentMode::DmabufGl) {
+            if (!hostCompose(&cur)) {
+                std::printf("%s: FAIL GL compose step %d\n", modeName(mode), i);
+                ::close(dmaExport.fd);
+                return out;
+            }
+        } else {
+            cur = surface->copy();
+        }
         presentMs.push_back(present.nsecsElapsed() / 1e6);
-        previous = surface->copy();
+        previous = cur;
     }
     out.scrollWallMs = wall.elapsed();
     out.medianPresentMs = medianMs(presentMs);
     out.peakRssKb = readVmHwmKb();
 
-    out.diffPixels = differingPixels(before, *surface);
+    out.diffPixels = differingPixels(before, previous);
     const int minDiff = (width * height) / 20;
     out.moved = out.diffPixels >= minDiff;
 
     if (dmaFrame && dmaPtr)
         dmaFrame->unmap();
+    if (dmaExport.fd >= 0)
+        ::close(dmaExport.fd);
     return out;
 }
 
@@ -253,12 +315,15 @@ int main(int argc, char** argv)
             modes.push_back(PresentMode::Direct);
         else if (std::strcmp(arg, "dmabuf") == 0)
             modes.push_back(PresentMode::Dmabuf);
+        else if (std::strcmp(arg, "dmabuf-gl") == 0)
+            modes.push_back(PresentMode::DmabufGl);
         else {
-            std::printf("usage: %s [grab|direct|dmabuf]\n", argv[0]);
+            std::printf("usage: %s [grab|direct|dmabuf|dmabuf-gl]\n", argv[0]);
             return 1;
         }
     } else {
-        modes = { PresentMode::Grab, PresentMode::Direct, PresentMode::Dmabuf };
+        modes = { PresentMode::Grab, PresentMode::Direct, PresentMode::Dmabuf,
+                  PresentMode::DmabufGl };
     }
 
     int failures = 0;
