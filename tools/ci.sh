@@ -140,9 +140,9 @@ run_target() {                  # run_target <release>
     # content, and these tests load setHtml with strings written in this
     # repository, in a throwaway container with no network at all.
     #
-    # --disable-gpu remains the product default (#84 session smoke: egl GPU
-    # loses context in WebAppMgr). webengine-gpu-boot still exercises egl under
-    # offscreen with its own ENVIRONMENT.
+    # CI forces --disable-gpu for the bulk of offscreen WebEngine tests (scroll
+    # with native ANGLE+gl freezes under QT_QPA_PLATFORM=offscreen). Product
+    # default is ANGLE+gl (#84); webengine-gpu-* tests set their own flags.
     if ! git -C "$R" archive --format=tar HEAD \
         | "$RUNNER" run --rm -i --network none \
             -e QTWEBENGINE_CHROMIUM_FLAGS="--no-sandbox --disable-gpu" \

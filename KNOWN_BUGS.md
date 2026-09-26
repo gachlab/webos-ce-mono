@@ -1375,18 +1375,20 @@ What is already accelerated, contrary to the obvious guess:
   `/dev/dri/renderD128` open, with `libGLX_mesa`, `libEGL` and `libdrm_intel`
   mapped. Hardware GL on the Intel iGPU.
 
-Why QtWebEngine runs on the CPU, and why that stays:
+Why QtWebEngine GPU flags matter (#84):
 
-`qtwebkit_compat.cpp:59` puts `--disable-gpu` into `QTWEBENGINE_CHROMIUM_FLAGS`
-unless the environment already carries flags, because WebAppMgr only ever draws
-pages offscreen and reads them back, where Chromium's GPU process loses its
-context. The engine's processes hold no render node, which matches.
+`qtwebkit-compat` defaults to `--use-gl=angle --use-angle=gl --enable-gpu-rasterization`.
+WebAppMgr used to force `-platform offscreen`; that QPA freezes GPU scroll and
+was the seat0 context-loss site. It now inherits session `QT_QPA_PLATFORM`
+(wayland). Native `--use-gl=egl` under Wayland still floods "context is marked
+as lost"; ANGLE+gl keeps Mesa hardware and paint-after-scroll. Offscreen CI
+keeps `--disable-gpu` or ANGLE SwiftShader. Contracts:
+`tests/webengine-gpu-boot`, `tests/webengine-gpu-scroll`.
 
-Lifting it was tried: with `QTWEBENGINE_CHROMIUM_FLAGS` set to anything else,
-**WebAppMgr dies with SIGSEGV during startup**, and LunaSysMgr then exits behind
-it by design -- `WebAppMgrProxy was Disconnected!! Exiting Sysmgr...`. So the
-flag is load-bearing, not an oversight. Whether other flag combinations survive
-(forcing software GL inside the GPU process alone, say) was not tried.
+Older note (pre-#84 matrix): lifting `--disable-gpu` to arbitrary flags was
+thought to SIGSEGV WebAppMgr at startup. That did not reproduce on the
+qtwebkit-compat paint path; the live failure mode was offscreen QPA + EGL/ANGLE,
+not an immediate crash.
 
 Vulkan and Wayland, specifically:
 

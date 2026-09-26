@@ -15,10 +15,14 @@ engine’s present path instead of cutting over.
 
 - **LunaSysMgr** already hardware-composites (`QOpenGLWidget` + Mesa) as one
   Wayland client surface to the host.
-- **Web content** still defaults to `--disable-gpu`. #84 / `tests/webengine-gpu-boot`
-  paints under offscreen with `--use-gl=egl`, but a live WebAppMgr session with
-  those flags logs repeated GPU context loss — not a product win yet. The
-  **card buffer** for `WEBOS_DMABUF=1` is an EGL FBO exported as dma-buf.
+- **Web content** defaults to `--use-gl=angle --use-angle=gl --enable-gpu-rasterization`
+  (#84). WebAppMgr inherits the session `QT_QPA_PLATFORM` (wayland) instead of
+  forcing offscreen — offscreen freezes GPU scroll even with ANGLE. Native
+  `--use-gl=egl` under Wayland still floods context-loss; ANGLE+gl keeps Mesa
+  hardware GL. `tests/webengine-gpu-boot` + `tests/webengine-gpu-scroll` cover
+  boot/paint and scroll-under-GPU (SwiftShader under offscreen CI). The **card
+  buffer** for `WEBOS_DMABUF=1` is still an EGL FBO with a staging `QImage`
+  upload — engine GPU frames are not wired into that path yet.
 Phase 1–2 modernize the **WebAppMgr → HostWindowData** buffer path, not the
 shell’s OpenGL or its Wayland-client role.
 

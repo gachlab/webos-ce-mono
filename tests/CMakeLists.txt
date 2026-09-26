@@ -326,14 +326,27 @@ add_test(NAME webengine-gpu-boot-angle COMMAND webengine-gpu-boot)
 set_tests_properties(webengine-gpu-boot-angle PROPERTIES
     ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QTWEBENGINE_CHROMIUM_FLAGS=--use-gl=angle --use-angle=swiftshader-webgl"
     TIMEOUT 60)
+add_test(NAME webengine-gpu-boot-angle-gl COMMAND webengine-gpu-boot)
+set_tests_properties(webengine-gpu-boot-angle-gl PROPERTIES
+    ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QTWEBENGINE_CHROMIUM_FLAGS=--use-gl=angle --use-angle=gl --enable-gpu-rasterization"
+    TIMEOUT 60)
 add_test(NAME webengine-gpu-boot-in-process COMMAND webengine-gpu-boot)
 set_tests_properties(webengine-gpu-boot-in-process PROPERTIES
     ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QTWEBENGINE_CHROMIUM_FLAGS=--in-process-gpu --use-gl=egl --enable-gpu-rasterization"
     TIMEOUT 60)
-# Default path: empty env → qtwebkit-compat beforeApplication sets egl+raster.
+# Default path: empty env → qtwebkit-compat beforeApplication sets ANGLE+gl.
 add_test(NAME webengine-gpu-boot-default COMMAND webengine-gpu-boot)
 set_tests_properties(webengine-gpu-boot-default PROPERTIES
     ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+    TIMEOUT 60)
+
+# #84: GPU path must update after scroll (frozen frames = context-loss mode).
+# Offscreen cannot exercise product ANGLE+gl scroll; SwiftShader stands in for CI.
+add_executable(webengine-gpu-scroll webengine-gpu-scroll.cpp)
+target_link_libraries(webengine-gpu-scroll PRIVATE qtwebkit-compat-lib)
+add_test(NAME webengine-gpu-scroll-angle-sw COMMAND webengine-gpu-scroll)
+set_tests_properties(webengine-gpu-scroll-angle-sw PROPERTIES
+    ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QTWEBENGINE_CHROMIUM_FLAGS=--use-gl=angle --use-angle=swiftshader-webgl"
     TIMEOUT 60)
 
 add_executable(qtwebkit-compat qtwebkit-compat.cpp)
