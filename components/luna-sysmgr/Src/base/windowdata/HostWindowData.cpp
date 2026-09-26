@@ -44,7 +44,7 @@ HostWindowData* HostWindowDataFactory::generate(int key, int metaDataKey, int wi
 	HostWindowData* data = 0;
 
 #if defined(HAVE_DMABUF)
-	// Opt-in: WEBOS_DMABUF=1 (#84 seat0 scanlines blocked default-on).
+	// Default when a render node works (#84). WEBOS_DMABUF=0 opts out.
 	if (dmabuf_window::wantFactoryBackend()) {
 		data = HostWindowDataDmaBuf::createIfRegistered(key, metaDataKey, width, height, hasAlpha);
 		if (data && data->isValid())

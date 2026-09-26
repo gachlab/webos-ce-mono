@@ -407,6 +407,11 @@ bool GlImporter::blitToFbo(const Export& desc)
     if (image == EGL_NO_IMAGE_KHR)
         return false;
 
+    GLint prevFbo = 0;
+    GLint prevViewport[4] = {};
+    glGetIntegerv(GL_FRAMEBUFFER_BINDING, &prevFbo);
+    glGetIntegerv(GL_VIEWPORT, prevViewport);
+
     glBindTexture(GL_TEXTURE_EXTERNAL_OES, m_extTex);
     glTexParameteri(GL_TEXTURE_EXTERNAL_OES, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_EXTERNAL_OES, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
@@ -438,6 +443,8 @@ bool GlImporter::blitToFbo(const Export& desc)
 
     if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
         destroyImage(dpy, image);
+        glBindFramebuffer(GL_FRAMEBUFFER, prevFbo);
+        glViewport(prevViewport[0], prevViewport[1], prevViewport[2], prevViewport[3]);
         return false;
     }
 
@@ -453,6 +460,9 @@ bool GlImporter::blitToFbo(const Export& desc)
     glDisableVertexAttribArray(0);
 
     destroyImage(dpy, image);
+    // Restore Qt's FBO so drawColorTexture / beginNativePainting stay valid.
+    glBindFramebuffer(GL_FRAMEBUFFER, prevFbo);
+    glViewport(prevViewport[0], prevViewport[1], prevViewport[2], prevViewport[3]);
     return true;
 }
 
@@ -498,14 +508,19 @@ bool GlImporter::drawColorTexture(int fbWidth, int fbHeight,
     const GLfloat verts[] = {
         x0, y0, x1, y0, x0, y1, x1, y1,
     };
-    // Texture was filled with GL clip Y-up; flip V so top-left of card is top.
+    // dma-buf / OES blit leave the card's top at V=0; flip V so top-left dest
+    // samples the top of the page (seat0 globe was upside-down without this).
     const GLfloat uvs[] = {
         0.f, 1.f, 1.f, 1.f, 0.f, 0.f, 1.f, 0.f,
     };
 
+    // Stay on Qt's current FBO (QOpenGLWidget / beginNativePainting). Binding
+    // 0 drew into the wrong buffer and showed card-wide scanlines on seat0.
     GLint prevFbo = 0;
+    GLint prevViewport[4] = {};
     glGetIntegerv(GL_FRAMEBUFFER_BINDING, &prevFbo);
-    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    glGetIntegerv(GL_VIEWPORT, prevViewport);
+
     glViewport(0, 0, fbWidth, fbHeight);
     glDisable(GL_DEPTH_TEST);
     glEnable(GL_BLEND);
@@ -523,6 +538,7 @@ bool GlImporter::drawColorTexture(int fbWidth, int fbHeight,
     glDisableVertexAttribArray(0);
     glDisableVertexAttribArray(1);
 
+    glViewport(prevViewport[0], prevViewport[1], prevViewport[2], prevViewport[3]);
     glBindFramebuffer(GL_FRAMEBUFFER, prevFbo);
     return true;
 }

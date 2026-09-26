@@ -215,11 +215,21 @@ QPainter* RemoteWindowDataDmaBuf::qtRenderingContext()
 
 bool RemoteWindowDataDmaBuf::ensureEnginePresent(QWebPage* page)
 {
-	// Disabled in product for now: seat0 with setRenderTarget showed full-card
-	// horizontal scanlines (Host OES compose). Harness webengine-gpu-fbo-present
-	// still exercises redirect; keep staging uploadArgb32 on the live path.
-	(void)page;
-	return false;
+	if (m_enginePresent)
+		return true;
+	if (!page || !ensureGl())
+		return false;
+	if (!m_glContext->makeCurrent(m_glSurface))
+		return false;
+	m_enginePresent = page->bindPresentTexture(m_target->colorTexture(),
+											   QSize(m_width, m_height));
+	m_glContext->doneCurrent();
+	if (m_enginePresent) {
+		delete m_context;
+		m_context = 0;
+		m_staging = QImage();
+	}
+	return m_enginePresent;
 }
 
 void RemoteWindowDataDmaBuf::beginPaint()

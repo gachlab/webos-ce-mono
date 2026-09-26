@@ -157,6 +157,11 @@ bool HostWindowDataDmaBuf::acquireViaMmap(QPixmap& screenPixmap)
 {
 	if (m_desc.fd < 0 || m_desc.stride == 0 || m_desc.height == 0)
 		return false;
+	// Tiled modifiers are not CPU-mappable as linear ARGB — that path produced
+	// card-wide scanlines on seat0. GL import handles those; refuse mmap.
+	// DRM_FORMAT_MOD_LINEAR is 0; any other value is treated as non-linear.
+	if (m_desc.modifier != 0)
+		return false;
 
 	const size_t bytes = static_cast<size_t>(m_desc.stride) * m_desc.height;
 	void* ptr = ::mmap(nullptr, bytes, PROT_READ, MAP_SHARED, m_desc.fd, 0);

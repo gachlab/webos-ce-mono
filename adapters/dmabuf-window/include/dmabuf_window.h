@@ -157,9 +157,10 @@ private:
     uint32_t m_fboH = 0;
 };
 
-// GPU paint destination: RGBA texture + FBO in the caller's current EGL
-// context, exported once as dma-buf via EGL_MESA_image_dma_buf_export.
-// QPainter (QOpenGLPaintDevice) draws here; Host imports the same fd.
+// GPU paint destination: GBM *linear* BO → EGLImage → TEXTURE_2D FBO.
+// Mesa's glTexImage2D + EGL_MESA_image_dma_buf_export often yields a tiled
+// NVIDIA/Intel modifier; Host mmap fallback then shows card scanlines. Linear
+// GBM keeps cross-process import and CPU mmap honest.
 class GlRenderTarget {
 public:
     // Requires a current EGL GLES2 context.
@@ -180,15 +181,14 @@ public:
     // Solid clear (0xAARRGGBB) — used by contract tests without Qt.
     bool clearArgb(uint32_t argb);
 
-    // Upload tightly packed ARGB32 (top-left origin) into the color texture.
+    // Upload tightly packed ARGB32 (top-left origin) into the color buffer.
     // Used when QPainter/OpenGL is unavailable (QT_QPA_PLATFORM=offscreen).
     bool uploadArgb32(const uint32_t* pixels, uint32_t stridePixels);
 
 private:
     GlRenderTarget() = default;
-    bool exportDmaBuf();
 
-    void* m_display = nullptr; // EGLDisplay at create
+    std::unique_ptr<Frame> m_frame;
     unsigned m_colorTex = 0;
     unsigned m_fbo = 0;
     uint32_t m_width = 0;

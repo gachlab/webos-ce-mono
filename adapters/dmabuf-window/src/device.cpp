@@ -85,10 +85,9 @@ bool available()
 
 bool wantFactoryBackend()
 {
-    // Opt-in until live Host OES + Quick redirect is visually solid (#84
-    // seat0: default-on showed card scanlines). WEBOS_DMABUF=1 enables.
+    // Default on when a render node works (#84). WEBOS_DMABUF=0 opts out.
     const char* env = std::getenv("WEBOS_DMABUF");
-    if (!env || std::strcmp(env, "1") != 0)
+    if (env && std::strcmp(env, "0") == 0)
         return false;
     return available();
 }
