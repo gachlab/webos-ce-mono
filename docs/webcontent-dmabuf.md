@@ -15,10 +15,10 @@ engine’s present path instead of cutting over.
 
 - **LunaSysMgr** already hardware-composites (`QOpenGLWidget` + Mesa) as one
   Wayland client surface to the host.
-- **Web content** defaults to Chromium GPU raster (`--use-gl=egl
-  --enable-gpu-rasterization`, #84 / `tests/webengine-gpu-boot`). Override with
-  `QTWEBENGINE_CHROMIUM_FLAGS` (including `--disable-gpu`) if a host regresses.
-  The **card buffer** for `WEBOS_DMABUF=1` is an EGL FBO exported as dma-buf.
+- **Web content** still defaults to `--disable-gpu`. #84 / `tests/webengine-gpu-boot`
+  paints under offscreen with `--use-gl=egl`, but a live WebAppMgr session with
+  those flags logs repeated GPU context loss — not a product win yet. The
+  **card buffer** for `WEBOS_DMABUF=1` is an EGL FBO exported as dma-buf.
 Phase 1–2 modernize the **WebAppMgr → HostWindowData** buffer path, not the
 shell’s OpenGL or its Wayland-client role.
 

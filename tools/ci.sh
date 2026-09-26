@@ -140,12 +140,12 @@ run_target() {                  # run_target <release>
     # content, and these tests load setHtml with strings written in this
     # repository, in a throwaway container with no network at all.
     #
-    # --disable-gpu used to be required (WebAppMgr SIGSEGV). #84 /
-    # tests/webengine-gpu-boot paints with --use-gl=egl; keep --no-sandbox for
-    # the container and prefer GPU raster in CI too.
+    # --disable-gpu remains the product default (#84 session smoke: egl GPU
+    # loses context in WebAppMgr). webengine-gpu-boot still exercises egl under
+    # offscreen with its own ENVIRONMENT.
     if ! git -C "$R" archive --format=tar HEAD \
         | "$RUNNER" run --rm -i --network none \
-            -e QTWEBENGINE_CHROMIUM_FLAGS="--no-sandbox --use-gl=egl --enable-gpu-rasterization" \
+            -e QTWEBENGINE_CHROMIUM_FLAGS="--no-sandbox --disable-gpu" \
             -e WEBOS_NODE_HOME=/opt/node-dist/current \
             -w /src "$tag" \
             sh -c 'mkdir -p /src && tar -x -C /src && \

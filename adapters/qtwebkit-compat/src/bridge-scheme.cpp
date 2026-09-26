@@ -56,14 +56,12 @@ void beforeApplication()
 
     QCoreApplication::setAttribute(Qt::AA_ShareOpenGLContexts);
 
-    // Prefer Chromium GPU raster (#84). An explicit QTWEBENGINE_CHROMIUM_FLAGS
-    // in the environment still wins (CI sets --no-sandbox; product can force
-    // --disable-gpu if a host regresses). Historically we defaulted to
-    // --disable-gpu because WebAppMgr's offscreen path lost the GPU context;
-    // tests/webengine-gpu-boot proves load+paint with --use-gl=egl today.
+    // Default stays --disable-gpu: live WebAppMgr with --use-gl=egl floods
+    // "context is marked as lost" / Failed to make current (#84 smoke 2026-09-25)
+    // even though tests/webengine-gpu-boot paints under offscreen. Explicit
+    // QTWEBENGINE_CHROMIUM_FLAGS in the environment still wins.
     if (qEnvironmentVariableIsEmpty("QTWEBENGINE_CHROMIUM_FLAGS"))
-        qputenv("QTWEBENGINE_CHROMIUM_FLAGS",
-                "--use-gl=egl --enable-gpu-rasterization");
+        qputenv("QTWEBENGINE_CHROMIUM_FLAGS", "--disable-gpu");
 }
 Q_CONSTRUCTOR_FUNCTION(beforeApplication)
 
