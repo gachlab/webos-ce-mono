@@ -182,6 +182,11 @@ private:
     void ensureView();
     void prepareNewDocument();
 
+    // Engine before m_frame: parenting the frame delivers QEvent to this page
+    // while later members are still unconstructed. Reading m_engine then is UB.
+    struct Engine;
+    std::unique_ptr<Engine> m_engine;
+
     QWebFrame* m_frame = nullptr;
     QWebSettings* m_settings = nullptr;
     QSize m_viewportSize{1024, 768};
@@ -196,9 +201,6 @@ private:
         QRegion cutouts;
     };
     QList<EmbeddedPage> m_embedded;
-
-    struct Engine;
-    std::unique_ptr<Engine> m_engine;
 };
 
 class QWebFrame : public QObject

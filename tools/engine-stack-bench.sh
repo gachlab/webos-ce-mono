@@ -147,9 +147,9 @@ done
 [ "$up" = 1 ] || { say "timeout waiting for session"; exit 1; }
 sleep 3
 
-LS="$STAGING/usr/bin/luna-send"
-[ -x "$LS" ] || LS="$ROOTFS/usr/bin/luna-send"
-[ -x "$LS" ] || LS="$(command -v luna-send)"
+LS="$(readlink -f "$STAGING/usr/bin/luna-send")"
+[ -x "$LS" ] || LS="$(readlink -f "$ROOTFS/usr/lib/luna/luna-send")"
+[ -x "$LS" ] || { say "luna-send not found"; exit 1; }
 export LD_LIBRARY_PATH="$STAGING/lib:$STAGING/usr/lib:${LD_LIBRARY_PATH:-}"
 
 wam=$(pgrep -nx WebAppMgr)
@@ -165,7 +165,9 @@ for i in $(seq 0 $((N - 1))); do
   url="${URLS[$((i % ${#URLS[@]}))]}"
   payload=$(printf '{"id":"%s"}' "$id")
   say "  launch $id -> $url"
-  if "$LS" -n 1 palm://com.palm.applicationManager/launch "$payload" >"$LOGDIR/launch-$i.out" 2>&1; then
+  # </dev/null: luna-send treats stdin HUP (e.g. ssh/bash -s) as exit before the reply.
+  if "$LS" -n 1 -m com.palm.lunasend palm://com.palm.applicationManager/launch "$payload" </dev/null >"$LOGDIR/launch-$i.out" 2>&1 \
+    && grep -Eq '"returnValue"[[:space:]]*:[[:space:]]*true' "$LOGDIR/launch-$i.out"; then
     ok=$((ok + 1))
   else
     fail=$((fail + 1))
@@ -186,7 +188,7 @@ for i in $(seq 0 $((N - 1))); do
 done
 
 # Settle: keep sampling for 30s while heavy pages finish loading.
-say "settling 60s…"
+say "settling 60s..."
 for _ in $(seq 1 30); do
   sleep 2
   if pgrep -x WebAppMgr >/dev/null; then
@@ -208,7 +210,8 @@ if pgrep -x WebAppMgr >/dev/null; then
   procs=$(cat "$LOGDIR/last-procs.txt")
 fi
 
-cards=$(grep -c 'APP START appid: com.gachlab.bench.heavy' /tmp/webos/WebAppMgr.log 2>/dev/null || echo 0)
+cards=$(grep -h 'APP START appid: com.gachlab.bench.heavy' "$LOGDIR/WebAppMgr.log" /tmp/webos/WebAppMgr.log 2>/dev/null | wc -l | tr -d ' ' || true)
+cards=${cards:-0}
 say "WebAppMgr APP START heavy cards seen: $cards"
 printf 'engine=%s n=%d launch_ok=%d launch_fail=%d cards_started=%s wall_ms=%s peak_tree_rss_mb=%.1f end_tree_rss_mb=%.1f procs=%s\n' \
   "$ENGINE" "$N" "$ok" "$fail" "$cards" "$wall" \

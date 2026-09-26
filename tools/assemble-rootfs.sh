@@ -371,6 +371,7 @@ if not any(p.get("service") == "com.palm.webappmgr.bridge" for p in perms):
 PYEOF
 done
 
+
 # A .service whose binary we do not have only makes ls-hubd fail when it tries
 # to start it on demand (today: BrowserServer, the browser's NPAPI path, which
 # we do not build). Those are removed.
@@ -477,6 +478,7 @@ mkdir -p "$ROOTFS"/usr/lib/luna/applications "$ROOTFS"/usr/palm/sysmgr/{images,l
          "$ROOTFS"/var/luna/{launchpoints,preferences}
 sed -i -E "/^(ApplicationPath|SystemPath|SystemResourcesPath|SystemLocalePath|AppLauncherPath|LaunchPointsPath|PreferencesPath)=/ s#(=|:)/#\\1$WEBOS_PREFIX/#g" \
     "$ROOTFS/etc/palm/luna.conf"
+
 
 echo "rootfs assembled at $ROOTFS"
 echo "  apps:                $(ls "$ROOTFS/usr/palm/applications" 2>/dev/null | wc -l)"
@@ -735,3 +737,49 @@ if [ -n "$hubs" ]; then
     echo "  ls-hubd:             reloaded ($(echo $hubs | wc -w) running)"
 fi
 echo "  etc/ls2:             $(ls "$ROOTFS/etc/ls2" 2>/dev/null | wc -l) entries"
+
+# ls-hubd runs OUTSIDE bwrap and matches callers via /proc/<pid>/exe. Inside the
+# namespace the binaries are /usr/lib/luna/LunaSysMgr and /usr/lib/luna/WebAppMgr,
+# but the host sees the bind source — $ROOTFS/usr/lib/luna/…. Roles that still
+# say /usr/lib/luna/… or /usr/bin/… never match, so every private-bus call from
+# SysMgr / WebAppMgr / luna-send goes out as "(null)" with no outbound rights
+# (measured: launch returned empty, no APP START). Rewrite exeName to the host
+# path the hub actually reads. Must run after the lunasend template is written.
+python3 - "$ROOTFS" "$WEBOS_BINDIR" <<'PYEOF'
+import json, sys
+from pathlib import Path
+rootfs = Path(sys.argv[1]).resolve()
+bindir = Path(sys.argv[2]).resolve()
+rewrites = {
+    "com.palm.luna.json": rootfs / "usr/lib/luna/LunaSysMgr",
+    "com.palm.webappmgr.json": rootfs / "usr/lib/luna/WebAppMgr",
+    "com.palm.lunasend.json": bindir / "luna-send",
+}
+for side in ("prv", "pub"):
+    for name, exe in rewrites.items():
+        ruta = rootfs / "usr/share/ls2/roles" / side / name
+        if not ruta.is_file() or not exe.is_file():
+            continue
+        datos = json.loads(ruta.read_text())
+        datos.setdefault("role", {})["exeName"] = str(exe)
+        # Strip any empty-service perms; only lunasend may keep one (below).
+        perms = datos.setdefault("permissions", [])
+        datos["permissions"] = [p for p in perms if p.get("service") != ""]
+        ruta.write_text(json.dumps(datos, indent=4) + "\n")
+        print(f"  bus role exeName: {side}/{name} -> {exe}")
+
+# Exactly one permissions entry for service "" in the whole tree. Empty-name
+# clients look up this key; duplicates make ls-hubd drop it (measured).
+for side in ("prv", "pub"):
+    ruta = rootfs / "usr/share/ls2/roles" / side / "com.palm.lunasend.json"
+    if not ruta.is_file():
+        continue
+    datos = json.loads(ruta.read_text())
+    perms = [p for p in datos.get("permissions", []) if p.get("service") != ""]
+    perms.insert(0, {"service": "", "inbound": ["*"], "outbound": ["*"]})
+    datos["permissions"] = perms
+    ruta.write_text(json.dumps(datos, indent=4) + "\n")
+print('  bus role: anonymous "" outbound granted once via lunasend')
+PYEOF
+
+

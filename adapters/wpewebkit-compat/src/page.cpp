@@ -42,9 +42,9 @@ void QWebPage::setGeolocationPolicy(GeolocationPolicy policy)
 
 QWebPage::QWebPage(QObject* parent)
     : QObject(parent)
+    , m_engine(std::make_unique<Engine>())
     , m_frame(new QWebFrame(this))
     , m_settings(new QWebSettings)
-    , m_engine(std::make_unique<Engine>())
 {
     static int nextNumber = 1;
     m_number = nextNumber++;
@@ -68,7 +68,7 @@ QWebPage::~QWebPage()
 
 void QWebPage::ensureView()
 {
-    if (m_engine->view)
+    if (!m_engine || m_engine->view)
         return;
 
     m_engine->view = std::make_unique<wpe_webcontent::HeadlessView>(
