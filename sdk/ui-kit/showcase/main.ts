@@ -181,12 +181,17 @@ const view = (state: State<Shown>, service: ShowcaseService) => {
                               @change=${(e: CustomEvent<{ value: string }>) => service.change({ typed: e.detail.value })}>
                     </wos-field>
                     <wos-field label="Password" type="password" placeholder="Hidden while typing"></wos-field>
+                    <wos-field label="Disabled" value="Cannot edit" disabled></wos-field>
                     <wos-row title="A checkbox" detail=${shown.checked ? "Ticked" : "Not ticked"}>
                         <wos-check ?checked=${shown.checked}
                                   @change=${(e: CustomEvent<{ checked: boolean }>) => service.change({ checked: e.detail.checked })}>
                         </wos-check>
                     </wos-row>
-                    <wos-row title="Disabled"><wos-check disabled></wos-check></wos-row>
+                    <wos-row title="Not checked">
+                        <wos-check></wos-check>
+                    </wos-row>
+                    <wos-row title="Checked disabled"><wos-check checked disabled></wos-check></wos-row>
+                    <wos-row title="Unchecked disabled"><wos-check disabled></wos-check></wos-row>
                     <wos-row title="Details without selecting">
                         <wos-info @press=${() => service.change({ typed: "info" })}></wos-info>
                     </wos-row>
