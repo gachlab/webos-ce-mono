@@ -97,10 +97,14 @@
     --wos-toggle-height: 2.5rem;
     --wos-toggle-knob-width: 1.5rem;
     --wos-toggle-knob-travel: 2.4rem;
-    --wos-toggle-on: linear-gradient(to bottom, #1a3f63, #6195bb);
-    --wos-toggle-off: linear-gradient(to bottom, #606060, #a2a2a2);
+    /* Sampled from toggle-button.png pixel by pixel: the ON track is a blue
+     * that starts dark at the top (#1e4872) and lightens down (#6da4c8), not
+     * the near-navy this had; the OFF track is a flatter, lighter grey
+     * (#646464 -> #b1b1b1) than the dark one it was. */
+    --wos-toggle-on: linear-gradient(to bottom, #1e4872, #3774ab 30%, #498bbc 55%, #6da4c8);
+    --wos-toggle-off: linear-gradient(to bottom, #646464, #999999 55%, #b1b1b1);
     --wos-toggle-knob: linear-gradient(to bottom, #f6f6f6, #d9d9d9);
-    --wos-toggle-knob-on: linear-gradient(to bottom, #f2f5f8, #b8d4e8);
+    --wos-toggle-knob-on: linear-gradient(to bottom, #f2f5f8, #cadeec);
     --wos-toggle-edge: rgba(0, 0, 0, 0.35);
     --wos-toggle-ink: #fff;
 
