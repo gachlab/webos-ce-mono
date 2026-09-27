@@ -430,11 +430,11 @@ const view = (state: State<Shown>, service: ShowcaseService) => {
                 <div class="wos-pane-demo" style="height: 10rem; border: 1px solid var(--wos-outline); border-radius: var(--wos-radius); overflow: hidden">
                     <wos-sliding-pane showing=${shown.pane}
                                      @back=${() => service.change({ pane: "list" })}>
-                        <div slot="list" class="wos-list">
+                        <div slot="list">
                             ${["First", "Second", "Third"].map((name) => html`
                                 <wos-row title=${name} @select=${() => service.change({ pane: "detail", listPicked: name })}></wos-row>`)}
                         </div>
-                        <div slot="detail">
+                        <div slot="detail" style="padding: 0.6rem">
                             ${note(shown.listPicked ? `Showing: ${shown.listPicked}` : "Pick one on the left.")}
                         </div>
                     </wos-sliding-pane>

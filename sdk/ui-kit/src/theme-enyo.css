@@ -226,10 +226,15 @@
     /* picker-pill.png: the pill, and the wheel of values it opens, whose chosen
      * row is white with bold ink (Picker.css .enyo-picker-item-selected). */
     --wos-picker-ink: #292929;
-    --wos-picker-pill: linear-gradient(to bottom, #fdfdfd, #d4d4d4);
-    --wos-picker-edge: rgba(0, 0, 0, 0.35);
-    /* PickerButton.css: line-height 32px, padding 0 6px; box 32px with the
-     * border-image absorbed by border-box. */
+    /* enyo's picker-pill is a pale pill with a soft edge; drawn in CSS rather
+     * than sliced from picker-pill.png, because that 48px sprite's 10px slice
+     * does not scale to our 32px pill without its centre line showing through.
+     * The look -- pale fill, thin edge, rounded -- is the same. */
+    --wos-picker-pill: linear-gradient(to bottom, #fcfcfc, #e2e2e2);
+    --wos-picker-edge: rgba(0, 0, 0, 0.3);
+    --wos-picker-pill-radius: 0.4rem;
+    /* PickerButton.css: line-height 32px, padding 0 6px. */
+    --wos-picker-pill-border-width: 1px;
     --wos-picker-pill-pad: 0 0.3rem;
     --wos-picker-pill-line: 1.6rem;
     --wos-picker-pill-height: 1.6rem;

@@ -1292,9 +1292,18 @@
     line-height: var(--wos-picker-pill-line, normal);
     text-align: center;
     color: var(--wos-picker-ink);
-    background: var(--wos-picker-pill);
-    border: 1px solid var(--wos-picker-edge);
-    border-radius: 0.5rem;
+    background-color: var(--wos-picker-pill);
+    border-width: var(--wos-picker-pill-border-width, 1px);
+    border-style: solid;
+    border-color: var(--wos-picker-edge);
+    border-radius: var(--wos-picker-pill-radius, 0.5rem);
+    -webkit-border-image: var(--wos-picker-pill-border-image, none);
+    border-image: var(--wos-picker-pill-border-image, none);
+}
+
+.wos-picker-pill:active {
+    -webkit-border-image: var(--wos-picker-pill-border-image-down, var(--wos-picker-pill-border-image, none));
+    border-image: var(--wos-picker-pill-border-image-down, var(--wos-picker-pill-border-image, none));
 }
 
 .wos-picker-wheel {
@@ -1385,7 +1394,7 @@
     align-items: center;
     gap: 0.4rem;
     width: 100%;
-    min-height: 1.5rem;
+    min-height: 1.9rem;
     padding: 0 0.6rem;
     background: var(--wos-divider-line);
     background-repeat: repeat-x;
@@ -1395,13 +1404,23 @@
     font-family: inherit;
 }
 
+/* The arrow and the caption sit over the divider line with the page behind
+ * them, so the line runs to their right rather than through them -- enyo's
+ * Divider put its caption on the line the same way. The arrow and the caption
+ * share one page-coloured strip (the arrow's box is padded and filled with the
+ * page, the caption continues it) so the line is masked around both and only
+ * shows to the right. */
 .wos-drawer-arrow {
     flex: none;
+    box-sizing: content-box;
     width: 0;
     height: 0;
+    padding: 0.35rem 0.2rem;
+    background: var(--wos-page);
     border-left: 0.3rem solid transparent;
     border-right: 0.3rem solid transparent;
     border-top: 0.35rem solid var(--wos-divider-ink);
+    background-clip: padding-box;
     transition: transform 150ms ease-out;
 }
 
@@ -1410,7 +1429,7 @@
 }
 
 .wos-drawer-caption {
-    padding-right: 0.3rem;
+    padding: 0 0.4rem 0 0;
     background: var(--wos-page);
     color: var(--wos-divider-ink);
     font-size: 0.6rem;
