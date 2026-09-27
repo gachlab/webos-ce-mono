@@ -266,6 +266,64 @@ the two can be photographed at the same scroll offset and compared pixel by
 pixel rather than argued about. Every difference listed above was found that
 way, after the rewritten card had already been called finished by eye.
 
+#### Comparing the computed styles, not just the pixels
+
+A screenshot tells you two controls look different; it does not tell you *why*,
+and it lies when the difference is a few pixels of padding or a line drawn one
+way versus another. The faster, exact tool is to read `getComputedStyle` and
+`getBoundingClientRect` off the same element in both cards over the Chrome
+DevTools Protocol (the webOS session exposes an inspector on port 9222; the two
+targets are titled `Kit` and `Kit (enyo)`), and diff the numbers.
+
+This is how #58's real bugs were found after the eye had signed off:
+
+* **A note glued under a list.** The grey paragraph under a captioned group sat
+  `-12px` into the last row. The cause was not the note: the captioned list
+  carried `margin: -12px` on all four sides (to pull it inside
+  `group-labeled.png`), and the `-12px` *bottom* dragged the next sibling up.
+  `getBoundingClientRect` gave `noteTop 135 < listBottom 147` at once; no
+  screenshot would have named the bottom margin.
+* **A rule drawn across a divider caption.** The kit painted a grey
+  `linear-gradient` line through the middle of the `Nearby` caption. Reading
+  enyo's `.enyo-divider-caption` showed `background: none, border: none` — enyo
+  draws the captioned divider as a plain item with only the row's bottom
+  hairline, and puts a *blue* rule (`divider.png`) on the AlphaDivider alone.
+  The comparison, not the eye, said which divider carries a line.
+* **A picker pill that looked too short.** The pill measured 32px against
+  enyo's 52px — until the computed style showed enyo's 52 was `content 32px +
+  border-image 10px top and bottom` (the transparent slices of
+  `picker-pill.png`). The visible pill matched; there was nothing to fix.
+
+Notes on doing it:
+
+* Some controls paint with `border-image` (buttons, picker pill, the light
+  toolbar). `getComputedStyle` returns the *token*, not the colour, so a colour
+  read comes back empty. For those, screenshot and sample the PNG:
+  `convert IMG -format '%[pixel:p{x,y}]' info:`. That is also how the numbers in
+  `divider.png` (a 4px blue rule with a white highlight) were read.
+* `getComputedStyle` works on off-screen nodes; `getBoundingClientRect` gives
+  viewport-relative coordinates that are negative or clipped for them. enyo's
+  Scroller does not honour the DOM's `scrollIntoView`, so a control low in the
+  reference card cannot be screenshotted — but its computed styles still read,
+  which is often all the comparison needs.
+* Open the CDP websocket with `create_connection(url, suppress_origin=True)`;
+  QtWebEngine drops the connection otherwise.
+* Prove a fix on the live page first by injecting a `<style>` over the offending
+  rule and re-measuring, before touching the CSS and running the build. It turns
+  a build-deploy-reload loop into a one-shot check.
+
+This is packaged as `tools/kit-ab.py`: name a control and it reads the box and
+type off both cards and prints them side by side with the differences flagged.
+
+    tools/kit-ab.py --list
+    tools/kit-ab.py divider-caption row-detail picker-pill
+
+A control is a row in its `CONTROLS` table (a path into the kit's shadow DOM and
+the matching Onyx selector); add one when a new bug needs measuring. Ad-hoc
+probes from #58 also live in `scratchpad/` (`cdp-ab-detail.py`,
+`cdp-divider-deep.py`, `cdp-enyo-twoline.py`, `cdp-probe-dom.py`, and
+`cdp-try-fix.py` for the live-override check) as worked examples.
+
 ### What the kit covers, and what it does not
 
 The kit reimplements the controls HP's cards are built out of, read from enyo's
