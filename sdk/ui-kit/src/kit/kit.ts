@@ -221,18 +221,29 @@ defineElement<{ label: string; value: string; choices: { value: string; label: s
 defineElement<{ title: string; message: string; buttons: { value: string; label: string; kind?: string }[] }>(
     "wos-dialog",
     { title: String, message: String, buttons: Object },
-    ({ title, message, buttons }, { emit, element, firstPaint }) => {
+    ({ title, message, buttons }, { emit, element, firstPaint, onRemoved }) => {
         if (firstPaint()) {
             queueMicrotask(() => {
                 element.shadowRoot?.querySelector<HTMLElement>(".wos-dialog .wos-button")?.focus();
             });
+            // Escape closes the dialog, not the card. The card's back gesture
+            // is a document keydown (see connectCard), so this has to win over
+            // it wherever the focus happens to be -- including the moment
+            // before the focus above has landed, which a handler on the shade
+            // would miss and let the card close. A capture listener on the
+            // document sees it first; onRemoved takes it away with the dialog.
+            if (typeof document !== "undefined") {
+                const onEscape = (event: KeyboardEvent): void => {
+                    if (event.key === "Escape") {
+                        event.stopPropagation();
+                        emit("dismiss");
+                    }
+                };
+                document.addEventListener("keydown", onEscape, true);
+                onRemoved(() => document.removeEventListener("keydown", onEscape, true));
+            }
         }
         const onKey = (event: KeyboardEvent): void => {
-            if (event.key === "Escape") {
-                event.stopPropagation();
-                emit("dismiss");
-                return;
-            }
             if (event.key !== "Tab") {
                 return;
             }
@@ -518,20 +529,33 @@ defineElement<{ caption: string; alpha: boolean }>(
 // `rowHeight` is how tall each one is, which is what lets it hold the room for
 // the ones not drawn without measuring them. The card gives it a `render` for
 // one row's markup, and hears "select" with the row's index.
+// §20 A long list that makes its rows as they are scrolled to: enyo's
+// VirtualList, which is what a card with thousands of rows needs (Contacts,
+// Email) and a settings card does not. `rows` is the data, set as a property;
+// `rowHeight` is how tall each one is, which is what lets it hold the room for
+// the ones not drawn without measuring them. The card gives it a `render` for
+// one row's markup, and hears "activate" with the row's index.
 //
 // It is not enyo's flyweight -- that reused one control and re-populated it per
 // index, which a framework that owns its DOM cannot assume. This keeps only the
 // window of rows the viewport shows (plus a margin) in the DOM, and spaces them
 // with two struts, so a list of ten thousand costs the rows on screen.
+//
+// `at` is where it is scrolled to, and it is the list's own -- the scroll
+// handler writes it, which is what repaints the window as the user scrolls.
+// The framework repaints on a property being set, and a scroll is not a
+// property the platform sets, so the list makes one of its own. A card never
+// touches it.
 defineElement<{
     rows: unknown[];
     rowHeight: number;
     render: (row: unknown, index: number) => TemplateResult;
     overscan: number;
+    at: number;
 }>(
     "wos-list",
-    { rows: Object, rowHeight: Number, render: Object, overscan: Number },
-    ({ rows, rowHeight, render, overscan }, { emit, element, firstPaint }) => {
+    { rows: Object, rowHeight: Number, render: Object, overscan: Number, at: Number },
+    ({ rows, rowHeight, render, overscan, at }, { emit, element, firstPaint }) => {
         const data = Array.isArray(rows) ? rows : [];
         const height = Number.isFinite(rowHeight) && rowHeight > 0 ? rowHeight : 44;
         const margin = Number.isFinite(overscan) && overscan >= 0 ? overscan : 6;
@@ -539,11 +563,13 @@ defineElement<{
             ? render
             : (row: unknown) => html`<wos-row title=${String(row)}></wos-row>`;
 
-        // The scroll port is the element's own box. What is drawn is the slice
-        // the port shows, grown by the margin at each end so a flick does not
-        // outrun it, held in place by a strut above and the total height below.
+        // What is drawn is the slice the port shows, grown by the margin at
+        // each end so a flick does not outrun it, held in place by a strut
+        // above and the total height below. The scroll offset is `at`, which
+        // the scroll handler keeps in step with the port; clientHeight is read
+        // off the port because it is not a property.
         const port = element.shadowRoot?.querySelector<HTMLElement>(".wos-list-port");
-        const scrolled = port ? port.scrollTop : 0;
+        const scrolled = Number.isFinite(at) && at >= 0 ? at : 0;
         const visible = port ? port.clientHeight : height * 8;
         const first = Math.max(0, Math.floor(scrolled / height) - margin);
         const count = Math.ceil(visible / height) + margin * 2;
@@ -551,13 +577,18 @@ defineElement<{
         const window = data.slice(first, last);
         const total = data.length * height;
 
-        // A scroll is not a repaint the platform gives us: ask for one, once,
-        // the first time this is drawn. onRemoved is not needed -- the listener
-        // is on a node inside the shadow root, which goes when the element does.
+        // A scroll is not a repaint the platform gives us. Writing the offset
+        // to `at` is: it is a declared property, so setting it repaints, and
+        // the window above is computed from it. Registered once -- the listener
+        // is on a node inside the shadow root, which goes when the element
+        // does, so no cleanup is needed.
         if (firstPaint()) {
             queueMicrotask(() => {
                 const node = element.shadowRoot?.querySelector<HTMLElement>(".wos-list-port");
-                node?.addEventListener("scroll", () => emit("scrolled"), { passive: true });
+                node?.addEventListener("scroll", () => {
+                    (element as unknown as { at: number }).at = node.scrollTop;
+                    emit("scrolled", { at: node.scrollTop });
+                }, { passive: true });
             });
         }
 
@@ -569,7 +600,7 @@ defineElement<{
                             const index = first + offset;
                             return html`
                                 <div class="wos-list-row" style="height: ${height}px"
-                                     @click=${() => emit("select", { index })}>
+                                     @click=${() => emit("activate", { index })}>
                                     ${draw(row, index)}
                                 </div>`;
                         })}
@@ -647,6 +678,11 @@ defineElement<{ value: string; placeholder: string; rows: number; maxRows: numbe
 // time pickers HP had are three of these side by side, which a card composes.
 // `min`..`max` is the range; it says what was picked with "change". Tapping the
 // pill opens the wheel, and the card decides it is open, as with the selector.
+//
+// Whether each picker's wheel was open at its last paint, so the wheel is
+// scrolled to the value only as it opens and not on every repaint after.
+const pickerWasOpen = new WeakMap<HTMLElement, boolean>();
+
 defineElement<{ label: string; value: number; min: number; max: number; open: boolean }>(
     "wos-picker",
     { label: String, value: Number, min: Number, max: Number, open: Boolean },
@@ -658,8 +694,13 @@ defineElement<{ label: string; value: number; min: number; max: number; open: bo
         for (let n = low; n <= high; n++) {
             values.push(n);
         }
-        // The wheel opens scrolled to the chosen value.
-        if (open) {
+        // The wheel scrolls to the chosen value when it opens -- on the
+        // transition into open, not on every repaint while open. Scrolling on
+        // each repaint would snap the wheel back under a finger that is
+        // dragging it. `pickerWasOpen` remembers the last state per element.
+        const wasOpen = pickerWasOpen.get(element) ?? false;
+        pickerWasOpen.set(element, open);
+        if (open && !wasOpen) {
             queueMicrotask(() => {
                 const chosen = element.shadowRoot?.querySelector<HTMLElement>(".wos-picker-item.chosen");
                 chosen?.scrollIntoView({ block: "center" });
@@ -688,15 +729,29 @@ defineElement<{ label: string; value: number; min: number; max: number; open: bo
 defineElement<{ open: boolean; x: number; y: number; choices: { value: string; label: string }[]; value: string }>(
     "wos-popup-list",
     { open: Boolean, x: Number, y: Number, choices: Object, value: String },
-    ({ open, x, y, choices, value }, { emit }) => {
+    ({ open, x, y, choices, value }, { emit, element }) => {
         if (!open) {
             return html``;
         }
         const list = Array.isArray(choices) ? choices : [];
-        // Clamped to the viewport so it never opens off the edge, which is what
-        // enyo's Popup did with applyAtEventBounds.
-        const left = Math.max(4, Math.min(Number(x) || 0, window.innerWidth - 180));
-        const top = Math.max(4, Math.min(Number(y) || 0, window.innerHeight - 40));
+        // Opens at the tap. A first, cheap clamp keeps the corner on screen;
+        // then, once it has a size, it is nudged fully into view -- the height
+        // depends on how many choices there are, so it cannot be guessed the
+        // way a fixed reserve would (a tall menu near the bottom overflowed
+        // that). This is what enyo's Popup did with applyAtEventBounds.
+        const left = Math.max(4, Number(x) || 0);
+        const top = Math.max(4, Number(y) || 0);
+        queueMicrotask(() => {
+            const menu = element.shadowRoot?.querySelector<HTMLElement>(".wos-popup");
+            if (!menu) {
+                return;
+            }
+            const box = menu.getBoundingClientRect();
+            const maxLeft = window.innerWidth - box.width - 4;
+            const maxTop = window.innerHeight - box.height - 4;
+            menu.style.left = `${Math.max(4, Math.min(left, maxLeft))}px`;
+            menu.style.top = `${Math.max(4, Math.min(top, maxTop))}px`;
+        });
         return html`
             <div class="wos-popup-shade" @click=${() => emit("close")}>
                 <div class="wos-popup" style="left: ${left}px; top: ${top}px"

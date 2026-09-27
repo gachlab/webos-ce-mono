@@ -81,6 +81,9 @@ const watchKeyboard = (app: RunningCard["app"]): void => {
     if (typeof document === "undefined") {
         return;
     }
+    // The unsubscribe is not kept: app.dispose() -- which connectCard's stop()
+    // calls, and which runs on unload -- drops every listener this app has,
+    // this one included. One card owns one app, so there is nothing to stack.
     app.on("keyboard", (shown) => {
         document.documentElement.style.setProperty(
             "--wos-keyboard",

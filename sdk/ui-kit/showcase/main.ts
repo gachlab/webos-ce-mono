@@ -59,6 +59,9 @@ const CHOICES = [
     { value: "auto", label: "Automatically" },
 ];
 
+// A thousand rows, to show the list makes only the ones on screen.
+const LONG_LIST = Array.from({ length: 1000 }, (_, n) => `Row ${n}`);
+
 const createShowcase = (): ShowcaseService => {
     const state = createState<Shown>({
         name: "kit:ready",
@@ -301,6 +304,18 @@ const view = (state: State<Shown>, service: ShowcaseService) => {
                                   @change=${(e: CustomEvent<{ value: string }>) => service.change({ typedArea: e.detail.value })}>
                     </wos-text-area>
                 </div>`)}
+
+            ${section("A long list", html`
+                <div class="wos-list" style="height: 12rem">
+                    <wos-list .rows=${LONG_LIST} rowHeight="44"
+                             .render=${(row: unknown) => html`<wos-row title=${String(row)}></wos-row>`}
+                             @activate=${(e: CustomEvent<{ index: number }>) =>
+                                 service.change({ listPicked: `Row ${e.detail.index}` })}>
+                    </wos-list>
+                </div>
+                ${note(shown.listPicked
+                    ? `Tapped: ${shown.listPicked}. It draws only the rows on screen -- scroll and the rest are made as they are reached.`
+                    : "A thousand rows; only the window on screen is in the DOM. Scroll it.")}`)}
 
             ${section("A picker", html`
                 <div class="wos-list">

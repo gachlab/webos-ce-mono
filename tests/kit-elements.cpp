@@ -175,7 +175,7 @@ big.render = function (row) {
     r.setAttribute("title", String(row));
     return r;
 };
-big.addEventListener("select", function (e) { window.__listPicked = e.detail.index; });
+big.addEventListener("activate", function (e) { window.__listPicked = e.detail.index; });
 probe.appendChild(big);
 
 window.__minute = -1;
@@ -197,6 +197,18 @@ popup.y = 20;
 popup.choices = [{ value: "open", label: "Open" }, { value: "copy", label: "Copy" }];
 popup.addEventListener("choose", function (e) { window.__popupChose = e.detail.value; });
 probe.appendChild(popup);
+
+// A tall popup opened near the bottom edge: it has to be nudged up by its own
+// height, which a fixed one-row reserve could not do.
+var tallPopup = document.createElement("wos-popup-list");
+tallPopup.id = "tallPopup";
+tallPopup.setAttribute("open", "");
+tallPopup.x = 20;
+tallPopup.y = 100000;   // far below the bottom edge
+var many = [];
+for (var j = 0; j < 12; j++) { many.push({ value: "v" + j, label: "Item " + j }); }
+tallPopup.choices = many;
+probe.appendChild(tallPopup);
 
 window.__drawer = "";
 var drawer = document.createElement("wos-drawer");
@@ -435,6 +447,30 @@ int main(int argc, char** argv)
           QStringLiteral("40000px"));
     js("var row = document.getElementById('big').shadowRoot.querySelector('.wos-list-row'); row.click(); 1");
     check("tapping a row says its index", js("String(window.__listPicked)"), QStringLiteral("0"));
+    // Scrolling the port advances the window: the list writes the offset to
+    // its own `at`, which repaints, so a row far down the list is drawn and the
+    // first row is not. Without that -- the window frozen at the top -- the
+    // whole point of a virtual list is lost.
+    check("the window starts at the top",
+          js("var l = document.getElementById('big').shadowRoot;"
+             "String(!!l.querySelector('.wos-list-row wos-row') && "
+             "l.querySelectorAll('.wos-list-row').length > 0)"),
+          QStringLiteral("true"));
+    js("(function(){ var p = document.getElementById('big').shadowRoot.querySelector('.wos-list-port');"
+       "p.scrollTop = 4000; p.dispatchEvent(new Event('scroll')); return 1; })()");
+    waitFor([&]() {
+        return js("String(document.getElementById('big').at > 0)") == "true";
+    }, 2000);
+    check("a scroll moves the window down the list (row ~100 is drawn now)",
+          js("var l = document.getElementById('big').shadowRoot;"
+             "var titles = [].map.call(l.querySelectorAll('wos-row'), function(r){return r.getAttribute('title');});"
+             "String(titles.indexOf('Row 100') >= 0)"),
+          QStringLiteral("true"));
+    check("and the first row is no longer in the window",
+          js("var l = document.getElementById('big').shadowRoot;"
+             "var titles = [].map.call(l.querySelectorAll('wos-row'), function(r){return r.getAttribute('title');});"
+             "String(titles.indexOf('Row 0') < 0)"),
+          QStringLiteral("true"));
 
     // Picker: opened, it is scrolled to the value and marks it; picking one
     // says which.
@@ -456,6 +492,17 @@ int main(int argc, char** argv)
           QStringLiteral("true"));
     js("document.getElementById('popup').shadowRoot.querySelectorAll('.wos-popup-item')[1].click(); 1");
     check("choosing a popup item says which", js("window.__popupChose"), QStringLiteral("copy"));
+    // A tall popup opened past the bottom is nudged up by its whole height, so
+    // its last item is on screen -- not just its top corner.
+    waitFor([&]() {
+        return js("(function(){var p=document.getElementById('tallPopup').shadowRoot.querySelector('.wos-popup');"
+                  "return p && parseFloat(p.style.top) < window.innerHeight ? 'in' : 'out';})()") == "in";
+    }, 2000);
+    check("a tall popup near the bottom is nudged fully into view",
+          js("(function(){var p=document.getElementById('tallPopup').shadowRoot.querySelector('.wos-popup');"
+             "var b=p.getBoundingClientRect();"
+             "return String(b.bottom <= window.innerHeight && b.top >= 0);})()"),
+          QStringLiteral("true"));
 
     // Drawer: closed to start, its body hidden; tapping the heading asks to
     // open it.
@@ -482,11 +529,10 @@ int main(int argc, char** argv)
     check("a dialog puts the focus on its first button",
           js("document.getElementById('dlg').shadowRoot.activeElement.textContent"),
           QStringLiteral("Forget"));
-    js("(function () { var d = document.getElementById('dlg');"
-       "var shade = d.shadowRoot.querySelector('.wos-dialog-shade');"
-       "shade.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));"
+    js("(function () { "
+       "document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, composed: true }));"
        "return 1; })()");
-    check("Escape inside the dialog dismisses it", js("String(window.__dialogDismissed)"), QStringLiteral("1"));
+    check("Escape while the dialog is open dismisses it", js("String(window.__dialogDismissed)"), QStringLiteral("1"));
 
     return failures == 0 ? 0 : 1;
 }
