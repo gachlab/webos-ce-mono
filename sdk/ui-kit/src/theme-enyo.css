@@ -44,7 +44,11 @@
     --wos-list-under-caption-border: 0;
     --wos-list-under-caption-top: 0;
     --wos-list-under-caption-radius: 0;
-    --wos-list-under-caption-margin: -12px;
+    /* Pull the list into group-labeled.png on three sides (enyo-group-inner's
+     * -12px), but not the bottom: a -12px bottom margin drags the next sibling
+     * (a note or error under the group) up over the last row. Bottom 0 lets it
+     * sit clear, as enyo's grey paragraph does below its group. */
+    --wos-list-under-caption-margin: -12px -12px 0;
     --wos-list-under-caption-overflow: visible;
 
     /* Item.css: two translucent hairlines, white over black. */

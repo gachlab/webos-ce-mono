@@ -171,8 +171,11 @@ body {
 
 /* §6 Text ----------------------------------------------------------------- */
 
+/* A note under a list. enyo's grey paragraph sits a hair below the group
+ * (kit-enyo-note: margin-top 3px); without it the note tucks against the last
+ * row once the captioned list has cleared its bottom margin. */
 .wos-note {
-    margin: 0 0.4rem 0.6rem;
+    margin: 0.15rem 0.4rem 0.6rem;
     color: var(--wos-ink-dim);
     font-size: 0.8rem;
     line-height: 1.35;

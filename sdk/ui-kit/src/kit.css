@@ -1060,7 +1060,7 @@
     display: flex;
     align-items: center;
     gap: 0.4rem;
-    min-height: 1.3rem;
+    min-height: 1.6rem;
     padding: 0 0.6rem;
     background: var(--wos-divider-line);
     background-repeat: repeat-x;
@@ -1069,11 +1069,15 @@
     border-bottom: var(--wos-divider-border, 0);
 }
 
+/* enyo's Divider caption measures 16px, bold, in its blue. The page-coloured
+ * background is the mask that opens a gap in the hairline for the word; it
+ * needs a little room on both sides so the line stops clear of the glyphs
+ * rather than touching them. */
 .wos-divider-caption {
-    padding: 0 0.3rem 0 0;
+    padding: 0 0.4rem 0 0.1rem;
     background: var(--wos-page);
     color: var(--wos-divider-ink);
-    font-size: 0.6rem;
+    font-size: 0.8rem;
     font-weight: 700;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -1090,7 +1094,7 @@
 .wos-divider.alpha .wos-divider-caption {
     margin-left: -1.15rem;
     color: var(--wos-divider-alpha-ink);
-    font-size: 0.7rem;
+    font-size: 0.95rem;
 }
 
 /* §20 A long list --------------------------------------------------------- */
@@ -1430,7 +1434,7 @@
 .wos-drawer-caption {
     padding: 0;
     color: var(--wos-divider-ink);
-    font-size: 0.6rem;
+    font-size: 0.8rem;
     font-weight: 700;
 }
 
