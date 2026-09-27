@@ -605,6 +605,14 @@
     border-bottom-color: transparent;
 }
 
+/* A lone choice sits in the same taller item enyo gave a RadioGroup on its own
+ * (measured: 63 px, the segment 14 px down from the top), so the segmented
+ * control does not crowd the caption above it once the hairline is gone. */
+:host(wos-choice:only-child) .wos-row {
+    padding-top: 0.7rem;
+    padding-bottom: 0.7rem;
+}
+
 /* Unlabeled selector: MenuItem.css caption — 16px / 22px line-height. */
 :host(wos-selector:only-child) .wos-row-title {
     font-size: 0.8rem;
