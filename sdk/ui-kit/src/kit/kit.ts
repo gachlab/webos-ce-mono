@@ -45,12 +45,14 @@ defineElement<{ title: string; back: boolean; light: boolean; icon: string }>(
         </header>`,
 );
 
-// §2 Button. "affirmative" and "negative" are HP's two loud kinds.
-defineElement<{ label: string; kind: string; disabled: boolean }>(
+// §2 Button. "affirmative" and "negative" are HP's two loud kinds. `pressed`
+// forces the down look without a live tap -- enyo's `enyo-button-depressed`,
+// which the showcase uses to show the pressed state in a still.
+defineElement<{ label: string; kind: string; disabled: boolean; pressed: boolean }>(
     "wos-button",
-    { label: String, kind: String, disabled: Boolean },
-    ({ label, kind, disabled }, { emit }) => html`
-        <button class="wos-button ${kind ?? ""}" ?disabled=${disabled}
+    { label: String, kind: String, disabled: Boolean, pressed: Boolean },
+    ({ label, kind, disabled, pressed }, { emit }) => html`
+        <button class="wos-button ${kind ?? ""} ${pressed ? "pressed" : ""}" ?disabled=${disabled}
                 @click=${() => emit("press")}>${label}</button>`,
 );
 

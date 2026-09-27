@@ -200,7 +200,8 @@
     justify-content: center;
 }
 
-.wos-button:active {
+.wos-button:active,
+.wos-button.pressed {
     -webkit-border-image: var(--wos-button-border-image-down, var(--wos-button-border-image, none));
     border-image: var(--wos-button-border-image-down, var(--wos-button-border-image, none));
     background-image: var(--wos-button-sheen-down, none);

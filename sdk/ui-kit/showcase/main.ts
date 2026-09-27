@@ -140,8 +140,10 @@ const view = (state: State<Shown>, service: ShowcaseService) => {
 
             ${section("Buttons", html`
                 <div class="wos-list">
-                    ${["Plain", "Dark", "Affirmative", "Negative", "Blue", "Gray"].map((name) => html`
-                        <wos-row><wos-button label=${name} kind=${name === "Plain" ? "" : name.toLowerCase()}
+                    <wos-row><wos-button label="Plain" @press=${() => service.change({ pressed: "Plain" })}></wos-button></wos-row>
+                    <wos-row><wos-button label="Pressed" pressed></wos-button></wos-row>
+                    ${["Dark", "Affirmative", "Negative", "Blue", "Gray"].map((name) => html`
+                        <wos-row><wos-button label=${name} kind=${name.toLowerCase()}
                                            @press=${() => service.change({ pressed: name })}></wos-button></wos-row>`)}
                     <wos-row><wos-button label="Disabled" disabled></wos-button></wos-row>
                 </div>
