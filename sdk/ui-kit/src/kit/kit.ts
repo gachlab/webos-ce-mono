@@ -915,10 +915,11 @@ defineElement<{ label: string }>(
 
 // Month names and field order for the locale. enyo read these from enyo.g11n
 // (getMonthFields / getDateFieldOrder); a card's world has no enyo, so they
-// come from @webos/api's date-fields, which carries the same per-locale data.
-// This is #19's plug: the pickers read dateFields() at render, so the locale a
-// card sets (useLocale) decides the names and the order, and nothing else
-// changes -- the day re-clamping and the YYYY-MM-DD wire value are the same.
+// come from @webos/api's date-fields, which carries the same per-locale facts
+// (with full month names, as this picker has always shown). This is #19's plug:
+// the pickers read dateFields() at render, so the locale a card sets (useLocale)
+// decides the names and the order, and nothing else changes -- the day
+// re-clamping and the YYYY-MM-DD wire value are the same.
 
 // Days in a month, enyo's own trick: the 32nd of a month rolls into the next,
 // and 32 minus that day is the length.

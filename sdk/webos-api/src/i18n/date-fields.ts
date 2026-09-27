@@ -4,11 +4,14 @@
 // 12-hour day.
 //
 // enyo carried this per locale in its g11n data -- month names in
-// datetime_data/<locale>.json (the "long" set the pickers show), and
-// dateFieldOrder / is12HourDefault / firstDayOfWeek in formats/<region>.json.
-// enyo is gone from a card's world, so the few locales we ship are transcribed
-// here from that same data rather than loaded from it. English is the source
-// and the fallback: a locale we have not added yet shows en_US, never a broken
+// datetime_data/<locale>.json, and dateFieldOrder / is12HourDefault /
+// firstDayOfWeek in formats/<region>.json. enyo is gone from a card's world, so
+// the few locales we ship are transcribed here from that data rather than
+// loaded from it. The month names are the full ones (datetime_data's "long"
+// set): enyo's own DatePicker showed the abbreviated "medium" set, but this
+// kit's picker shows full names and did before this change, so English is
+// unchanged and the other locales match it in length. English is the source and
+// the fallback: a locale we have not added yet shows en_US, never a broken
 // picker.
 //
 // This is the date/time half of #19. The string half is translate.ts; the
