@@ -24,7 +24,9 @@
 // #70 is checked here too: with the JSON reader gone -- so a `choices`
 // attribute is not parsed and a control written only as markup falls back to
 // its raw value -- or with the property no longer winning over the attribute,
-// or with a malformed attribute throwing rather than falling back silently,
+// or with a cleared property (set to `undefined`) resurfacing the attribute
+// rather than clearing, or with a malformed attribute throwing rather than
+// falling back silently, or with a runtime attribute change not repainting,
 // this turns red.
 
 #include <QApplication>
@@ -683,6 +685,51 @@ int main(int argc, char** argv)
     check("a property set on the element wins over the JSON attribute",
           js("document.getElementById('markupSelector').shadowRoot.querySelector('.wos-selector-value').textContent"),
           QStringLiteral("Property wins"));
+
+    // Clearing the property does not resurface the JSON attribute: once a card
+    // has touched the property, the card decides, and `undefined` and `null`
+    // clear to the same empty list rather than one falling back to the
+    // still-present markup and the other to empty. Without keying precedence on
+    // the property being *present* (not merely defined), `undefined` here would
+    // fall through to the attribute and show "WPA Personal" again.
+    js("document.getElementById('markupSelector').choices = undefined; 1");
+    waitFor([&]() {
+        return js("document.getElementById('markupSelector').shadowRoot.querySelector('.wos-selector-value').textContent")
+               == "wpa";
+    }, 2000);
+    check("clearing the property with undefined does not resurface the attribute",
+          js("document.getElementById('markupSelector').shadowRoot.querySelector('.wos-selector-value').textContent"),
+          QStringLiteral("wpa"));
+    js("document.getElementById('markupSelector').choices = null; 1");
+    waitFor([&]() {
+        return js("String(document.getElementById('markupSelector').shadowRoot.querySelectorAll('.wos-selector-choice').length)")
+               == "0";
+    }, 2000);
+    check("and clearing it with null clears to the same empty list, not a different screen",
+          js("document.getElementById('markupSelector').shadowRoot.querySelector('.wos-selector-value').textContent"),
+          QStringLiteral("wpa"));
+
+    // The attribute is live: a control that was never given a property reparses
+    // and repaints when its JSON attribute changes after upgrade, and a change
+    // to malformed text falls back to empty rather than keeping the last good
+    // value or throwing. `markupChoice` is only ever driven by its attribute.
+    js("document.getElementById('markupChoice').setAttribute('choices',"
+       "'[{\"value\":\"on\",\"label\":\"Keep it on\"},{\"value\":\"off\",\"label\":\"Turn off\"}]'); 1");
+    waitFor([&]() {
+        return js("var os = document.getElementById('markupChoice').shadowRoot.querySelectorAll('.wos-choice-one');"
+                  "os.length ? os[0].textContent : ''") == "Keep it on";
+    }, 2000);
+    check("a new JSON attribute at runtime reparses and repaints",
+          js("document.getElementById('markupChoice').shadowRoot.querySelectorAll('.wos-choice-one')[0].textContent"),
+          QStringLiteral("Keep it on"));
+    js("document.getElementById('markupChoice').setAttribute('choices', '[{oops]'); 1");
+    waitFor([&]() {
+        return js("String(document.getElementById('markupChoice').shadowRoot.querySelectorAll('.wos-choice-one').length)")
+               == "0";
+    }, 2000);
+    check("a change to malformed JSON at runtime falls back to empty, it does not keep the stale value",
+          js("String(document.getElementById('markupChoice').shadowRoot.querySelectorAll('.wos-choice-one').length)"),
+          QStringLiteral("0"));
 
     // Malformed JSON is not a new way to break the page: the control falls back
     // exactly as it would with no attribute (the raw value), silently, and the

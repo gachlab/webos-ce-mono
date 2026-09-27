@@ -185,11 +185,18 @@ export const defineElement = <Props extends Attributes>(
             this.#paint();
         }
 
-        // What the component would be handed for this property right now.
+        // What the component would be handed for this property right now. Once
+        // a card has set the property -- even to `undefined` or `null` to clear
+        // it -- the property wins and the attribute is suppressed: the card
+        // touched it, so the card decides. The attribute is only read when the
+        // property was never set at all (the markup-only path, #70), which is
+        // why this keys on the key being present in `#values`, not on its value
+        // being defined. Keying on `!== undefined` would let `el.choices =
+        // undefined` fall back through to a still-present JSON attribute and
+        // silently resurface the markup data as the live value.
         readProperty(key: string): unknown {
-            const fromProperty = this.#values[key];
-            return fromProperty !== undefined
-                ? fromProperty
+            return Object.hasOwn(this.#values, key)
+                ? this.#values[key]
                 : read(this.getAttribute(attributeName(key)), props[key as keyof Props]);
         }
 
