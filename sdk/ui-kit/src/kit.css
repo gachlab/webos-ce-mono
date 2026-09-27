@@ -595,9 +595,12 @@
 }
 
 /* enyo-item.enyo-single: hairlines go transparent so a lone control inside a
- * labeled group does not etch a white/black line under the caption. */
+ * labeled group does not etch a white/black line under the caption. A choice
+ * belongs here too -- the Theme group in the showcase is one on its own, and
+ * without this its row draws the white hairline over the caption. */
 :host(wos-selector:only-child) .wos-row,
-:host(wos-row:only-child) .wos-row {
+:host(wos-row:only-child) .wos-row,
+:host(wos-choice:only-child) .wos-row {
     border-top-color: transparent;
     border-bottom-color: transparent;
 }
