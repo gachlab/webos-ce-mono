@@ -200,6 +200,21 @@ enyo.kind({
 					{kind: "IntegerPicker", label: "Minutes", value: 30, min: 0, max: 59}
 				]},
 
+				{kind: "RowGroup", caption: "A date picker", components: [
+					{kind: "DatePicker", label: "Date", minYear: 1900, maxYear: 2020}
+				]},
+
+				{kind: "RowGroup", caption: "A time picker", components: [
+					{kind: "TimePicker", label: "Time (12-hour)", minuteInterval: 5},
+					{kind: "TimePicker", label: "Time (24-hour)", minuteInterval: 5, is24HrMode: true}
+				]},
+
+				{kind: "RowGroup", caption: "A prev/next banner", components: [
+					{kind: "PrevNextBanner", content: "Page 3 of 5"},
+					{kind: "PrevNextBanner", content: "At the start", previousDisabled: true},
+					{kind: "PrevNextBanner", content: "At the end", nextDisabled: true}
+				]},
+
 				{kind: "RowGroup", caption: "A folding section", components: [
 					{kind: "DividerDrawer", caption: "Advanced", open: true, components: [
 						{kind: "Item", content: "Hidden until the heading is tapped"},
@@ -230,6 +245,11 @@ enyo.kind({
 					{kind: "Button", caption: "Open", onclick: "openDialog"}
 				]}
 			]}
+		]},
+
+		{kind: "Toolbar", components: [
+			{kind: "Button", caption: "Cancel"},
+			{kind: "Button", caption: "Done", className: "enyo-button enyo-button-affirmative"}
 		]},
 
 		{name: "dialog", kind: "ModalDialog", caption: "Forget network?", components: [

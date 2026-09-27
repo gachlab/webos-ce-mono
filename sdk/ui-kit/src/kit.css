@@ -42,6 +42,10 @@
  *   §25 A folding section
  *   §26 Toaster
  *   §27 Two panes
+ *   §28 Picker group
+ *   §29 Date and time pickers
+ *   §31 Toolbar
+ *   §32 Prev/next banner
  */
 
 :host {
@@ -1564,4 +1568,125 @@
     .wos-pane-back {
         display: none !important;
     }
+}
+
+
+/* §28 Picker group -------------------------------------------------------- */
+
+:host(wos-picker-group), :host(wos-date-picker), :host(wos-time-picker) {
+    display: block;
+}
+
+/* enyo's PickerGroup: a label, then the wheels in a row. The label is enyo's
+ * picker label (Picker.css: 18px, the tall line-height that lines a lone label
+ * up with the pill). */
+.wos-picker-group {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.3rem 0.6rem;
+}
+
+.wos-picker-group-label {
+    font-size: 0.75rem;
+    color: var(--wos-ink);
+}
+
+.wos-picker-group-wheels {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+}
+
+/* §29 Date and time pickers ----------------------------------------------- */
+
+/* Each field is one wheel: the pill and the column it opens are §23's, reused.
+ * The wheel wraps them so its popup is positioned under its own pill rather
+ * than the group's. */
+.wos-wheel {
+    position: relative;
+    display: inline-flex;
+}
+
+.wos-wheel .wos-picker-wheel {
+    top: 100%;
+    left: 0;
+}
+
+/* §31 Toolbar ------------------------------------------------------------- */
+
+:host(wos-toolbar) {
+    display: block;
+}
+
+/* enyo's Toolbar: the same bar the header wears, at the foot of the card, with
+ * its buttons centred. Dark by default (toolbar.png over #343434), light with
+ * the class HP's settings cards use. The tokens are the header's own, so the
+ * two bars always match. */
+.wos-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    min-height: 2.7rem;
+    padding: 0.3rem 0.5rem;
+    background: var(--wos-header-bg);
+    border-top: 1px solid var(--wos-header-line);
+}
+
+.wos-toolbar.light {
+    background: var(--wos-header-light-bg);
+    border-top: 1px solid var(--wos-header-light-line-top);
+    -webkit-border-image: var(--wos-header-light-border-image, none);
+    border-image: var(--wos-header-light-border-image, none);
+}
+
+/* §2's `::slotted(wos-button){flex:1}` would stretch a button that a card puts
+ * in the toolbar to fill the bar; here they keep their own width and sit
+ * centred as a row, which is how enyo's ToolButtons behaved. */
+:host(wos-toolbar) ::slotted(wos-button),
+:host(wos-toolbar) ::slotted(wos-activity-button) {
+    flex: 0 0 auto;
+    min-width: 5rem;
+}
+
+/* §32 Prev/next banner ---------------------------------------------------- */
+
+:host(wos-prev-next) {
+    display: block;
+}
+
+/* enyo's PrevNextBanner: an arrow at each end, the content between them. The
+ * arrows dim when they are off, as enyo disabled them. */
+.wos-prev-next {
+    display: flex;
+    align-items: center;
+    min-height: 2.4rem;
+}
+
+.wos-prev-next-prev,
+.wos-prev-next-next {
+    flex: none;
+    padding: 0.4rem 0.8rem;
+    font-size: 0.8rem;
+    color: var(--wos-prev-next-ink);
+    background: none;
+    border: 0;
+}
+
+.wos-prev-next-prev[disabled],
+.wos-prev-next-next[disabled] {
+    opacity: 0.35;
+    pointer-events: none;
+}
+
+.wos-prev-next-content {
+    flex: 1;
+    min-width: 0;
+    text-align: center;
+    font-size: 0.85rem;
+    color: var(--wos-ink);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }

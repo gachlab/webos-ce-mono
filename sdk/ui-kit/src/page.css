@@ -65,10 +65,11 @@ body {
     height: 100%;
 }
 
-/* The header keeps its height and the body takes what is left. */
+/* The header keeps its height and the body takes what is left; a toolbar, if a
+ * card has one, keeps its height at the foot. */
 .wos-card {
     display: grid;
-    grid-template-rows: auto 1fr;
+    grid-template-rows: auto 1fr auto;
     height: 100%;
 }
 

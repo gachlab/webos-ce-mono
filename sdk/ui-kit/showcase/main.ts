@@ -46,6 +46,12 @@ interface Shown {
     readonly toast: boolean;
     readonly pane: string;
     readonly listPicked: string;
+    // Los controles de picker/toolbar/banner añadidos.
+    readonly date: string;
+    readonly dateOpen: string;
+    readonly time: string;
+    readonly timeOpen: string;
+    readonly page: number;
 }
 
 interface ShowcaseService extends CardService<Shown> {
@@ -73,6 +79,7 @@ const createShowcase = (): ShowcaseService => {
             tab: "all", search: "", typedArea: "", minutes: 30, minutesOpen: false,
             popupOpen: false, popupX: 0, popupY: 0, picked: "", drawer: false,
             toast: false, pane: "list", listPicked: "",
+            date: "2011-02-09", dateOpen: "", time: "14:30", timeOpen: "", page: 3,
         },
     });
     return {
@@ -84,11 +91,11 @@ const createShowcase = (): ShowcaseService => {
         onBack: () => {
             // A card that has something open closes that first, and only then
             // lets the back gesture close the card.
-            const { dialog, choosing, menu, swiped, minutesOpen, popupOpen } = state.get().data;
-            if (dialog || choosing || menu || swiped || minutesOpen || popupOpen) {
+            const { dialog, choosing, menu, swiped, minutesOpen, popupOpen, dateOpen, timeOpen } = state.get().data;
+            if (dialog || choosing || menu || swiped || minutesOpen || popupOpen || dateOpen || timeOpen) {
                 state.patch({
                     dialog: false, choosing: false, menu: false, swiped: false,
-                    minutesOpen: false, popupOpen: false,
+                    minutesOpen: false, popupOpen: false, dateOpen: "", timeOpen: "",
                 });
                 return true;
             }
@@ -348,6 +355,50 @@ const view = (state: State<Shown>, service: ShowcaseService) => {
                 </div>
                 ${note("A date or a time picker is three of these side by side, which a card composes.")}`)}
 
+            ${section("A date picker", html`
+                <div class="wos-list">
+                    <wos-row title="Date">
+                        <wos-date-picker value=${shown.date} min-year="1900" max-year="2020"
+                                        open=${shown.dateOpen}
+                                        @open=${(e: CustomEvent<{ open: string }>) => service.change({ dateOpen: e.detail.open })}
+                                        @change=${(e: CustomEvent<{ value: string }>) =>
+                                            service.change({ date: e.detail.value, dateOpen: "" })}>
+                        </wos-date-picker>
+                    </wos-row>
+                </div>
+                ${note(`Month, day and year; the day wheel is rebuilt for the month so February has no 31st. Chosen: ${shown.date}.`)}`)}
+
+            ${section("A time picker", html`
+                <div class="wos-list">
+                    <wos-row title="Time (12-hour)">
+                        <wos-time-picker value=${shown.time} interval="5"
+                                        open=${shown.timeOpen}
+                                        @open=${(e: CustomEvent<{ open: string }>) => service.change({ timeOpen: e.detail.open })}
+                                        @change=${(e: CustomEvent<{ value: string }>) =>
+                                            service.change({ time: e.detail.value, timeOpen: "" })}>
+                        </wos-time-picker>
+                    </wos-row>
+                    <wos-row title="Time (24-hour)">
+                        <wos-time-picker value=${shown.time} interval="5" mode24
+                                        open=${shown.timeOpen}
+                                        @open=${(e: CustomEvent<{ open: string }>) => service.change({ timeOpen: e.detail.open })}
+                                        @change=${(e: CustomEvent<{ value: string }>) =>
+                                            service.change({ time: e.detail.value, timeOpen: "" })}>
+                        </wos-time-picker>
+                    </wos-row>
+                </div>
+                ${note(`Hour, minute and AM/PM, or 24-hour with no AM/PM wheel. Chosen: ${shown.time}.`)}`)}
+
+            ${section("A prev/next banner", html`
+                <div class="wos-list">
+                    <wos-prev-next ?prev-off=${shown.page <= 1} ?next-off=${shown.page >= 5}
+                                  @previous=${() => service.change({ page: Math.max(1, shown.page - 1) })}
+                                  @next=${() => service.change({ page: Math.min(5, shown.page + 1) })}>
+                        ${`Page ${shown.page} of 5`}
+                    </wos-prev-next>
+                </div>
+                ${note("An arrow at each end; each turns off on its own at the ends of the range.")}`)}
+
             ${section("A list that opens where it was tapped", html`
                 <div class="wos-list">
                     <wos-row title="Right-click, or long-press, opens a menu at the point"
@@ -450,6 +501,10 @@ const view = (state: State<Shown>, service: ShowcaseService) => {
                         @dismiss=${() => service.change({ toast: false })}>
             </wos-toaster>
         </div>
+        <wos-toolbar>
+            <wos-button label="Cancel" @press=${() => service.change({ pressed: "Cancel" })}></wos-button>
+            <wos-button label="Done" kind="affirmative" @press=${() => service.change({ pressed: "Done" })}></wos-button>
+        </wos-toolbar>
     </div>`;
 };
 

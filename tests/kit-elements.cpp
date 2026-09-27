@@ -16,7 +16,10 @@
 // list that draws all its rows rather than a window, a search field that keeps
 // the magnifier once text is in it, a popup that opens off the edge without
 // being clamped, a drawer that starts open, a picker that does not mark its
-// value, or a dialog that lets Escape close the card behind it, this turns red.
+// value, a dialog that lets Escape close the card behind it, a date picker
+// that does not re-clamp the day when the month shortens, a 24-hour time
+// picker that still shows an AM/PM wheel, or a prev/next arrow that fires while
+// it is off, this turns red.
 
 #include <QApplication>
 #include <QElapsedTimer>
@@ -240,6 +243,56 @@ dlg.setAttribute("title", "Forget?");
 dlg.buttons = [{ value: "yes", label: "Forget" }, { value: "no", label: "Keep" }];
 dlg.addEventListener("dismiss", function () { window.__dialogDismissed++; });
 probe.appendChild(dlg);
+
+// A date picker: Jan 31 2011, so picking February must re-clamp the day.
+window.__date = "";
+var datePicker = document.createElement("wos-date-picker");
+datePicker.id = "datePicker";
+datePicker.setAttribute("value", "2011-01-31");
+datePicker.setAttribute("min-year", "1900");
+datePicker.setAttribute("max-year", "2020");
+datePicker.addEventListener("change", function (e) { window.__date = e.detail.value; });
+datePicker.addEventListener("open", function (e) { window.__dateOpen = e.detail.open; });
+probe.appendChild(datePicker);
+
+// A time picker: 14:30, twelve-hour, shown open on the hour wheel is separate.
+window.__time = "";
+var timePicker = document.createElement("wos-time-picker");
+timePicker.id = "timePicker";
+timePicker.setAttribute("value", "14:30");
+timePicker.setAttribute("interval", "5");
+timePicker.addEventListener("change", function (e) { window.__time = e.detail.value; });
+probe.appendChild(timePicker);
+
+var timePicker24 = document.createElement("wos-time-picker");
+timePicker24.id = "timePicker24";
+timePicker24.setAttribute("value", "14:30");
+timePicker24.setAttribute("mode24", "");
+probe.appendChild(timePicker24);
+
+// A toolbar with two buttons slotted in.
+var toolbar = document.createElement("wos-toolbar");
+toolbar.id = "toolbar";
+toolbar.innerHTML = "<wos-button label='Cancel'></wos-button>" +
+                    "<wos-button label='Done' kind='affirmative'></wos-button>";
+probe.appendChild(toolbar);
+
+// A prev/next banner, and one with each end turned off.
+window.__prev = 0;
+window.__next = 0;
+var banner = document.createElement("wos-prev-next");
+banner.id = "banner";
+banner.textContent = "Page 3 of 5";
+banner.addEventListener("previous", function () { window.__prev++; });
+banner.addEventListener("next", function () { window.__next++; });
+probe.appendChild(banner);
+
+window.__prevOff = 0;
+var bannerStart = document.createElement("wos-prev-next");
+bannerStart.id = "bannerStart";
+bannerStart.setAttribute("prev-off", "");
+bannerStart.addEventListener("previous", function () { window.__prevOff++; });
+probe.appendChild(bannerStart);
 )JS";
 
 int main(int argc, char** argv)
@@ -533,6 +586,50 @@ int main(int argc, char** argv)
        "document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, composed: true }));"
        "return 1; })()");
     check("Escape while the dialog is open dismisses it", js("String(window.__dialogDismissed)"), QStringLiteral("1"));
+
+    // --- The pickers, toolbar and banner (base controls added last) ---------
+
+    // Date picker: three wheels, the month showing its name; picking February
+    // when the day is the 31st re-clamps the day to 28, as enyo did.
+    check("the date picker shows the month by name",
+          js("document.getElementById('datePicker').shadowRoot.querySelectorAll('.wos-picker-pill')[0].textContent.trim()"),
+          QStringLiteral("January"));
+    check("it draws a wheel for each of month, day and year",
+          js("String(document.getElementById('datePicker').shadowRoot.querySelectorAll('.wos-picker-pill').length)"),
+          QStringLiteral("3"));
+    // Open the month wheel and choose February (value 1); Jan 31 must become Feb 28.
+    js("document.getElementById('datePicker').setAttribute('open','m'); 1");
+    waitFor([&]() { return js("String(document.getElementById('datePicker').shadowRoot.querySelectorAll('.wos-picker-item').length>0)") == "true"; }, 2000);
+    js("(function(){var items=document.getElementById('datePicker').shadowRoot.querySelectorAll('.wos-picker-item');"
+       "for(var i=0;i<items.length;i++){if(items[i].textContent.trim()==='February'){items[i].click();break;}}return 1;})()");
+    check("picking a shorter month re-clamps the day", js("window.__date"), QStringLiteral("2011-02-28"));
+
+    // Time picker: 14:30 shows as 2 with PM in twelve-hour; 24-hour drops the
+    // AM/PM wheel.
+    check("the twelve-hour time picker shows the hour as 2",
+          js("document.getElementById('timePicker').shadowRoot.querySelectorAll('.wos-picker-pill')[0].textContent.trim()"),
+          QStringLiteral("2"));
+    check("and it has an AM/PM wheel (three pills)",
+          js("String(document.getElementById('timePicker').shadowRoot.querySelectorAll('.wos-picker-pill').length)"),
+          QStringLiteral("3"));
+    check("the 24-hour time picker shows the hour as 14 and no AM/PM wheel",
+          js("var p=document.getElementById('timePicker24').shadowRoot.querySelectorAll('.wos-picker-pill');"
+             "p[0].textContent.trim() + ':' + String(p.length)"),
+          QStringLiteral("14:2"));
+
+    // Toolbar: the buttons a card slots in are there, in the bar.
+    check("the toolbar holds the buttons a card put in it",
+          js("String(document.getElementById('toolbar').querySelectorAll('wos-button').length)"),
+          QStringLiteral("2"));
+
+    // Prev/next banner: each arrow says which way, and an off arrow says
+    // nothing.
+    js("document.getElementById('banner').shadowRoot.querySelector('.wos-prev-next-next').click(); 1");
+    check("the next arrow says next", js("String(window.__next)"), QStringLiteral("1"));
+    js("document.getElementById('banner').shadowRoot.querySelector('.wos-prev-next-prev').click(); 1");
+    check("the previous arrow says previous", js("String(window.__prev)"), QStringLiteral("1"));
+    js("document.getElementById('bannerStart').shadowRoot.querySelector('.wos-prev-next-prev').click(); 1");
+    check("an arrow that is off says nothing", js("String(window.__prevOff)"), QStringLiteral("0"));
 
     return failures == 0 ? 0 : 1;
 }

@@ -241,4 +241,7 @@
     /* Toaster.css: a dark panel over the card, the same family as the menu. */
     --wos-toaster-bg: linear-gradient(to bottom, #4b4b4b, #333);
     --wos-toaster-ink: #fff;
+
+    /* PrevNextBanner: the arrows are enyo's link blue. */
+    --wos-prev-next-ink: #2071bb;
 }

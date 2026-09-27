@@ -840,3 +840,262 @@ defineElement<{ showing: string }>(
             </div>`;
     },
 );
+
+
+// A wheel of choices, the piece the pickers below are built from. It is enyo's
+// Picker: a pill that opens a short scrolling column, marks the chosen row and
+// opens scrolled to it. `items` are {value,label}; it says which was picked
+// with "change". Not published as an element on its own -- the date and time
+// pickers compose it -- so it is a plain function returning a template.
+//
+// Whether each wheel was open at its last render, kept per element and per
+// field (m/d/y, h/min/ampm), so the column is scrolled to its value only as it
+// opens and not on every repaint -- the same rule wos-picker follows so a
+// repaint does not snap the wheel back. Keyed by the real element and a field
+// string; a fresh object per render would never match and always read "closed".
+const pickerWheelOpen = new WeakMap<HTMLElement, Record<string, boolean>>();
+
+const wheel = (
+    element: HTMLElement,
+    field: string,
+    items: { value: string; label: string }[],
+    value: string,
+    open: boolean,
+    onOpen: (open: boolean) => void,
+    onPick: (value: string) => void,
+): TemplateResult => {
+    const chosen = items.find((item) => item.value === value);
+    let state = pickerWheelOpen.get(element);
+    if (!state) {
+        state = {};
+        pickerWheelOpen.set(element, state);
+    }
+    const was = state[field] ?? false;
+    state[field] = open;
+    if (open && !was) {
+        queueMicrotask(() => {
+            element.shadowRoot?.querySelector<HTMLElement>(`.wos-wheel-item[data-on]`)?.scrollIntoView({ block: "center" });
+        });
+    }
+    return html`
+        <div class="wos-wheel">
+            <button class="wos-picker-pill" type="button"
+                    @click=${() => onOpen(!open)}>${chosen?.label ?? value}</button>
+            ${open
+                ? html`<div class="wos-picker-wheel">
+                    ${items.map((item) => html`
+                        <button class="wos-picker-item wos-wheel-item ${item.value === value ? "chosen" : ""}"
+                                ?data-on=${item.value === value} type="button"
+                                @click=${() => onPick(item.value)}>${item.label}</button>`)}
+                  </div>`
+                : ""}
+        </div>`;
+};
+
+// §28 A picker group: enyo's PickerGroup, the row that puts a label beside
+// several wheels -- what the date and time pickers are laid out with, and what
+// a card uses to sit two or three lone wheels together under one heading. The
+// wheels are the card's, slotted in; this draws the label and the row.
+defineElement<{ label: string }>(
+    "wos-picker-group",
+    { label: String },
+    ({ label }) => html`
+        <div class="wos-picker-group">
+            ${label ? html`<span class="wos-picker-group-label">${label}</span>` : ""}
+            <div class="wos-picker-group-wheels"><slot></slot></div>
+        </div>`,
+);
+
+// The English month names and en-US field order. enyo read these from
+// enyo.g11n (getMonthFields / getDateFieldOrder); our i18n does not expose them
+// yet, so they are fixed to en-US here. #19 is where the locale plugs in: swap
+// these for the host locale's names and order and nothing else changes.
+const MONTHS_EN = [
+    "January", "February", "March", "April", "May", "June",
+    "July", "August", "September", "October", "November", "December",
+];
+const DATE_ORDER_EN: ("m" | "d" | "y")[] = ["m", "d", "y"]; // #19: locale order
+
+// Days in a month, enyo's own trick: the 32nd of a month rolls into the next,
+// and 32 minus that day is the length.
+const monthLength = (year: number, month: number): number =>
+    32 - new Date(year, month, 32).getDate();
+
+// A date as YYYY-MM-DD, and back. The value crosses the element boundary as a
+// string, not a Date -- an attribute cannot carry a Date, and the card keeps
+// whatever it likes on its side.
+const parseDate = (iso: string): { y: number; m: number; d: number } => {
+    const now = new Date();
+    const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso || "");
+    if (!match) {
+        return { y: now.getFullYear(), m: now.getMonth(), d: now.getDate() };
+    }
+    return { y: Number(match[1]), m: Number(match[2]) - 1, d: Number(match[3]) };
+};
+
+const dateIso = (y: number, m: number, d: number): string =>
+    `${y}-${String(m + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+
+// §29 A date picker: enyo's DatePicker, month/day/year wheels that keep a real
+// date -- the day wheel is rebuilt for the month and year so February never
+// offers a 31st, and the year runs between min and max. `value` is YYYY-MM-DD;
+// it says the new date the same way, and the card decides. `open` is which
+// wheel is open (m/d/y or empty), so the card owns it as with every popup here.
+defineElement<{ label: string; value: string; minYear: number; maxYear: number; open: string }>(
+    "wos-date-picker",
+    { label: String, value: String, minYear: Number, maxYear: Number, open: String },
+    ({ label, value, minYear, maxYear, open }, { emit, element }) => {
+        const { y, m, d } = parseDate(value);
+        const lowYear = Number.isFinite(minYear) && minYear > 0 ? minYear : 1900;
+        const highYear = Number.isFinite(maxYear) && maxYear >= lowYear ? maxYear : 2099;
+        const days = monthLength(y, m);
+        const dayClamped = Math.min(d, days);
+
+        const months = MONTHS_EN.map((name, index) => ({ value: String(index), label: name }));
+        const dayItems = Array.from({ length: days }, (_, i) => ({ value: String(i + 1), label: String(i + 1) }));
+        const yearItems: { value: string; label: string }[] = [];
+        for (let year = lowYear; year <= highYear; year++) {
+            yearItems.push({ value: String(year), label: String(year) });
+        }
+
+        const pick = (field: "m" | "d" | "y", picked: string): void => {
+            const n = Number(picked);
+            let ny = y, nm = m, nd = dayClamped;
+            if (field === "m") { nm = n; }
+            else if (field === "d") { nd = n; }
+            else { ny = n; }
+            // Re-clamp the day to the new month, as enyo did.
+            nd = Math.min(nd, monthLength(ny, nm));
+            emit("change", { value: dateIso(ny, nm, nd) });
+        };
+        const toggle = (field: "m" | "d" | "y"): void => emit("open", { open: open === field ? "" : field });
+
+        const field = (name: "m" | "d" | "y"): TemplateResult => {
+            if (name === "m") {
+                return wheel(element, "m", months, String(m), open === "m",
+                    () => toggle("m"), (v) => pick("m", v));
+            }
+            if (name === "d") {
+                return wheel(element, "d", dayItems, String(dayClamped), open === "d",
+                    () => toggle("d"), (v) => pick("d", v));
+            }
+            return wheel(element, "y", yearItems, String(y), open === "y",
+                () => toggle("y"), (v) => pick("y", v));
+        };
+
+        return html`
+            <div class="wos-picker-group">
+                ${label ? html`<span class="wos-picker-group-label">${label}</span>` : ""}
+                <div class="wos-picker-group-wheels">
+                    ${DATE_ORDER_EN.map((name) => field(name))}
+                </div>
+            </div>`;
+    },
+);
+
+// §30 A time picker: enyo's TimePicker, hour/minute wheels with an AM/PM wheel
+// unless it is in 24-hour mode. `value` is HH:MM (24-hour on the wire, so the
+// card never has to know which mode it is shown in); `interval` steps the
+// minutes; `mode24` drops the AM/PM wheel. Says the new time as HH:MM.
+const parseTime = (hhmm: string): { h: number; min: number } => {
+    const match = /^(\d{1,2}):(\d{2})/.exec(hhmm || "");
+    if (!match) {
+        const now = new Date();
+        return { h: now.getHours(), min: now.getMinutes() };
+    }
+    return { h: Math.min(23, Number(match[1])), min: Math.min(59, Number(match[2])) };
+};
+
+const timeHhmm = (h: number, min: number): string =>
+    `${String(h).padStart(2, "0")}:${String(min).padStart(2, "0")}`;
+
+defineElement<{ label: string; value: string; interval: number; mode24: boolean; open: string }>(
+    "wos-time-picker",
+    { label: String, value: String, interval: Number, mode24: Boolean, open: String },
+    ({ label, value, interval, mode24, open }, { emit, element }) => {
+        const { h, min } = parseTime(value);
+        const step = Number.isFinite(interval) && interval > 0 ? interval : 1;
+        // #19: 12-hour with AM/PM is the en-US default; a locale that is 24-hour
+        // sets mode24. The wire value stays 24-hour either way.
+        const is24 = !!mode24;
+
+        const hourItems: { value: string; label: string }[] = [];
+        if (is24) {
+            for (let n = 0; n <= 23; n++) {
+                hourItems.push({ value: String(n), label: String(n) });
+            }
+        } else {
+            for (let n = 1; n <= 12; n++) {
+                hourItems.push({ value: String(n), label: String(n) });
+            }
+        }
+        const minuteItems: { value: string; label: string }[] = [];
+        for (let n = 0; n < 60; n += step) {
+            minuteItems.push({ value: String(n), label: String(n).padStart(2, "0") });
+        }
+        const ampmItems = [{ value: "0", label: "AM" }, { value: "12", label: "PM" }];
+
+        const shownHour = is24 ? h : (h % 12 || 12);
+        const ampm = h >= 12 ? 12 : 0;
+        const minShown = Math.floor(min / step) * step;
+
+        const emitTime = (nh: number, nmin: number): void => emit("change", { value: timeHhmm(nh, nmin) });
+        const toggle = (field: string): void => emit("open", { open: open === field ? "" : field });
+
+        const pickHour = (picked: string): void => {
+            const hp = Number(picked);
+            const nh = is24 ? hp : (hp % 12) + ampm;
+            emitTime(nh, minShown);
+        };
+        const pickMinute = (picked: string): void => emitTime(h, Number(picked));
+        const pickAmPm = (picked: string): void => {
+            const base = h % 12;
+            emitTime(base + Number(picked), minShown);
+        };
+
+        return html`
+            <div class="wos-picker-group">
+                ${label ? html`<span class="wos-picker-group-label">${label}</span>` : ""}
+                <div class="wos-picker-group-wheels">
+                    ${wheel(element, "h", hourItems, String(shownHour), open === "h",
+                        () => toggle("h"), pickHour)}
+                    ${wheel(element, "min", minuteItems, String(minShown), open === "min",
+                        () => toggle("min"), pickMinute)}
+                    ${is24
+                        ? ""
+                        : wheel(element, "ampm", ampmItems, String(ampm), open === "ampm",
+                            () => toggle("ampm"), pickAmPm)}
+                </div>
+            </div>`;
+    },
+);
+
+// §31 A toolbar: enyo's Toolbar, the bar of commands at the foot of a card,
+// its buttons centred. It is a container -- the card puts its buttons inside --
+// and it wears the same dark bar the header does, or the light one HP's
+// settings cards use, with `light`.
+defineElement<{ light: boolean }>(
+    "wos-toolbar",
+    { light: Boolean },
+    ({ light }) => html`
+        <div class="wos-toolbar ${light ? "light" : ""}"><slot></slot></div>`,
+);
+
+// §32 A prev/next banner: enyo's PrevNextBanner, an arrow at each end of a
+// content strip -- the day stepper on a calendar, the record stepper on a
+// contact. Each arrow can be turned off on its own (`prev-off`, `next-off`),
+// and it says which way the user asked to go: "previous" or "next".
+defineElement<{ prevOff: boolean; nextOff: boolean }>(
+    "wos-prev-next",
+    { prevOff: Boolean, nextOff: Boolean },
+    ({ prevOff, nextOff }, { emit }) => html`
+        <div class="wos-prev-next">
+            <button class="wos-prev-next-prev" type="button" ?disabled=${prevOff}
+                    aria-label="Previous"
+                    @click=${() => { if (!prevOff) { emit("previous"); } }}>&#9664;</button>
+            <div class="wos-prev-next-content"><slot></slot></div>
+            <button class="wos-prev-next-next" type="button" ?disabled=${nextOff}
+                    aria-label="Next"
+                    @click=${() => { if (!nextOff) { emit("next"); } }}>&#9654;</button>
+        </div>`,
+);
