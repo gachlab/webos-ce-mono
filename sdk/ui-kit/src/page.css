@@ -82,6 +82,12 @@ body {
     /* HP's cards put 23px under the header and another 23 at the top of each
      * view, which is the 46px of air its Wi-Fi card opens with. */
     padding: 1.95rem 0 1.2rem;
+    /* Room for the virtual keyboard when it is up: startCard sets
+     * --wos-keyboard to the reserve while WebAppMgr reports the keyboard, so a
+     * field at the bottom can scroll clear of it rather than sit behind it. It
+     * is 0 the rest of the time, so this costs a card that never types
+     * nothing. */
+    padding-bottom: calc(1.2rem + var(--wos-keyboard, 0px));
     overflow-y: auto;
     /* A grid row does not shrink below its content unless it is told it may,
      * and a body that cannot shrink is one that never scrolls. */

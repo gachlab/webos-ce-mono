@@ -10,6 +10,13 @@
 // with the row's click handler back on the whole row, with the first-row border
 // rule written as it was for the light DOM, with a swipe deleting rather than
 // asking, or with a busy button still pressable, this turns red.
+//
+// The controls added for #58 are checked the same way: with a tab that fires
+// on the one already chosen, an icon button that swallows its press, a long
+// list that draws all its rows rather than a window, a search field that keeps
+// the magnifier once text is in it, a popup that opens off the edge without
+// being clamped, a drawer that starts open, a picker that does not mark its
+// value, or a dialog that lets Escape close the card behind it, this turns red.
 
 #include <QApplication>
 #include <QElapsedTimer>
@@ -112,6 +119,115 @@ list.innerHTML = "<wos-row id='first' title='One'><wos-toggle id='inside'></wos-
                  "<wos-row id='third' title='Three'><wos-button id='wide' label='Wide'></wos-button></wos-row>";
 probe.appendChild(list);
 document.addEventListener("select", function () { window.__selected++; });
+
+// The controls this ticket added.
+
+window.__tab = "";
+var tabs = document.createElement("wos-tab-group");
+tabs.id = "tabs";
+tabs.setAttribute("value", "all");
+tabs.tabs = [
+    { value: "all", label: "All" },
+    { value: "contacts", label: "Contacts" },
+    { value: "actions", label: "Actions" },
+];
+tabs.addEventListener("choose", function (e) { window.__tab = e.detail.value; });
+probe.appendChild(tabs);
+
+window.__iconPressed = 0;
+var icon = document.createElement("wos-icon-button");
+icon.id = "icon";
+icon.setAttribute("label", "Add");
+icon.addEventListener("press", function () { window.__iconPressed++; });
+probe.appendChild(icon);
+
+var divider = document.createElement("wos-divider");
+divider.id = "divider";
+divider.setAttribute("caption", "Nearby");
+probe.appendChild(divider);
+
+var alpha = document.createElement("wos-divider");
+alpha.id = "alpha";
+alpha.setAttribute("alpha", "");
+alpha.setAttribute("caption", "S");
+probe.appendChild(alpha);
+
+window.__search = "";
+window.__searchCancelled = 0;
+var search = document.createElement("wos-search-field");
+search.id = "search";
+search.setAttribute("value", "hi");
+search.addEventListener("change", function (e) { window.__search = e.detail.value; });
+search.addEventListener("cancel", function () { window.__searchCancelled++; });
+probe.appendChild(search);
+
+// A long list, more rows than could fit, so only a window is drawn.
+window.__listPicked = -1;
+var big = document.createElement("wos-list");
+big.id = "big";
+big.style.height = "200px";
+big.rowHeight = 40;
+var rows = [];
+for (var i = 0; i < 1000; i++) { rows.push("Row " + i); }
+big.rows = rows;
+big.render = function (row) {
+    var r = document.createElement("wos-row");
+    r.setAttribute("title", String(row));
+    return r;
+};
+big.addEventListener("select", function (e) { window.__listPicked = e.detail.index; });
+probe.appendChild(big);
+
+window.__minute = -1;
+var picker = document.createElement("wos-picker");
+picker.id = "picker";
+picker.setAttribute("value", "30");
+picker.setAttribute("min", "0");
+picker.setAttribute("max", "59");
+picker.setAttribute("open", "");
+picker.addEventListener("change", function (e) { window.__minute = e.detail.value; });
+probe.appendChild(picker);
+
+window.__popupChose = "";
+var popup = document.createElement("wos-popup-list");
+popup.id = "popup";
+popup.setAttribute("open", "");
+popup.x = 100000;   // far off the right edge: must be clamped into view
+popup.y = 20;
+popup.choices = [{ value: "open", label: "Open" }, { value: "copy", label: "Copy" }];
+popup.addEventListener("choose", function (e) { window.__popupChose = e.detail.value; });
+probe.appendChild(popup);
+
+window.__drawer = "";
+var drawer = document.createElement("wos-drawer");
+drawer.id = "drawer";
+drawer.setAttribute("caption", "Advanced");
+drawer.addEventListener("toggle", function (e) { window.__drawer = String(e.detail.open); });
+probe.appendChild(drawer);
+
+window.__toastGone = 0;
+var toast = document.createElement("wos-toaster");
+toast.id = "toast";
+toast.setAttribute("open", "");
+toast.setAttribute("message", "Saved");
+toast.addEventListener("dismiss", function () { window.__toastGone++; });
+probe.appendChild(toast);
+
+window.__paneBack = 0;
+var pane = document.createElement("wos-sliding-pane");
+pane.id = "pane";
+pane.setAttribute("showing", "detail");
+pane.addEventListener("back", function () { window.__paneBack++; });
+probe.appendChild(pane);
+
+// A dialog, for its Escape and its focus.
+window.__dialogDismissed = 0;
+var dlg = document.createElement("wos-dialog");
+dlg.id = "dlg";
+dlg.setAttribute("title", "Forget?");
+dlg.buttons = [{ value: "yes", label: "Forget" }, { value: "no", label: "Keep" }];
+dlg.addEventListener("dismiss", function () { window.__dialogDismissed++; });
+probe.appendChild(dlg);
 )JS";
 
 int main(int argc, char** argv)
@@ -274,6 +390,103 @@ int main(int argc, char** argv)
     check("the showcase card drew its controls",
           js("String(document.querySelectorAll('#card wos-row, #card wos-button, #card wos-toggle').length > 10)"),
           QStringLiteral("true"));
+
+    // --- The controls this ticket added -----------------------------------
+
+    // Tabs: radio semantics. The chosen one is marked; choosing another says
+    // which, and choosing the one already chosen says nothing.
+    check("the chosen tab is the one marked",
+          js("document.getElementById('tabs').shadowRoot.querySelector('.wos-tab.chosen').textContent"),
+          QStringLiteral("All"));
+    js("document.getElementById('tabs').shadowRoot.querySelectorAll('.wos-tab')[1].click(); 1");
+    check("tapping another tab says which", js("window.__tab"), QStringLiteral("contacts"));
+    js("window.__tab = ''; document.getElementById('tabs').shadowRoot.querySelector('.wos-tab.chosen').click(); 1");
+    check("tapping the chosen tab says nothing", js("window.__tab"), QStringLiteral(""));
+
+    // Icon button: a press, and nothing when disabled.
+    js("document.getElementById('icon').shadowRoot.querySelector('button').click(); 1");
+    check("an icon button says it was pressed", js("String(window.__iconPressed)"), QStringLiteral("1"));
+
+    // Divider: the caption is drawn, and the alpha one carries its letter.
+    check("a divider draws its caption",
+          js("document.getElementById('divider').shadowRoot.querySelector('.wos-divider-caption').textContent"),
+          QStringLiteral("Nearby"));
+    check("the alpha divider carries its letter",
+          js("document.getElementById('alpha').shadowRoot.querySelector('.wos-divider.alpha .wos-divider-caption').textContent"),
+          QStringLiteral("S"));
+
+    // Search: it starts with a clear cross because it has text; clearing it
+    // fires cancel, and typing says what is there.
+    check("a search field with text shows a clear cross, not a magnifier",
+          js("String(!!document.getElementById('search').shadowRoot.querySelector('.wos-search-clear'))"),
+          QStringLiteral("true"));
+    js("document.getElementById('search').shadowRoot.querySelector('.wos-search-clear').click(); 1");
+    check("tapping the clear cross says cancel", js("String(window.__searchCancelled)"), QStringLiteral("1"));
+
+    // The long list: only a window of rows is in the DOM, not all thousand,
+    // and a row says its own index when tapped.
+    waitFor([&]() { return js("String(document.getElementById('big').shadowRoot.querySelectorAll('.wos-list-row').length > 0)") == "true"; }, 2000);
+    check("a thousand-row list draws only the window it can show, not all of them",
+          js("var n = document.getElementById('big').shadowRoot.querySelectorAll('.wos-list-row').length;"
+             "String(n > 0 && n < 100)"),
+          QStringLiteral("true"));
+    check("the run holds the room for every row so the scrollbar is right",
+          js("document.getElementById('big').shadowRoot.querySelector('.wos-list-run').style.height"),
+          QStringLiteral("40000px"));
+    js("var row = document.getElementById('big').shadowRoot.querySelector('.wos-list-row'); row.click(); 1");
+    check("tapping a row says its index", js("String(window.__listPicked)"), QStringLiteral("0"));
+
+    // Picker: opened, it is scrolled to the value and marks it; picking one
+    // says which.
+    check("the picker pill shows its value",
+          js("document.getElementById('picker').shadowRoot.querySelector('.wos-picker-pill').textContent.trim()"),
+          QStringLiteral("30"));
+    check("the open wheel marks the current value",
+          js("document.getElementById('picker').shadowRoot.querySelector('.wos-picker-item.chosen').textContent.trim()"),
+          QStringLiteral("30"));
+    js("var items = document.getElementById('picker').shadowRoot.querySelectorAll('.wos-picker-item');"
+       "items[45].click(); 1");
+    check("picking a value on the wheel says which", js("String(window.__minute)"), QStringLiteral("45"));
+
+    // Popup list: opened past the right edge, it is clamped back into view,
+    // and choosing an item says which.
+    check("a popup opened off the edge is clamped into the viewport",
+          js("var p = document.getElementById('popup').shadowRoot.querySelector('.wos-popup');"
+             "String(parseFloat(p.style.left) < window.innerWidth)"),
+          QStringLiteral("true"));
+    js("document.getElementById('popup').shadowRoot.querySelectorAll('.wos-popup-item')[1].click(); 1");
+    check("choosing a popup item says which", js("window.__popupChose"), QStringLiteral("copy"));
+
+    // Drawer: closed to start, its body hidden; tapping the heading asks to
+    // open it.
+    check("a drawer starts closed with its body hidden",
+          js("String(document.getElementById('drawer').shadowRoot.querySelector('.wos-drawer-body').hidden)"),
+          QStringLiteral("true"));
+    js("document.getElementById('drawer').shadowRoot.querySelector('.wos-drawer-head').click(); 1");
+    check("tapping the heading asks to open it", js("window.__drawer"), QStringLiteral("true"));
+
+    // Toaster: shown while open, and a tap asks to dismiss it.
+    check("a toaster is on screen while open",
+          js("String(!!document.getElementById('toast').shadowRoot.querySelector('.wos-toaster'))"),
+          QStringLiteral("true"));
+    js("document.getElementById('toast').shadowRoot.querySelector('.wos-toaster').click(); 1");
+    check("tapping the toaster asks to dismiss it", js("String(window.__toastGone)"), QStringLiteral("1"));
+
+    // Sliding pane: on the detail, the back arrow shows and says back.
+    js("document.getElementById('pane').shadowRoot.querySelector('.wos-pane-back').click(); 1");
+    check("the detail's back arrow says back", js("String(window.__paneBack)"), QStringLiteral("1"));
+
+    // Dialog: the focus starts on the first button, and Escape dismisses it
+    // rather than the card.
+    waitFor([&]() { return js("String(!!document.getElementById('dlg').shadowRoot.activeElement)") == "true"; }, 2000);
+    check("a dialog puts the focus on its first button",
+          js("document.getElementById('dlg').shadowRoot.activeElement.textContent"),
+          QStringLiteral("Forget"));
+    js("(function () { var d = document.getElementById('dlg');"
+       "var shade = d.shadowRoot.querySelector('.wos-dialog-shade');"
+       "shade.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));"
+       "return 1; })()");
+    check("Escape inside the dialog dismisses it", js("String(window.__dialogDismissed)"), QStringLiteral("1"));
 
     return failures == 0 ? 0 : 1;
 }

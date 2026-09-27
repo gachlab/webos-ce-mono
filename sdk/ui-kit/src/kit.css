@@ -31,6 +31,17 @@
  *   §14 A button that is working
  *   §15 One of a few
  *   §16 Sliders
+ *   §17 Icon button
+ *   §18 Tabs
+ *   §19 Dividers
+ *   §20 A long list
+ *   §21 Search field
+ *   §22 A field that grows
+ *   §23 Picker
+ *   §24 A list where it was tapped
+ *   §25 A folding section
+ *   §26 Toaster
+ *   §27 Two panes
  */
 
 :host {
@@ -876,4 +887,600 @@
     background: var(--wos-slider-knob);
     border: 1px solid var(--wos-slider-knob-edge);
     box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+
+/* §17 Icon button --------------------------------------------------------- */
+
+:host(wos-icon-button) {
+    display: inline-block;
+    flex: none;
+}
+
+/* enyo's IconButton: the icon is a 32px picture with a pressed frame under it
+ * in the same sprite, so :active shows the lower half. The optional word sits
+ * under the icon. */
+.wos-icon-button {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.1rem;
+    padding: 0.2rem;
+    background: none;
+    border: 0;
+    color: var(--wos-icon-button-ink);
+    font-family: inherit;
+    font-size: 0.55rem;
+}
+
+.wos-icon-button-face {
+    width: 1.6rem;
+    height: 1.6rem;
+    background-repeat: no-repeat;
+    background-position: 0 0;
+    background-size: 1.6rem 3.2rem;
+}
+
+.wos-icon-button:active .wos-icon-button-face {
+    background-position: 0 -1.6rem;
+}
+
+.wos-icon-button[disabled] {
+    opacity: 0.4;
+}
+
+/* §18 Tabs ---------------------------------------------------------------- */
+
+:host(wos-tab-group) {
+    display: block;
+}
+
+/* enyo's TabGroup, from radiobutton.png: the tabs share the row, and the
+ * chosen one wears the blue the toggle and the radio group wear. The joins are
+ * one line between them, as the sprite's middle slice was. */
+.wos-tab-group {
+    display: flex;
+    white-space: nowrap;
+    background: var(--wos-tab-bg);
+    border-bottom: 1px solid var(--wos-tab-line);
+}
+
+.wos-tab {
+    flex: 1;
+    padding: 0.45rem 0.3rem 0.5rem;
+    font-family: inherit;
+    font-size: 0.8rem;
+    color: var(--wos-tab-off-ink);
+    background: var(--wos-tab-off);
+    border: 0;
+    border-left: 1px solid var(--wos-tab-join);
+}
+
+.wos-tab:first-child {
+    border-left: 0;
+}
+
+.wos-tab.chosen {
+    color: var(--wos-tab-on-ink);
+    background: var(--wos-tab-on);
+}
+
+/* §19 Dividers ------------------------------------------------------------ */
+
+:host(wos-divider) {
+    display: block;
+}
+
+/* enyo's Divider: a repeated hairline with a bold blue caption over it. The
+ * line runs the width; the caption sits at the left with the page showing
+ * through beside it. */
+.wos-divider {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    min-height: 1.3rem;
+    padding: 0 0.6rem;
+    background: var(--wos-divider-line);
+    background-repeat: repeat-x;
+    background-position: left center;
+    background-size: var(--wos-divider-line-size, 100% 1px);
+    border-bottom: var(--wos-divider-border, 0);
+}
+
+.wos-divider-caption {
+    padding: 0 0.3rem 0 0;
+    background: var(--wos-page);
+    color: var(--wos-divider-ink);
+    font-size: 0.6rem;
+    font-weight: 700;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* AlphaDivider: the single sticky letter down a long list. The letter sits at
+ * the start of the line, a little larger, in enyo's slightly brighter blue. */
+.wos-divider.alpha {
+    min-height: 1.5rem;
+    padding-left: 1.5rem;
+}
+
+.wos-divider.alpha .wos-divider-caption {
+    margin-left: -1.15rem;
+    color: var(--wos-divider-alpha-ink);
+    font-size: 0.7rem;
+}
+
+/* §20 A long list --------------------------------------------------------- */
+
+:host(wos-list) {
+    display: block;
+    /* It scrolls its own rows, so it has to have a height to scroll within;
+     * a card gives it one, and this is the fallback. */
+    height: 100%;
+    min-height: 0;
+}
+
+.wos-list-port {
+    height: 100%;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+/* The run is the full height of every row, drawn or not, so the scrollbar is
+ * the size the whole list would be. The window is the slice that is drawn,
+ * pushed down to where it belongs by a transform rather than a margin, so a
+ * scroll does not reflow everything above it. */
+.wos-list-run {
+    position: relative;
+    width: 100%;
+}
+
+.wos-list-window {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+}
+
+.wos-list-row {
+    overflow: hidden;
+}
+
+/* §21 Search field -------------------------------------------------------- */
+
+:host(wos-search-field) {
+    display: block;
+}
+
+/* enyo's SearchInput: the field carries a magnifier at its left while it is
+ * empty, and a clear cross at its right once something is typed. The rounded
+ * pill is enyo's rounded-input. */
+.wos-search {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    margin: 0.4rem 0.6rem;
+    padding: 0.2rem 0.5rem;
+    background: var(--wos-search-bg);
+    border: 1px solid var(--wos-search-edge);
+    border-radius: 1rem;
+}
+
+.wos-search-glass {
+    flex: none;
+    width: 0.9rem;
+    height: 0.9rem;
+    border: 0.12rem solid var(--wos-search-glass);
+    border-radius: 50%;
+    position: relative;
+}
+
+/* The magnifier's handle, drawn rather than shipped so it scales. */
+.wos-search-glass::after {
+    content: "";
+    position: absolute;
+    right: -0.28rem;
+    bottom: -0.28rem;
+    width: 0.32rem;
+    height: 0.12rem;
+    background: var(--wos-search-glass);
+    border-radius: 0.06rem;
+    transform: rotate(45deg);
+}
+
+.wos-search-input {
+    flex: 1;
+    min-width: 0;
+    padding: 0.2rem 0;
+    font-family: inherit;
+    font-size: 0.85rem;
+    color: var(--wos-field-ink);
+    background: transparent;
+    border: 0;
+    outline: none;
+    -webkit-appearance: none;
+    appearance: none;
+    -webkit-user-select: text;
+    user-select: text;
+}
+
+.wos-search-input::-webkit-search-cancel-button {
+    -webkit-appearance: none;
+    appearance: none;
+}
+
+/* The clear cross: two strokes, drawn, so it needs no image. */
+.wos-search-clear {
+    flex: none;
+    position: relative;
+    width: 1rem;
+    height: 1rem;
+    padding: 0;
+    background: var(--wos-search-clear);
+    border: 0;
+    border-radius: 50%;
+}
+
+.wos-search-clear::before,
+.wos-search-clear::after {
+    content: "";
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 0.5rem;
+    height: 0.12rem;
+    background: var(--wos-search-clear-ink);
+    border-radius: 0.06rem;
+}
+
+.wos-search-clear::before {
+    transform: translate(-50%, -50%) rotate(45deg);
+}
+
+.wos-search-clear::after {
+    transform: translate(-50%, -50%) rotate(-45deg);
+}
+
+/* §22 A field that grows -------------------------------------------------- */
+
+:host(wos-text-area) {
+    display: block;
+}
+
+/* enyo's growing field (RichText): text in a soft-edged box that grows with
+ * what is typed, capped, then scrolls. The JS sets the height; the look is
+ * enyo's input. */
+.wos-text-area {
+    display: block;
+    width: 100%;
+    margin: 0.4rem 0;
+    padding: 0.4rem 0.5rem;
+    font-family: inherit;
+    font-size: 0.85rem;
+    line-height: 1.4;
+    color: var(--wos-field-ink);
+    background: var(--wos-text-area-bg);
+    border: 1px solid var(--wos-text-area-edge);
+    border-radius: 0.4rem;
+    outline: none;
+    resize: none;
+    overflow-y: hidden;
+    -webkit-user-select: text;
+    user-select: text;
+}
+
+.wos-text-area:focus {
+    border-color: var(--wos-field-focus-edge);
+    background: var(--wos-field-focus-bg);
+}
+
+.wos-text-area[disabled] {
+    opacity: 0.5;
+}
+
+/* §23 Picker -------------------------------------------------------------- */
+
+:host(wos-picker) {
+    display: inline-block;
+}
+
+/* enyo's IntegerPicker: a label beside a pill that opens a wheel of values.
+ * The pill is picker-pill.png; the wheel is a short scrolling column with the
+ * chosen value marked, opened scrolled to it. */
+.wos-picker {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    position: relative;
+}
+
+.wos-picker-label {
+    font-size: 0.75rem;
+    color: var(--wos-ink);
+}
+
+.wos-picker-pill {
+    min-width: 2.4rem;
+    padding: 0.25rem 0.6rem;
+    font-family: inherit;
+    font-size: 0.85rem;
+    text-align: center;
+    color: var(--wos-picker-ink);
+    background: var(--wos-picker-pill);
+    border: 1px solid var(--wos-picker-edge);
+    border-radius: 0.5rem;
+}
+
+.wos-picker-wheel {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    z-index: 15;
+    max-height: 9rem;
+    overflow-y: auto;
+    min-width: 3rem;
+    margin-top: 0.2rem;
+    background: var(--wos-picker-wheel-bg);
+    border: 1px solid var(--wos-picker-edge);
+    border-radius: 0.4rem;
+    box-shadow: 0 0.2rem 0.7rem rgba(0, 0, 0, 0.4);
+}
+
+.wos-picker-item {
+    display: block;
+    width: 100%;
+    padding: 0.4rem 0.6rem;
+    font-family: inherit;
+    font-size: 0.85rem;
+    text-align: center;
+    color: var(--wos-picker-item-ink);
+    background: none;
+    border: 0;
+}
+
+.wos-picker-item.chosen {
+    font-weight: 700;
+    color: var(--wos-picker-item-chosen-ink);
+    background: var(--wos-picker-item-chosen);
+}
+
+/* §24 A list where it was tapped ------------------------------------------ */
+
+:host(wos-popup-list) {
+    display: block;
+}
+
+.wos-popup-shade {
+    position: fixed;
+    inset: 0;
+    z-index: 25;
+}
+
+/* enyo's PopupList: opens at the tap, clamped to the viewport by the JS. */
+.wos-popup {
+    position: absolute;
+    min-width: 9rem;
+    padding: 0.2rem 0;
+    background: var(--wos-menu-bg);
+    border: 1px solid var(--wos-menu-edge);
+    border-radius: 0.4rem;
+    box-shadow: 0 0.2rem 0.7rem rgba(0, 0, 0, 0.5);
+}
+
+.wos-popup-item {
+    display: block;
+    width: 100%;
+    padding: 0.5rem 0.9rem;
+    font-family: inherit;
+    font-size: 0.8rem;
+    text-align: left;
+    color: var(--wos-menu-ink);
+    background: none;
+    border: 0;
+}
+
+.wos-popup-item:active,
+.wos-popup-item.chosen {
+    background: var(--wos-menu-press);
+}
+
+/* §25 A folding section --------------------------------------------------- */
+
+:host(wos-drawer) {
+    display: block;
+}
+
+/* enyo's DividerDrawer: a Divider heading with an arrow that turns as it
+ * opens, and a body that folds away. The body's height is left to the content;
+ * closed, it is hidden outright rather than measured, which is the one thing
+ * that works without a layout pass. */
+.wos-drawer-head {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    width: 100%;
+    min-height: 1.5rem;
+    padding: 0 0.6rem;
+    background: var(--wos-divider-line);
+    background-repeat: repeat-x;
+    background-position: left center;
+    background-size: var(--wos-divider-line-size, 100% 1px);
+    border: 0;
+    font-family: inherit;
+}
+
+.wos-drawer-arrow {
+    flex: none;
+    width: 0;
+    height: 0;
+    border-left: 0.3rem solid transparent;
+    border-right: 0.3rem solid transparent;
+    border-top: 0.35rem solid var(--wos-divider-ink);
+    transition: transform 150ms ease-out;
+}
+
+.wos-drawer-arrow.open {
+    transform: rotate(180deg);
+}
+
+.wos-drawer-caption {
+    padding-right: 0.3rem;
+    background: var(--wos-page);
+    color: var(--wos-divider-ink);
+    font-size: 0.6rem;
+    font-weight: 700;
+}
+
+.wos-drawer-body {
+    overflow: hidden;
+}
+
+/* §26 Toaster ------------------------------------------------------------- */
+
+:host(wos-toaster) {
+    display: block;
+}
+
+/* enyo's Toaster: a message that slides in from an edge and sits over the
+ * card. Each edge is a different slide-in; it is fixed to that edge and comes
+ * from off-screen. */
+.wos-toaster {
+    position: fixed;
+    z-index: 30;
+    padding: 0.6rem 0.9rem;
+    color: var(--wos-toaster-ink);
+    background: var(--wos-toaster-bg);
+    box-shadow: 0 0.2rem 0.8rem rgba(0, 0, 0, 0.45);
+    font-size: 0.8rem;
+}
+
+.wos-toaster.from-bottom {
+    left: 0;
+    right: 0;
+    bottom: 0;
+    animation: wos-toaster-up 200ms ease-out;
+}
+
+.wos-toaster.from-top {
+    left: 0;
+    right: 0;
+    top: 0;
+    animation: wos-toaster-down 200ms ease-out;
+}
+
+.wos-toaster.from-left {
+    left: 0;
+    top: 30%;
+    bottom: 30%;
+    display: flex;
+    align-items: center;
+    animation: wos-toaster-in-left 200ms ease-out;
+}
+
+.wos-toaster.from-right {
+    right: 0;
+    top: 30%;
+    bottom: 30%;
+    display: flex;
+    align-items: center;
+    animation: wos-toaster-in-right 200ms ease-out;
+}
+
+@keyframes wos-toaster-up {
+    from { transform: translateY(100%); }
+    to { transform: translateY(0); }
+}
+
+@keyframes wos-toaster-down {
+    from { transform: translateY(-100%); }
+    to { transform: translateY(0); }
+}
+
+@keyframes wos-toaster-in-left {
+    from { transform: translateX(-100%); }
+    to { transform: translateX(0); }
+}
+
+@keyframes wos-toaster-in-right {
+    from { transform: translateX(100%); }
+    to { transform: translateX(0); }
+}
+
+/* §27 Two panes ----------------------------------------------------------- */
+
+/* The host is a container so the panes can respond to its own width, not the
+ * viewport's: a card can put this in a narrow column on a wide screen, and it
+ * is the column that decides whether both panes fit. A media query would see
+ * the screen instead, which is the wrong thing. */
+:host(wos-sliding-pane) {
+    display: block;
+    height: 100%;
+    container-type: inline-size;
+}
+
+/* enyo's SlidingPane: the list and the detail side by side when there is room
+ * for both, and one at a time -- with a back arrow on the detail -- when there
+ * is not. Which one shows on a narrow pane is the host's `showing` state. */
+.wos-sliding-pane {
+    display: flex;
+    height: 100%;
+    overflow: hidden;
+}
+
+.wos-pane-list {
+    flex: none;
+    width: 100%;
+    overflow-y: auto;
+}
+
+.wos-pane-detail {
+    flex: 1;
+    min-width: 0;
+    overflow-y: auto;
+}
+
+.wos-pane-back {
+    display: none;
+    padding: 0.4rem 0.6rem;
+    font-size: 0.75rem;
+    color: var(--wos-header-back-ink);
+    background: none;
+    border: 0;
+}
+
+/* Wide: both panes at once, the list a fixed column and the detail the rest.
+ * The back arrow is not needed because the list never leaves. */
+@container (min-width: 500px) {
+    .wos-pane-list {
+        width: 18rem;
+        border-right: 1px solid var(--wos-row-line-bottom);
+    }
+}
+
+/* Narrow: one pane at a time. Which one shows is the host's state; the detail
+ * carries a back arrow to return to the list. */
+.wos-sliding-pane.on-list .wos-pane-detail {
+    display: none;
+}
+
+.wos-sliding-pane.on-detail .wos-pane-list {
+    display: none;
+}
+
+.wos-sliding-pane.on-detail .wos-pane-back {
+    display: block;
+}
+
+/* When the container is wide the single-pane show/hide is overridden: both
+ * panes are shown regardless of which one the narrow state picked. */
+@container (min-width: 500px) {
+    .wos-sliding-pane.on-detail .wos-pane-list,
+    .wos-sliding-pane.on-list .wos-pane-detail {
+        display: block;
+    }
+
+    .wos-pane-back {
+        display: none !important;
+    }
 }

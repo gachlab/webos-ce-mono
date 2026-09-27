@@ -158,4 +158,55 @@
     --wos-dialog-bg: #f4f4f4;
     --wos-scrim: rgba(0, 0, 0, 0.55);
     --wos-swipe-bg: #f0d6d6;
+
+    /* IconButton.css: the icon and its word ride on the toolbar, so it is the
+     * toolbar's white ink. */
+    --wos-icon-button-ink: #fff;
+
+    /* TabButton/RadioButton.png: the tabs share the radio group's blue when
+     * chosen, and are the translucent grey of an unchosen segment otherwise.
+     * The bar they sit in is the light toolbar. */
+    --wos-tab-bg: #a9a9a9;
+    --wos-tab-line: rgba(0, 0, 0, 0.4);
+    --wos-tab-off: linear-gradient(to bottom,
+        rgba(245, 245, 245, 0.6), rgba(200, 200, 200, 0.4));
+    --wos-tab-off-ink: #292929;
+    --wos-tab-on: linear-gradient(to bottom, #1d4872, #6ea6ca);
+    --wos-tab-on-ink: #fff;
+    --wos-tab-join: rgba(0, 0, 0, 0.2);
+
+    /* divider.png: a repeated hairline, with the bold blue caption enyo drew
+     * over it (#3a8bcb), and the brighter blue its AlphaDivider used (#4299ea). */
+    --wos-divider-line: linear-gradient(to bottom,
+        transparent calc(50% - 1px), rgba(0, 0, 0, 0.35) calc(50% - 1px),
+        rgba(0, 0, 0, 0.35) calc(50% + 1px), transparent calc(50% + 1px));
+    --wos-divider-line-size: 100% 100%;
+    --wos-divider-ink: #3a8bcb;
+    --wos-divider-alpha-ink: #4299ea;
+
+    /* SearchInput.css: the rounded field, its grey magnifier and its clear
+     * cross. */
+    --wos-search-bg: #fff;
+    --wos-search-edge: rgba(0, 0, 0, 0.3);
+    --wos-search-glass: #808080;
+    --wos-search-clear: #b1b1b1;
+    --wos-search-clear-ink: #fff;
+
+    /* enyo's Input, as a growing multi-line box. */
+    --wos-text-area-bg: #fff;
+    --wos-text-area-edge: rgba(0, 0, 0, 0.3);
+
+    /* picker-pill.png: the pill, and the wheel of values it opens, whose chosen
+     * row is white with bold ink (Picker.css .enyo-picker-item-selected). */
+    --wos-picker-ink: #292929;
+    --wos-picker-pill: linear-gradient(to bottom, #fdfdfd, #d4d4d4);
+    --wos-picker-edge: rgba(0, 0, 0, 0.35);
+    --wos-picker-wheel-bg: #e6e6e6;
+    --wos-picker-item-ink: #333;
+    --wos-picker-item-chosen-ink: #292929;
+    --wos-picker-item-chosen: #fff;
+
+    /* Toaster.css: a dark panel over the card, the same family as the menu. */
+    --wos-toaster-bg: linear-gradient(to bottom, #4b4b4b, #333);
+    --wos-toaster-ink: #fff;
 }

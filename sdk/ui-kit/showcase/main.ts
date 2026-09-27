@@ -32,6 +32,20 @@ interface Shown {
     readonly level: number;
     readonly dragging: number;
     readonly theme: string;
+    // The controls this ticket added.
+    readonly tab: string;
+    readonly search: string;
+    readonly typedArea: string;
+    readonly minutes: number;
+    readonly minutesOpen: boolean;
+    readonly popupOpen: boolean;
+    readonly popupX: number;
+    readonly popupY: number;
+    readonly picked: string;
+    readonly drawer: boolean;
+    readonly toast: boolean;
+    readonly pane: string;
+    readonly listPicked: string;
 }
 
 interface ShowcaseService extends CardService<Shown> {
@@ -53,6 +67,9 @@ const createShowcase = (): ShowcaseService => {
             choosing: false, dialog: false, answered: "", life: [],
             swiped: false, forgotten: "", menu: false, chose: "", busy: false, sleeps: "off",
             level: 60, dragging: 0, theme: "enyo",
+            tab: "all", search: "", typedArea: "", minutes: 30, minutesOpen: false,
+            popupOpen: false, popupX: 0, popupY: 0, picked: "", drawer: false,
+            toast: false, pane: "list", listPicked: "",
         },
     });
     return {
@@ -64,9 +81,12 @@ const createShowcase = (): ShowcaseService => {
         onBack: () => {
             // A card that has something open closes that first, and only then
             // lets the back gesture close the card.
-            const { dialog, choosing, menu, swiped } = state.get().data;
-            if (dialog || choosing || menu || swiped) {
-                state.patch({ dialog: false, choosing: false, menu: false, swiped: false });
+            const { dialog, choosing, menu, swiped, minutesOpen, popupOpen } = state.get().data;
+            if (dialog || choosing || menu || swiped || minutesOpen || popupOpen) {
+                state.patch({
+                    dialog: false, choosing: false, menu: false, swiped: false,
+                    minutesOpen: false, popupOpen: false,
+                });
                 return true;
             }
             return false;
@@ -236,6 +256,107 @@ const view = (state: State<Shown>, service: ShowcaseService) => {
                 </div>
                 ${note(`While the finger is down it says "changing" (${shown.dragging} so far); when it lifts, "change" -- which is what a card writes to a service.`)}`)}
 
+            ${section("Tabs across the top", html`
+                <wos-tab-group value=${shown.tab}
+                              .tabs=${[
+                                  { value: "all", label: "All" },
+                                  { value: "contacts", label: "Contacts" },
+                                  { value: "content", label: "Content" },
+                                  { value: "actions", label: "Actions" },
+                              ]}
+                              @choose=${(e: CustomEvent<{ value: string }>) => service.change({ tab: e.detail.value })}>
+                </wos-tab-group>
+                ${note(`Radio semantics: one at a time. Chosen: ${shown.tab}.`)}`)}
+
+            ${section("Icon buttons in a toolbar", html`
+                <div class="wos-list">
+                    <wos-row title="A round picture button, as a header or toolbar has">
+                        <wos-icon-button label="Add" @press=${() => service.change({ pressed: "the icon button" })}></wos-icon-button>
+                    </wos-row>
+                    <wos-row title="Disabled"><wos-icon-button label="Add" disabled></wos-icon-button></wos-row>
+                </div>
+                ${note("The icon is a picture the card gives it; here it is drawn empty so the kit stays image-free.")}`)}
+
+            ${section("Dividers in a list", html`
+                <div class="wos-list">
+                    <wos-divider caption="Nearby"></wos-divider>
+                    <wos-row title="One under the captioned divider"></wos-row>
+                    <wos-divider alpha caption="S"></wos-divider>
+                    <wos-row title="Smith"></wos-row>
+                    <wos-row title="Sullivan"></wos-row>
+                </div>
+                ${note("The captioned divider heads a stretch; the letter is the sticky heading down a long list.")}`)}
+
+            ${section("A search field", html`
+                <wos-search-field value=${shown.search}
+                                 @change=${(e: CustomEvent<{ value: string }>) => service.change({ search: e.detail.value })}
+                                 @cancel=${() => service.change({ search: "" })}>
+                </wos-search-field>
+                ${shown.search ? note(`Searching for: ${shown.search}. The magnifier became a clear cross.`) : note("A magnifier while empty; a clear cross once something is typed.")}`)}
+
+            ${section("A field that grows", html`
+                <div class="wos-list">
+                    <wos-text-area placeholder="Type several lines; it grows to fit, then scrolls"
+                                  value=${shown.typedArea}
+                                  @change=${(e: CustomEvent<{ value: string }>) => service.change({ typedArea: e.detail.value })}>
+                    </wos-text-area>
+                </div>`)}
+
+            ${section("A picker", html`
+                <div class="wos-list">
+                    <wos-row title="Minutes" detail=${`${shown.minutes} past the hour`}>
+                        <wos-picker label="" value=${shown.minutes} min="0" max="59"
+                                   ?open=${shown.minutesOpen}
+                                   @open=${(e: CustomEvent<{ open: boolean }>) => service.change({ minutesOpen: e.detail.open })}
+                                   @change=${(e: CustomEvent<{ value: number }>) =>
+                                       service.change({ minutes: e.detail.value, minutesOpen: false })}>
+                        </wos-picker>
+                    </wos-row>
+                </div>
+                ${note("A date or a time picker is three of these side by side, which a card composes.")}`)}
+
+            ${section("A list that opens where it was tapped", html`
+                <div class="wos-list">
+                    <wos-row title="Right-click, or long-press, opens a menu at the point"
+                            @select=${() => {}}>
+                        <wos-button label="Open here"
+                                   @press=${() => service.change({ popupOpen: true, popupX: 120, popupY: 260 })}></wos-button>
+                    </wos-row>
+                </div>
+                ${shown.picked ? note(`Chose: ${shown.picked}`) : ""}`)}
+
+            ${section("A folding section", html`
+                <wos-drawer caption="Advanced" ?open=${shown.drawer}
+                           @toggle=${(e: CustomEvent<{ open: boolean }>) => service.change({ drawer: e.detail.open })}>
+                    <div class="wos-list">
+                        <wos-row title="Hidden until the heading is tapped"></wos-row>
+                        <wos-row title="Folds away again when it is tapped once more"></wos-row>
+                    </div>
+                </wos-drawer>`)}
+
+            ${section("A toaster", html`
+                <div class="wos-list">
+                    <wos-row title="A message that slides in over the card">
+                        <wos-button label="Show" @press=${() => service.change({ toast: true })}></wos-button>
+                    </wos-row>
+                </div>
+                ${note("enyo's Toaster had no timer of its own; the card decides when it goes. Tap it to dismiss.")}`)}
+
+            ${section("Two panes", html`
+                <div class="wos-pane-demo" style="height: 10rem; border: 1px solid var(--wos-outline); border-radius: var(--wos-radius); overflow: hidden">
+                    <wos-sliding-pane showing=${shown.pane}
+                                     @back=${() => service.change({ pane: "list" })}>
+                        <div slot="list" class="wos-list">
+                            ${["First", "Second", "Third"].map((name) => html`
+                                <wos-row title=${name} @select=${() => service.change({ pane: "detail", listPicked: name })}></wos-row>`)}
+                        </div>
+                        <div slot="detail">
+                            ${note(shown.listPicked ? `Showing: ${shown.listPicked}` : "Pick one on the left.")}
+                        </div>
+                    </wos-sliding-pane>
+                </div>
+                ${note("Side by side when there is room, one at a time with a back arrow when there is not.")}`)}
+
             ${section("Waiting and failing", html`
                 <div class="wos-list">
                     <wos-spinner label="Always with words beside it"></wos-spinner>
@@ -280,6 +401,21 @@ const view = (state: State<Shown>, service: ShowcaseService) => {
                                   @dismiss=${() => service.change({ dialog: false, answered: "Dismissed" })}>
                        </wos-dialog>`
                 : ""}
+
+            <wos-popup-list ?open=${shown.popupOpen} x=${shown.popupX} y=${shown.popupY}
+                           .choices=${[
+                               { value: "open", label: "Open" },
+                               { value: "copy", label: "Copy link" },
+                               { value: "share", label: "Share" },
+                           ]}
+                           @close=${() => service.change({ popupOpen: false })}
+                           @choose=${(e: CustomEvent<{ value: string }>) =>
+                               service.change({ popupOpen: false, picked: e.detail.value })}>
+            </wos-popup-list>
+
+            <wos-toaster ?open=${shown.toast} message="Saved" from="bottom"
+                        @dismiss=${() => service.change({ toast: false })}>
+            </wos-toaster>
         </div>
     </div>`;
 };

@@ -128,6 +128,55 @@ enyo.kind({
 					]}
 				]},
 
+				{kind: "RowGroup", caption: "Tabs across the top", components: [
+					{kind: "TabGroup", value: 0, components: [
+						{kind: "TabButton", caption: "All"},
+						{kind: "TabButton", caption: "Contacts"},
+						{kind: "TabButton", caption: "Content"},
+						{kind: "TabButton", caption: "Actions"}
+					]}
+				]},
+
+				{kind: "RowGroup", caption: "Icon buttons in a toolbar", components: [
+					{kind: "Item", layoutKind: "HFlexLayout", align: "center", components: [
+						{content: "A round picture button", flex: 1},
+						{kind: "IconButton", caption: "Add"}
+					]}
+				]},
+
+				{kind: "Divider", caption: "Nearby"},
+				{kind: "Item", content: "One under the captioned divider"},
+				{kind: "AlphaDivider", caption: "S"},
+				{kind: "Item", content: "Smith"},
+				{kind: "Item", content: "Sullivan"},
+
+				{kind: "RowGroup", caption: "A search field", components: [
+					{kind: "SearchInput", hint: "Search"}
+				]},
+
+				{kind: "RowGroup", caption: "A field that grows", components: [
+					{kind: "RichText", hint: "Type several lines; it grows to fit", richContent: false}
+				]},
+
+				{kind: "RowGroup", caption: "A picker", components: [
+					{kind: "IntegerPicker", label: "Minutes", value: 30, min: 0, max: 59}
+				]},
+
+				{kind: "RowGroup", caption: "A folding section", components: [
+					{kind: "DividerDrawer", caption: "Advanced", open: true, components: [
+						{kind: "Item", content: "Hidden until the heading is tapped"},
+						{kind: "Item", content: "Folds away again when it is tapped once more"}
+					]}
+				]},
+
+				{kind: "RowGroup", caption: "A list that opens where it was tapped", components: [
+					{kind: "Button", caption: "Open here", onclick: "openPopup"}
+				]},
+
+				{kind: "RowGroup", caption: "A toaster", components: [
+					{kind: "Button", caption: "Show", onclick: "showToast"}
+				]},
+
 				{kind: "RowGroup", caption: "Waiting and failing", components: [
 					{kind: "Item", layoutKind: "HFlexLayout", align: "center", components: [
 						{content: "Searching for networks...", flex: 1},
@@ -153,6 +202,16 @@ enyo.kind({
 			{kind: "Button", caption: "Cancel", onclick: "closeDialog"}
 		]},
 
+		{name: "popup", kind: "PopupList", items: [
+			{caption: "Open"},
+			{caption: "Copy link"},
+			{caption: "Share"}
+		]},
+
+		{name: "toaster", kind: "Toaster", flyInFrom: "bottom", components: [
+			{content: "Saved"}
+		]},
+
 		{kind: "AppMenu", components: [
 			{caption: "Settings"},
 			{caption: "Known Networks"},
@@ -166,5 +225,13 @@ enyo.kind({
 
 	closeDialog: function() {
 		this.$.dialog.close();
+	},
+
+	openPopup: function(sender, event) {
+		this.$.popup.openAtEvent(event);
+	},
+
+	showToast: function() {
+		this.$.toaster.open();
 	}
 });

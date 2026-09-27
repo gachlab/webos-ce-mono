@@ -53,7 +53,7 @@ export const startCard = <Data, Service extends CardService<Data>>(
     // The generics are named rather than inferred: Data only appears in
     // Service's constraint, which is not an inference site, so TypeScript would
     // settle on unknown and reject paint.
-    return connectCard<Data, Service>({
+    const card = connectCard<Data, Service>({
         service,
         paint: (state) => render(options.view(state, service), root),
         // Spread rather than `app: options.app`: with exactOptionalPropertyTypes
@@ -61,4 +61,47 @@ export const startCard = <Data, Service extends CardService<Data>>(
         // makes connectCard reach for WebAppMgr's.
         ...(options.app ? { app: options.app } : {}),
     });
+    // The keyboard, and the field it would otherwise sit on top of. WebAppMgr
+    // says the keyboard took part of the screen (AppService's `keyboard`); the
+    // card's body is the only thing that scrolls, so it is the thing to make
+    // room in. This is the kit's business and not connectCard's: connectCard
+    // touches no DOM, and a card written in something else hears the same
+    // event and answers it its own way. See page.css, §0, --wos-keyboard.
+    watchKeyboard(card.app);
+    return card;
+};
+
+// The screen the virtual keyboard covers is a fixed fraction of the viewport
+// on HP's devices; the exact pixels are not reported, so this is the reserve a
+// field needs to clear it. When the keyboard is up the body grows its bottom
+// padding by this, and whatever has the focus is scrolled above the fold.
+const KEYBOARD_RESERVE = "50vh";
+
+const watchKeyboard = (app: RunningCard["app"]): void => {
+    if (typeof document === "undefined") {
+        return;
+    }
+    app.on("keyboard", (shown) => {
+        document.documentElement.style.setProperty(
+            "--wos-keyboard",
+            shown ? KEYBOARD_RESERVE : "0px",
+        );
+        if (shown) {
+            // Let the padding land, then bring the focused field into view
+            // above the keyboard. A field inside a control's shadow root
+            // reports itself through activeElement chains, so the deepest one
+            // is what has to clear the fold.
+            requestAnimationFrame(() => focusedField()?.scrollIntoView({ block: "center" }));
+        }
+    });
+};
+
+// The element that actually has the caret, following the focus down through
+// any shadow roots a control drew.
+const focusedField = (): Element | null => {
+    let active: Element | null = document.activeElement;
+    while (active?.shadowRoot?.activeElement) {
+        active = active.shadowRoot.activeElement;
+    }
+    return active;
 };
