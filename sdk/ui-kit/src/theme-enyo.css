@@ -90,13 +90,14 @@
      * picks the blue up. Green is the affirmative button, not this.
      *
      * Its size is enyo's own, measured on the device off the live card: the
-     * control is 94x50, not the 74x30 of the artwork alone -- ToggleButton.css
-     * is height 30px plus 10px of padding all round, and the pill sits inside
-     * that. theme-modern keeps the compact default (the kit.css fallback). */
-    --wos-toggle-width: 4.7rem;
-    --wos-toggle-height: 2.5rem;
+     * bar you see is 74x30 (ToggleButton.css: the -bar is height 30px). The
+     * 94x50 container around it is just padding -- an invisible hit area -- so
+     * the control that has to match enyo's is the 74x30 bar, not the padded
+     * box. theme-modern keeps the same size (the kit.css fallback). */
+    --wos-toggle-width: 3.7rem;
+    --wos-toggle-height: 1.5rem;
     --wos-toggle-knob-width: 1.5rem;
-    --wos-toggle-knob-travel: 2.4rem;
+    --wos-toggle-knob-travel: 2.1rem;
     /* Sampled from toggle-button.png pixel by pixel: the ON track is a blue
      * that starts dark at the top (#1e4872) and lightens down (#6da4c8), not
      * the near-navy this had; the OFF track is a flatter, lighter grey
@@ -109,10 +110,16 @@
     --wos-toggle-ink: #fff;
 
     /* checkbox.png, which is the toggle's blue with a pale tick. */
-    --wos-check-off: linear-gradient(to bottom, #555555, #b1b1b1);
-    --wos-check-on: linear-gradient(to bottom, #1a4166, #6ea6cd);
-    --wos-check-tick: #dbe9f3;
+    /* checkbox.png, sampled: off is a grey gradient (#636363 -> #999 -> #afafaf),
+     * on is the toggle's blue (#224d78 -> #6ba4cd) with a pale tick (#ccdeec). */
+    --wos-check-off: linear-gradient(to bottom, #636363, #999999 55%, #afafaf);
+    --wos-check-on: linear-gradient(to bottom, #224d78, #6ba4cd);
+    --wos-check-tick: #ccdeec;
     --wos-check-edge: rgba(0, 0, 0, 0.35);
+    /* checkbox.png is a square tile with its edge painted in: no border, no
+     * radius on the box itself. */
+    --wos-check-border: 0;
+    --wos-check-radius: 0;
 
     /* info-icon.png: redrawn from Onyx's info-icon-sprite (sampled). */
     --wos-info-face: url(images/info-icon.png);

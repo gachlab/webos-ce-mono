@@ -325,7 +325,7 @@
     justify-content: flex-end;
     width: var(--wos-toggle-width, 3.7rem);
     height: var(--wos-toggle-height, 1.5rem);
-    padding: 0 0.4rem;
+    padding: 0;
     border: 1px solid var(--wos-toggle-edge);
     border-radius: 0.2rem;
     background: var(--wos-toggle-off);
@@ -333,6 +333,7 @@
     font-size: 0.7rem;
     font-weight: bold;
     text-transform: uppercase;
+    overflow: hidden;
 }
 
 .wos-toggle.on {
@@ -340,6 +341,17 @@
     background: var(--wos-toggle-on);
 }
 
+/* The word sits at the end the knob is not at, with the small inset enyo's
+ * label had (Toggle*.css: padding 2px/4px). The padding is on the label, not
+ * the toggle, so the knob below can reach the true edge. */
+.wos-toggle .wos-toggle-label {
+    padding: 0 0.3rem;
+}
+
+/* The knob slides the full width less its own: from the left edge (off) to
+ * flush against the right edge (on), as enyo's toggle-button.png does. It is
+ * anchored to the border-box because the toggle has no padding, so left:0 and
+ * the travel below land it exactly on each edge. */
 .wos-toggle .wos-toggle-knob {
     position: absolute;
     top: 0;
@@ -351,9 +363,10 @@
     transition: transform 120ms ease-out;
 }
 
-/* The knob picks up the blue it sits on, as the image does. */
+/* The knob picks up the blue it sits on, as the image does. Its travel is the
+ * toggle's width minus the knob's, so it ends flush with the right edge. */
 .wos-toggle.on .wos-toggle-knob {
-    transform: translateX(var(--wos-toggle-knob-travel, 2.1rem));
+    transform: translateX(var(--wos-toggle-knob-travel, 2.2rem));
     background: var(--wos-toggle-knob-on);
 }
 
@@ -499,8 +512,8 @@
     line-height: 1;
     color: transparent;
     background: var(--wos-check-off);
-    border: 1px solid var(--wos-check-edge);
-    border-radius: 0.2rem;
+    border: var(--wos-check-border, 1px solid var(--wos-check-edge));
+    border-radius: var(--wos-check-radius, 0.2rem);
 }
 
 .wos-check.checked {
