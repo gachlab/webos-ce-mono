@@ -420,14 +420,14 @@ const view = (state: State<Shown>, service: ShowcaseService) => {
 
             ${section("A toaster", html`
                 <div class="wos-list">
-                    <wos-row title="A message that slides in over the card">
+                    <wos-row title="Slides in over the card">
                         <wos-button label="Show" @press=${() => service.change({ toast: true })}></wos-button>
                     </wos-row>
                 </div>
                 ${note("enyo's Toaster had no timer of its own; the card decides when it goes. Tap it to dismiss.")}`)}
 
             ${section("Two panes", html`
-                <div class="wos-pane-demo" style="height: 10rem; border: 1px solid var(--wos-outline); border-radius: var(--wos-radius); overflow: hidden">
+                <div class="wos-pane-demo" style="--wos-pane-height: auto; border: 1px solid var(--wos-outline); border-radius: var(--wos-radius); overflow: hidden">
                     <wos-sliding-pane showing=${shown.pane}
                                      @back=${() => service.change({ pane: "list" })}>
                         <div slot="list">
@@ -445,8 +445,8 @@ const view = (state: State<Shown>, service: ShowcaseService) => {
                 <div class="wos-list">
                     <wos-spinner label="Always with words beside it"></wos-spinner>
                     <wos-progress value="40" label="Downloading"></wos-progress>
-                </div>
-                ${error("A failure says what the service said, never the uri.")}`)}
+                </div>`)}
+            ${error("A failure says what the service said, never the uri.")}
 
             ${section("Asking before doing", html`
                 <div class="wos-list">

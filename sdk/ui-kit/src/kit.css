@@ -1392,35 +1392,34 @@
 .wos-drawer-head {
     display: flex;
     align-items: center;
-    gap: 0.4rem;
+    gap: 0.3rem;
     width: 100%;
     min-height: 1.9rem;
     padding: 0 0.6rem;
-    background: var(--wos-divider-line);
-    background-repeat: repeat-x;
-    background-position: left center;
-    background-size: var(--wos-divider-line-size, 100% 1px);
     border: 0;
+    background: none;
     font-family: inherit;
 }
 
-/* The arrow and the caption sit over the divider line with the page behind
- * them, so the line runs to their right rather than through them -- enyo's
- * Divider put its caption on the line the same way. The arrow and the caption
- * share one page-coloured strip (the arrow's box is padded and filled with the
- * page, the caption continues it) so the line is masked around both and only
- * shows to the right. */
+/* The line runs to the right of the caption, not under it -- enyo's Divider
+ * had the caption at the left and the rule filling the rest. A flex-growing
+ * strip after the caption is that rule. */
+.wos-drawer-head::after {
+    content: "";
+    flex: 1;
+    height: 1px;
+    margin-left: 0.4rem;
+    background: var(--wos-divider-rule, rgba(0, 0, 0, 0.3));
+}
+
 .wos-drawer-arrow {
     flex: none;
     box-sizing: content-box;
     width: 0;
     height: 0;
-    padding: 0.35rem 0.2rem;
-    background: var(--wos-page);
     border-left: 0.3rem solid transparent;
     border-right: 0.3rem solid transparent;
     border-top: 0.35rem solid var(--wos-divider-ink);
-    background-clip: padding-box;
     transition: transform 150ms ease-out;
 }
 
@@ -1429,8 +1428,7 @@
 }
 
 .wos-drawer-caption {
-    padding: 0 0.4rem 0 0;
-    background: var(--wos-page);
+    padding: 0;
     color: var(--wos-divider-ink);
     font-size: 0.6rem;
     font-weight: 700;
@@ -1519,38 +1517,49 @@
  * the screen instead, which is the wrong thing. */
 :host(wos-sliding-pane) {
     display: block;
-    height: 100%;
+    height: var(--wos-pane-height, 100%);
     container-type: inline-size;
 }
 
 /* enyo's SlidingPane: the list and the detail side by side when there is room
  * for both, and one at a time -- with a back arrow on the detail -- when there
- * is not. Which one shows on a narrow pane is the host's `showing` state. */
+ * is not. Which one shows on a narrow pane is the host's `showing` state.
+ * It fills a card that gives it a height, and sizes to its content when it is
+ * not given one (a showcase demo), so it never leaves a hollow below its rows. */
 .wos-sliding-pane {
     display: flex;
     height: 100%;
+    min-height: 0;
     overflow: hidden;
 }
 
 .wos-pane-list {
     flex: none;
     width: 100%;
+    max-height: 100%;
     overflow-y: auto;
 }
 
 .wos-pane-detail {
     flex: 1;
     min-width: 0;
+    max-height: 100%;
     overflow-y: auto;
 }
 
 .wos-pane-back {
     display: none;
-    padding: 0.4rem 0.6rem;
-    font-size: 0.75rem;
-    color: var(--wos-header-back-ink);
+    align-items: center;
+    gap: 0.2rem;
+    padding: 0.5rem 0.6rem;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--wos-accent);
     background: none;
     border: 0;
+    border-bottom: 1px solid var(--wos-row-line-bottom);
+    width: 100%;
+    text-align: left;
 }
 
 /* Wide: both panes at once, the list a fixed column and the detail the rest.
@@ -1573,7 +1582,7 @@
 }
 
 .wos-sliding-pane.on-detail .wos-pane-back {
-    display: block;
+    display: flex;
 }
 
 /* When the container is wide the single-pane show/hide is overridden: both

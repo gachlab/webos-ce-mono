@@ -179,7 +179,7 @@ body {
 }
 
 .wos-error {
-    margin: 0 0.4rem 0.6rem;
+    margin: 0.4rem 0.4rem 0.6rem;
     color: var(--wos-danger);
     font-size: 0.8rem;
 }

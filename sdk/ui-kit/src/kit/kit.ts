@@ -834,7 +834,7 @@ defineElement<{ showing: string }>(
                 <div class="wos-pane-list"><slot name="list"></slot></div>
                 <div class="wos-pane-detail">
                     <button class="wos-pane-back" type="button"
-                            @click=${() => emit("back")}>&#9664;</button>
+                            @click=${() => emit("back")}><span aria-hidden="true">&#9664;</span> Back</button>
                     <slot name="detail"></slot>
                 </div>
             </div>`;
