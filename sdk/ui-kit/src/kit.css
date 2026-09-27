@@ -1071,6 +1071,7 @@
     display: flex;
     align-items: center;
     gap: 0.4rem;
+    min-height: var(--wos-search-height, auto);
     margin: 0.4rem 0.6rem;
     padding: 0.2rem 0.5rem;
     background: var(--wos-search-bg);
@@ -1080,8 +1081,8 @@
 
 .wos-search-glass {
     flex: none;
-    width: 0.9rem;
-    height: 0.9rem;
+    width: var(--wos-search-glass-size, 0.9rem);
+    height: var(--wos-search-glass-size, 0.9rem);
     border: 0.12rem solid var(--wos-search-glass);
     border-radius: 50%;
     position: relative;

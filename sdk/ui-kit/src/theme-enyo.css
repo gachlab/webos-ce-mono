@@ -197,12 +197,14 @@
     --wos-divider-alpha-ink: #4299ea;
 
     /* SearchInput.css: the rounded field, its grey magnifier and its clear
-     * cross. */
+     * cross. enyo's Input row is 48px tall and the magnifier is 20x20. */
     --wos-search-bg: #fff;
     --wos-search-edge: rgba(0, 0, 0, 0.3);
     --wos-search-glass: #808080;
     --wos-search-clear: #b1b1b1;
     --wos-search-clear-ink: #fff;
+    --wos-search-height: 2.4rem;
+    --wos-search-glass-size: 1rem;
 
     /* enyo's Input, as a growing multi-line box. */
     --wos-text-area-bg: #fff;
