@@ -204,14 +204,15 @@
     --wos-tab-on-ink: #fff;
     --wos-tab-join: rgba(0, 0, 0, 0.2);
 
-    /* divider.png: a repeated hairline, with the bold blue caption enyo drew
-     * over it (#3a8bcb), and the brighter blue its AlphaDivider used (#4299ea). */
-    --wos-divider-line: linear-gradient(to bottom,
-        transparent calc(50% - 1px), rgba(0, 0, 0, 0.35) calc(50% - 1px),
-        rgba(0, 0, 0, 0.35) calc(50% + 1px), transparent calc(50% + 1px));
-    --wos-divider-line-size: 100% 100%;
+    /* enyo's Divider: the captioned one is a plain item -- a blue caption
+     * (#3a8bcb) with only the row's bottom hairline, no rule across it. The
+     * AlphaDivider does carry a rule, divider.png: a 2px blue line (#4987c0
+     * over #5aa6ec) with a white highlight, in the brighter blue (#4299ea). */
     --wos-divider-ink: #3a8bcb;
     --wos-divider-alpha-ink: #4299ea;
+    --wos-divider-rule-a: #4987c0;
+    --wos-divider-rule-b: #5aa6ec;
+    --wos-divider-rule-hi: rgba(255, 255, 255, 0.21);
     --wos-divider-rule: rgba(0, 0, 0, 0.3);
 
     /* SearchInput.css: the rounded field, its grey magnifier and its clear
