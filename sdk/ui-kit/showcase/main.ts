@@ -159,7 +159,8 @@ const view = (state: State<Shown>, service: ShowcaseService) => {
                     <wos-row title="With its own words">
                         <wos-toggle on label-on="Yes" label-off="No"></wos-toggle>
                     </wos-row>
-                    <wos-row title="Disabled"><wos-toggle disabled></wos-toggle></wos-row>
+                    <wos-row title="Disabled on"><wos-toggle on disabled></wos-toggle></wos-row>
+                    <wos-row title="Disabled off"><wos-toggle disabled></wos-toggle></wos-row>
                 </div>`)}
 
             ${section("Rows", html`
@@ -171,6 +172,7 @@ const view = (state: State<Shown>, service: ShowcaseService) => {
                     </wos-row>
                     <wos-row title="A long title that has to be cut rather than pushed off the row"
                             detail="Ellipsis, not overflow"></wos-row>
+                    <wos-row title="Selected" detail="Persistently marked, not just pressed" selected></wos-row>
                 </div>`)}
 
             ${section("Fields and checks", html`
@@ -225,6 +227,9 @@ const view = (state: State<Shown>, service: ShowcaseService) => {
                                .choices=${[{ value: "on", label: "Stay on" }, { value: "off", label: "Turn off" }]}
                                @choose=${(e: CustomEvent<{ value: string }>) => service.change({ sleeps: e.detail.value })}>
                     </wos-choice>
+                    <wos-choice label="Disabled" value="on"
+                               .choices=${[{ value: "on", label: "Open", disabled: true }, { value: "off", label: "WPA", disabled: true }]}>
+                    </wos-choice>
                 </div>`)}
 
             ${section("A button that is working", html`
@@ -269,7 +274,13 @@ const view = (state: State<Shown>, service: ShowcaseService) => {
                               ]}
                               @choose=${(e: CustomEvent<{ value: string }>) => service.change({ tab: e.detail.value })}>
                 </wos-tab-group>
-                ${note(`Radio semantics: one at a time. Chosen: ${shown.tab}.`)}`)}
+                ${note(`Radio semantics: one at a time. Chosen: ${shown.tab}.`)}
+                <wos-tab-group value="on"
+                              .tabs=${[
+                                  { value: "on", label: "Enabled" },
+                                  { value: "off", label: "Disabled", disabled: true },
+                              ]}>
+                </wos-tab-group>`)}
 
             ${section("Icon buttons in a toolbar", html`
                 <div class="wos-list">

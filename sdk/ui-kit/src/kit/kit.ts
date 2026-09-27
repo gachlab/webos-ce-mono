@@ -97,11 +97,11 @@ defineElement<{ title: string }>(
 // slot goes before them. Only the row's own part of it
 // selects the row: a toggle in a Wi-Fi row would otherwise turn the radio on
 // and open the network at the same time.
-defineElement<{ title: string; detail: string; strong: boolean }>(
+defineElement<{ title: string; detail: string; strong: boolean; selected: boolean }>(
     "wos-row",
-    { title: String, detail: String, strong: Boolean },
-    ({ title, detail, strong }, { emit }) => html`
-        <div class="wos-row">
+    { title: String, detail: String, strong: Boolean, selected: Boolean },
+    ({ title, detail, strong, selected }, { emit }) => html`
+        <div class="wos-row ${selected ? "selected" : ""}">
             <!-- What goes before the words: the plus HP drew at the left of
                  "Join Network", an avatar, a status light. -->
             <slot name="lead"></slot>
@@ -383,7 +383,7 @@ defineElement<{ label: string; kind: string; busy: boolean; disabled: boolean }>
 // §15 One of a few, chosen in the row itself: enyo's ListSelector, which is
 // what HP used for "When Device Sleeps" and for most settings with two or
 // three answers. The drawer of wos-selector is for longer lists.
-defineElement<{ label: string; value: string; choices: { value: string; label: string }[] }>(
+defineElement<{ label: string; value: string; choices: { value: string; label: string; disabled?: boolean }[] }>(
     "wos-choice",
     { label: String, value: String, choices: Object },
     ({ label, value, choices }, { emit }) => {
@@ -394,7 +394,12 @@ defineElement<{ label: string; value: string; choices: { value: string; label: s
                 <div class="wos-choice">
                     ${list.map((choice) => html`
                         <button class="wos-choice-one ${choice.value === value ? "chosen" : ""}"
-                                @click=${() => emit("choose", { value: choice.value })}>${choice.label}</button>`)}
+                                ?disabled=${choice.disabled}
+                                @click=${() => {
+                                    if (!choice.disabled) {
+                                        emit("choose", { value: choice.value });
+                                    }
+                                }}>${choice.label}</button>`)}
                 </div>
             </div>`;
     },
@@ -491,7 +496,7 @@ defineElement<{ icon: string; label: string; disabled: boolean }>(
 // ALL/CONTACTS/CONTENT/ACTIONS, the tabs on Contacts and Email. It says which
 // tab the user asked for and the card decides what that shows, as everything
 // here does. `tabs` is set as a property.
-defineElement<{ value: string; tabs: { value: string; label: string }[] }>(
+defineElement<{ value: string; tabs: { value: string; label: string; disabled?: boolean }[] }>(
     "wos-tab-group",
     { value: String, tabs: Object },
     ({ value, tabs }, { emit }) => {
@@ -501,8 +506,9 @@ defineElement<{ value: string; tabs: { value: string; label: string }[] }>(
                 ${list.map((tab) => html`
                     <button class="wos-tab ${tab.value === value ? "chosen" : ""}"
                             role="tab" aria-selected=${tab.value === value ? "true" : "false"}
+                            ?disabled=${tab.disabled}
                             @click=${() => {
-                                if (tab.value !== value) {
+                                if (tab.value !== value && !tab.disabled) {
                                     emit("choose", { value: tab.value });
                                 }
                             }}>${tab.label}</button>`)}

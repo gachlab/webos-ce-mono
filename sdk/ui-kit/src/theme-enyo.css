@@ -51,6 +51,8 @@
     --wos-row-line-top: rgba(255, 255, 255, 0.5);
     --wos-row-line-bottom: rgba(0, 0, 0, 0.2);
     --wos-row-press: rgba(31, 117, 191, 0.25);
+    /* Item.css .enyo-item-selected: a translucent pale-blue wash. */
+    --wos-row-selected: linear-gradient(to bottom, rgba(218, 235, 251, 0.4), rgba(197, 224, 249, 0.4));
 
     /* Header.css: toolbar.png over #343434, and the light one HP's settings
      * cards wear -- Onyx toolbar-light.png, shipped beside this file. */

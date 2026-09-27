@@ -285,6 +285,12 @@
     background: var(--wos-row-press);
 }
 
+/* A persistently selected row, distinct from the momentary press: enyo's
+ * .enyo-item-selected (Item.css), which a list uses to mark the current row. */
+.wos-row.selected {
+    background: var(--wos-row-selected, var(--wos-row-press));
+}
+
 .wos-row .wos-row-text {
     flex: 1;
     min-width: 0;
@@ -368,6 +374,13 @@
 .wos-toggle.on .wos-toggle-knob {
     transform: translateX(var(--wos-toggle-knob-travel, 2.2rem));
     background: var(--wos-toggle-knob-on);
+}
+
+/* Disabled is the track at half strength, which is what enyo's own
+ * disabled-on/off sprite bands are -- the same colours the enabled bands have,
+ * painted at ~0.5 alpha. */
+.wos-toggle[disabled] {
+    opacity: 0.5;
 }
 
 /* §5 Spinner -------------------------------------------------------------- */
@@ -882,6 +895,18 @@
     background: var(--wos-choice-on);
 }
 
+/* Pressed and disabled, as enyo's RadioButton had: the press shows the chosen
+ * fill, and a disabled segment dims to 0.4 (RadioButton.css). */
+.wos-choice-one:active {
+    background: var(--wos-choice-on);
+    color: var(--wos-choice-on-ink);
+}
+
+.wos-choice-one[disabled] {
+    opacity: 0.4;
+    pointer-events: none;
+}
+
 /* §16 Sliders -------------------------------------------------------------- */
 
 :host(wos-slider) {
@@ -1003,6 +1028,18 @@
 .wos-tab.chosen {
     color: var(--wos-tab-on-ink);
     background: var(--wos-tab-on);
+}
+
+/* Pressed and disabled, as enyo's TabButton had: a darker press and the same
+ * 0.4-opacity dim it used for a disabled tab (RadioButton.css). */
+.wos-tab:active {
+    background: var(--wos-tab-on);
+    color: var(--wos-tab-on-ink);
+}
+
+.wos-tab[disabled] {
+    opacity: 0.4;
+    pointer-events: none;
 }
 
 /* §19 Dividers ------------------------------------------------------------ */
