@@ -182,11 +182,13 @@ enyo.kind({
 					]}
 				]},
 
-				{kind: "Divider", caption: "Nearby"},
-				{kind: "Item", content: "One under the captioned divider"},
-				{kind: "AlphaDivider", caption: "S"},
-				{kind: "Item", content: "Smith"},
-				{kind: "Item", content: "Sullivan"},
+				{kind: "RowGroup", caption: "Dividers in a list", components: [
+					{kind: "Divider", caption: "Nearby"},
+					{kind: "Item", content: "One under the captioned divider"},
+					{kind: "AlphaDivider", caption: "S"},
+					{kind: "Item", content: "Smith"},
+					{kind: "Item", content: "Sullivan"}
+				]},
 
 				{kind: "RowGroup", caption: "A search field", components: [
 					{kind: "SearchInput", hint: "Search"}
@@ -209,10 +211,8 @@ enyo.kind({
 					{kind: "TimePicker", label: "Time (24-hour)", minuteInterval: 5, is24HrMode: true}
 				]},
 
-				{kind: "RowGroup", caption: "A prev/next banner", components: [
-					{kind: "PrevNextBanner", content: "Page 3 of 5"},
-					{kind: "PrevNextBanner", content: "At the start", previousDisabled: true},
-					{kind: "PrevNextBanner", content: "At the end", nextDisabled: true}
+				{kind: "RowGroup", caption: "A list that opens where it was tapped", components: [
+					{kind: "Button", caption: "Open here", onclick: "openPopup"}
 				]},
 
 				{kind: "RowGroup", caption: "A folding section", components: [
@@ -222,12 +222,23 @@ enyo.kind({
 					]}
 				]},
 
-				{kind: "RowGroup", caption: "A list that opens where it was tapped", components: [
-					{kind: "Button", caption: "Open here", onclick: "openPopup"}
-				]},
-
 				{kind: "RowGroup", caption: "A toaster", components: [
 					{kind: "Button", caption: "Show", onclick: "showToast"}
+				]},
+
+				{kind: "RowGroup", caption: "Two panes", components: [
+					{kind: "Item", components: [
+						{kind: "SlidingPane", style: "height: 160px", components: [
+							{name: "paneList", width: "220px", components: [
+								{kind: "Item", content: "First", onclick: "showDetail"},
+								{kind: "Item", content: "Second", onclick: "showDetail"},
+								{kind: "Item", content: "Third", onclick: "showDetail"}
+							]},
+							{name: "paneDetail", flex: 1, components: [
+								{name: "detailText", content: "Pick one on the left.", className: "kit-enyo-note"}
+							]}
+						]}
+					]}
 				]},
 
 				{kind: "RowGroup", caption: "Waiting and failing", components: [
@@ -243,6 +254,26 @@ enyo.kind({
 
 				{kind: "RowGroup", caption: "Asking before doing", components: [
 					{kind: "Button", caption: "Open", onclick: "openDialog"}
+				]},
+
+				// --- Below here: our own additions, which enyo did not have or
+				// left without an Onyx look. Above here is parity with enyo.
+				{className: "kit-enyo-note", content:
+					"Below: controls enyo shipped without an Onyx theme, so what they "
+					+ "look like is ours. Shown here plain, as enyo left them."},
+
+				{kind: "RowGroup", caption: "A prev/next banner (no Onyx CSS)", components: [
+					{kind: "PrevNextBanner", content: "Page 3 of 5"},
+					{kind: "PrevNextBanner", content: "At the start", previousDisabled: true},
+					{kind: "PrevNextBanner", content: "At the end", nextDisabled: true}
+				]},
+
+				{kind: "RowGroup", caption: "A long list (no Onyx CSS)", components: [
+					{kind: "Item", components: [
+						{kind: "VirtualList", style: "height: 160px", onSetupRow: "setupRow", components: [
+							{name: "listItem", kind: "Item"}
+						]}
+					]}
 				]}
 			]}
 		]},
@@ -292,5 +323,18 @@ enyo.kind({
 
 	showToast: function() {
 		this.$.toaster.open();
+	},
+
+	showDetail: function(sender) {
+		this.$.detailText.setContent("Showing: " + sender.getContent());
+		this.$.paneDetail.select();
+	},
+
+	setupRow: function(sender, index) {
+		if (index < 0 || index >= 1000) {
+			return false;
+		}
+		this.$.listItem.setContent("Row " + index);
+		return true;
 	}
 });

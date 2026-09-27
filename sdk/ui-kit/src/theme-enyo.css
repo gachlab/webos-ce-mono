@@ -208,6 +208,7 @@
     --wos-divider-line-size: 100% 100%;
     --wos-divider-ink: #3a8bcb;
     --wos-divider-alpha-ink: #4299ea;
+    --wos-divider-rule: rgba(0, 0, 0, 0.3);
 
     /* SearchInput.css: the rounded field, its grey magnifier and its clear
      * cross. enyo's Input row is 48px tall and the magnifier is 20x20. */

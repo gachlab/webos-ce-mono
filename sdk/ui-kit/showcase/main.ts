@@ -201,9 +201,6 @@ const view = (state: State<Shown>, service: ShowcaseService) => {
                     </wos-row>
                     <wos-row title="Checked disabled"><wos-check checked disabled></wos-check></wos-row>
                     <wos-row title="Unchecked disabled"><wos-check disabled></wos-check></wos-row>
-                    <wos-row title="Details without selecting">
-                        <wos-info @press=${() => service.change({ typed: "info" })}></wos-info>
-                    </wos-row>
                 </div>
                 ${shown.typed ? note(t("Typed: #{what}", { what: shown.typed })) : ""}`)}
 
@@ -330,18 +327,6 @@ const view = (state: State<Shown>, service: ShowcaseService) => {
                     </wos-text-area>
                 </div>`)}
 
-            ${section("A long list", html`
-                <div class="wos-list" style="height: 12rem">
-                    <wos-list .rows=${LONG_LIST} rowHeight="44"
-                             .render=${(row: unknown) => html`<wos-row title=${String(row)}></wos-row>`}
-                             @activate=${(e: CustomEvent<{ index: number }>) =>
-                                 service.change({ listPicked: `Row ${e.detail.index}` })}>
-                    </wos-list>
-                </div>
-                ${note(shown.listPicked
-                    ? `Tapped: ${shown.listPicked}. It draws only the rows on screen -- scroll and the rest are made as they are reached.`
-                    : "A thousand rows; only the window on screen is in the DOM. Scroll it.")}`)}
-
             ${section("A picker", html`
                 <div class="wos-list">
                     <wos-row title="Minutes" detail=${`${shown.minutes} past the hour`}>
@@ -388,16 +373,6 @@ const view = (state: State<Shown>, service: ShowcaseService) => {
                     </wos-row>
                 </div>
                 ${note(`Hour, minute and AM/PM, or 24-hour with no AM/PM wheel. Chosen: ${shown.time}.`)}`)}
-
-            ${section("A prev/next banner", html`
-                <div class="wos-list">
-                    <wos-prev-next ?prev-off=${shown.page <= 1} ?next-off=${shown.page >= 5}
-                                  @previous=${() => service.change({ page: Math.max(1, shown.page - 1) })}
-                                  @next=${() => service.change({ page: Math.min(5, shown.page + 1) })}>
-                        ${`Page ${shown.page} of 5`}
-                    </wos-prev-next>
-                </div>
-                ${note("An arrow at each end; each turns off on its own at the ends of the range.")}`)}
 
             ${section("A list that opens where it was tapped", html`
                 <div class="wos-list">
@@ -454,6 +429,40 @@ const view = (state: State<Shown>, service: ShowcaseService) => {
                         <wos-button label="Open" @press=${() => service.change({ dialog: true })}></wos-button>
                     </wos-row>
                 </div>`)}
+
+            ${note("— Below here: our own additions, which enyo did not have (or left "
+                   + "without an Onyx look). Above here is parity with enyo, control for control.")}
+
+            ${section("An info button (ours)", html`
+                <div class="wos-list">
+                    <wos-row title="Details without selecting">
+                        <wos-info @press=${() => service.change({ typed: "info" })}></wos-info>
+                    </wos-row>
+                </div>
+                ${note("The (i) HP drew with info-icon-sprite.png, reconstructed; not a distinct enyo control.")}`)}
+
+            ${section("A long list (ours)", html`
+                <div class="wos-list" style="height: 12rem">
+                    <wos-list .rows=${LONG_LIST} rowHeight="44"
+                             .render=${(row: unknown) => html`<wos-row title=${String(row)}></wos-row>`}
+                             @activate=${(e: CustomEvent<{ index: number }>) =>
+                                 service.change({ listPicked: `Row ${e.detail.index}` })}>
+                    </wos-list>
+                </div>
+                ${note(shown.listPicked
+                    ? `Tapped: ${shown.listPicked}. It draws only the rows on screen -- scroll and the rest are made as they are reached.`
+                    : "A thousand rows; only the window on screen is in the DOM. enyo's VirtualList "
+                      + "existed but shipped no Onyx CSS, so this is our own; scroll it.")}`)}
+
+            ${section("A prev/next banner (ours)", html`
+                <div class="wos-list">
+                    <wos-prev-next ?prev-off=${shown.page <= 1} ?next-off=${shown.page >= 5}
+                                  @previous=${() => service.change({ page: Math.max(1, shown.page - 1) })}
+                                  @next=${() => service.change({ page: Math.min(5, shown.page + 1) })}>
+                        ${`Page ${shown.page} of 5`}
+                    </wos-prev-next>
+                </div>
+                ${note("enyo had a PrevNextBanner but shipped no Onyx CSS for it, so its look is ours.")}`)}
 
             ${section("What WebAppMgr says to the card", html`
                 <div class="wos-list">
