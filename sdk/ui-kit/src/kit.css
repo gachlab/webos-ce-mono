@@ -323,8 +323,8 @@
     display: flex;
     align-items: center;
     justify-content: flex-end;
-    width: 3.7rem;
-    height: 1.5rem;
+    width: var(--wos-toggle-width, 3.7rem);
+    height: var(--wos-toggle-height, 1.5rem);
     padding: 0 0.4rem;
     border: 1px solid var(--wos-toggle-edge);
     border-radius: 0.2rem;
@@ -344,7 +344,7 @@
     position: absolute;
     top: 0;
     left: 0;
-    width: 1.5rem;
+    width: var(--wos-toggle-knob-width, 1.5rem);
     height: 100%;
     border-radius: 0.15rem;
     background: var(--wos-toggle-knob);
@@ -353,7 +353,7 @@
 
 /* The knob picks up the blue it sits on, as the image does. */
 .wos-toggle.on .wos-toggle-knob {
-    transform: translateX(2.1rem);
+    transform: translateX(var(--wos-toggle-knob-travel, 2.1rem));
     background: var(--wos-toggle-knob-on);
 }
 
@@ -850,7 +850,7 @@
 }
 
 .wos-slider {
-    padding: 0.7rem 0.6rem;
+    padding: var(--wos-slider-pad, 0.7rem 0.6rem);
     touch-action: none;
 }
 
@@ -1202,9 +1202,11 @@
 
 .wos-picker-pill {
     min-width: 2.4rem;
-    padding: 0.25rem 0.6rem;
+    height: var(--wos-picker-pill-height, auto);
+    padding: var(--wos-picker-pill-pad, 0.25rem 0.6rem);
     font-family: inherit;
     font-size: 0.85rem;
+    line-height: var(--wos-picker-pill-line, normal);
     text-align: center;
     color: var(--wos-picker-ink);
     background: var(--wos-picker-pill);

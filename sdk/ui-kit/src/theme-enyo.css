@@ -87,7 +87,16 @@
     --wos-button-loud-ink: #fff;
 
     /* toggle-button.png: the track that is on is blue, and the knob it carries
-     * picks the blue up. Green is the affirmative button, not this. */
+     * picks the blue up. Green is the affirmative button, not this.
+     *
+     * Its size is enyo's own, measured on the device off the live card: the
+     * control is 94x50, not the 74x30 of the artwork alone -- ToggleButton.css
+     * is height 30px plus 10px of padding all round, and the pill sits inside
+     * that. theme-modern keeps the compact default (the kit.css fallback). */
+    --wos-toggle-width: 4.7rem;
+    --wos-toggle-height: 2.5rem;
+    --wos-toggle-knob-width: 1.5rem;
+    --wos-toggle-knob-travel: 2.4rem;
     --wos-toggle-on: linear-gradient(to bottom, #1a3f63, #6195bb);
     --wos-toggle-off: linear-gradient(to bottom, #606060, #a2a2a2);
     --wos-toggle-knob: linear-gradient(to bottom, #f6f6f6, #d9d9d9);
@@ -138,6 +147,9 @@
     --wos-slider-fill: none;
     --wos-slider-knob: linear-gradient(to bottom, #f9f9f9, #c1c1c1 80%, #d8d8d8);
     --wos-slider-knob-edge: rgba(0, 0, 0, 0.25);
+    /* Slider.css: the control is 40px tall around a 10px track, so 15px of
+     * padding each side. theme-modern keeps the compact default. */
+    --wos-slider-pad: 0.75rem 0.6rem;
 
     /* spinner.png turns in grey. */
     --wos-spinner-ring: rgba(0, 0, 0, 0.18);
@@ -201,6 +213,11 @@
     --wos-picker-ink: #292929;
     --wos-picker-pill: linear-gradient(to bottom, #fdfdfd, #d4d4d4);
     --wos-picker-edge: rgba(0, 0, 0, 0.35);
+    /* PickerButton.css: line-height 32px, padding 0 6px; box 32px with the
+     * border-image absorbed by border-box. */
+    --wos-picker-pill-pad: 0 0.3rem;
+    --wos-picker-pill-line: 1.6rem;
+    --wos-picker-pill-height: 1.6rem;
     --wos-picker-wheel-bg: #e6e6e6;
     --wos-picker-item-ink: #333;
     --wos-picker-item-chosen-ink: #292929;
