@@ -10,7 +10,7 @@
 // it is always the same shape: read the properties, draw, and say what
 // happened with an event.
 
-import { defineElement, html, useStyles, type TemplateResult } from "../element.ts";
+import { defineElement, html, Json, useStyles, type TemplateResult } from "../element.ts";
 import styles from "../kit.css";
 
 // The kit dresses itself, here, at the moment it is defined.
@@ -174,12 +174,15 @@ defineElement<{ disabled: boolean }>(
 );
 
 // §9 List selector: the row that shows the chosen one and opens HP's drawer of
-// choices under it. `choices` is set as a property, not an attribute. Like
-// every other control here, it says what the user asked for -- "open" and
-// "choose" -- and the card decides what that makes true.
+// choices under it. `choices` is a list, so a card sets it as a property; it
+// also reads a JSON attribute (`choices='[{"value":"wpa",...}]'`) for markup
+// that has no property to set -- the shim (#56), hand-written HTML -- with the
+// property winning when both are there (#70). Like every other control here, it
+// says what the user asked for -- "open" and "choose" -- and the card decides
+// what that makes true.
 defineElement<{ label: string; value: string; choices: { value: string; label: string }[]; open: boolean }>(
     "wos-selector",
-    { label: String, value: String, choices: Object, open: Boolean },
+    { label: String, value: String, choices: Json, open: Boolean },
     ({ label, value, choices, open }, { emit }) => {
         const list = Array.isArray(choices) ? choices : [];
         const chosen = list.find((choice) => choice.value === value);
@@ -349,10 +352,11 @@ defineElement<{ title: string; detail: string; confirm: string; instant: boolean
 // §13 The app menu: what is behind the card's name in the top-left corner, and
 // what the system opens with the menu key. WebAppMgr says when it was asked
 // for (Mojo's openAppMenu, which AppService reports), so the card decides
-// whether it is open, as with every other control here.
+// whether it is open, as with every other control here. `items` is a list: a
+// property from a card, or a JSON attribute from markup with no property (#70).
 defineElement<{ open: boolean; items: { value: string; label: string; disabled?: boolean }[] }>(
     "wos-app-menu",
-    { open: Boolean, items: Object },
+    { open: Boolean, items: Json },
     ({ open, items }, { emit }) => {
         if (!open) {
             return html``;
@@ -384,10 +388,11 @@ defineElement<{ label: string; kind: string; busy: boolean; disabled: boolean }>
 
 // §15 One of a few, chosen in the row itself: enyo's ListSelector, which is
 // what HP used for "When Device Sleeps" and for most settings with two or
-// three answers. The drawer of wos-selector is for longer lists.
+// three answers. The drawer of wos-selector is for longer lists. `choices` is
+// a list: a property from a card, or a JSON attribute from markup (#70).
 defineElement<{ label: string; value: string; choices: { value: string; label: string; disabled?: boolean }[] }>(
     "wos-choice",
-    { label: String, value: String, choices: Object },
+    { label: String, value: String, choices: Json },
     ({ label, value, choices }, { emit }) => {
         const list = Array.isArray(choices) ? choices : [];
         return html`

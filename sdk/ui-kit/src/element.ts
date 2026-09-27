@@ -21,10 +21,20 @@ import { render, type TemplateResult } from "lit-html";
 
 export type Attributes = Record<string, unknown>;
 
+// The reader `Json` names a property whose data an attribute *cannot* carry as
+// text -- a list, a record -- but which is worth writing as a JSON attribute by
+// anything that only has markup: HTML by hand, `innerHTML`, a page rendered on a
+// server, or the enyo shim (#56), which builds its DOM from objects and sets
+// attributes. It is one value, not a constructor, so it is its own token in the
+// `Reader` union (#70).
+export const Json = Symbol("json");
+
 // How an attribute's text becomes a property. `Boolean` is the HTML kind:
-// present is true, absent is false. `Object` is what an attribute cannot
-// carry -- a list, a record -- and is only ever set as a property.
-export type Reader = typeof String | typeof Number | typeof Boolean | typeof Object;
+// present is true, absent is false. `Object` is what an attribute cannot carry
+// and is only ever set as a property. `Json` is the same shape of data, but the
+// attribute is read and parsed when it is there and the property is not, so the
+// two ways of saying it are not equivalent: the property still wins.
+export type Reader = typeof String | typeof Number | typeof Boolean | typeof Object | typeof Json;
 
 export interface Host {
     // Sends a DOM event, which is how a component answers its card: composed
@@ -92,6 +102,20 @@ const read = (value: string | null, reader: Reader): unknown => {
     }
     if (reader === Object) {
         return undefined;
+    }
+    // A JSON attribute is read only when it is there; malformed text is not a
+    // new way to break the page -- the control falls back exactly as it would
+    // with no attribute at all (an unset property, `undefined`), silently. The
+    // property, set on the element, still wins over this in `readProperty`.
+    if (reader === Json) {
+        if (value === null) {
+            return undefined;
+        }
+        try {
+            return JSON.parse(value);
+        } catch {
+            return undefined;
+        }
     }
     if (value === null) {
         return reader === Number ? 0 : "";
@@ -161,11 +185,18 @@ export const defineElement = <Props extends Attributes>(
             this.#paint();
         }
 
-        // What the component would be handed for this property right now.
+        // What the component would be handed for this property right now. Once
+        // a card has set the property -- even to `undefined` or `null` to clear
+        // it -- the property wins and the attribute is suppressed: the card
+        // touched it, so the card decides. The attribute is only read when the
+        // property was never set at all (the markup-only path, #70), which is
+        // why this keys on the key being present in `#values`, not on its value
+        // being defined. Keying on `!== undefined` would let `el.choices =
+        // undefined` fall back through to a still-present JSON attribute and
+        // silently resurface the markup data as the live value.
         readProperty(key: string): unknown {
-            const fromProperty = this.#values[key];
-            return fromProperty !== undefined
-                ? fromProperty
+            return Object.hasOwn(this.#values, key)
+                ? this.#values[key]
                 : read(this.getAttribute(attributeName(key)), props[key as keyof Props]);
         }
 
