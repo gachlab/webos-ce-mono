@@ -12,7 +12,9 @@
  * are numbers rather than opinions.
  *
  * It talks to no service and remembers nothing on purpose: every control is
- * shown in each of its states at once, so a screenshot of it is complete.
+ * shown in each of its states at once -- normal, pressed, disabled, on/off,
+ * checked, held, selected, focused -- so a screenshot of it is complete and is
+ * the yardstick every state of the rewritten kit is measured against.
  */
 
 enyo.kind({
@@ -33,6 +35,7 @@ enyo.kind({
 
 				{kind: "RowGroup", caption: "Buttons", components: [
 					{kind: "Button", caption: "Plain"},
+					{kind: "Button", caption: "Pressed", className: "enyo-button enyo-button-depressed"},
 					{kind: "Button", caption: "Dark", className: "enyo-button enyo-button-dark"},
 					{kind: "Button", caption: "Affirmative", className: "enyo-button enyo-button-affirmative"},
 					{kind: "Button", caption: "Negative", className: "enyo-button enyo-button-negative"},
@@ -43,15 +46,23 @@ enyo.kind({
 
 				{kind: "RowGroup", caption: "Toggles", components: [
 					{kind: "Item", layoutKind: "HFlexLayout", align: "center", components: [
-						{content: "Answers with an event", flex: 1},
+						{content: "On", flex: 1},
 						{kind: "ToggleButton", state: true}
+					]},
+					{kind: "Item", layoutKind: "HFlexLayout", align: "center", components: [
+						{content: "Off", flex: 1},
+						{kind: "ToggleButton", state: false}
 					]},
 					{kind: "Item", layoutKind: "HFlexLayout", align: "center", components: [
 						{content: "With its own words", flex: 1},
 						{kind: "ToggleButton", state: true, onLabel: "Yes", offLabel: "No"}
 					]},
 					{kind: "Item", layoutKind: "HFlexLayout", align: "center", components: [
-						{content: "Disabled", flex: 1},
+						{content: "Disabled on", flex: 1},
+						{kind: "ToggleButton", state: true, disabled: true}
+					]},
+					{kind: "Item", layoutKind: "HFlexLayout", align: "center", components: [
+						{content: "Disabled off", flex: 1},
 						{kind: "ToggleButton", state: false, disabled: true}
 					]}
 				]},
@@ -66,6 +77,9 @@ enyo.kind({
 						{className: "kit-enyo-strong", content: "The one that matters"},
 						{className: "kit-enyo-detail", content: "CONNECTING..."}
 					]},
+					{kind: "Item", className: "enyo-held", content: "Held (pressed)"},
+					{kind: "Item", className: "enyo-item-selected", content: "Selected"},
+					{kind: "Item", className: "enyo-disabled", content: "Disabled"},
 					{kind: "Item", layoutKind: "HFlexLayout", align: "center", components: [
 						{content: "With something at the end", flex: 1},
 						{kind: "ToggleButton", state: false}
@@ -74,6 +88,8 @@ enyo.kind({
 
 				{kind: "RowGroup", caption: "Fields and checks", components: [
 					{kind: "Input", hint: "Enter network name"},
+					{kind: "Input", value: "Focused", className: "enyo-input enyo-input-focus"},
+					{kind: "Input", value: "Disabled", disabled: true},
 					{kind: "PasswordInput", hint: "Password"},
 					{kind: "Item", layoutKind: "HFlexLayout", align: "center", components: [
 						{content: "Checked", flex: 1},
@@ -82,6 +98,14 @@ enyo.kind({
 					{kind: "Item", layoutKind: "HFlexLayout", align: "center", components: [
 						{content: "Not checked", flex: 1},
 						{kind: "CheckBox"}
+					]},
+					{kind: "Item", layoutKind: "HFlexLayout", align: "center", components: [
+						{content: "Checked disabled", flex: 1},
+						{kind: "CheckBox", checked: true, disabled: true}
+					]},
+					{kind: "Item", layoutKind: "HFlexLayout", align: "center", components: [
+						{content: "Unchecked disabled", flex: 1},
+						{kind: "CheckBox", disabled: true}
 					]}
 				]},
 
@@ -113,6 +137,12 @@ enyo.kind({
 							{caption: "WPA Personal"},
 							{caption: "WEP"}
 						]}
+					]},
+					{kind: "Item", components: [
+						{kind: "RadioGroup", value: 0, components: [
+							{caption: "Open", disabled: true},
+							{caption: "WPA Personal", disabled: true}
+						]}
 					]}
 				]},
 
@@ -134,6 +164,10 @@ enyo.kind({
 						{kind: "TabButton", caption: "Contacts"},
 						{kind: "TabButton", caption: "Content"},
 						{kind: "TabButton", caption: "Actions"}
+					]},
+					{kind: "TabGroup", value: 0, components: [
+						{kind: "TabButton", caption: "Enabled"},
+						{kind: "TabButton", caption: "Disabled", disabled: true}
 					]}
 				]},
 
@@ -141,6 +175,10 @@ enyo.kind({
 					{kind: "Item", layoutKind: "HFlexLayout", align: "center", components: [
 						{content: "A round picture button", flex: 1},
 						{kind: "IconButton", caption: "Add"}
+					]},
+					{kind: "Item", layoutKind: "HFlexLayout", align: "center", components: [
+						{content: "Disabled", flex: 1},
+						{kind: "IconButton", caption: "Add", disabled: true}
 					]}
 				]},
 
@@ -215,6 +253,7 @@ enyo.kind({
 		{kind: "AppMenu", components: [
 			{caption: "Settings"},
 			{caption: "Known Networks"},
+			{caption: "Disabled", disabled: true},
 			{kind: "HelpMenu", target: "https://help.webosarchive.org/en-us/"}
 		]}
 	],
