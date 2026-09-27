@@ -184,8 +184,27 @@ wrong content. React 19 fixed it.
 That is worth knowing beyond React 18, because **anything that can only write
 markup has the same problem**: HTML by hand, `innerHTML`, a page rendered on a
 server, and the enyo shim of #56, which builds its DOM from JavaScript objects.
-Attributes and custom events travel everywhere; an array does not. Whether the
-kit should accept `choices` as a JSON attribute too is #70.
+Attributes and custom events travel everywhere; an array does not.
+
+So the controls whose data is a list -- `wos-selector`'s and `wos-choice`'s
+`choices`, `wos-app-menu`'s `items` -- read that list from a JSON attribute too
+(#70):
+
+```html
+<wos-selector label="Security" value="wpa"
+              choices='[{"value":"wpa","label":"WPA Personal"}]'></wos-selector>
+```
+
+**The two are not equivalent, and the property is the one to reach for.** A
+card, or any code with an object in hand, sets the property (`el.choices =
+[...]`, lit-html's `.choices=`, a framework's binding): it carries the real
+value, there is nothing to serialise, and nothing to mis-serialise. The JSON
+attribute is for the writer who has only markup and no property to set. When
+both are there the property wins -- the attribute is the fallback, not a second
+source of truth. A malformed attribute is not a new failure: it is read only
+when it is present, and text that does not parse is dropped in silence, so the
+control falls back exactly as it would with no attribute at all rather than
+taking the page down.
 
 What this did **not** cover, and it should be said: one control, one
 interaction, in headless Chrome rather than on the device, and the harness
