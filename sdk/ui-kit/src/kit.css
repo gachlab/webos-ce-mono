@@ -505,6 +505,9 @@
 /* enyo's checkbox.png: a grey box that turns the toggle's blue, with a pale
  * tick rather than a white one. 30 by 31, as the image is. */
 .wos-check {
+    display: flex;
+    align-items: center;
+    justify-content: center;
     width: 1.5rem;
     height: 1.55rem;
     padding: 0;
@@ -517,8 +520,21 @@
 }
 
 .wos-check.checked {
-    color: var(--wos-check-tick);
     background: var(--wos-check-on);
+}
+
+/* The tick, drawn rather than set as a glyph: enyo's checkbox.png has a bold,
+ * chunky check that fills the box, and a thin font checkmark (&#10003;) came
+ * out small and light beside it. Two strokes -- the short one down-left, the
+ * long one up-right -- rotated into a tick, in the pale ink enyo used. */
+.wos-check-tick {
+    display: block;
+    width: 0.55rem;
+    height: 0.95rem;
+    margin-top: -0.12rem;
+    border: solid var(--wos-check-tick);
+    border-width: 0 0.22rem 0.22rem 0;
+    transform: rotate(45deg);
 }
 
 .wos-check[disabled] {

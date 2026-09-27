@@ -148,7 +148,7 @@ defineElement<{ checked: boolean; disabled: boolean }>(
         <button class="wos-check ${checked ? "checked" : ""}" ?disabled=${disabled}
                 role="checkbox" aria-checked=${checked ? "true" : "false"}
                 @click=${() => emit("change", { checked: !checked })}>
-            ${checked ? html`<span class="wos-check-tick">&#10003;</span>` : ""}
+            ${checked ? html`<span class="wos-check-tick" aria-hidden="true"></span>` : ""}
         </button>`,
 );
 
