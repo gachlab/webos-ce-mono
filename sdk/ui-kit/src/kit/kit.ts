@@ -10,6 +10,8 @@
 // it is always the same shape: read the properties, draw, and say what
 // happened with an event.
 
+import { dateFields } from "@webos/api/i18n/date-fields.ts";
+
 import { defineElement, html, Json, useStyles, type TemplateResult } from "../element.ts";
 import styles from "../kit.css";
 
@@ -911,15 +913,12 @@ defineElement<{ label: string }>(
         </div>`,
 );
 
-// The English month names and en-US field order. enyo read these from
-// enyo.g11n (getMonthFields / getDateFieldOrder); our i18n does not expose them
-// yet, so they are fixed to en-US here. #19 is where the locale plugs in: swap
-// these for the host locale's names and order and nothing else changes.
-const MONTHS_EN = [
-    "January", "February", "March", "April", "May", "June",
-    "July", "August", "September", "October", "November", "December",
-];
-const DATE_ORDER_EN: ("m" | "d" | "y")[] = ["m", "d", "y"]; // #19: locale order
+// Month names and field order for the locale. enyo read these from enyo.g11n
+// (getMonthFields / getDateFieldOrder); a card's world has no enyo, so they
+// come from @webos/api's date-fields, which carries the same per-locale data.
+// This is #19's plug: the pickers read dateFields() at render, so the locale a
+// card sets (useLocale) decides the names and the order, and nothing else
+// changes -- the day re-clamping and the YYYY-MM-DD wire value are the same.
 
 // Days in a month, enyo's own trick: the 32nd of a month rolls into the next,
 // and 32 minus that day is the length.
@@ -950,13 +949,14 @@ defineElement<{ label: string; value: string; minYear: number; maxYear: number; 
     "wos-date-picker",
     { label: String, value: String, minYear: Number, maxYear: Number, open: String },
     ({ label, value, minYear, maxYear, open }, { emit, element }) => {
+        const fields = dateFields();
         const { y, m, d } = parseDate(value);
         const lowYear = Number.isFinite(minYear) && minYear > 0 ? minYear : 1900;
         const highYear = Number.isFinite(maxYear) && maxYear >= lowYear ? maxYear : 2099;
         const days = monthLength(y, m);
         const dayClamped = Math.min(d, days);
 
-        const months = MONTHS_EN.map((name, index) => ({ value: String(index), label: name }));
+        const months = fields.months.map((name, index) => ({ value: String(index), label: name }));
         const dayItems = Array.from({ length: days }, (_, i) => ({ value: String(i + 1), label: String(i + 1) }));
         const yearItems: { value: string; label: string }[] = [];
         for (let year = lowYear; year <= highYear; year++) {
@@ -992,7 +992,7 @@ defineElement<{ label: string; value: string; minYear: number; maxYear: number; 
             <div class="wos-picker-group">
                 ${label ? html`<span class="wos-picker-group-label">${label}</span>` : ""}
                 <div class="wos-picker-group-wheels">
-                    ${DATE_ORDER_EN.map((name) => field(name))}
+                    ${fields.order.map((name) => field(name))}
                 </div>
             </div>`;
     },
@@ -1020,9 +1020,12 @@ defineElement<{ label: string; value: string; interval: number; mode24: boolean;
     ({ label, value, interval, mode24, open }, { emit, element }) => {
         const { h, min } = parseTime(value);
         const step = Number.isFinite(interval) && interval > 0 ? interval : 1;
-        // #19: 12-hour with AM/PM is the en-US default; a locale that is 24-hour
-        // sets mode24. The wire value stays 24-hour either way.
-        const is24 = !!mode24;
+        // #19: the locale decides 12- vs 24-hour, the way enyo's is12HourDefault
+        // did. A card may still force 24-hour with mode24 for its own reason;
+        // otherwise the locale's clock wins. The wire value stays 24-hour either
+        // way, so the card never has to know which is shown.
+        const fields = dateFields();
+        const is24 = mode24 || fields.is24;
 
         const hourItems: { value: string; label: string }[] = [];
         if (is24) {
@@ -1038,7 +1041,7 @@ defineElement<{ label: string; value: string; interval: number; mode24: boolean;
         for (let n = 0; n < 60; n += step) {
             minuteItems.push({ value: String(n), label: String(n).padStart(2, "0") });
         }
-        const ampmItems = [{ value: "0", label: "AM" }, { value: "12", label: "PM" }];
+        const ampmItems = [{ value: "0", label: fields.am }, { value: "12", label: fields.pm }];
 
         const shownHour = is24 ? h : (h % 12 || 12);
         const ampm = h >= 12 ? 12 : 0;
