@@ -83,10 +83,10 @@ sdk/webos-api/            @webos/api -- no DOM. Nothing here knows there is a sc
 sdk/ui-kit/               @webos/ui-kit -- depends on @webos/api, never the reverse
   src/element.ts          defineElement: functions in, custom elements out
   src/start-card.ts       connectCard, plus a lit-html render. The optional half.
-  src/kit/                HP's controls (16 of them; the rest is #58)
+  src/kit/                HP's controls (all of them; #58 finished the set)
   src/kit.css             the controls' look; every element adopts this one sheet
   src/page.css            the page a card lives on, and the text it writes
-  src/theme-*.css         the same 69 token names, twice
+  src/theme-*.css         the same token names, twice
   showcase/               every control in every state -- an app, and the kit's
                           documentation, which is why it lives in here
 
@@ -266,6 +266,120 @@ the two can be photographed at the same scroll offset and compared pixel by
 pixel rather than argued about. Every difference listed above was found that
 way, after the rewritten card had already been called finished by eye.
 
+#### Comparing the computed styles, not just the pixels
+
+A screenshot tells you two controls look different; it does not tell you *why*,
+and it lies when the difference is a few pixels of padding or a line drawn one
+way versus another. The faster, exact tool is to read `getComputedStyle` and
+`getBoundingClientRect` off the same element in both cards over the Chrome
+DevTools Protocol (the webOS session exposes an inspector on port 9222; the two
+targets are titled `Kit` and `Kit (enyo)`), and diff the numbers.
+
+This is how #58's real bugs were found after the eye had signed off:
+
+* **A note glued under a list.** The grey paragraph under a captioned group sat
+  `-12px` into the last row. The cause was not the note: the captioned list
+  carried `margin: -12px` on all four sides (to pull it inside
+  `group-labeled.png`), and the `-12px` *bottom* dragged the next sibling up.
+  `getBoundingClientRect` gave `noteTop 135 < listBottom 147` at once; no
+  screenshot would have named the bottom margin.
+* **A rule drawn across a divider caption.** The kit painted a grey
+  `linear-gradient` line through the middle of the `Nearby` caption. Reading
+  enyo's `.enyo-divider-caption` showed `background: none, border: none` — enyo
+  draws the captioned divider as a plain item with only the row's bottom
+  hairline, and puts a *blue* rule (`divider.png`) on the AlphaDivider alone.
+  The comparison, not the eye, said which divider carries a line.
+* **A picker pill that looked too short.** The pill measured 32px against
+  enyo's 52px — until the computed style showed enyo's 52 was `content 32px +
+  border-image 10px top and bottom` (the transparent slices of
+  `picker-pill.png`). The visible pill matched; there was nothing to fix.
+
+Notes on doing it:
+
+* Some controls paint with `border-image` (buttons, picker pill, the light
+  toolbar). `getComputedStyle` returns the *token*, not the colour, so a colour
+  read comes back empty. For those, screenshot and sample the PNG:
+  `convert IMG -format '%[pixel:p{x,y}]' info:`. That is also how the numbers in
+  `divider.png` (a 4px blue rule with a white highlight) were read.
+* `getComputedStyle` works on off-screen nodes; `getBoundingClientRect` gives
+  viewport-relative coordinates that are negative or clipped for them. enyo's
+  Scroller does not honour the DOM's `scrollIntoView`, so a control low in the
+  reference card cannot be screenshotted — but its computed styles still read,
+  which is often all the comparison needs.
+* Open the CDP websocket with `create_connection(url, suppress_origin=True)`;
+  QtWebEngine drops the connection otherwise.
+* Prove a fix on the live page first by injecting a `<style>` over the offending
+  rule and re-measuring, before touching the CSS and running the build. It turns
+  a build-deploy-reload loop into a one-shot check.
+
+This is packaged as `tools/kit-ab.py`: name a control and it reads the box and
+type off both cards and prints them side by side with the differences flagged.
+
+    tools/kit-ab.py --list
+    tools/kit-ab.py divider-caption row-detail picker-pill
+
+A control is a row in its `CONTROLS` table (a path into the kit's shadow DOM and
+the matching Onyx selector); add one when a new bug needs measuring. Ad-hoc
+probes from #58 also live in `scratchpad/` (`cdp-ab-detail.py`,
+`cdp-divider-deep.py`, `cdp-enyo-twoline.py`, `cdp-probe-dom.py`, and
+`cdp-try-fix.py` for the live-override check) as worked examples.
+
+### What the kit covers, and what it does not
+
+The kit reimplements the controls HP's cards are built out of, read from enyo's
+own kinds (`components/enyo-1.0/framework/source/palm/`) and its Onyx theme. As
+of #58 it covers the set the cards need:
+
+* **Structure and text.** `wos-header` (with HP's light settings toolbar and
+  the back arrow), `wos-group`, `wos-row`, `wos-divider` (captioned, and the
+  sticky-letter `alpha` kind for a long list), and the card's own `note` and
+  `error` text.
+* **Buttons.** `wos-button` (enyo's kinds: plain, dark, affirmative, negative,
+  blue, gray), `wos-activity-button` (turns into a spinner while it works),
+  `wos-icon-button` (the round picture button in a header or toolbar), and
+  `wos-tab-group` (the tabs across the top of a card).
+* **Input.** `wos-field`, `wos-search-field` (magnifier, then a clear cross
+  once something is typed), `wos-text-area` (grows with what is typed, then
+  scrolls), `wos-check`, `wos-toggle`, `wos-slider`, `wos-picker` (a wheel of
+  values; a date or time picker is three of these side by side).
+* **Choosing.** `wos-choice` (one of a few, in the row), `wos-selector` (the
+  drawer of choices under a row), and `wos-popup-list` (the list that opens
+  where it was tapped, clamped to the viewport).
+* **Lists that scale.** `wos-swipe-row` (swipe to delete, with HP's inline
+  confirmation), and `wos-list`, which draws only the window of rows on screen
+  so a list of thousands costs the rows that are visible.
+* **Over the card.** `wos-dialog` (modal, with a focus trap and Escape to
+  dismiss), `wos-app-menu`, `wos-toaster` (slides in from an edge; the card
+  decides when it goes, as enyo's did), `wos-drawer` (a section that folds away
+  under its heading), and `wos-sliding-pane` (list and detail side by side when
+  there is room, one at a time with a back arrow when there is not).
+* **Waiting.** `wos-spinner`, `wos-progress`, `wos-info`.
+* **The keyboard.** `startCard` reserves room for the virtual keyboard when
+  WebAppMgr reports it (`--wos-keyboard` in `page.css`) and scrolls the focused
+  field clear of it, so a field at the bottom of a card is not typed into from
+  behind the keyboard.
+
+What it **deliberately does not** cover:
+
+* **enyo itself** -- its kinds system, its layout engine, its hundred controls.
+  The target is HP's *look*, on the controls a card actually uses, not a port
+  of the framework.
+* **A row control reused per index (enyo's flyweight).** `wos-list` keeps the
+  visible window in the DOM instead. A framework that owns its own DOM cannot
+  assume one control is re-populated per row, and the window costs the same.
+* **A control's own state.** Every control reports what the user asked for with
+  an event and lets the card decide what becomes true, because on a device the
+  answer comes from a service. A toggle does not turn itself on.
+* **JSON-by-attribute for the list-valued controls.** `choices`, `items`,
+  `tabs`, `rows` are set as properties, not attributes; whether they should
+  also parse a JSON attribute is #70.
+
+Anything a future card needs that is not here is added the same way: read the
+enyo control for its behaviour, put it on screen next to `kit-enyo` for its
+look, write it as a function in `src/kit/`, give its colours a token in **both**
+themes, add it to the showcase in each of its states, and test it by mutation
+in `tests/kit-elements.cpp`.
+
 ## Porting HP's cards, rather than rewriting them whole
 
 Nothing here stops an enyo shim being written on top, and that is deliberate:
@@ -302,7 +416,12 @@ three above are ever reached through a card's own code.
 * `tests/kit-elements.cpp` covers what only exists in a browser: a property set
   before the definition arrived, a property set later repainting, a control
   slotted into a row not selecting it, the stylesheet meaning the same thing
-  inside a shadow root as outside one, and a card's own CSS not reaching in.
+  inside a shadow root as outside one, and a card's own CSS not reaching in --
+  and, for the controls #58 added, that a long list draws only the window it
+  shows, that a popup opened off the edge is clamped back into view, that a
+  picker marks and reports its value, that a search field turns its magnifier
+  into a clear cross, and that a dialog traps the focus and lets Escape close
+  it rather than the card behind it.
 * Everything above was checked by mutation.
 
 **Not covered by a test**, and worth knowing: `startCard` itself -- what it

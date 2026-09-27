@@ -65,10 +65,11 @@ body {
     height: 100%;
 }
 
-/* The header keeps its height and the body takes what is left. */
+/* The header keeps its height and the body takes what is left; a toolbar, if a
+ * card has one, keeps its height at the foot. */
 .wos-card {
     display: grid;
-    grid-template-rows: auto 1fr;
+    grid-template-rows: auto 1fr auto;
     height: 100%;
 }
 
@@ -82,6 +83,12 @@ body {
     /* HP's cards put 23px under the header and another 23 at the top of each
      * view, which is the 46px of air its Wi-Fi card opens with. */
     padding: 1.95rem 0 1.2rem;
+    /* Room for the virtual keyboard when it is up: startCard sets
+     * --wos-keyboard to the reserve while WebAppMgr reports the keyboard, so a
+     * field at the bottom can scroll clear of it rather than sit behind it. It
+     * is 0 the rest of the time, so this costs a card that never types
+     * nothing. */
+    padding-bottom: calc(1.2rem + var(--wos-keyboard, 0px));
     overflow-y: auto;
     /* A grid row does not shrink below its content unless it is told it may,
      * and a body that cannot shrink is one that never scrolls. */
@@ -164,15 +171,18 @@ body {
 
 /* §6 Text ----------------------------------------------------------------- */
 
+/* A note under a list. enyo's grey paragraph sits a hair below the group
+ * (kit-enyo-note: margin-top 3px); without it the note tucks against the last
+ * row once the captioned list has cleared its bottom margin. */
 .wos-note {
-    margin: 0 0.4rem 0.6rem;
+    margin: 0.15rem 0.4rem 0.6rem;
     color: var(--wos-ink-dim);
     font-size: 0.8rem;
     line-height: 1.35;
 }
 
 .wos-error {
-    margin: 0 0.4rem 0.6rem;
+    margin: 0.4rem 0.4rem 0.6rem;
     color: var(--wos-danger);
     font-size: 0.8rem;
 }

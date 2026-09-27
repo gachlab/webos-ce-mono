@@ -33,6 +33,7 @@
     --wos-row-line-top: transparent;
     --wos-row-line-bottom: #e7eaee;
     --wos-row-press: rgba(47, 111, 237, 0.1);
+    --wos-row-selected: rgba(47, 111, 237, 0.14);
 
     --wos-header-bg: #22262c;
     --wos-header-ink: #fff;
@@ -107,4 +108,43 @@
     --wos-dialog-bg: #fff;
     --wos-scrim: rgba(15, 20, 30, 0.45);
     --wos-swipe-bg: #fbeceb;
+
+    --wos-icon-button-ink: #fff;
+
+    --wos-tab-bg: #fff;
+    --wos-tab-line: #dfe3e8;
+    --wos-tab-off: #fff;
+    --wos-tab-off-ink: #5c6570;
+    --wos-tab-on: #fff;
+    --wos-tab-on-ink: #2f6fed;
+    --wos-tab-join: transparent;
+
+    --wos-divider-line: none;
+    --wos-divider-line-size: 100% 1px;
+    --wos-divider-border: 1px solid #e7eaee;
+    --wos-divider-ink: #8a939e;
+    --wos-divider-alpha-ink: #2f6fed;
+    --wos-divider-rule: #e7eaee;
+
+    --wos-search-bg: #fff;
+    --wos-search-edge: #dfe3e8;
+    --wos-search-glass: #8a939e;
+    --wos-search-clear: #c3c9d1;
+    --wos-search-clear-ink: #fff;
+
+    --wos-text-area-bg: #fff;
+    --wos-text-area-edge: #dfe3e8;
+
+    --wos-picker-ink: #1f2328;
+    --wos-picker-pill: #e7eaee;
+    --wos-picker-edge: transparent;
+    --wos-picker-wheel-bg: #fff;
+    --wos-picker-item-ink: #1f2328;
+    --wos-picker-item-chosen-ink: #fff;
+    --wos-picker-item-chosen: #2f6fed;
+
+    --wos-toaster-bg: #22262c;
+    --wos-toaster-ink: #fff;
+
+    --wos-prev-next-ink: #2f6fed;
 }

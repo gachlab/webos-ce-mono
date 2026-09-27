@@ -10,6 +10,16 @@
 // with the row's click handler back on the whole row, with the first-row border
 // rule written as it was for the light DOM, with a swipe deleting rather than
 // asking, or with a busy button still pressable, this turns red.
+//
+// The controls added for #58 are checked the same way: with a tab that fires
+// on the one already chosen, an icon button that swallows its press, a long
+// list that draws all its rows rather than a window, a search field that keeps
+// the magnifier once text is in it, a popup that opens off the edge without
+// being clamped, a drawer that starts open, a picker that does not mark its
+// value, a dialog that lets Escape close the card behind it, a date picker
+// that does not re-clamp the day when the month shortens, a 24-hour time
+// picker that still shows an AM/PM wheel, or a prev/next arrow that fires while
+// it is off, this turns red.
 
 #include <QApplication>
 #include <QElapsedTimer>
@@ -112,6 +122,177 @@ list.innerHTML = "<wos-row id='first' title='One'><wos-toggle id='inside'></wos-
                  "<wos-row id='third' title='Three'><wos-button id='wide' label='Wide'></wos-button></wos-row>";
 probe.appendChild(list);
 document.addEventListener("select", function () { window.__selected++; });
+
+// The controls this ticket added.
+
+window.__tab = "";
+var tabs = document.createElement("wos-tab-group");
+tabs.id = "tabs";
+tabs.setAttribute("value", "all");
+tabs.tabs = [
+    { value: "all", label: "All" },
+    { value: "contacts", label: "Contacts" },
+    { value: "actions", label: "Actions" },
+];
+tabs.addEventListener("choose", function (e) { window.__tab = e.detail.value; });
+probe.appendChild(tabs);
+
+window.__iconPressed = 0;
+var icon = document.createElement("wos-icon-button");
+icon.id = "icon";
+icon.setAttribute("label", "Add");
+icon.addEventListener("press", function () { window.__iconPressed++; });
+probe.appendChild(icon);
+
+var divider = document.createElement("wos-divider");
+divider.id = "divider";
+divider.setAttribute("caption", "Nearby");
+probe.appendChild(divider);
+
+var alpha = document.createElement("wos-divider");
+alpha.id = "alpha";
+alpha.setAttribute("alpha", "");
+alpha.setAttribute("caption", "S");
+probe.appendChild(alpha);
+
+window.__search = "";
+window.__searchCancelled = 0;
+var search = document.createElement("wos-search-field");
+search.id = "search";
+search.setAttribute("value", "hi");
+search.addEventListener("change", function (e) { window.__search = e.detail.value; });
+search.addEventListener("cancel", function () { window.__searchCancelled++; });
+probe.appendChild(search);
+
+// A long list, more rows than could fit, so only a window is drawn.
+window.__listPicked = -1;
+var big = document.createElement("wos-list");
+big.id = "big";
+big.style.height = "200px";
+big.rowHeight = 40;
+var rows = [];
+for (var i = 0; i < 1000; i++) { rows.push("Row " + i); }
+big.rows = rows;
+big.render = function (row) {
+    var r = document.createElement("wos-row");
+    r.setAttribute("title", String(row));
+    return r;
+};
+big.addEventListener("activate", function (e) { window.__listPicked = e.detail.index; });
+probe.appendChild(big);
+
+window.__minute = -1;
+var picker = document.createElement("wos-picker");
+picker.id = "picker";
+picker.setAttribute("value", "30");
+picker.setAttribute("min", "0");
+picker.setAttribute("max", "59");
+picker.setAttribute("open", "");
+picker.addEventListener("change", function (e) { window.__minute = e.detail.value; });
+probe.appendChild(picker);
+
+window.__popupChose = "";
+var popup = document.createElement("wos-popup-list");
+popup.id = "popup";
+popup.setAttribute("open", "");
+popup.x = 100000;   // far off the right edge: must be clamped into view
+popup.y = 20;
+popup.choices = [{ value: "open", label: "Open" }, { value: "copy", label: "Copy" }];
+popup.addEventListener("choose", function (e) { window.__popupChose = e.detail.value; });
+probe.appendChild(popup);
+
+// A tall popup opened near the bottom edge: it has to be nudged up by its own
+// height, which a fixed one-row reserve could not do.
+var tallPopup = document.createElement("wos-popup-list");
+tallPopup.id = "tallPopup";
+tallPopup.setAttribute("open", "");
+tallPopup.x = 20;
+tallPopup.y = 100000;   // far below the bottom edge
+var many = [];
+for (var j = 0; j < 12; j++) { many.push({ value: "v" + j, label: "Item " + j }); }
+tallPopup.choices = many;
+probe.appendChild(tallPopup);
+
+window.__drawer = "";
+var drawer = document.createElement("wos-drawer");
+drawer.id = "drawer";
+drawer.setAttribute("caption", "Advanced");
+drawer.addEventListener("toggle", function (e) { window.__drawer = String(e.detail.open); });
+probe.appendChild(drawer);
+
+window.__toastGone = 0;
+var toast = document.createElement("wos-toaster");
+toast.id = "toast";
+toast.setAttribute("open", "");
+toast.setAttribute("message", "Saved");
+toast.addEventListener("dismiss", function () { window.__toastGone++; });
+probe.appendChild(toast);
+
+window.__paneBack = 0;
+var pane = document.createElement("wos-sliding-pane");
+pane.id = "pane";
+pane.setAttribute("showing", "detail");
+pane.addEventListener("back", function () { window.__paneBack++; });
+probe.appendChild(pane);
+
+// A dialog, for its Escape and its focus.
+window.__dialogDismissed = 0;
+var dlg = document.createElement("wos-dialog");
+dlg.id = "dlg";
+dlg.setAttribute("title", "Forget?");
+dlg.buttons = [{ value: "yes", label: "Forget" }, { value: "no", label: "Keep" }];
+dlg.addEventListener("dismiss", function () { window.__dialogDismissed++; });
+probe.appendChild(dlg);
+
+// A date picker: Jan 31 2011, so picking February must re-clamp the day.
+window.__date = "";
+var datePicker = document.createElement("wos-date-picker");
+datePicker.id = "datePicker";
+datePicker.setAttribute("value", "2011-01-31");
+datePicker.setAttribute("min-year", "1900");
+datePicker.setAttribute("max-year", "2020");
+datePicker.addEventListener("change", function (e) { window.__date = e.detail.value; });
+datePicker.addEventListener("open", function (e) { window.__dateOpen = e.detail.open; });
+probe.appendChild(datePicker);
+
+// A time picker: 14:30, twelve-hour, shown open on the hour wheel is separate.
+window.__time = "";
+var timePicker = document.createElement("wos-time-picker");
+timePicker.id = "timePicker";
+timePicker.setAttribute("value", "14:30");
+timePicker.setAttribute("interval", "5");
+timePicker.addEventListener("change", function (e) { window.__time = e.detail.value; });
+probe.appendChild(timePicker);
+
+var timePicker24 = document.createElement("wos-time-picker");
+timePicker24.id = "timePicker24";
+timePicker24.setAttribute("value", "14:30");
+timePicker24.setAttribute("mode24", "");
+probe.appendChild(timePicker24);
+
+// A toolbar with two buttons slotted in.
+var toolbar = document.createElement("wos-toolbar");
+toolbar.id = "toolbar";
+toolbar.innerHTML = "<wos-button label='Cancel'></wos-button>" +
+                    "<wos-button label='Done' kind='affirmative'></wos-button>";
+probe.appendChild(toolbar);
+
+// A prev/next banner, and one with each end turned off.
+window.__prev = 0;
+window.__next = 0;
+var banner = document.createElement("wos-prev-next");
+banner.id = "banner";
+banner.textContent = "Page 3 of 5";
+banner.addEventListener("previous", function () { window.__prev++; });
+banner.addEventListener("next", function () { window.__next++; });
+probe.appendChild(banner);
+
+window.__prevOff = 0;
+var bannerStart = document.createElement("wos-prev-next");
+bannerStart.id = "bannerStart";
+bannerStart.setAttribute("prev-off", "");
+bannerStart.addEventListener("previous", function () { window.__prevOff++; });
+probe.appendChild(bannerStart);
 )JS";
 
 int main(int argc, char** argv)
@@ -274,6 +455,181 @@ int main(int argc, char** argv)
     check("the showcase card drew its controls",
           js("String(document.querySelectorAll('#card wos-row, #card wos-button, #card wos-toggle').length > 10)"),
           QStringLiteral("true"));
+
+    // --- The controls this ticket added -----------------------------------
+
+    // Tabs: radio semantics. The chosen one is marked; choosing another says
+    // which, and choosing the one already chosen says nothing.
+    check("the chosen tab is the one marked",
+          js("document.getElementById('tabs').shadowRoot.querySelector('.wos-tab.chosen').textContent"),
+          QStringLiteral("All"));
+    js("document.getElementById('tabs').shadowRoot.querySelectorAll('.wos-tab')[1].click(); 1");
+    check("tapping another tab says which", js("window.__tab"), QStringLiteral("contacts"));
+    js("window.__tab = ''; document.getElementById('tabs').shadowRoot.querySelector('.wos-tab.chosen').click(); 1");
+    check("tapping the chosen tab says nothing", js("window.__tab"), QStringLiteral(""));
+
+    // Icon button: a press, and nothing when disabled.
+    js("document.getElementById('icon').shadowRoot.querySelector('button').click(); 1");
+    check("an icon button says it was pressed", js("String(window.__iconPressed)"), QStringLiteral("1"));
+
+    // Divider: the caption is drawn, and the alpha one carries its letter.
+    check("a divider draws its caption",
+          js("document.getElementById('divider').shadowRoot.querySelector('.wos-divider-caption').textContent"),
+          QStringLiteral("Nearby"));
+    check("the alpha divider carries its letter",
+          js("document.getElementById('alpha').shadowRoot.querySelector('.wos-divider.alpha .wos-divider-caption').textContent"),
+          QStringLiteral("S"));
+
+    // Search: it starts with a clear cross because it has text; clearing it
+    // fires cancel, and typing says what is there.
+    check("a search field with text shows a clear cross, not a magnifier",
+          js("String(!!document.getElementById('search').shadowRoot.querySelector('.wos-search-clear'))"),
+          QStringLiteral("true"));
+    js("document.getElementById('search').shadowRoot.querySelector('.wos-search-clear').click(); 1");
+    check("tapping the clear cross says cancel", js("String(window.__searchCancelled)"), QStringLiteral("1"));
+
+    // The long list: only a window of rows is in the DOM, not all thousand,
+    // and a row says its own index when tapped.
+    waitFor([&]() { return js("String(document.getElementById('big').shadowRoot.querySelectorAll('.wos-list-row').length > 0)") == "true"; }, 2000);
+    check("a thousand-row list draws only the window it can show, not all of them",
+          js("var n = document.getElementById('big').shadowRoot.querySelectorAll('.wos-list-row').length;"
+             "String(n > 0 && n < 100)"),
+          QStringLiteral("true"));
+    check("the run holds the room for every row so the scrollbar is right",
+          js("document.getElementById('big').shadowRoot.querySelector('.wos-list-run').style.height"),
+          QStringLiteral("40000px"));
+    js("var row = document.getElementById('big').shadowRoot.querySelector('.wos-list-row'); row.click(); 1");
+    check("tapping a row says its index", js("String(window.__listPicked)"), QStringLiteral("0"));
+    // Scrolling the port advances the window: the list writes the offset to
+    // its own `at`, which repaints, so a row far down the list is drawn and the
+    // first row is not. Without that -- the window frozen at the top -- the
+    // whole point of a virtual list is lost.
+    check("the window starts at the top",
+          js("var l = document.getElementById('big').shadowRoot;"
+             "String(!!l.querySelector('.wos-list-row wos-row') && "
+             "l.querySelectorAll('.wos-list-row').length > 0)"),
+          QStringLiteral("true"));
+    js("(function(){ var p = document.getElementById('big').shadowRoot.querySelector('.wos-list-port');"
+       "p.scrollTop = 4000; p.dispatchEvent(new Event('scroll')); return 1; })()");
+    waitFor([&]() {
+        return js("String(document.getElementById('big').at > 0)") == "true";
+    }, 2000);
+    check("a scroll moves the window down the list (row ~100 is drawn now)",
+          js("var l = document.getElementById('big').shadowRoot;"
+             "var titles = [].map.call(l.querySelectorAll('wos-row'), function(r){return r.getAttribute('title');});"
+             "String(titles.indexOf('Row 100') >= 0)"),
+          QStringLiteral("true"));
+    check("and the first row is no longer in the window",
+          js("var l = document.getElementById('big').shadowRoot;"
+             "var titles = [].map.call(l.querySelectorAll('wos-row'), function(r){return r.getAttribute('title');});"
+             "String(titles.indexOf('Row 0') < 0)"),
+          QStringLiteral("true"));
+
+    // Picker: opened, it is scrolled to the value and marks it; picking one
+    // says which.
+    check("the picker pill shows its value",
+          js("document.getElementById('picker').shadowRoot.querySelector('.wos-picker-pill').textContent.trim()"),
+          QStringLiteral("30"));
+    check("the open wheel marks the current value",
+          js("document.getElementById('picker').shadowRoot.querySelector('.wos-picker-item.chosen').textContent.trim()"),
+          QStringLiteral("30"));
+    js("var items = document.getElementById('picker').shadowRoot.querySelectorAll('.wos-picker-item');"
+       "items[45].click(); 1");
+    check("picking a value on the wheel says which", js("String(window.__minute)"), QStringLiteral("45"));
+
+    // Popup list: opened past the right edge, it is clamped back into view,
+    // and choosing an item says which.
+    check("a popup opened off the edge is clamped into the viewport",
+          js("var p = document.getElementById('popup').shadowRoot.querySelector('.wos-popup');"
+             "String(parseFloat(p.style.left) < window.innerWidth)"),
+          QStringLiteral("true"));
+    js("document.getElementById('popup').shadowRoot.querySelectorAll('.wos-popup-item')[1].click(); 1");
+    check("choosing a popup item says which", js("window.__popupChose"), QStringLiteral("copy"));
+    // A tall popup opened past the bottom is nudged up by its whole height, so
+    // its last item is on screen -- not just its top corner.
+    waitFor([&]() {
+        return js("(function(){var p=document.getElementById('tallPopup').shadowRoot.querySelector('.wos-popup');"
+                  "return p && parseFloat(p.style.top) < window.innerHeight ? 'in' : 'out';})()") == "in";
+    }, 2000);
+    check("a tall popup near the bottom is nudged fully into view",
+          js("(function(){var p=document.getElementById('tallPopup').shadowRoot.querySelector('.wos-popup');"
+             "var b=p.getBoundingClientRect();"
+             "return String(b.bottom <= window.innerHeight && b.top >= 0);})()"),
+          QStringLiteral("true"));
+
+    // Drawer: closed to start, its body hidden; tapping the heading asks to
+    // open it.
+    check("a drawer starts closed with its body hidden",
+          js("String(document.getElementById('drawer').shadowRoot.querySelector('.wos-drawer-body').hidden)"),
+          QStringLiteral("true"));
+    js("document.getElementById('drawer').shadowRoot.querySelector('.wos-drawer-head').click(); 1");
+    check("tapping the heading asks to open it", js("window.__drawer"), QStringLiteral("true"));
+
+    // Toaster: shown while open, and a tap asks to dismiss it.
+    check("a toaster is on screen while open",
+          js("String(!!document.getElementById('toast').shadowRoot.querySelector('.wos-toaster'))"),
+          QStringLiteral("true"));
+    js("document.getElementById('toast').shadowRoot.querySelector('.wos-toaster').click(); 1");
+    check("tapping the toaster asks to dismiss it", js("String(window.__toastGone)"), QStringLiteral("1"));
+
+    // Sliding pane: on the detail, the back arrow shows and says back.
+    js("document.getElementById('pane').shadowRoot.querySelector('.wos-pane-back').click(); 1");
+    check("the detail's back arrow says back", js("String(window.__paneBack)"), QStringLiteral("1"));
+
+    // Dialog: the focus starts on the first button, and Escape dismisses it
+    // rather than the card.
+    waitFor([&]() { return js("String(!!document.getElementById('dlg').shadowRoot.activeElement)") == "true"; }, 2000);
+    check("a dialog puts the focus on its first button",
+          js("document.getElementById('dlg').shadowRoot.activeElement.textContent"),
+          QStringLiteral("Forget"));
+    js("(function () { "
+       "document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, composed: true }));"
+       "return 1; })()");
+    check("Escape while the dialog is open dismisses it", js("String(window.__dialogDismissed)"), QStringLiteral("1"));
+
+    // --- The pickers, toolbar and banner (base controls added last) ---------
+
+    // Date picker: three wheels, the month showing its name; picking February
+    // when the day is the 31st re-clamps the day to 28, as enyo did.
+    check("the date picker shows the month by name",
+          js("document.getElementById('datePicker').shadowRoot.querySelectorAll('.wos-picker-pill')[0].textContent.trim()"),
+          QStringLiteral("January"));
+    check("it draws a wheel for each of month, day and year",
+          js("String(document.getElementById('datePicker').shadowRoot.querySelectorAll('.wos-picker-pill').length)"),
+          QStringLiteral("3"));
+    // Open the month wheel and choose February (value 1); Jan 31 must become Feb 28.
+    js("document.getElementById('datePicker').setAttribute('open','m'); 1");
+    waitFor([&]() { return js("String(document.getElementById('datePicker').shadowRoot.querySelectorAll('.wos-picker-item').length>0)") == "true"; }, 2000);
+    js("(function(){var items=document.getElementById('datePicker').shadowRoot.querySelectorAll('.wos-picker-item');"
+       "for(var i=0;i<items.length;i++){if(items[i].textContent.trim()==='February'){items[i].click();break;}}return 1;})()");
+    check("picking a shorter month re-clamps the day", js("window.__date"), QStringLiteral("2011-02-28"));
+
+    // Time picker: 14:30 shows as 2 with PM in twelve-hour; 24-hour drops the
+    // AM/PM wheel.
+    check("the twelve-hour time picker shows the hour as 2",
+          js("document.getElementById('timePicker').shadowRoot.querySelectorAll('.wos-picker-pill')[0].textContent.trim()"),
+          QStringLiteral("2"));
+    check("and it has an AM/PM wheel (three pills)",
+          js("String(document.getElementById('timePicker').shadowRoot.querySelectorAll('.wos-picker-pill').length)"),
+          QStringLiteral("3"));
+    check("the 24-hour time picker shows the hour as 14 and no AM/PM wheel",
+          js("var p=document.getElementById('timePicker24').shadowRoot.querySelectorAll('.wos-picker-pill');"
+             "p[0].textContent.trim() + ':' + String(p.length)"),
+          QStringLiteral("14:2"));
+
+    // Toolbar: the buttons a card slots in are there, in the bar.
+    check("the toolbar holds the buttons a card put in it",
+          js("String(document.getElementById('toolbar').querySelectorAll('wos-button').length)"),
+          QStringLiteral("2"));
+
+    // Prev/next banner: each arrow says which way, and an off arrow says
+    // nothing.
+    js("document.getElementById('banner').shadowRoot.querySelector('.wos-prev-next-next').click(); 1");
+    check("the next arrow says next", js("String(window.__next)"), QStringLiteral("1"));
+    js("document.getElementById('banner').shadowRoot.querySelector('.wos-prev-next-prev').click(); 1");
+    check("the previous arrow says previous", js("String(window.__prev)"), QStringLiteral("1"));
+    js("document.getElementById('bannerStart').shadowRoot.querySelector('.wos-prev-next-prev').click(); 1");
+    check("an arrow that is off says nothing", js("String(window.__prevOff)"), QStringLiteral("0"));
 
     return failures == 0 ? 0 : 1;
 }

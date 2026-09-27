@@ -12,7 +12,9 @@
  * are numbers rather than opinions.
  *
  * It talks to no service and remembers nothing on purpose: every control is
- * shown in each of its states at once, so a screenshot of it is complete.
+ * shown in each of its states at once -- normal, pressed, disabled, on/off,
+ * checked, held, selected, focused -- so a screenshot of it is complete and is
+ * the yardstick every state of the rewritten kit is measured against.
  */
 
 enyo.kind({
@@ -33,6 +35,7 @@ enyo.kind({
 
 				{kind: "RowGroup", caption: "Buttons", components: [
 					{kind: "Button", caption: "Plain"},
+					{kind: "Button", caption: "Pressed", className: "enyo-button enyo-button-depressed"},
 					{kind: "Button", caption: "Dark", className: "enyo-button enyo-button-dark"},
 					{kind: "Button", caption: "Affirmative", className: "enyo-button enyo-button-affirmative"},
 					{kind: "Button", caption: "Negative", className: "enyo-button enyo-button-negative"},
@@ -43,15 +46,23 @@ enyo.kind({
 
 				{kind: "RowGroup", caption: "Toggles", components: [
 					{kind: "Item", layoutKind: "HFlexLayout", align: "center", components: [
-						{content: "Answers with an event", flex: 1},
+						{content: "On", flex: 1},
 						{kind: "ToggleButton", state: true}
+					]},
+					{kind: "Item", layoutKind: "HFlexLayout", align: "center", components: [
+						{content: "Off", flex: 1},
+						{kind: "ToggleButton", state: false}
 					]},
 					{kind: "Item", layoutKind: "HFlexLayout", align: "center", components: [
 						{content: "With its own words", flex: 1},
 						{kind: "ToggleButton", state: true, onLabel: "Yes", offLabel: "No"}
 					]},
 					{kind: "Item", layoutKind: "HFlexLayout", align: "center", components: [
-						{content: "Disabled", flex: 1},
+						{content: "Disabled on", flex: 1},
+						{kind: "ToggleButton", state: true, disabled: true}
+					]},
+					{kind: "Item", layoutKind: "HFlexLayout", align: "center", components: [
+						{content: "Disabled off", flex: 1},
 						{kind: "ToggleButton", state: false, disabled: true}
 					]}
 				]},
@@ -66,6 +77,9 @@ enyo.kind({
 						{className: "kit-enyo-strong", content: "The one that matters"},
 						{className: "kit-enyo-detail", content: "CONNECTING..."}
 					]},
+					{kind: "Item", className: "enyo-held", content: "Held (pressed)"},
+					{kind: "Item", className: "enyo-item-selected", content: "Selected"},
+					{kind: "Item", className: "enyo-disabled", content: "Disabled"},
 					{kind: "Item", layoutKind: "HFlexLayout", align: "center", components: [
 						{content: "With something at the end", flex: 1},
 						{kind: "ToggleButton", state: false}
@@ -74,6 +88,8 @@ enyo.kind({
 
 				{kind: "RowGroup", caption: "Fields and checks", components: [
 					{kind: "Input", hint: "Enter network name"},
+					{kind: "Input", value: "Focused", className: "enyo-input enyo-input-focus"},
+					{kind: "Input", value: "Disabled", disabled: true},
 					{kind: "PasswordInput", hint: "Password"},
 					{kind: "Item", layoutKind: "HFlexLayout", align: "center", components: [
 						{content: "Checked", flex: 1},
@@ -82,6 +98,14 @@ enyo.kind({
 					{kind: "Item", layoutKind: "HFlexLayout", align: "center", components: [
 						{content: "Not checked", flex: 1},
 						{kind: "CheckBox"}
+					]},
+					{kind: "Item", layoutKind: "HFlexLayout", align: "center", components: [
+						{content: "Checked disabled", flex: 1},
+						{kind: "CheckBox", checked: true, disabled: true}
+					]},
+					{kind: "Item", layoutKind: "HFlexLayout", align: "center", components: [
+						{content: "Unchecked disabled", flex: 1},
+						{kind: "CheckBox", disabled: true}
 					]}
 				]},
 
@@ -113,6 +137,12 @@ enyo.kind({
 							{caption: "WPA Personal"},
 							{caption: "WEP"}
 						]}
+					]},
+					{kind: "Item", components: [
+						{kind: "RadioGroup", value: 0, components: [
+							{caption: "Open", disabled: true},
+							{caption: "WPA Personal", disabled: true}
+						]}
 					]}
 				]},
 
@@ -125,6 +155,89 @@ enyo.kind({
 				{kind: "RowGroup", caption: "Sliders", components: [
 					{kind: "Item", components: [
 						{kind: "Slider", position: 60}
+					]}
+				]},
+
+				{kind: "RowGroup", caption: "Tabs across the top", components: [
+					{kind: "TabGroup", value: 0, components: [
+						{kind: "TabButton", caption: "All"},
+						{kind: "TabButton", caption: "Contacts"},
+						{kind: "TabButton", caption: "Content"},
+						{kind: "TabButton", caption: "Actions"}
+					]},
+					{kind: "TabGroup", value: 0, components: [
+						{kind: "TabButton", caption: "Enabled"},
+						{kind: "TabButton", caption: "Disabled", disabled: true}
+					]}
+				]},
+
+				{kind: "RowGroup", caption: "Icon buttons in a toolbar", components: [
+					{kind: "Item", layoutKind: "HFlexLayout", align: "center", components: [
+						{content: "A round picture button", flex: 1},
+						{kind: "IconButton", caption: "Add"}
+					]},
+					{kind: "Item", layoutKind: "HFlexLayout", align: "center", components: [
+						{content: "Disabled", flex: 1},
+						{kind: "IconButton", caption: "Add", disabled: true}
+					]}
+				]},
+
+				{kind: "RowGroup", caption: "Dividers in a list", components: [
+					{kind: "Divider", caption: "Nearby"},
+					{kind: "Item", content: "One under the captioned divider"},
+					{kind: "AlphaDivider", caption: "S"},
+					{kind: "Item", content: "Smith"},
+					{kind: "Item", content: "Sullivan"}
+				]},
+
+				{kind: "RowGroup", caption: "A search field", components: [
+					{kind: "SearchInput", hint: "Search"}
+				]},
+
+				{kind: "RowGroup", caption: "A field that grows", components: [
+					{kind: "RichText", hint: "Type several lines; it grows to fit", richContent: false}
+				]},
+
+				{kind: "RowGroup", caption: "A picker", components: [
+					{kind: "IntegerPicker", label: "Minutes", value: 30, min: 0, max: 59}
+				]},
+
+				{kind: "RowGroup", caption: "A date picker", components: [
+					{kind: "DatePicker", label: "Date", minYear: 1900, maxYear: 2020}
+				]},
+
+				{kind: "RowGroup", caption: "A time picker", components: [
+					{kind: "TimePicker", label: "Time (12-hour)", minuteInterval: 5},
+					{kind: "TimePicker", label: "Time (24-hour)", minuteInterval: 5, is24HrMode: true}
+				]},
+
+				{kind: "RowGroup", caption: "A list that opens where it was tapped", components: [
+					{kind: "Button", caption: "Open here", onclick: "openPopup"}
+				]},
+
+				{kind: "RowGroup", caption: "A folding section", components: [
+					{kind: "DividerDrawer", caption: "Advanced", open: true, components: [
+						{kind: "Item", content: "Hidden until the heading is tapped"},
+						{kind: "Item", content: "Folds away again when it is tapped once more"}
+					]}
+				]},
+
+				{kind: "RowGroup", caption: "A toaster", components: [
+					{kind: "Button", caption: "Show", onclick: "showToast"}
+				]},
+
+				{kind: "RowGroup", caption: "Two panes", components: [
+					{kind: "Item", components: [
+						{kind: "SlidingPane", style: "height: 160px", components: [
+							{name: "paneList", width: "220px", components: [
+								{kind: "Item", content: "First", onclick: "showDetail"},
+								{kind: "Item", content: "Second", onclick: "showDetail"},
+								{kind: "Item", content: "Third", onclick: "showDetail"}
+							]},
+							{name: "paneDetail", flex: 1, components: [
+								{name: "detailText", content: "Pick one on the left.", className: "kit-enyo-note"}
+							]}
+						]}
 					]}
 				]},
 
@@ -141,8 +254,33 @@ enyo.kind({
 
 				{kind: "RowGroup", caption: "Asking before doing", components: [
 					{kind: "Button", caption: "Open", onclick: "openDialog"}
+				]},
+
+				// --- Below here: our own additions, which enyo did not have or
+				// left without an Onyx look. Above here is parity with enyo.
+				{className: "kit-enyo-note", content:
+					"Below: controls enyo shipped without an Onyx theme, so what they "
+					+ "look like is ours. Shown here plain, as enyo left them."},
+
+				{kind: "RowGroup", caption: "A prev/next banner (no Onyx CSS)", components: [
+					{kind: "PrevNextBanner", content: "Page 3 of 5"},
+					{kind: "PrevNextBanner", content: "At the start", previousDisabled: true},
+					{kind: "PrevNextBanner", content: "At the end", nextDisabled: true}
+				]},
+
+				{kind: "RowGroup", caption: "A long list (no Onyx CSS)", components: [
+					{kind: "Item", components: [
+						{kind: "VirtualList", style: "height: 160px", onSetupRow: "setupRow", components: [
+							{name: "listItem", kind: "Item"}
+						]}
+					]}
 				]}
 			]}
+		]},
+
+		{kind: "Toolbar", components: [
+			{kind: "Button", caption: "Cancel"},
+			{kind: "Button", caption: "Done", className: "enyo-button enyo-button-affirmative"}
 		]},
 
 		{name: "dialog", kind: "ModalDialog", caption: "Forget network?", components: [
@@ -153,9 +291,20 @@ enyo.kind({
 			{kind: "Button", caption: "Cancel", onclick: "closeDialog"}
 		]},
 
+		{name: "popup", kind: "PopupList", items: [
+			{caption: "Open"},
+			{caption: "Copy link"},
+			{caption: "Share"}
+		]},
+
+		{name: "toaster", kind: "Toaster", flyInFrom: "bottom", components: [
+			{content: "Saved"}
+		]},
+
 		{kind: "AppMenu", components: [
 			{caption: "Settings"},
 			{caption: "Known Networks"},
+			{caption: "Disabled", disabled: true},
 			{kind: "HelpMenu", target: "https://help.webosarchive.org/en-us/"}
 		]}
 	],
@@ -166,5 +315,26 @@ enyo.kind({
 
 	closeDialog: function() {
 		this.$.dialog.close();
+	},
+
+	openPopup: function(sender, event) {
+		this.$.popup.openAtEvent(event);
+	},
+
+	showToast: function() {
+		this.$.toaster.open();
+	},
+
+	showDetail: function(sender) {
+		this.$.detailText.setContent("Showing: " + sender.getContent());
+		this.$.paneDetail.select();
+	},
+
+	setupRow: function(sender, index) {
+		if (index < 0 || index >= 1000) {
+			return false;
+		}
+		this.$.listItem.setContent("Row " + index);
+		return true;
 	}
 });
