@@ -3,6 +3,8 @@ nm-connectionmanager
 
 `com.palm.connectionmanager`, `com.palm.wifi`, `com.palm.certificatemanager`,
 and `com.palm.vpn`, answered from NetworkManager instead of from a constant.
+The same process also answers `com.palm.nettools/findMxRecords` from gio's DNS
+resolver (see below).
 
 This is **ours, not HP's**. The CE drop ships
 `components/pmnetconfigmanager-stub`, whose entire implementation is one
@@ -186,11 +188,35 @@ without either field as a string is not a wrong icon — it is a null dereferenc
 in the shell. Both are therefore written in every payload, even when there is no
 wifi device at all, and the test asserts it for every state it builds.
 
+com.palm.nettools (findMxRecords)
+---------------------------------
+
+The same process owns a fifth name, `com.palm.nettools`, for one method the
+Email account wizard calls (`AccountWizard.js`): `findMxRecords`. It belongs
+here because the answer is a DNS lookup and gio's resolver — already linked for
+NetworkManager — is what makes it; a service of its own would duplicate the
+GDBus/glib machinery for a single method.
+
+| Request | Reply |
+|---|---|
+| `{domainName: "example.com"}` | `{returnValue:true, mxRecords:[{mxServer:"mx1.example.com", mxPreference:10}, ...]}` |
+
+The wizard keeps the record with the lowest `mxPreference`, so the list is
+returned ordered lowest first — the order a mail client would try them in. A
+bad domain is a request error; a resolver failure (NXDOMAIN, timeout, no
+network) is reported so the wizard falls back to its guessed settings; a domain
+that resolves with no MX is an empty-but-successful list. `src/mx_records.h` is
+the ordering and the payload, free of DNS, so `tests/mx-records.cpp` checks it
+without a nameserver; `src/mx_resolver.cpp` is the one `g_resolver_lookup_records`
+call that fills it in. A server name is escaped before it reaches the JSON — it
+comes from the queried domain's own DNS, so a quote in one would otherwise break
+what the wizard parses.
+
 Testing it
 ----------
 
 ```sh
-ctest --test-dir build/tests -R 'network-state|network-proxies|network-app-proxy|nm-client' --output-on-failure
+ctest --test-dir build/tests -R 'network-state|network-proxies|network-app-proxy|nm-client|mx-records' --output-on-failure
 ```
 
 `nm-client` needs `dbus-daemon`: GLib's `GTestDBus` starts a private one for the

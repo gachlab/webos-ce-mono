@@ -56,6 +56,8 @@
 #include "network_state.h"
 #include "certificates.h"
 #include "network_proxies.h"
+#include "mx_records.h"
+#include "mx_resolver.h"
 #include "nm_client.h"
 #include "sleep_watch.h"
 
@@ -93,6 +95,13 @@ const char kCertificateServiceName[] = "com.palm.certificatemanager";
 
 // The fourth: VPN profiles for the system menu drawer and our VPN card (#21).
 const char kVpnServiceName[] = "com.palm.vpn";
+
+// The fifth: com.palm.nettools, whose one method anything here calls is
+// findMxRecords, from the Email account wizard. It belongs on this process
+// because the answer is a DNS lookup and gio -- already linked here for
+// NetworkManager -- is the resolver; a service of its own would duplicate the
+// GDBus/glib machinery for a single method. See mx_records.h and mx_resolver.h.
+const char kNettoolsServiceName[] = "com.palm.nettools";
 const char* const kVpnProfileListMethods[] = { "getProfileList", nullptr };
 const char* const kVpnStatusMethods[] = { "getStatus", nullptr };
 const char* const kProxyMethods[] = { "getNwProxiesConfig", nullptr };
@@ -106,6 +115,7 @@ LSPalmService* g_service = nullptr;
 LSPalmService* g_wifiService = nullptr;
 LSPalmService* g_certificateService = nullptr;
 LSPalmService* g_vpnService = nullptr;
+LSPalmService* g_nettoolsService = nullptr;
 GDBusConnection* g_system = nullptr;
 NmNet::NetworkState g_state;
 std::string g_lastPayload;
@@ -1079,6 +1089,41 @@ LSMethod kVpnMethods[] = {
     { },
 };
 
+// --- com.palm.nettools (findMxRecords) --------------------------------------
+
+// The Email account wizard hands a domain and reads back the mail exchangers.
+// The lookup is a blocking DNS call wrapped in mx_resolver.cpp; the payload and
+// its ordering are in mx_records.h. A bad domain is a request error; a resolver
+// failure (NXDOMAIN, timeout, no network) is an errorCode the wizard reads as
+// "could not look up", distinct from a domain that resolves with no MX, which
+// is an empty-but-successful list.
+bool findMxRecords(LSHandle* sh, LSMessage* message, void*)
+{
+    json_object* root = requestOf(message);
+    const std::string domain = stringMember(root, "domainName");
+    if (root)
+        json_object_put(root);
+
+    if (!NmMx::validDomain(domain)) {
+        reply(sh, message, NmNet::errorPayload("expected {\"domainName\": string}"));
+        return true;
+    }
+
+    std::vector<NmMx::Record> records;
+    std::string error;
+    if (!NmMx::lookup(nullptr, domain, records, error)) {
+        reply(sh, message, NmNet::errorPayload(error.empty() ? "DNS lookup failed" : error));
+        return true;
+    }
+    reply(sh, message, NmMx::recordsPayload(records));
+    return true;
+}
+
+LSMethod kNettoolsMethods[] = {
+    { "findMxRecords", findMxRecords },
+    { },
+};
+
 LSMethod kWifiMethods[] = {
     { "getStatus", getWifiStatus },
     { "getstatus", getWifiStatus },
@@ -1195,6 +1240,24 @@ int main()
         }
     }
 
+    // com.palm.nettools: one method, findMxRecords, for the Email wizard. Not
+    // fatal if it cannot be had -- email autodiscovery falls back to its guessed
+    // settings -- but losing it means the wizard's MX lookup silently never
+    // answers, which is the state before this service existed.
+    LSErrorInit(&error);
+    if (!LSRegisterPalmService(kNettoolsServiceName, &g_nettoolsService, &error)) {
+        logAndFree("LSRegisterPalmService(com.palm.nettools)", error);
+        g_nettoolsService = nullptr;
+    } else {
+        LSErrorInit(&error);
+        if (!LSPalmServiceRegisterCategory(g_nettoolsService, kCategory, kNettoolsMethods,
+                                           kNettoolsMethods, nullptr, nullptr, &error)
+            || !LSGmainAttachPalmService(g_nettoolsService, g_loop, &error)) {
+            logAndFree("com.palm.nettools", error);
+            g_nettoolsService = nullptr;
+        }
+    }
+
     if (g_system) {
         // Everything NetworkManager says about itself and its objects. The
         // property signal carries the interface it belongs to, but filtering on
@@ -1250,6 +1313,11 @@ int main()
         LSErrorInit(&error);
         if (!LSUnregisterPalmService(g_vpnService, &error))
             logAndFree("LSUnregisterPalmService(com.palm.vpn)", error);
+    }
+    if (g_nettoolsService) {
+        LSErrorInit(&error);
+        if (!LSUnregisterPalmService(g_nettoolsService, &error))
+            logAndFree("LSUnregisterPalmService(com.palm.nettools)", error);
     }
     g_sleepWatch.reset();
     if (g_system)
