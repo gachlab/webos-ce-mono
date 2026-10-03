@@ -157,7 +157,17 @@ void announceAll(bool withChangedVolume)
 
 // A volume/mute change belongs to one category (system): announcing it to all
 // four made NativeAlertManager pop the HUD four times for one key press
-// (MEASURED). The HUD draws on the system scenario, so one announce suffices.
+// (MEASURED). The HUD draws on the system scenario, so one announce suffices,
+// and system_default is the honest scenario for webOS's single fader -- it is
+// its own UI volume, not a per-media-stream volume, so the system HUD art is
+// the right one, not a race between four scenarios for which draws last.
+//
+// This narrows the volume announcement to the system category. The only other
+// consumer, AudioMenuBridge, subscribes to system/status, so it still sees the
+// change; media/ringtone/phone subscribers (none today) would not get a volume
+// update this way. onStateChanged still refreshes all four with announceAll on a
+// backend-observed change, which is the path that keeps every category's last
+// state current.
 void announceVolumeChange()
 {
     announce(AudioContract::Category::System, /*withChangedVolume=*/true);
