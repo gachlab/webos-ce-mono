@@ -155,6 +155,14 @@ void announceAll(bool withChangedVolume)
         announce(c, withChangedVolume);
 }
 
+// A volume/mute change belongs to one category (system): announcing it to all
+// four made NativeAlertManager pop the HUD four times for one key press
+// (MEASURED). The HUD draws on the system scenario, so one announce suffices.
+void announceVolumeChange()
+{
+    announce(AudioContract::Category::System, /*withChangedVolume=*/true);
+}
+
 // --- systemsounds/playFeedback ----------------------------------------------
 
 std::string soundsDir()
@@ -226,7 +234,7 @@ bool setVolumeMethod(LSHandle* sh, LSMessage* message, void*)
         if (percent > 100) percent = 100;
         applied = g_backend->setVolumePercent(percent);
         if (applied)
-            announceAll(/*withChangedVolume=*/true);
+            announceVolumeChange();
     }
     const std::string payload = std::string("{\"returnValue\":")
         + (applied ? "true" : "false") + ",\"applied\":" + (applied ? "true" : "false") + "}";
@@ -310,7 +318,7 @@ bool onVolumeKey(LSHandle*, LSMessage* message, void*)
         const int next = AudioContract::applyVolumeKey(now, *key);
         if (next != now) {
             if (g_backend->setVolumePercent(next))
-                announceAll(/*withChangedVolume=*/true);
+                announceVolumeChange();
         }
     }
     return true;
@@ -324,7 +332,7 @@ bool onPreferences(LSHandle*, LSMessage* message, void*)
     if (auto muted = JsonLite::getBool(doc.root(), "muteSound")) {
         if (*muted != g_backend->state().muted) {
             if (g_backend->setMuted(*muted))
-                announceAll(/*withChangedVolume=*/true);
+                announceVolumeChange();
         }
     }
     return true;

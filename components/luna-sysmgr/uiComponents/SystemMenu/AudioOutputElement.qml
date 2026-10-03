@@ -114,7 +114,10 @@ Drawer {
         id: outputListDelegate
         Column {
             spacing: 0
-            width: parent.width
+            // In a ListView the delegate's parent is briefly null while it is
+            // being instantiated; bind to the view width instead of parent.width
+            // to avoid "Cannot read property 'width' of null".
+            width: ListView.view ? ListView.view.width : 0
             property int index: listIndex
 
             MenuListEntry {
