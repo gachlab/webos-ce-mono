@@ -238,6 +238,7 @@ add_executable(LunaSysMgr
     Src/lunaui/status-bar/StatusBarServicesConnector.cpp
     Src/lunaui/status-bar/StatusBarTitle.cpp
     Src/lunaui/status-bar/SystemMenu.cpp
+    Src/lunaui/status-bar/AudioMenuBridge.cpp
     Src/minimalui/WindowManagerMinimal.cpp
     Src/minimalui/WindowServerMinimal.cpp
     Src/remote/IpcClientHost.cpp
