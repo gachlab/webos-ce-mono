@@ -186,6 +186,17 @@ target_include_directories(share-replies PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/../services/stservice-unavailable/src")
 add_test(NAME share-replies COMMAND share-replies)
 
+# --- what com.palm.zeroconf answers, and the DNS-SD parsing, without Avahi ----
+# zeroconf_records.h is header-only and free of both buses: the request guards
+# (a _x._tcp/_udp type, a name, a port in range), the TXT splitting, and the
+# browse/resolve payloads are checked without an Avahi daemon and without
+# ls-hubd. The API is provisional (no HP caller fixes it); what is pinned is its
+# internal consistency (#43).
+add_executable(zeroconf-records zeroconf-records.cpp)
+target_include_directories(zeroconf-records PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/../services/zeroconf-avahi/src")
+add_test(NAME zeroconf-records COMMAND zeroconf-records)
+
 # --- what is read from BlueZ, and what is asked of it -------------------------
 # The other half: bluez_client.cpp against a fake BlueZ (python-dbusmock's bluez5
 # template) on a private bus, so the host's real adapter is never touched. The
@@ -226,6 +237,18 @@ add_executable(secret-client secret-client.cpp ${KEYMANAGER}/secret_client.cpp)
 target_include_directories(secret-client PRIVATE ${KEYMANAGER} ${GIO_INCLUDE_DIRS})
 target_link_libraries(secret-client PRIVATE ${GIO_LIBRARIES})
 add_test(NAME secret-client COMMAND secret-client)
+
+# --- what com.palm.zeroconf asks of Avahi, against a fake one -----------------
+# The other half of zeroconf-records: avahi_client.cpp against a fake Avahi on a
+# private bus (GTestDBus) -- so it needs dbus-daemon, not the host's mDNS. The
+# browse signals (ItemNew/ItemRemove/AllForNow) become added/removed/complete,
+# resolve reads host/address/port/TXT, and register/unregister run the entry
+# group through its lifecycle (#43).
+set(ZEROCONF "${CMAKE_CURRENT_SOURCE_DIR}/../services/zeroconf-avahi/src")
+add_executable(avahi-client avahi-client.cpp ${ZEROCONF}/avahi_client.cpp)
+target_include_directories(avahi-client PRIVATE ${ZEROCONF} ${GIO_INCLUDE_DIRS})
+target_link_libraries(avahi-client PRIVATE ${GIO_LIBRARIES})
+add_test(NAME avahi-client COMMAND avahi-client)
 
 # The certificate store the Wi-Fi card's enterprise TLS login lists.
 add_executable(certificates certificates.cpp ${CONNMGR}/certificates.cpp)
