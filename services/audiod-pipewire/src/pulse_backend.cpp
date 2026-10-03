@@ -464,19 +464,37 @@ bool PulseBackend::isSelectableSink(const pa_sink_info* i)
 {
     if (!i || !i->name)
         return false;
-    // Dummy/null output: PipeWire's placeholder when nothing real is present.
+
+    // Keep hardware and network sinks outright: a real card (ALSA) or a real
+    // remote destination (RTP, like the desktop's network speakers) are both
+    // places webOS's audio can legitimately go.
+    if ((i->flags & PA_SINK_HARDWARE) || (i->flags & PA_SINK_NETWORK))
+        return true;
+
+    // Otherwise it is a virtual sink. Drop the ones that are not a destination
+    // of their own -- null/dummy placeholders and filter-chain/loopback nodes
+    // (EasyEffects and the like), which route into another sink and would list
+    // the same speakers twice. These are identified by PipeWire's own node
+    // metadata rather than a name guess where possible.
     if (std::strstr(i->name, "auto_null") || std::strstr(i->name, "dummy"))
         return false;
-    // Effects/loopback virtual sinks route into another sink; offering them
-    // would list the same speakers twice. PipeWire tags its own loopback and
-    // filter nodes; screen the common ones by name.
     if (i->proplist) {
+        // A filter-chain node (EasyEffects, module-filter-chain) carries the
+        // module/library that built it; this is the reliable marker.
+        const char* lib = pa_proplist_gets(i->proplist, "library.name");
+        if (lib && std::strstr(lib, "filter-chain"))
+            return false;
+        const char* mediaClass = pa_proplist_gets(i->proplist, "media.class");
+        if (mediaClass && std::strstr(mediaClass, "Virtual"))
+            return false;
         const char* nodeName = pa_proplist_gets(i->proplist, "node.name");
         if (nodeName && (std::strstr(nodeName, "effect")
                          || std::strstr(nodeName, "Effects")
                          || std::strstr(nodeName, "loopback")))
             return false;
     }
+    // A virtual sink we could not classify: keep it rather than hide a real
+    // destination. Better to list one extra than to drop one the user needs.
     return true;
 }
 
