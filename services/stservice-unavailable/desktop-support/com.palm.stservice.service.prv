@@ -1,0 +1,4 @@
+[D-BUS Service]
+Name=com.palm.stservice
+Exec=/usr/sbin/stservice-unavailable
+Type=static
