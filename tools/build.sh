@@ -12,7 +12,8 @@
 #   tools/build.sh              # everything
 #   tools/build.sh cmake        # one stage: headers | autotools | cmake |
 #                               # node | powerd | connmgr | bluetooth | storaged |
-#                               # audiod | printmgr | cards | rootfs
+#                               # audiod | printmgr | keymanager | stservice |
+#                               # cards | rootfs
 set -u
 R="$(cd "$(dirname "$0")/.." && pwd)"
 STAGE="${1:-all}"
@@ -415,6 +416,49 @@ stage_printmgr() {
       || { echo "  FAILED (see /tmp/webos/printmgr-cups-build.log)"; return 1; }
 }
 
+stage_keymanager() {
+    echo "== keymanager =="
+    # com.palm.keymanager from the host's Secret Service, ours rather than HP's:
+    # nothing in the CE drop provides it, so LunaSysMgr's Security.cpp and the
+    # accounts service's KeyStore have been calling a service that is not there.
+    # Not a MANIFEST component -- the MANIFEST stays an inventory of what HP
+    # released -- so it gets its own stage, built against staging like
+    # nm-connectionmanager, which it shares the GDBus-over-glib shape with.
+    export PKG_CONFIG_PATH=$S/lib/pkgconfig:$S/usr/share/pkgconfig:$S/usr/lib/pkgconfig
+    mkdir -p /tmp/webos
+    drop_stale_cache "$R/services/keymanager-secret" "$B/keymanager-secret"
+    cmake -S "$R/services/keymanager-secret" -B "$B/keymanager-secret" \
+          -DCMAKE_BUILD_TYPE="$BUILD_TYPE" \
+          -DCMAKE_INSTALL_PREFIX="$WEBOS_PREFIX" \
+          -DCMAKE_INSTALL_RPATH='$ORIGIN/../lib:$ORIGIN/..' \
+          -DCMAKE_EXE_LINKER_FLAGS='-Wl,--disable-new-dtags' > /tmp/webos/keymanager-secret-build.log 2>&1 \
+      && cmake --build "$B/keymanager-secret" -j"$(nproc)" >> /tmp/webos/keymanager-secret-build.log 2>&1 \
+      && DESTDIR="$DESTDIR" cmake --install "$B/keymanager-secret" >> /tmp/webos/keymanager-secret-build.log 2>&1 \
+      && echo "  keymanager-secret            OK" \
+      || { echo "  FAILED (see /tmp/webos/keymanager-secret-build.log)"; return 1; }
+}
+
+stage_stservice() {
+    echo "== stservice =="
+    # com.palm.stservice (Touch to Share), ours rather than HP's: nothing in the
+    # CE drop provides it, and this machine has no tap sensor or paired phone to
+    # share to. Ticket #43 leaves the backend undecided but requires the browser
+    # and system UI not to hang on a missing service, so this answers cleanly
+    # and nothing more. Not a MANIFEST component, so it gets its own stage.
+    export PKG_CONFIG_PATH=$S/lib/pkgconfig:$S/usr/share/pkgconfig:$S/usr/lib/pkgconfig
+    mkdir -p /tmp/webos
+    drop_stale_cache "$R/services/stservice-unavailable" "$B/stservice-unavailable"
+    cmake -S "$R/services/stservice-unavailable" -B "$B/stservice-unavailable" \
+          -DCMAKE_BUILD_TYPE="$BUILD_TYPE" \
+          -DCMAKE_INSTALL_PREFIX="$WEBOS_PREFIX" \
+          -DCMAKE_INSTALL_RPATH='$ORIGIN/../lib:$ORIGIN/..' \
+          -DCMAKE_EXE_LINKER_FLAGS='-Wl,--disable-new-dtags' > /tmp/webos/stservice-unavailable-build.log 2>&1 \
+      && cmake --build "$B/stservice-unavailable" -j"$(nproc)" >> /tmp/webos/stservice-unavailable-build.log 2>&1 \
+      && DESTDIR="$DESTDIR" cmake --install "$B/stservice-unavailable" >> /tmp/webos/stservice-unavailable-build.log 2>&1 \
+      && echo "  stservice-unavailable        OK" \
+      || { echo "  FAILED (see /tmp/webos/stservice-unavailable-build.log)"; return 1; }
+}
+
 stage_cards() {
     echo "== cards =="
     # The cards in apps/ and sdk/ui-kit, bundled into build/cards, which
@@ -450,6 +494,8 @@ case "$STAGE" in
     storaged) stage_storaged ;;
     audiod) stage_audiod ;;
     printmgr) stage_printmgr ;;
+    keymanager) stage_keymanager ;;
+    stservice) stage_stservice ;;
     cards) stage_cards ;;
     rootfs) stage_rootfs ;;
     all)   # NOTE the placement: the echoes go INSIDE the if, not loose after
@@ -457,7 +503,7 @@ case "$STAGE" in
             # when a stage had failed.
             if stage_headers && stage_autotools \
                && stage_cmake && stage_node_addons && stage_powerd \
-               && stage_connmgr && stage_bluetooth && stage_storaged && stage_audiod && stage_printmgr && stage_cards && stage_rootfs; then
+               && stage_connmgr && stage_bluetooth && stage_storaged && stage_audiod && stage_printmgr && stage_keymanager && stage_stservice && stage_cards && stage_rootfs; then
                 echo
                 echo "Done. To start the shell:  tools/run-lunasysmgr.sh"
             else
@@ -465,5 +511,5 @@ case "$STAGE" in
                 echo "FAILED: a stage did not finish. See the logs in build/." >&2
                 exit 1
             fi ;;
-    *)      echo "unknown stage: $STAGE (headers | autotools | cmake | node | powerd | connmgr | audiod | printmgr | rootfs | all)"; exit 2 ;;
+    *)      echo "unknown stage: $STAGE (headers | autotools | cmake | node | powerd | connmgr | audiod | printmgr | keymanager | stservice | rootfs | all)"; exit 2 ;;
 esac

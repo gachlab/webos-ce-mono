@@ -153,6 +153,39 @@ target_include_directories(print-state PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/../services/printmgr-cups/src")
 add_test(NAME print-state COMMAND print-state)
 
+# --- what com.palm.keymanager promises, and how a keyname maps onto a Secret
+# Service item, checked without a keyring and without the bus ------------------
+# key_store.h is header-only and free of both buses, so the accounts KeyStore's
+# contract -- fetchKey returning the blob under "keydata", a missing key as a
+# failed reply its future reads as "not found", a store that needs a keyname and
+# a blob -- is checked without org.freedesktop.secrets and without ls-hubd.
+# secret-client is the other half (#43).
+add_executable(key-store key-store.cpp)
+target_include_directories(key-store PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/../services/keymanager-secret/src")
+add_test(NAME key-store COMMAND key-store)
+
+# --- what com.palm.nettools/findMxRecords returns, checked without DNS ---------
+# mx_records.h is header-only and free of the resolver, so the payload the Email
+# account wizard reads -- the mxServer/mxPreference fields, the lowest-first
+# ordering it picks the best from, an escaped server name -- is checked without
+# a nameserver and without ls-hubd. It includes network_state.h for jsonEscape,
+# which is header-only too (#43).
+add_executable(mx-records mx-records.cpp)
+target_include_directories(mx-records PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/../services/nm-connectionmanager/src")
+add_test(NAME mx-records COMMAND mx-records)
+
+# --- what com.palm.stservice answers, checked without the bus -----------------
+# Touch to Share has no backend here; share_replies.h is the two reply shapes
+# that keep the browser's Share menu and the system UI's dialogs from hanging --
+# a clean failure for shareData, a succeeding acknowledgement for the dialog
+# methods -- checked header-only (#43).
+add_executable(share-replies share-replies.cpp)
+target_include_directories(share-replies PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/../services/stservice-unavailable/src")
+add_test(NAME share-replies COMMAND share-replies)
+
 # --- what is read from BlueZ, and what is asked of it -------------------------
 # The other half: bluez_client.cpp against a fake BlueZ (python-dbusmock's bluez5
 # template) on a private bus, so the host's real adapter is never touched. The
@@ -180,6 +213,19 @@ add_executable(nm-client nm-client.cpp ${CONNMGR}/nm_client.cpp ${CONNMGR}/sleep
 target_include_directories(nm-client PRIVATE ${CONNMGR} ${GIO_INCLUDE_DIRS})
 target_link_libraries(nm-client PRIVATE ${GIO_LIBRARIES})
 add_test(NAME nm-client COMMAND nm-client)
+
+# --- what com.palm.keymanager asks of the Secret Service, against a fake one --
+# The other half of key-store: secret_client.cpp against a fake
+# org.freedesktop.secrets on a private bus, started by GTestDBus -- so it needs
+# dbus-daemon, and not the user's real keyring. What is checked is the round
+# trip the accounts KeyStore needs: a blob stored under a keyname, replaced on a
+# second store, fetched back byte for byte, gone after a remove, and a missing
+# key reported as a clean not-found rather than a crash (#43).
+set(KEYMANAGER "${CMAKE_CURRENT_SOURCE_DIR}/../services/keymanager-secret/src")
+add_executable(secret-client secret-client.cpp ${KEYMANAGER}/secret_client.cpp)
+target_include_directories(secret-client PRIVATE ${KEYMANAGER} ${GIO_INCLUDE_DIRS})
+target_link_libraries(secret-client PRIVATE ${GIO_LIBRARIES})
+add_test(NAME secret-client COMMAND secret-client)
 
 # The certificate store the Wi-Fi card's enterprise TLS login lists.
 add_executable(certificates certificates.cpp ${CONNMGR}/certificates.cpp)
