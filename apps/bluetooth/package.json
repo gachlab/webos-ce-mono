@@ -1,0 +1,10 @@
+{
+  "name": "@gachlab/app-bluetooth",
+  "private": true,
+  "description": "The Bluetooth settings card (#31).",
+  "type": "module",
+  "dependencies": {
+    "@webos/api": "*",
+    "@webos/ui-kit": "*"
+  }
+}

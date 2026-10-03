@@ -1,0 +1,15 @@
+{
+    "id": "com.gachlab.app.bluetooth",
+    "aliases": ["com.palm.app.bluetooth", "com.palm.app.bluetoothtab"],
+    "version": "2.0.0",
+    "vendor": "webOS CE",
+    "type": "web",
+    "category": "Settings",
+    "keywords": ["Settings", "Preferences", "Wireless", "Bluetooth"],
+    "main": "index.html",
+    "title": "Bluetooth",
+    "icon": "icon.png",
+    "splashicon": "icon-256x256.png",
+    "uiRevision": "2",
+    "removable": false
+}
