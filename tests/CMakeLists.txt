@@ -142,6 +142,17 @@ target_include_directories(audio-contract PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/../services/audiod-pipewire/src")
 add_test(NAME audio-contract COMMAND audio-contract)
 
+# --- what com.palm.printmgr puts on the bus, checked without a daemon ----------
+# printmgr is ours; nothing in the CE drop answers it. print_state.h is
+# header-only and free of both the Luna bus and CUPS, so what enyo's PrintDialog
+# reads out of the payloads -- the printers/list eventType and fields, the four
+# jobStatus words it matches with ==, the error-code vocabulary -- is checked
+# without ls-hubd or a printing daemon (#32).
+add_executable(print-state print-state.cpp)
+target_include_directories(print-state PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/../services/printmgr-cups/src")
+add_test(NAME print-state COMMAND print-state)
+
 # --- what is read from BlueZ, and what is asked of it -------------------------
 # The other half: bluez_client.cpp against a fake BlueZ (python-dbusmock's bluez5
 # template) on a private bus, so the host's real adapter is never touched. The
