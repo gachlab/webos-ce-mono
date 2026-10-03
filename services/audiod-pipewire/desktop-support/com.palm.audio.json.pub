@@ -1,0 +1,14 @@
+{
+    "role": {
+        "exeName": "/usr/lib/luna/audiod-pipewire",
+        "type": "regular",
+        "allowedNames": ["com.palm.audio"]
+    },
+    "permissions": [
+        {
+            "service": "com.palm.audio",
+            "inbound": ["*"],
+            "outbound": ["*"]
+        }
+    ]
+}
