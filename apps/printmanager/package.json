@@ -1,0 +1,10 @@
+{
+  "name": "@gachlab/app-printmanager",
+  "private": true,
+  "description": "The Print Manager card (#32).",
+  "type": "module",
+  "dependencies": {
+    "@webos/api": "*",
+    "@webos/ui-kit": "*"
+  }
+}

@@ -1,0 +1,14 @@
+{
+    "role": {
+        "exeName": "/usr/lib/luna/printmgr-cups",
+        "type": "regular",
+        "allowedNames": ["com.palm.printmgr"]
+    },
+    "permissions": [
+        {
+            "service": "com.palm.printmgr",
+            "inbound": ["*"],
+            "outbound": ["*"]
+        }
+    ]
+}
