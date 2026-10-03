@@ -59,6 +59,18 @@
 
 namespace PrintState {
 
+// The per-job options the dialog sets with editPrintParams, in the dialog's own
+// vocabulary (PrinterOptions.getPrinterSettings). Applied at submit time as CUPS
+// job options. 0/empty means "not set", left to the printer default.
+struct PrintOptions {
+    int numCopies = 0;                 // >0 to set
+    std::string mediaSize;             // US_Letter, ISO_A4, Photo_4x6, ...
+    std::string mediaType;             // Plain, Photo, ...
+    std::string duplex;                // "Book" (two-sided long edge) | "None"
+    std::string color;                 // "Color" | "Mono"
+    std::string printQuality;          // Fast | Normal | Best
+};
+
 // A printer as the dialog lists it. id is the CUPS queue name (opaque to the
 // dialog, sent back in setCurrent/open); name is the human label; address is
 // the device-uri/location shown under the name.
@@ -69,13 +81,17 @@ struct Printer {
 };
 
 // What a printer can do, for printers/getCapabilities. Empty arrays and false
-// flags mean "option not offered", which the dialog hides.
+// flags mean "option not offered", which the dialog hides. Quality is three
+// booleans, not an array: PrintQualityPicker reads caps.canPrintQualityDraft/
+// Normal/High off the whole caps object (PrinterOptions passes it setItems(caps)).
 struct Capabilities {
     std::vector<std::string> mediaType;   // Plain, Photo, ...
     std::vector<std::string> mediaSize;   // US_Letter, ISO_A4, ...
-    std::vector<std::string> quality;     // Fast, Normal, Best
     bool canDuplex = false;
     bool hasColor = false;
+    bool canPrintQualityDraft = false;
+    bool canPrintQualityNormal = false;
+    bool canPrintQualityHigh = false;
 };
 
 // The lifecycle of a print job as the dialog observes it. The dialog acts only
@@ -177,15 +193,19 @@ inline std::string jsonStringArray(const std::vector<std::string>& items)
     return s;
 }
 
-// printers/getCapabilities.
+// printers/getCapabilities. Quality is three booleans the dialog's
+// PrintQualityPicker reads off the caps object (canPrintQualityDraft/Normal/
+// High), not an array; media type/size are arrays its pickers call setItems on.
 inline std::string capabilitiesPayload(const Capabilities& c)
 {
     std::string s = "{\"returnValue\":true,";
     s += "\"mediaType\":" + jsonStringArray(c.mediaType) + ",";
     s += "\"mediaSize\":" + jsonStringArray(c.mediaSize) + ",";
-    s += "\"quality\":" + jsonStringArray(c.quality) + ",";
     s += std::string("\"canDuplex\":") + (c.canDuplex ? "true" : "false") + ",";
-    s += std::string("\"hasColor\":") + (c.hasColor ? "true" : "false");
+    s += std::string("\"hasColor\":") + (c.hasColor ? "true" : "false") + ",";
+    s += std::string("\"canPrintQualityDraft\":") + (c.canPrintQualityDraft ? "true" : "false") + ",";
+    s += std::string("\"canPrintQualityNormal\":") + (c.canPrintQualityNormal ? "true" : "false") + ",";
+    s += std::string("\"canPrintQualityHigh\":") + (c.canPrintQualityHigh ? "true" : "false");
     s += "}";
     return s;
 }
@@ -195,6 +215,24 @@ inline std::string capabilitiesPayload(const Capabilities& c)
 inline std::string jobOpenedPayload(int jobID)
 {
     return std::string("{\"returnValue\":true,\"jobID\":") + std::to_string(jobID) + "}";
+}
+
+// jobs/getRenderStatus (documents). DocumentPrintJob.getRenderStatusSuccess
+// reads jobID, currentPage, totalPages, and acts on renderResultCode: 0 is
+// RENDER_STATUS_DONE (close the job), negative is an error. Until the file is
+// submitted the dialog just updates its progress; we send done when the pages
+// are in CUPS.
+inline std::string renderStatusPayload(int jobID, int currentPage, int totalPages,
+                                       bool done, int renderResultCode)
+{
+    std::string s = "{\"returnValue\":true,";
+    s += "\"jobID\":" + std::to_string(jobID) + ",";
+    s += "\"currentPage\":" + std::to_string(currentPage) + ",";
+    s += "\"totalPages\":" + std::to_string(totalPages);
+    if (done)
+        s += ",\"renderResultCode\":" + std::to_string(renderResultCode);
+    s += "}";
+    return s;
 }
 
 // jobs/getStatus. The dialog acts only on printerState "DONE"; before that a

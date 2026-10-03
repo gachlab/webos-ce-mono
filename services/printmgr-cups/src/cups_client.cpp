@@ -165,7 +165,8 @@ PrintState::Capabilities getCapabilities(http_t* http, const std::string& printe
             }
         }
 
-        // Quality: print-quality draft/normal/high -> Fast/Normal/Best.
+        // Quality: print-quality draft/normal/high -> the three bool flags the
+        // dialog's PrintQualityPicker reads.
         if (cupsCheckDestSupported(http, dest, dinfo, CUPS_PRINT_QUALITY, nullptr)) {
             ipp_attribute_t* q = cupsFindDestSupported(http, dest, dinfo, CUPS_PRINT_QUALITY);
             if (q) {
@@ -173,11 +174,11 @@ PrintState::Capabilities getCapabilities(http_t* http, const std::string& printe
                 for (int i = 0; i < count; ++i) {
                     const int v = ippGetInteger(q, i);
                     if (v == IPP_QUALITY_DRAFT)
-                        caps.quality.push_back("Fast");
+                        caps.canPrintQualityDraft = true;
                     else if (v == IPP_QUALITY_NORMAL)
-                        caps.quality.push_back("Normal");
+                        caps.canPrintQualityNormal = true;
                     else if (v == IPP_QUALITY_HIGH)
-                        caps.quality.push_back("Best");
+                        caps.canPrintQualityHigh = true;
                 }
             }
         }
@@ -214,15 +215,48 @@ int errorCodeFromIpp(ipp_status_t status)
 }
 
 int printFile(http_t* /*http*/, const std::string& printerId, const std::string& file,
-              const std::string& title, int& errorCode)
+              const std::string& title, const PrintState::PrintOptions& options,
+              int& errorCode)
 {
-    // cupsPrintFile submits through the local scheduler; it does not take an
-    // http_t, so the connection parameter is unused here (kept for symmetry and
-    // for a future cupsPrintFile2 against a specific daemon). num_options 0:
-    // per-job options are applied via editPrintParams before the file is added.
+    // Translate the dialog's option vocabulary to CUPS/IPP options, which
+    // cupsPrintFile applies to the job. Only the ones the dialog set are passed;
+    // the rest fall to the printer default.
+    cups_option_t* opts = nullptr;
+    int numOpts = 0;
+    if (options.numCopies > 0)
+        numOpts = cupsAddOption("copies", std::to_string(options.numCopies).c_str(), numOpts, &opts);
+    if (!options.mediaSize.empty()) {
+        // The dialog's names map to PWG media keywords CUPS understands.
+        const char* pwg = nullptr;
+        if (options.mediaSize == "US_Letter")      pwg = "na_letter_8.5x11in";
+        else if (options.mediaSize == "US_Legal")  pwg = "na_legal_8.5x14in";
+        else if (options.mediaSize == "ISO_A4")    pwg = "iso_a4_210x297mm";
+        else if (options.mediaSize == "Photo_4x6") pwg = "na_index-4x6_4x6in";
+        if (pwg)
+            numOpts = cupsAddOption("media", pwg, numOpts, &opts);
+    }
+    if (!options.mediaType.empty()) {
+        const char* mt = (options.mediaType == "Photo") ? "photographic" : "stationery";
+        numOpts = cupsAddOption("media-type", mt, numOpts, &opts);
+    }
+    if (!options.duplex.empty()) {
+        const char* sides = (options.duplex == "None") ? "one-sided" : "two-sided-long-edge";
+        numOpts = cupsAddOption("sides", sides, numOpts, &opts);
+    }
+    if (!options.color.empty()) {
+        const char* mode = (options.color == "Mono") ? "monochrome" : "color";
+        numOpts = cupsAddOption("print-color-mode", mode, numOpts, &opts);
+    }
+    if (!options.printQuality.empty()) {
+        const char* q = (options.printQuality == "Fast") ? "3"
+                      : (options.printQuality == "Best") ? "5" : "4"; // draft/high/normal
+        numOpts = cupsAddOption("print-quality", q, numOpts, &opts);
+    }
+
     const int jobId = cupsPrintFile(printerId.c_str(), file.c_str(),
                                     title.empty() ? "webOS" : title.c_str(),
-                                    0, nullptr);
+                                    numOpts, opts);
+    cupsFreeOptions(numOpts, opts);
     if (jobId == 0) {
         errorCode = errorCodeFromIpp(cupsLastError());
         if (errorCode == 0)

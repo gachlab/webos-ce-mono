@@ -60,20 +60,21 @@ int main()
         Capabilities c;
         c.mediaType = { "Plain", "Photo" };
         c.mediaSize = { "US_Letter", "ISO_A4" };
-        c.quality = { "Normal", "Best" };
         c.canDuplex = true;
         c.hasColor = true;
+        c.canPrintQualityNormal = true;
+        c.canPrintQualityHigh = true;
         const std::string s = capabilitiesPayload(c);
         check(contains(s, "\"mediaType\":[\"Plain\",\"Photo\"]"), "mediaType is a string array");
         check(contains(s, "\"mediaSize\":[\"US_Letter\",\"ISO_A4\"]"), "mediaSize is a string array");
-        check(contains(s, "\"quality\":[\"Normal\",\"Best\"]"), "quality is a string array");
         check(contains(s, "\"canDuplex\":true"), "canDuplex is a bool");
         check(contains(s, "\"hasColor\":true"), "hasColor is a bool");
-
-        Capabilities empty;
-        const std::string e = capabilitiesPayload(empty);
-        check(contains(e, "\"mediaType\":[]"), "an option not offered is an empty array");
-        check(contains(e, "\"canDuplex\":false"), "and a false flag");
+        // Quality is three booleans the dialog's PrintQualityPicker reads off the
+        // caps object, NOT a "quality" array.
+        check(contains(s, "\"canPrintQualityNormal\":true"), "quality is flags: canPrintQualityNormal");
+        check(contains(s, "\"canPrintQualityHigh\":true"), "canPrintQualityHigh");
+        check(contains(s, "\"canPrintQualityDraft\":false"), "a quality not offered is false");
+        check(!contains(s, "\"quality\":"), "there is no 'quality' array (the dialog does not read one)");
     }
 
     std::printf("\njobs/open and jobs/getStatus\n");
@@ -89,6 +90,17 @@ int main()
         check(contains(jobStatusPayload(7, true, JobStatus::Cancelled), "\"jobStatus\":\"Cancelled\""), "Cancelled is spelled as the dialog matches it");
         check(contains(jobStatusPayload(7, true, JobStatus::Error), "\"jobStatus\":\"Error\""), "Error too");
         check(contains(jobStatusPayload(7, true, JobStatus::Corrupt), "\"jobStatus\":\"Corrupt\""), "Corrupt too");
+    }
+
+    std::printf("\njobs/getRenderStatus (documents): the fields DocumentPrintJob reads\n");
+    {
+        const std::string prog = renderStatusPayload(7, 2, 5, false, 0);
+        check(contains(prog, "\"jobID\":7"), "carries the jobID the dialog filters on");
+        check(contains(prog, "\"currentPage\":2"), "carries currentPage for the progress bar");
+        check(contains(prog, "\"totalPages\":5"), "carries totalPages");
+        check(!contains(prog, "renderResultCode"), "no renderResultCode while still rendering (dialog keeps waiting)");
+        const std::string done = renderStatusPayload(7, 1, 1, true, 0);
+        check(contains(done, "\"renderResultCode\":0"), "render done is renderResultCode 0 (RENDER_STATUS_DONE), which closes the job");
     }
 
     std::printf("\nthe error vocabulary PrintManagerError keys off\n");

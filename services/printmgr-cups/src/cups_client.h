@@ -56,10 +56,12 @@ bool getDefaultPrinter(http_t* http, PrintState::Printer& out);
 // come back as empty arrays / false, which the dialog hides.
 PrintState::Capabilities getCapabilities(http_t* http, const std::string& printerId);
 
-// Submit a file to a printer. Returns the CUPS job id (>0) on success, or 0 and
-// fills errorCode with a PrintState::ErrorCode on failure.
+// Submit a file to a printer with the job's options. Returns the CUPS job id
+// (>0) on success, or 0 and fills errorCode with a PrintState::ErrorCode on
+// failure.
 int printFile(http_t* http, const std::string& printerId, const std::string& file,
-              const std::string& title, int& errorCode);
+              const std::string& title, const PrintState::PrintOptions& options,
+              int& errorCode);
 
 // The state of a job: whether it has left the queue (done) and how it ended.
 // Returns false if the job is unknown.

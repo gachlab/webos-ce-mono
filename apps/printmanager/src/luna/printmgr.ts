@@ -15,29 +15,13 @@ export interface Printer {
     readonly address: string;
 }
 
-export type JobStatus = "Success" | "Cancelled" | "Error" | "Corrupt";
-
-export interface JobState {
-    readonly jobID: number;
-    readonly done: boolean;
-    readonly status: JobStatus;
-}
-
 const text = (value: unknown): string => (typeof value === "string" ? value : "");
-const num = (value: unknown): number => (typeof value === "number" ? value : 0);
 
 const printerOf = (raw: Payload): Printer => ({
     id: text(raw.printerID),
     name: text(raw.printerName) || text(raw.printerID),
     address: text(raw.printerAddress),
 });
-
-const statusOf = (value: unknown): JobStatus => {
-    const s = text(value);
-    if (s === "Cancelled" || s === "Error" || s === "Corrupt")
-        return s;
-    return "Success";
-};
 
 export interface PrintmgrClient {
     // printers/list is a subscription of Add/Rmv events; the card folds them
@@ -82,6 +66,3 @@ export const createPrintmgr = (luna: LunaService): PrintmgrClient => {
         },
     };
 };
-
-// Exposed for tests: the shape converters.
-export const _test = { printerOf, statusOf, num };
