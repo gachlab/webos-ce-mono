@@ -43,6 +43,10 @@
 #include "MenuWindow.h"
 #include "StatusBar.h"
 
+#if defined(TARGET_DESKTOP) && (QT_VERSION >= QT_VERSION_CHECK(5, 0, 0))
+#include "AudioMenuBridge.h"
+#endif
+
 static const int kTopLeftWindowIndex     = 0;
 static const int kTopRightWindowIndex    = 1;
 static const int kBottomLeftWindowIndex  = 2;
@@ -77,6 +81,15 @@ MenuWindowManager::MenuWindowManager(int maxWidth, int maxHeight)
 		SystemUiController::instance()->setStatusBar(m_statusBar);
 		connect(m_statusBar, SIGNAL(signalSystemMenuStateChanged(bool)), this, SLOT(slotSystemMenuStateChanged(bool)));
 	}
+
+#if defined(TARGET_DESKTOP) && (QT_VERSION >= QT_VERSION_CHECK(5, 0, 0))
+	// Install our audio bridge into the shared QML engine before SystemMenu
+	// loads its QML, so the volume slider and output chooser (ours, in
+	// SystemMenu/*.qml) can read it as the AudioMenuBridge context property.
+	// One block; the behaviour is in AudioMenuBridge, not here. See
+	// AudioMenuBridge.h.
+	AudioMenuBridge::install(WindowServer::instance()->qmlEngine());
+#endif
 
 	m_sysMenu = new SystemMenu(320, 480, false);
 	if(m_sysMenu) {

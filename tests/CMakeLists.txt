@@ -129,6 +129,19 @@ target_include_directories(bluez-state PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/../services/bluetooth/src")
 add_test(NAME bluez-state COMMAND bluez-state)
 
+# --- what com.palm.audio puts on the bus, and the volume/sound policy ---------
+# audiod is ours; nothing in the CE drop provides com.palm.audio. The contract
+# (audio_contract.h) and the sound-name mapping (system_sounds.h) are header-only
+# and bus-free, so what the volume HUD and DisplayManager read out of the status
+# payload -- the scenario names matched with ==, the "changed":["volume"] that
+# pops the HUD, the "ringer switch" with its space -- is checked without a sound
+# server. The 0..100 <-> 0.0..1.0 conversion and the volume-key step are pinned
+# here too (#16).
+add_executable(audio-contract audio-contract.cpp)
+target_include_directories(audio-contract PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/../services/audiod-pipewire/src")
+add_test(NAME audio-contract COMMAND audio-contract)
+
 # --- what is read from BlueZ, and what is asked of it -------------------------
 # The other half: bluez_client.cpp against a fake BlueZ (python-dbusmock's bluez5
 # template) on a private bus, so the host's real adapter is never touched. The

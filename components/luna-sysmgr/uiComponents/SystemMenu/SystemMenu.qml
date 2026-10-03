@@ -26,6 +26,9 @@ Item {
     signal muteToggleTriggered(bool isMuted)
     signal wiredToggleTriggered(bool isConnected)
     signal menuBrightnessChanged(real value, bool save)
+    // Volume and the output chooser do not go through C++ menu signals: they
+    // talk to the AudioMenuBridge context property directly (see the Volume and
+    // AudioOutput elements below), so no slot in SystemMenu.cpp is needed.
 
     function setHeight(newheight) {
         if(newheight <= maxHeight) {
@@ -123,6 +126,36 @@ Item {
         brightness.brightnessValue = Math.max(0.0, Math.min(newValue, 1.0));
     }
 
+    // webOS's own volume, 0.0..1.0 for the slider. Driven by the bridge, not by
+    // C++ menu wiring; the slider's own moves go straight to the bridge too.
+    function setSystemVolume(newValue) {
+        volume.volumeValue = Math.max(0.0, Math.min(newValue, 1.0));
+    }
+
+    // Rebuild the output chooser's list from the bridge's current view.
+    function refreshAudioOutputs() {
+        audioOutput.clearAudioOutputList();
+        if (typeof AudioMenuBridge === "undefined")
+            return;
+        var outs = AudioMenuBridge.outputs();
+        var current = "";
+        for (var i = 0; i < outs.length; i++) {
+            audioOutput.addAudioOutputEntry(outs[i].id, outs[i].name, outs[i].current);
+            if (outs[i].current)
+                current = outs[i].name;
+        }
+        audioOutput.setCurrentOutput(current);
+    }
+
+    // The bridge: webOS's audio service, reached as a context property installed
+    // by MenuWindowManager. Guarded with typeof so the menu still loads in the
+    // qml-loads test, where no bridge is injected.
+    Connections {
+        target: (typeof AudioMenuBridge !== "undefined") ? AudioMenuBridge : null
+        onVolumeChanged: setSystemVolume(normalised)
+        onOutputsChanged: refreshAudioOutputs()
+    }
+
     // ------------------------------------------------------------
 
 
@@ -188,6 +221,47 @@ Item {
 
                     onFlickOverride: {
                         flickableOverride = override;
+                    }
+                }
+
+                MenuDivider {widthOffset: dividerWidthOffset}
+
+                VolumeElement {
+                    id: volume
+                    visible:    true
+                    margin:      5;
+
+                    onVolumeChanged: {
+                        if (typeof AudioMenuBridge !== "undefined")
+                            AudioMenuBridge.setVolume(Math.round(value * 100));
+                    }
+
+                    onFlickOverride: {
+                        flickableOverride = override;
+                    }
+                }
+
+                MenuDivider {widthOffset: dividerWidthOffset}
+
+                AudioOutputElement {
+                    id: audioOutput
+                    objectName: "audioOutputMenu"
+                    visible: true
+                    ident:         headerIdent;
+                    internalIdent: subItemIdent;
+
+                    onMenuOpened: {
+                        refreshAudioOutputs();
+                    }
+
+                    onMenuCloseRequest: {
+                        closeMenuTimer.interval = delayMs;
+                        closeMenuTimer.start();
+                    }
+
+                    onItemSelected: {
+                        if (typeof AudioMenuBridge !== "undefined")
+                            AudioMenuBridge.selectOutput(outputId);
                     }
                 }
 

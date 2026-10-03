@@ -512,7 +512,7 @@ a synthesised event inside WebAppMgr.
     Tellurium is left out on purpose, and a device without it logs the same line.
   * `_CallAcquire failed` -- a `g_debug()` in luna-service2's own client
     (callmap.c:1090) when a reply arrives for a call already off the map.
-  * `Service does not exist: com.palm.power` / `com.palm.audio` / `com.palm.vpn`
+  * `Service does not exist: com.palm.power` / `com.palm.vpn`
     -- components this tree does not build.
   * `calendar.AppIcon.updateIconFailed` -- the app-icon update service is absent.
   The single real failure left is `this.$.body.setRedirects is not a function`
