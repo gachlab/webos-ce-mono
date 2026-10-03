@@ -12,7 +12,7 @@
 #   tools/build.sh              # everything
 #   tools/build.sh cmake        # one stage: headers | autotools | cmake |
 #                               # node | powerd | connmgr | bluetooth | storaged |
-#                               # audiod | cards | rootfs
+#                               # audiod | printmgr | cards | rootfs
 set -u
 R="$(cd "$(dirname "$0")/.." && pwd)"
 STAGE="${1:-all}"
@@ -394,6 +394,27 @@ stage_audiod() {
       || { echo "  FAILED (see /tmp/webos/audiod-pipewire-build.log)"; return 1; }
 }
 
+stage_printmgr() {
+    echo "== printmgr =="
+    # com.palm.printmgr from CUPS, ours rather than HP's: HP built printmgr on
+    # its own wprint library and nothing in the CE drop answers it. Not a
+    # MANIFEST component -- the MANIFEST stays an inventory of what HP released --
+    # so it gets its own stage, built against staging like the other services.
+    # libcups comes from the host (libcups2-dev), as libpulse does for audiod.
+    export PKG_CONFIG_PATH=$S/lib/pkgconfig:$S/usr/share/pkgconfig:$S/usr/lib/pkgconfig
+    mkdir -p /tmp/webos
+    drop_stale_cache "$R/services/printmgr-cups" "$B/printmgr-cups"
+    cmake -S "$R/services/printmgr-cups" -B "$B/printmgr-cups" \
+          -DCMAKE_BUILD_TYPE="$BUILD_TYPE" \
+          -DCMAKE_INSTALL_PREFIX="$WEBOS_PREFIX" \
+          -DCMAKE_INSTALL_RPATH='$ORIGIN/../lib:$ORIGIN/..' \
+          -DCMAKE_EXE_LINKER_FLAGS='-Wl,--disable-new-dtags' > /tmp/webos/printmgr-cups-build.log 2>&1 \
+      && cmake --build "$B/printmgr-cups" -j"$(nproc)" >> /tmp/webos/printmgr-cups-build.log 2>&1 \
+      && DESTDIR="$DESTDIR" cmake --install "$B/printmgr-cups" >> /tmp/webos/printmgr-cups-build.log 2>&1 \
+      && echo "  printmgr-cups                OK" \
+      || { echo "  FAILED (see /tmp/webos/printmgr-cups-build.log)"; return 1; }
+}
+
 stage_cards() {
     echo "== cards =="
     # The cards in apps/ and sdk/ui-kit, bundled into build/cards, which
@@ -428,6 +449,7 @@ case "$STAGE" in
     bluetooth) stage_bluetooth ;;
     storaged) stage_storaged ;;
     audiod) stage_audiod ;;
+    printmgr) stage_printmgr ;;
     cards) stage_cards ;;
     rootfs) stage_rootfs ;;
     all)   # NOTE the placement: the echoes go INSIDE the if, not loose after
@@ -435,7 +457,7 @@ case "$STAGE" in
             # when a stage had failed.
             if stage_headers && stage_autotools \
                && stage_cmake && stage_node_addons && stage_powerd \
-               && stage_connmgr && stage_bluetooth && stage_storaged && stage_audiod && stage_cards && stage_rootfs; then
+               && stage_connmgr && stage_bluetooth && stage_storaged && stage_audiod && stage_printmgr && stage_cards && stage_rootfs; then
                 echo
                 echo "Done. To start the shell:  tools/run-lunasysmgr.sh"
             else
@@ -443,5 +465,5 @@ case "$STAGE" in
                 echo "FAILED: a stage did not finish. See the logs in build/." >&2
                 exit 1
             fi ;;
-    *)      echo "unknown stage: $STAGE (headers | autotools | cmake | node | powerd | connmgr | audiod | rootfs | all)"; exit 2 ;;
+    *)      echo "unknown stage: $STAGE (headers | autotools | cmake | node | powerd | connmgr | audiod | printmgr | rootfs | all)"; exit 2 ;;
 esac

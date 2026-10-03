@@ -1,0 +1,4 @@
+[D-BUS Service]
+Name=com.palm.printmgr
+Exec=/usr/sbin/printmgr-cups
+Type=static
