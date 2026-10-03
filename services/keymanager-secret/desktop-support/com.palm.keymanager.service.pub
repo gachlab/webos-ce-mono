@@ -1,0 +1,4 @@
+[D-BUS Service]
+Name=com.palm.keymanager
+Exec=/usr/sbin/keymanager-secret
+Type=static
