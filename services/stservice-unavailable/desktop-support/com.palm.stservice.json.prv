@@ -1,0 +1,14 @@
+{
+    "role": {
+        "exeName": "/usr/lib/luna/stservice-unavailable",
+        "type": "regular",
+        "allowedNames": ["com.palm.stservice"]
+    },
+    "permissions": [
+        {
+            "service": "com.palm.stservice",
+            "inbound": ["*"],
+            "outbound": ["*"]
+        }
+    ]
+}

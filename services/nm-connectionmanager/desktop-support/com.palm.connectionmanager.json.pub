@@ -6,7 +6,8 @@
             "com.palm.connectionmanager",
             "com.palm.wifi",
             "com.palm.certificatemanager",
-            "com.palm.vpn"
+            "com.palm.vpn",
+            "com.palm.nettools"
         ]
     },
     "permissions": [
@@ -39,6 +40,15 @@
         },
         {
             "service": "com.palm.vpn",
+            "inbound": [
+                "*"
+            ],
+            "outbound": [
+                "*"
+            ]
+        },
+        {
+            "service": "com.palm.nettools",
             "inbound": [
                 "*"
             ],

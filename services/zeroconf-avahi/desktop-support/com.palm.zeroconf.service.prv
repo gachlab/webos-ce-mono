@@ -1,0 +1,4 @@
+[D-BUS Service]
+Name=com.palm.zeroconf
+Exec=/usr/sbin/zeroconf-avahi
+Type=static

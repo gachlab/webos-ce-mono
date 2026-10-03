@@ -1,0 +1,14 @@
+{
+    "role": {
+        "exeName": "/usr/lib/luna/zeroconf-avahi",
+        "type": "regular",
+        "allowedNames": ["com.palm.zeroconf"]
+    },
+    "permissions": [
+        {
+            "service": "com.palm.zeroconf",
+            "inbound": ["*"],
+            "outbound": ["*"]
+        }
+    ]
+}

@@ -1,0 +1,14 @@
+{
+    "role": {
+        "exeName": "/usr/lib/luna/keymanager-secret",
+        "type": "regular",
+        "allowedNames": ["com.palm.keymanager"]
+    },
+    "permissions": [
+        {
+            "service": "com.palm.keymanager",
+            "inbound": ["*"],
+            "outbound": ["*"]
+        }
+    ]
+}
