@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Bluetooth header / launcher icon: the Bluetooth rune on a glossy tile.
+     Drawn for this card so we do not ship HP's artwork; the shape is the one
+     its toolbar used (the standard Bluetooth mark, which is a trademark glyph,
+     not HP's drawing of it). -->
+<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 48 48">
+  <defs>
+    <radialGradient id="tile" cx="32%" cy="28%" r="75%">
+      <stop offset="0%" stop-color="#cfe8ff"/>
+      <stop offset="35%" stop-color="#3f86d8"/>
+      <stop offset="75%" stop-color="#174fa0"/>
+      <stop offset="100%" stop-color="#0a2a5c"/>
+    </radialGradient>
+    <linearGradient id="shine" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#fff" stop-opacity="0.7"/>
+      <stop offset="35%" stop-color="#fff" stop-opacity="0.15"/>
+      <stop offset="100%" stop-color="#fff" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="rune" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="100%" stop-color="#d6e9ff"/>
+    </linearGradient>
+  </defs>
+
+  <!-- The tile. -->
+  <rect x="3" y="3" width="42" height="42" rx="9" ry="9" fill="url(#tile)"/>
+  <rect x="3" y="3" width="42" height="21" rx="9" ry="9" fill="url(#shine)"/>
+
+  <!-- The Bluetooth rune: a vertical staff with two crossed bowties, the
+       standard mark. Stroked, with the characteristic crossings. -->
+  <g fill="none" stroke="url(#rune)" stroke-width="2.6"
+     stroke-linecap="round" stroke-linejoin="round">
+    <path d="M 24 13
+             L 24 35
+             L 32 29
+             L 16 19
+             M 16 29
+             L 32 19
+             L 24 13"/>
+  </g>
+</svg>

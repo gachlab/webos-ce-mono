@@ -2280,17 +2280,23 @@ bool StatusBarServicesConnector::bluetoothEventsCallback(LSHandle* handle, LSMes
 
 
 			}else if(!strcmp(notification, "notifndevrenamed")) {
-				std::map<std::string, BluetoothProfState>::iterator it;
-				for(it = m_bluetoothProfileStates.begin(); it != m_bluetoothProfileStates.end(); it++) {
-					if(!strcmp((*it).second.address.c_str(), address)) {
-						(*it).second.name = name ? name : "";
-						updateBtDeviceInfo(&((*it).second));
-						if(((*it).second.status == BT_CONNECTED) || ((*it).second.status == BT_CONNECTING)) {
-							Q_EMIT signalBluetoothConnStateChanged(true, name ? name : "");
+				// A rename with no "address" field would otherwise reach
+				// strcmp(..., address) with address == 0 (it stays 0 when the
+				// payload omits it) and crash. Every other branch guards on
+				// address; this one did not.
+				if(address) {
+					std::map<std::string, BluetoothProfState>::iterator it;
+					for(it = m_bluetoothProfileStates.begin(); it != m_bluetoothProfileStates.end(); it++) {
+						if(!strcmp((*it).second.address.c_str(), address)) {
+							(*it).second.name = name ? name : "";
+							updateBtDeviceInfo(&((*it).second));
+							if(((*it).second.status == BT_CONNECTED) || ((*it).second.status == BT_CONNECTING)) {
+								Q_EMIT signalBluetoothConnStateChanged(true, name ? name : "");
+							}
 						}
 					}
+					updateIcon = true;
 				}
-				updateIcon = true;
 			}
 		}
 	}

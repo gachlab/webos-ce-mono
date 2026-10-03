@@ -11,7 +11,7 @@
 # Usage:
 #   tools/build.sh              # everything
 #   tools/build.sh cmake        # one stage: headers | autotools | cmake |
-#                               # node | powerd | connmgr | storaged |
+#                               # node | powerd | connmgr | bluetooth | storaged |
 #                               # cards | rootfs
 set -u
 R="$(cd "$(dirname "$0")/.." && pwd)"
@@ -332,6 +332,27 @@ stage_connmgr() {
       || { echo "  FAILED (see /tmp/webos/nm-connectionmanager-build.log)"; return 1; }
 }
 
+stage_bluetooth() {
+    echo "== bluetooth =="
+    # com.palm.btmonitor and com.palm.bluetooth from BlueZ, ours rather than
+    # HP's: HP's services for these names shipped only on the device and were
+    # never released as source. Not a MANIFEST component -- the MANIFEST stays
+    # an inventory of what HP released -- so it gets its own stage, built
+    # against staging like nm-connectionmanager and sysfs-powerd.
+    export PKG_CONFIG_PATH=$S/lib/pkgconfig:$S/usr/share/pkgconfig:$S/usr/lib/pkgconfig
+    mkdir -p /tmp/webos
+    drop_stale_cache "$R/services/bluetooth" "$B/bluetooth"
+    cmake -S "$R/services/bluetooth" -B "$B/bluetooth" \
+          -DCMAKE_BUILD_TYPE="$BUILD_TYPE" \
+          -DCMAKE_INSTALL_PREFIX="$WEBOS_PREFIX" \
+          -DCMAKE_INSTALL_RPATH='$ORIGIN/../lib:$ORIGIN/..' \
+          -DCMAKE_EXE_LINKER_FLAGS='-Wl,--disable-new-dtags' > /tmp/webos/bluetooth-build.log 2>&1 \
+      && cmake --build "$B/bluetooth" -j"$(nproc)" >> /tmp/webos/bluetooth-build.log 2>&1 \
+      && DESTDIR="$DESTDIR" cmake --install "$B/bluetooth" >> /tmp/webos/bluetooth-build.log 2>&1 \
+      && echo "  bluetooth                    OK" \
+      || { echo "  FAILED (see /tmp/webos/bluetooth-build.log)"; return 1; }
+}
+
 stage_storaged() {
     echo "== storaged =="
     # com.palm.storage, ours rather than HP's: nothing in the CE drop answers
@@ -382,6 +403,7 @@ case "$STAGE" in
     node)   stage_node_addons ;;
     powerd) stage_powerd ;;
     connmgr) stage_connmgr ;;
+    bluetooth) stage_bluetooth ;;
     storaged) stage_storaged ;;
     cards) stage_cards ;;
     rootfs) stage_rootfs ;;
@@ -390,7 +412,7 @@ case "$STAGE" in
             # when a stage had failed.
             if stage_headers && stage_autotools \
                && stage_cmake && stage_node_addons && stage_powerd \
-               && stage_connmgr && stage_storaged && stage_cards && stage_rootfs; then
+               && stage_connmgr && stage_bluetooth && stage_storaged && stage_cards && stage_rootfs; then
                 echo
                 echo "Done. To start the shell:  tools/run-lunasysmgr.sh"
             else
