@@ -1,0 +1,4 @@
+[D-BUS Service]
+Name=com.palm.bluetooth
+Exec=/usr/sbin/bluetooth
+Type=static

@@ -1,0 +1,30 @@
+{
+    "role": {
+        "exeName": "/usr/lib/luna/bluetooth",
+        "type": "regular",
+        "allowedNames": [
+            "com.palm.btmonitor",
+            "com.palm.bluetooth"
+        ]
+    },
+    "permissions": [
+        {
+            "service": "com.palm.btmonitor",
+            "inbound": [
+                "*"
+            ],
+            "outbound": [
+                "*"
+            ]
+        },
+        {
+            "service": "com.palm.bluetooth",
+            "inbound": [
+                "*"
+            ],
+            "outbound": [
+                "*"
+            ]
+        }
+    ]
+}

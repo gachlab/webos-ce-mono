@@ -117,6 +117,36 @@ target_include_directories(network-state PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/../services/nm-connectionmanager/src")
 add_test(NAME network-state COMMAND network-state)
 
+# --- what com.palm.btmonitor and com.palm.bluetooth answer, from a fake BlueZ -
+# Same shape as network-state: the mapping (bluez_state.h) is header-only and
+# free of both buses, so what the status bar's Bluetooth drawer reads out of
+# these payloads -- the radio string, the trusted list, the profile arrays, the
+# notifn* transitions -- is checked without a D-Bus daemon. HP's connector acts
+# on exact spellings, so a renamed field is a radio that never toggles, not an
+# error. The UUID->profile cases are pinned against real devices (#31).
+add_executable(bluez-state bluez-state.cpp)
+target_include_directories(bluez-state PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/../services/bluetooth/src")
+add_test(NAME bluez-state COMMAND bluez-state)
+
+# --- what is read from BlueZ, and what is asked of it -------------------------
+# The other half: bluez_client.cpp against a fake BlueZ (python-dbusmock's bluez5
+# template) on a private bus, so the host's real adapter is never touched. The
+# service's own GDBus client is exercised through bluez-probe, a thin front built
+# here, so the C++ under test is the C++ that ships. bluez-client.py drives it;
+# it SKIPs (exit 77) when python-dbusmock or dbus-daemon is absent. The test gets
+# the probe's path through BLUEZ_PROBE. (#31)
+pkg_check_modules(GIO REQUIRED gio-2.0)
+set(BLUETOOTH "${CMAKE_CURRENT_SOURCE_DIR}/../services/bluetooth/src")
+add_executable(bluez-probe bluez-probe.cpp ${BLUETOOTH}/bluez_client.cpp ${BLUETOOTH}/bluez_agent.cpp)
+target_include_directories(bluez-probe PRIVATE ${BLUETOOTH} ${GIO_INCLUDE_DIRS})
+target_link_libraries(bluez-probe PRIVATE ${GIO_LIBRARIES})
+add_test(NAME bluez-client
+         COMMAND python3 "${CMAKE_CURRENT_SOURCE_DIR}/bluez-client.py")
+set_tests_properties(bluez-client PROPERTIES
+    SKIP_RETURN_CODE 77
+    ENVIRONMENT "BLUEZ_PROBE=$<TARGET_FILE:bluez-probe>")
+
 # --- what is read from NetworkManager, and what is asked of it ----------------
 # The other half: nm_client.cpp against a fake NetworkManager on a private bus,
 # started by GTestDBus -- so it needs dbus-daemon, and not the host's network.
