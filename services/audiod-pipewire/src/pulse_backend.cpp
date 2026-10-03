@@ -464,20 +464,24 @@ bool PulseBackend::isSelectableSink(const pa_sink_info* i)
 {
     if (!i || !i->name)
         return false;
-    // Dummy/null output: PipeWire's placeholder when nothing real is present.
-    if (std::strstr(i->name, "auto_null") || std::strstr(i->name, "dummy"))
-        return false;
-    // Effects/loopback virtual sinks route into another sink; offering them
-    // would list the same speakers twice. PipeWire tags its own loopback and
-    // filter nodes; screen the common ones by name.
-    if (i->proplist) {
-        const char* nodeName = pa_proplist_gets(i->proplist, "node.name");
-        if (nodeName && (std::strstr(nodeName, "effect")
-                         || std::strstr(nodeName, "Effects")
-                         || std::strstr(nodeName, "loopback")))
-            return false;
-    }
-    return true;
+
+    // MEASURED on PipeWire's pulse shim (#93): hardware ALSA sinks arrive with
+    // PA_SINK_HARDWARE set, network sinks (RTP to another machine) with
+    // PA_SINK_NETWORK, and virtual sinks that are not a destination of their own
+    // -- EasyEffects, null/dummy, loopbacks -- with neither. That one flag pair
+    // is the whole decision: a real output has one of them, a pass-through
+    // virtual sink has neither.
+    //
+    // (library.name is NOT a usable marker here: the shim reports the same
+    // "audioconvert/libspa-audioconvert" for every sink, so it cannot tell a
+    // filter chain apart. The flags can.)
+    if ((i->flags & PA_SINK_HARDWARE) || (i->flags & PA_SINK_NETWORK))
+        return true;
+
+    // Neither flag: a virtual pass-through sink (EasyEffects, null/dummy, a
+    // loopback). It routes into another sink, so offering it would list the same
+    // speakers twice. Not a destination of its own -> not offered.
+    return false;
 }
 
 void PulseBackend::sinkInfoCb(pa_context*, const pa_sink_info* i, int eol, void* userdata)

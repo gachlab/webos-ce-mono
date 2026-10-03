@@ -155,6 +155,24 @@ void announceAll(bool withChangedVolume)
         announce(c, withChangedVolume);
 }
 
+// A volume/mute change belongs to one category (system): announcing it to all
+// four made NativeAlertManager pop the HUD four times for one key press
+// (MEASURED). The HUD draws on the system scenario, so one announce suffices,
+// and system_default is the honest scenario for webOS's single fader -- it is
+// its own UI volume, not a per-media-stream volume, so the system HUD art is
+// the right one, not a race between four scenarios for which draws last.
+//
+// This narrows the volume announcement to the system category. The only other
+// consumer, AudioMenuBridge, subscribes to system/status, so it still sees the
+// change; media/ringtone/phone subscribers (none today) would not get a volume
+// update this way. onStateChanged still refreshes all four with announceAll on a
+// backend-observed change, which is the path that keeps every category's last
+// state current.
+void announceVolumeChange()
+{
+    announce(AudioContract::Category::System, /*withChangedVolume=*/true);
+}
+
 // --- systemsounds/playFeedback ----------------------------------------------
 
 std::string soundsDir()
@@ -226,7 +244,7 @@ bool setVolumeMethod(LSHandle* sh, LSMessage* message, void*)
         if (percent > 100) percent = 100;
         applied = g_backend->setVolumePercent(percent);
         if (applied)
-            announceAll(/*withChangedVolume=*/true);
+            announceVolumeChange();
     }
     const std::string payload = std::string("{\"returnValue\":")
         + (applied ? "true" : "false") + ",\"applied\":" + (applied ? "true" : "false") + "}";
@@ -310,7 +328,7 @@ bool onVolumeKey(LSHandle*, LSMessage* message, void*)
         const int next = AudioContract::applyVolumeKey(now, *key);
         if (next != now) {
             if (g_backend->setVolumePercent(next))
-                announceAll(/*withChangedVolume=*/true);
+                announceVolumeChange();
         }
     }
     return true;
@@ -324,7 +342,7 @@ bool onPreferences(LSHandle*, LSMessage* message, void*)
     if (auto muted = JsonLite::getBool(doc.root(), "muteSound")) {
         if (*muted != g_backend->state().muted) {
             if (g_backend->setMuted(*muted))
-                announceAll(/*withChangedVolume=*/true);
+                announceVolumeChange();
         }
     }
     return true;
