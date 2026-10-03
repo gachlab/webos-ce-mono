@@ -16,6 +16,13 @@
 
 #include <QtWebKit>
 #include <QDebug>
+#include <QFile>
+#include <QMarginsF>
+#include <QPageLayout>
+#include <QPageSize>
+#include <QWebEnginePage>
+
+#include <luna-service2/lunaservice.h>
 
 #include <pbnjson.hpp>
 
@@ -828,22 +835,64 @@ void PalmSystem::hideSpellingWidget()
 void PalmSystem::printFrame(const QString& frameName, int lpsJobId, int widthPx, int heightPx, 
                             int printDpi, bool landscape, bool reverseOrder)
 {
-/*
-    WebPage* page = framePage(m_frame);
-    if (!page || !page->webkitView())
-        return;
+    Q_UNUSED(frameName);
+    Q_UNUSED(widthPx);
+    Q_UNUSED(heightPx);
+    Q_UNUSED(printDpi);
+    Q_UNUSED(reverseOrder);
 
-    page->webkitView()->print(frameName, lpsJobId, widthPx, heightPx, printDpi, landscape, reverseOrder);
-*/
-    qDebug() << "NOTIMPLEMENTED: printFrame("
-             << "frameName: " << frameName
-             << ", lpsJobId: " << lpsJobId
-             << ", widthPx: " << widthPx
-             << ", heightPx: " << heightPx
-             << ", printDpi: " << printDpi
-             << ", landscape: " << landscape
-             << ", reverseOrder: " << reverseOrder
-             << ")";
+    // QtWebEngine (Qt6) prints only to PDF -- it dropped QWebEnginePage::print to
+    // a QPrinter. So render the page to a temporary PDF, then hand that PDF to
+    // com.palm.printmgr's jobs/addFile (pathName), which submits it to CUPS. The
+    // dialog's DocumentPrintJob is already subscribed to jobs/getRenderStatus;
+    // the service posts render-done when the file lands in CUPS.
+    if (!m_bridge || !m_bridge->page()) {
+        qWarning() << "printFrame: no page to print for job" << lpsJobId;
+        return;
+    }
+    QWebEnginePage* engine = m_bridge->page()->enginePage();
+    if (!engine) {
+        qWarning() << "printFrame: no engine page for job" << lpsJobId;
+        return;
+    }
+
+    QPageLayout layout(QPageSize(QPageSize::Letter),
+                       landscape ? QPageLayout::Landscape : QPageLayout::Portrait,
+                       QMarginsF(0, 0, 0, 0));
+
+    const int jobId = lpsJobId;
+    engine->printToPdf([jobId](const QByteArray& pdf) {
+        if (pdf.isEmpty()) {
+            qWarning() << "printFrame: empty PDF for job" << jobId;
+            return;
+        }
+        // A temporary PDF the service can read; left on disk for CUPS to pick up
+        // (CUPS copies it into its own spool, so it can be removed after, but a
+        // tmp file is harmless and auto-reaped by the OS).
+        QString path = QString("/tmp/webos-print-%1.pdf").arg(jobId);
+        QFile out(path);
+        if (!out.open(QIODevice::WriteOnly)) {
+            qWarning() << "printFrame: cannot write" << path;
+            return;
+        }
+        out.write(pdf);
+        out.close();
+
+        LSHandle* sh = WebAppManager::instance()->getStatsServiceHandle();
+        if (!sh) {
+            qWarning() << "printFrame: no service handle to submit job" << jobId;
+            return;
+        }
+        QByteArray payload = QString("{\"jobID\":%1,\"pathName\":\"%2\",\"currentPage\":1,\"totalPages\":1}")
+            .arg(jobId).arg(path).toUtf8();
+        LSError lserror;
+        LSErrorInit(&lserror);
+        if (!LSCallOneReply(sh, "palm://com.palm.printmgr/jobs/addFile",
+                            payload.constData(), NULL, NULL, NULL, &lserror)) {
+            qWarning() << "printFrame: addFile call failed:" << lserror.message;
+            LSErrorFree(&lserror);
+        }
+    }, layout);
 }
 
 void PalmSystem::editorFocused(bool focused, int fieldType, int fieldActions)
