@@ -165,6 +165,13 @@ std::string soundsDir()
     return kDefaultSoundsDir;
 }
 
+// Reap a finished pw-play so it does not linger as a zombie. g_spawn_async with
+// G_SPAWN_DO_NOT_REAP_CHILD hands us the pid; this watch closes it on exit.
+void onSoundChildExit(GPid pid, gint /*status*/, gpointer /*data*/)
+{
+    g_spawn_close_pid(pid);
+}
+
 // Play one shipped file as webOS's own PipeWire stream. Spawned rather than
 // decoded in-process: pw-play reads wav and mp3 and routes through PipeWire with
 // its own node, which is exactly "webOS's audio" -- no decoder pulled into this
@@ -180,16 +187,22 @@ void playSound(const std::string& name)
     }
     const char* argv[] = { "pw-play", path.c_str(), nullptr };
     GError* gerror = nullptr;
+    GPid pid = 0;
+    // DO_NOT_REAP_CHILD so a child watch can collect the finished player; without
+    // it a shell that plays feedback often would leak zombie pw-play processes.
     if (!g_spawn_async(nullptr, const_cast<char**>(argv), nullptr,
                        static_cast<GSpawnFlags>(G_SPAWN_SEARCH_PATH
+                                                | G_SPAWN_DO_NOT_REAP_CHILD
                                                 | G_SPAWN_STDOUT_TO_DEV_NULL
                                                 | G_SPAWN_STDERR_TO_DEV_NULL),
-                       nullptr, nullptr, nullptr, &gerror)) {
+                       nullptr, nullptr, &pid, &gerror)) {
         g_warning("audiod-pipewire: could not play %s: %s", path.c_str(),
                   gerror ? gerror->message : "(no message)");
         if (gerror)
             g_error_free(gerror);
+        return;
     }
+    g_child_watch_add(pid, onSoundChildExit, nullptr);
 }
 
 bool playFeedback(LSHandle* sh, LSMessage* message, void*)
@@ -206,16 +219,18 @@ bool playFeedback(LSHandle* sh, LSMessage* message, void*)
 bool setVolumeMethod(LSHandle* sh, LSMessage* message, void*)
 {
     JsonLite::Document doc(LSMessageGetPayload(message));
+    bool applied = false;
     if (auto v = JsonLite::getInt(doc.root(), "volume")) {
         int percent = *v;
         if (percent < 0) percent = 0;
         if (percent > 100) percent = 100;
-        if (percent != g_backend->state().volumePercent) {
-            g_backend->setVolumePercent(percent);
+        applied = g_backend->setVolumePercent(percent);
+        if (applied)
             announceAll(/*withChangedVolume=*/true);
-        }
     }
-    return reply(sh, message, "{\"returnValue\":true}");
+    const std::string payload = std::string("{\"returnValue\":")
+        + (applied ? "true" : "false") + ",\"applied\":" + (applied ? "true" : "false") + "}";
+    return reply(sh, message, payload);
 }
 
 // --- the output chooser's list ----------------------------------------------
@@ -294,8 +309,8 @@ bool onVolumeKey(LSHandle*, LSMessage* message, void*)
         const int now = g_backend->state().volumePercent;
         const int next = AudioContract::applyVolumeKey(now, *key);
         if (next != now) {
-            g_backend->setVolumePercent(next);
-            announceAll(/*withChangedVolume=*/true);
+            if (g_backend->setVolumePercent(next))
+                announceAll(/*withChangedVolume=*/true);
         }
     }
     return true;
@@ -308,8 +323,8 @@ bool onPreferences(LSHandle*, LSMessage* message, void*)
     JsonLite::Document doc(LSMessageGetPayload(message));
     if (auto muted = JsonLite::getBool(doc.root(), "muteSound")) {
         if (*muted != g_backend->state().muted) {
-            g_backend->setMuted(*muted);
-            announceAll(/*withChangedVolume=*/true);
+            if (g_backend->setMuted(*muted))
+                announceAll(/*withChangedVolume=*/true);
         }
     }
     return true;

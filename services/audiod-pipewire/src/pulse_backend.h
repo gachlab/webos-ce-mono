@@ -63,8 +63,8 @@ public:
     ~PulseBackend() override;
 
     bool start() override;
-    void setVolumePercent(int percent) override;
-    void setMuted(bool muted) override;
+    bool setVolumePercent(int percent) override;
+    bool setMuted(bool muted) override;
     StreamState state() const override;
     std::vector<Output> outputs() const override;
     bool moveOutputToTarget(const std::string& outputId) override;
@@ -74,6 +74,7 @@ private:
     // PipeWire up after this service, and a desktop session can restart.
     void connect();
     void scheduleReconnect();
+    static gboolean reconnectCb(gpointer userdata);
     static void contextStateCb(pa_context* c, void* userdata);
     static void subscribeCb(pa_context* c, pa_subscription_event_type_t t,
                             uint32_t idx, void* userdata);
@@ -85,20 +86,76 @@ private:
                                 int eol, void* userdata);
     static void sinkInfoCb(pa_context* c, const pa_sink_info* i,
                            int eol, void* userdata);
+    static void serverInfoCb(pa_context* c, const pa_server_info* i, void* userdata);
     void refreshStreams();
     void refreshOutputs();
     void publishState();
+    void applyDesiredToStreams();
+
+    // Whether a sink is a real output the chooser should offer, as opposed to a
+    // monitor, a null/dummy sink, or an effects/loopback virtual sink.
+    static bool isSelectableSink(const pa_sink_info* i);
 
     bool isWebosStream(const pa_sink_input_info* i) const;
+
+    // Per-enumeration token for the async sink list; see m_outputsGeneration.
+    struct OutputsScan {
+        PulseBackend* self;
+        unsigned generation;
+    };
 
     pa_glib_mainloop* m_mainloop = nullptr;
     pa_context* m_context = nullptr;
     bool m_connected = false;
+    // The pending reconnect timeout, so it is never double-scheduled and can be
+    // cancelled on teardown. 0 means none pending.
+    guint m_reconnectSource = 0;
 
     // The session's sink-input(s). The map is index -> last-known volume, so a
     // change pushed from outside webOS (the host mixer moving our node) is
     // noticed and re-announced.
     std::vector<uint32_t> m_webosSinkInputs;
+
+    // Output enumeration is async: pa_context_get_sink_info_list fires sinkInfoCb
+    // once per sink and once more with eol. Several sink events can arrive back
+    // to back (a sink, then its port, then its profile), so more than one
+    // enumeration can be in flight at once. Each enumeration gets a generation
+    // number; its callbacks accumulate into m_outputsScratch, and only the
+    // newest generation commits to m_outputs on eol. A stale enumeration's
+    // callbacks are dropped. This is what stopped the chooser listing the same
+    // output several times.
+    unsigned m_outputsGeneration = 0;
+    unsigned m_outputsInFlight = 0;
+    std::vector<Output> m_outputsScratch;
+
+    // The host's default sink name, from server info; a fallback for "current"
+    // when webOS has no stream yet. When it does, the real current output is the
+    // sink its sink-input is routed to (m_webosSinkIndex), which wins.
+    std::string m_defaultSinkName;
+    static const uint32_t kNoSink = (uint32_t)-1;
+    uint32_t m_webosSinkIndex = kNoSink;
+
+    // Streams enumeration, same generation guard as outputs: refreshStreams can
+    // be re-triggered before an earlier async list finishes, which would append
+    // the same sink-input twice.
+    unsigned m_streamsGeneration = 0;
+    std::vector<uint32_t> m_streamsScratch;
+    uint32_t m_streamsScratchSink = kNoSink;
+    bool m_streamsScratchPresent = false;
+    int m_streamsScratchVolume = 100;
+    bool m_streamsScratchMuted = false;
+    // The channel count of webOS's stream, so a volume set uses the stream's own
+    // layout (mono, stereo, 5.1) rather than assuming two.
+    uint8_t m_webosChannels = 2;
+    uint8_t m_streamsScratchChannels = 2;
+
+    // The volume/mute webOS should be at, remembered even when there is no stream
+    // to apply it to yet. Moving the slider or a key before anything plays sets
+    // these; when webOS's stream appears, it is brought to them. This is what
+    // makes the slider "stick" instead of doing nothing when webOS is silent.
+    bool m_haveDesired = false;
+    int m_desiredVolume = 100;
+    bool m_desiredMuted = false;
 
     StreamState m_state;
     std::vector<Output> m_outputs;

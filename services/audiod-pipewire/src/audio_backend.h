@@ -79,9 +79,12 @@ public:
     // change and is why this can fail without the service exiting -- it retries.
     virtual bool start() = 0;
 
-    // webOS's volume, applied to the session's own stream. 0..100.
-    virtual void setVolumePercent(int percent) = 0;
-    virtual void setMuted(bool muted) = 0;
+    // webOS's volume, applied to the session's own stream. 0..100. Returns
+    // whether the request was accepted; it always is, because the level is
+    // remembered even when webOS has no stream yet and applied to the stream
+    // once it appears. (It never silently does nothing.)
+    virtual bool setVolumePercent(int percent) = 0;
+    virtual bool setMuted(bool muted) = 0;
 
     // The last known state of the session's stream.
     virtual StreamState state() const = 0;
