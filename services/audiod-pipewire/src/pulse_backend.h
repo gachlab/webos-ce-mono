@@ -87,6 +87,7 @@ private:
     static void sinkInfoCb(pa_context* c, const pa_sink_info* i,
                            int eol, void* userdata);
     static void serverInfoCb(pa_context* c, const pa_server_info* i, void* userdata);
+    static void moveResultCb(pa_context* c, int success, void* userdata);
     void refreshStreams();
     void refreshOutputs();
     void publishState();
@@ -134,6 +135,9 @@ private:
     std::string m_defaultSinkName;
     static const uint32_t kNoSink = (uint32_t)-1;
     uint32_t m_webosSinkIndex = kNoSink;
+    // The sink the user chose in the output chooser, applied to a stream that
+    // reappears so the choice is not lost. kNoSink means "no explicit choice".
+    uint32_t m_desiredSinkIndex = kNoSink;
 
     // Streams enumeration, same generation guard as outputs: refreshStreams can
     // be re-triggered before an earlier async list finishes, which would append

@@ -301,12 +301,15 @@ void PulseBackend::sinkInputInfoCb(pa_context*, const pa_sink_input_info* i,
             self->m_state.present = self->m_streamsScratchPresent;
             self->m_state.volumePercent = self->m_streamsScratchVolume;
             self->m_state.muted = self->m_streamsScratchMuted;
-            // A webOS stream that just appeared is brought to the level the user
-            // already set on the slider while webOS was silent.
-            if (!hadStream && !self->m_webosSinkInputs.empty() && self->m_haveDesired) {
+            // A webOS stream that just appeared is brought to the level and
+            // output the user already chose while webOS was silent.
+            if (!hadStream && !self->m_webosSinkInputs.empty()
+                && (self->m_haveDesired || self->m_desiredSinkIndex != kNoSink)) {
                 self->applyDesiredToStreams();
-                self->m_state.volumePercent = self->m_desiredVolume;
-                self->m_state.muted = self->m_desiredMuted;
+                if (self->m_haveDesired) {
+                    self->m_state.volumePercent = self->m_desiredVolume;
+                    self->m_state.muted = self->m_desiredMuted;
+                }
             }
             self->publishState();
             // The current output depends on which sink webOS is routed to, so a
@@ -389,21 +392,33 @@ bool PulseBackend::setMuted(bool muted)
 // position before anything played is honored once it does.
 void PulseBackend::applyDesiredToStreams()
 {
-    if (!m_haveDesired || m_webosSinkInputs.empty() || !m_connected || !m_context)
+    if (!m_connected || !m_context || m_webosSinkInputs.empty())
         return;
-    pa_volume_t v = static_cast<pa_volume_t>(
-        AudioContract::percentToVolume(m_desiredVolume) * PA_VOLUME_NORM + 0.5);
-    for (uint32_t idx : m_webosSinkInputs) {
-        pa_cvolume cv;
-        pa_cvolume_set(&cv, m_webosChannels ? m_webosChannels : 2, v);
-        pa_operation* o =
-            pa_context_set_sink_input_volume(m_context, idx, &cv, nullptr, nullptr);
-        if (o)
-            pa_operation_unref(o);
-        pa_operation* om =
-            pa_context_set_sink_input_mute(m_context, idx, m_desiredMuted ? 1 : 0, nullptr, nullptr);
-        if (om)
-            pa_operation_unref(om);
+    if (m_haveDesired) {
+        pa_volume_t v = static_cast<pa_volume_t>(
+            AudioContract::percentToVolume(m_desiredVolume) * PA_VOLUME_NORM + 0.5);
+        for (uint32_t idx : m_webosSinkInputs) {
+            pa_cvolume cv;
+            pa_cvolume_set(&cv, m_webosChannels ? m_webosChannels : 2, v);
+            pa_operation* o =
+                pa_context_set_sink_input_volume(m_context, idx, &cv, nullptr, nullptr);
+            if (o)
+                pa_operation_unref(o);
+            pa_operation* om =
+                pa_context_set_sink_input_mute(m_context, idx, m_desiredMuted ? 1 : 0, nullptr, nullptr);
+            if (om)
+                pa_operation_unref(om);
+        }
+    }
+    // Re-route to the chosen output too, so a stream that reappears keeps going
+    // where the user sent it.
+    if (m_desiredSinkIndex != kNoSink) {
+        for (uint32_t idx : m_webosSinkInputs) {
+            pa_operation* o = pa_context_move_sink_input_by_index(
+                m_context, idx, m_desiredSinkIndex, nullptr, nullptr);
+            if (o)
+                pa_operation_unref(o);
+        }
     }
 }
 
@@ -476,6 +491,28 @@ void PulseBackend::sinkInfoCb(pa_context*, const pa_sink_info* i, int eol, void*
         // appended on top of the current list -- which is what listed the same
         // output several times.
         if (scan->generation == self->m_outputsGeneration) {
+            // Post-pass: mark the current output. Prefer the sink webOS's stream
+            // is actually on (by index == output id). If that sink is not in the
+            // list (webOS routes through a virtual sink like EasyEffects that we
+            // filter out), fall back to the host's configured default -- the sink
+            // that really plays the sound. This is what lets the chooser mark a
+            // sensible "current" on a desktop whose policy routes through a
+            // chain.
+            const std::string webosId = (self->m_webosSinkIndex != kNoSink)
+                ? std::to_string(self->m_webosSinkIndex) : std::string();
+            bool marked = false;
+            if (!webosId.empty()) {
+                for (auto& o : self->m_outputsScratch) {
+                    if (o.id == webosId) { o.isDefault = true; marked = true; break; }
+                }
+            }
+            if (!marked && !self->m_defaultSinkName.empty()) {
+                for (auto& o : self->m_outputsScratch) {
+                    if (o.name == self->m_defaultSinkName || o.rawName == self->m_defaultSinkName) {
+                        o.isDefault = true; marked = true; break;
+                    }
+                }
+            }
             self->m_outputs = self->m_outputsScratch;
             self->publishState();
         }
@@ -490,6 +527,7 @@ void PulseBackend::sinkInfoCb(pa_context*, const pa_sink_info* i, int eol, void*
 
     Output out;
     out.id = std::to_string(i->index);
+    out.rawName = i->name ? i->name : "";
     // The label the chooser lists. Prefer node.nick -- the short, distinctive
     // name PipeWire assigns ("Speaker", "HDMI 1") -- over the description, which
     // repeats the chipset ("500 Series Chipset Family HD Audio ...") on every
@@ -502,12 +540,11 @@ void PulseBackend::sinkInfoCb(pa_context*, const pa_sink_info* i, int eol, void*
         out.name = i->description;
     else
         out.name = i->name ? i->name : "";
-    // "current": the sink webOS's own stream is routed to when it has one;
-    // otherwise the host default, so the chooser still marks something sensible.
-    if (self->m_webosSinkIndex != kNoSink)
-        out.isDefault = (i->index == self->m_webosSinkIndex);
-    else
-        out.isDefault = (i->name && self->m_defaultSinkName == i->name);
+    // "current" is decided in a post-pass on eol (see below), once every sink is
+    // known: webOS's stream may route through a virtual sink that is filtered
+    // out of the list, and then the honest "current" is the host's configured
+    // default -- the sink that actually plays the sound.
+    out.isDefault = false;
     self->m_outputsScratch.push_back(std::move(out));
 }
 
@@ -518,39 +555,62 @@ std::vector<Output> PulseBackend::outputs() const
 
 bool PulseBackend::moveOutputToTarget(const std::string& outputId)
 {
-    // UNIMPLEMENTED until the PipeWire-vs-WirePlumber question is MEASURED. The
-    // chooser's UI, the bus contract and the volume half do not depend on this.
+    // MEASURED on a live desktop session (#16): the PulseAudio move,
+    // pa_context_move_sink_input_by_index, IS accepted by the server
+    // ("move_sink_input accepted" in the log) -- so this is not the "write never
+    // lands" case the ticket feared. It is the other one: the host's policy
+    // re-routes webOS back. On that machine WirePlumder's
+    // default.configured.audio.sink is the user's EasyEffects chain
+    // (WebAppManager -> easyeffects_sink -> ... -> to-desktop-scarlett), and the
+    // stream is returned there regardless of the move.
     //
-    // What is known so far (from the ticket's measurement): writing the stream's
-    // target.object as a node name did nothing, and as an object.serial it was
-    // reverted within three seconds. Two candidate causes, needing one
-    // observation to tell apart:
-    //
-    //   (a) the write never lands  -> a PipeWire/command problem (wrong metadata
-    //       store, wrong subject id, or permissions);
-    //   (b) the write lands and the session manager reverts it -> a WirePlumber
-    //       /policy problem (the custom Lua preferred-device component).
-    //
-    // The settling test, to run when an audible change is acceptable (it moves
-    // real audio between real outputs): issue the move, then read the stream's
-    // route back immediately, at 1s and at 3s. Appears-then-reverts is (b);
-    // never-appears is (a). Only after that is the path chosen, from:
-    //
-    //   1. pa_context_move_sink_input_by_index(m_context, sinkInputIdx,
-    //      atoi(outputId), ...) -- the PulseAudio move, untried so far and the
-    //      most in keeping with the pipewire-pulse route the session already
-    //      uses. Likely the answer for (a).
-    //   2. PipeWire metadata target.object with the correct subject/serial form.
-    //   3. Asking WirePlumber, if (b) and it refuses to yield -- which couples us
-    //      to a session manager the phone case may not have.
-    //
-    // Returning false keeps the chooser honest: it can list outputs and show the
-    // current one; selecting a new one reports "not yet" rather than silently
-    // doing nothing.
-    (void)outputId;
-    g_message("audiod-pipewire: moveOutputToTarget is not implemented yet "
-              "(pending the PipeWire-vs-WirePlumber measurement)");
-    return false;
+    // That is correct behaviour, not a bug to beat: the ticket says a desktop's
+    // own policy, EasyEffects chain and preferred-device rules stay untouched.
+    // So the move is issued (it is the right call, and it is what takes effect on
+    // the product target -- a phone on a HAL with no such policy and where webOS
+    // owns its route) and the host is left to apply its policy. We do NOT fight
+    // WirePlumber's configured default; where the host has one, it wins, which is
+    // what a desktop user wants.
+    if (!m_connected || !m_context || m_webosSinkInputs.empty())
+        return false;
+
+    char* end = nullptr;
+    const unsigned long sinkIdx = std::strtoul(outputId.c_str(), &end, 10);
+    if (!end || *end != '\0')
+        return false;
+
+    bool issued = false;
+    for (uint32_t inputIdx : m_webosSinkInputs) {
+        pa_operation* o = pa_context_move_sink_input_by_index(
+            m_context, inputIdx, static_cast<uint32_t>(sinkIdx),
+            &PulseBackend::moveResultCb, this);
+        if (o) {
+            pa_operation_unref(o);
+            issued = true;
+        }
+    }
+    if (!issued)
+        return false;
+
+    // Remember the intent so a stream that reappears is routed the same way, and
+    // re-read shortly after. The authoritative "current" still comes from
+    // sinkInputInfoCb reading i->sink -- on a host with a preferred-device policy
+    // that will read back as the policy's sink, which is the honest answer.
+    m_desiredSinkIndex = static_cast<uint32_t>(sinkIdx);
+    refreshStreams();
+    return true;
+}
+
+// The server's verdict on the move. Logged so a live run can tell "the command
+// was rejected" (success=0 here) from "it was accepted then reverted" (success=1
+// here but i->sink reads back to the old sink a moment later in sinkInputInfoCb).
+void PulseBackend::moveResultCb(pa_context* c, int success, void* /*userdata*/)
+{
+    if (!success)
+        g_warning("audiod-pipewire: move_sink_input rejected: %s",
+                  pa_strerror(pa_context_errno(c)));
+    else
+        g_message("audiod-pipewire: move_sink_input accepted by the server");
 }
 
 void PulseBackend::publishState()

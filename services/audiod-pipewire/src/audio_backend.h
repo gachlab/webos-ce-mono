@@ -59,6 +59,9 @@ struct Output {
     std::string id;
     std::string name;
     bool isDefault = false;
+    // The sink's internal node name (e.g. "to-desktop-scarlett"), kept for
+    // matching the host's configured default; not sent on the bus.
+    std::string rawName;
 };
 
 // The engine's current view of webOS's own stream, pushed to the bus half
