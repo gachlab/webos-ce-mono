@@ -1,0 +1,24 @@
+/* What only the Print Manager card has. The printer list follows the same row
+ * density as the other settings cards; the current-printer check is the shared
+ * Onyx checkmark, padded like the Bluetooth card's. */
+
+.wos-card {
+    --wos-row-min-height: 2.4rem;
+    --wos-row-pad-top: 0.2rem;
+    --wos-row-pad-bottom: 0.2rem;
+    --wos-row-pad-x: 0.7rem;
+}
+
+/* HP's Main.js puts 22px under the toolbar, as the other cards do. */
+.wos-body {
+    padding-top: 1.1rem;
+}
+
+/* checkmark.png is the 32x25 Onyx asset, marking the default printer. */
+.pm-current {
+    flex: none;
+    width: 32px;
+    height: 25px;
+    padding-top: 4px;
+    box-sizing: content-box;
+}
