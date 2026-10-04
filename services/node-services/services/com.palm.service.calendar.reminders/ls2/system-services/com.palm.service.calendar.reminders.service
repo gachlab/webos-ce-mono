@@ -1,0 +1,3 @@
+[D-BUS Service]
+Name=com.palm.service.calendar.reminders
+Exec=/usr/palm/nodejs/node /usr/palm/node-services/services/com.palm.service.calendar.reminders/main.ts
