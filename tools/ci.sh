@@ -55,6 +55,7 @@ libsqlite3-dev libssl-dev libxml2-dev libyajl-dev libicu-dev
 libdb5.3-dev libcurl4-openssl-dev zlib1g-dev
 libboost-filesystem-dev libboost-regex-dev libboost-program-options-dev
 libc-ares-dev liburiparser-dev
+libhunspell-dev hunspell-en-us hunspell-es
 curl xz-utils ca-certificates
 PKGS
 

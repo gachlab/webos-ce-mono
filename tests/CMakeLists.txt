@@ -197,6 +197,18 @@ target_include_directories(zeroconf-records PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/../services/zeroconf-avahi/src")
 add_test(NAME zeroconf-records COMMAND zeroconf-records)
 
+# --- what com.palm.smartKey answers, checked without the bus or a dictionary --
+# smartkey_contract.h is header-only and free of both the Luna bus and hunspell:
+# the keyboard's packed taps/trace decode, the guess ordering the candidate bar
+# reads (typed word first, corrections after, auto-accept only on a misspelling)
+# and the search/learn reply shapes are checked against a fake engine holding a
+# fixed word list, without ls-hubd and without a .dic on disk. The hunspell half
+# is exercised separately. (#34)
+add_executable(smartkey-contract smartkey-contract.cpp)
+target_include_directories(smartkey-contract PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/../services/smartkey-hunspell/src")
+add_test(NAME smartkey-contract COMMAND smartkey-contract)
+
 # --- what is read from BlueZ, and what is asked of it -------------------------
 # The other half: bluez_client.cpp against a fake BlueZ (python-dbusmock's bluez5
 # template) on a private bus, so the host's real adapter is never touched. The
