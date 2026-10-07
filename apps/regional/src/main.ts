@@ -10,6 +10,8 @@
 import { openBus } from "@webos/api/infra/luna/open-bus.ts";
 import { t } from "@webos/api/i18n/translate.ts";
 import { useTranslations } from "@webos/api/i18n/translate.ts";
+import { useLocale } from "@webos/api/i18n/locale.ts";
+import { watchSystemLocale } from "@webos/api/i18n/watch-locale.ts";
 import { html } from "@webos/ui-kit/element.ts";
 import { error as errorLine } from "@webos/ui-kit/kit/kit.ts";
 import { startCard } from "@webos/ui-kit/start-card.ts";
@@ -26,34 +28,40 @@ import type { State } from "@webos/api/helpers/create-state.ts";
 useTranslations(TRANSLATIONS);
 
 const languageList = (data: RegionalData, service: RegionalService) => html`
-    <wos-group title=${t("Language")}>
-        ${data.languages.map((language) => html`
-            <wos-row
-                title=${language.languageName}
-                ?selected=${isCurrentLanguage(language, data.current)}
-                @select=${() => service.chooseLanguage(language.languageCode)}>
-                ${isCurrentLanguage(language, data.current)
-                    ? html`<span slot="lead" class="check" aria-hidden="true"></span>`
-                    : null}
-            </wos-row>`)}
-    </wos-group>`;
+    <div class="wos-group">
+        <div class="wos-group-title">${t("Language")}</div>
+        <div class="wos-list">
+            ${data.languages.map((language) => html`
+                <wos-row
+                    title=${language.languageName}
+                    ?strong=${isCurrentLanguage(language, data.current)}
+                    @select=${() => service.chooseLanguage(language.languageCode)}>
+                    ${isCurrentLanguage(language, data.current)
+                        ? html`<span slot="lead" class="check" aria-hidden="true"></span>`
+                        : null}
+                </wos-row>`)}
+        </div>
+    </div>`;
 
 const countryList = (data: RegionalData, service: RegionalService, languageCode: string) => {
     const language = languageByCode(data.languages, languageCode);
     if (!language)
         return html`${errorLine(t("That language is no longer available."))}`;
     return html`
-        <wos-group title=${language.languageName}>
-            ${language.countries.map((country) => html`
-                <wos-row
-                    title=${country.countryName}
-                    ?selected=${isCurrentCountry(languageCode, country.countryCode, data.current)}
-                    @select=${() => service.chooseCountry(languageCode, country.countryCode)}>
-                    ${isCurrentCountry(languageCode, country.countryCode, data.current)
-                        ? html`<span slot="lead" class="check" aria-hidden="true"></span>`
-                        : null}
-                </wos-row>`)}
-        </wos-group>`;
+        <div class="wos-group">
+            <div class="wos-group-title">${language.languageName}</div>
+            <div class="wos-list">
+                ${language.countries.map((country) => html`
+                    <wos-row
+                        title=${country.countryName}
+                        ?strong=${isCurrentCountry(languageCode, country.countryCode, data.current)}
+                        @select=${() => service.chooseCountry(languageCode, country.countryCode)}>
+                        ${isCurrentCountry(languageCode, country.countryCode, data.current)
+                            ? html`<span slot="lead" class="check" aria-hidden="true"></span>`
+                            : null}
+                    </wos-row>`)}
+            </div>
+        </div>`;
 };
 
 const view = (state: State<RegionalData>, service: RegionalService) => {
@@ -70,11 +78,11 @@ const view = (state: State<RegionalData>, service: RegionalService) => {
             : countryList(data, service, data.screen.languageCode);
 
     return html`
-        <div class="card">
+        <div class="wos-card">
             <wos-header title=${title} ?back=${!onLanguageList} light
                         @back=${() => service.onBack()}>
             </wos-header>
-            <div class="body">
+            <div class="wos-body">
                 ${state.error ? errorLine(t(state.error)) : null}
                 ${data.busy
                     ? html`<wos-spinner label=${t("Changing language...")}></wos-spinner>`
@@ -119,3 +127,16 @@ const service = createRegionalService({
 });
 
 startCard({ service, view });
+
+// Follow the system locale while the card is open, so if the language is
+// changed anywhere -- including by this card -- t() and the date pickers across
+// the kit stay in step without a relaunch. connectCard repaints on the change.
+watchSystemLocale(luna).start();
+
+// Development only: a hook to drive the locale from the console or a probe, to
+// see the hot reload without a running shell. The bundler drops this when
+// WEBOS_CARDS_DEV is false (see open-bus.ts), so it is not in the shipped card.
+declare const WEBOS_CARDS_DEV: boolean | undefined;
+if (typeof WEBOS_CARDS_DEV !== "undefined" && WEBOS_CARDS_DEV) {
+    (globalThis as { __wosDev?: unknown }).__wosDev = { setLocale: useLocale };
+}

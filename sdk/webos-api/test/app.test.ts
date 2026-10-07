@@ -271,4 +271,27 @@ describe("a card follows the system locale", () => {
         });
         assert.equal(currentLocale(), DEFAULT_LOCALE);
     });
+
+    test("the card repaints when the language changes under it (hot reload)", async () => {
+        const { connectCard } = await import("@webos/api/infra/app/connect-card.ts");
+        const { useLocale, currentLocale } = await import("@webos/api/i18n/locale.ts");
+        useLocale("en_US");
+
+        const paints: string[] = [];
+        connectCard({
+            service: nullService() as never,
+            app: fakeApp("en_US") as never,
+            // Record the locale in force at each paint.
+            paint: () => paints.push(currentLocale()),
+        });
+        const afterFirst = paints.length; // the first frame(s)
+
+        // The language changes elsewhere (Regional Settings wrote it, the watch
+        // called useLocale). The card must repaint, now in Spanish.
+        useLocale("es_ES");
+        assert.ok(paints.length > afterFirst, "a locale change repainted the card");
+        assert.equal(paints[paints.length - 1], "es_ES");
+
+        useLocale("en_US");
+    });
 });

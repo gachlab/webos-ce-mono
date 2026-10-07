@@ -28,7 +28,7 @@
 
 import type { AppService, LaunchParams } from "./service.ts";
 import { createPalmSystemApp } from "./palm-system.service.ts";
-import { useLocale } from "../../i18n/locale.ts";
+import { useLocale, onLocaleChange } from "../../i18n/locale.ts";
 import type { State } from "../../helpers/create-state.ts";
 
 // What a card's service has to offer for the card to be connected. Everything
@@ -83,7 +83,16 @@ export const connectCard = <Data, Service extends CardService<Data>>(
     // subscribe -- so the first frame is on the page before ready() is said.
     const stops: Array<() => void> = [];
     if (options.paint) {
-        stops.push(service.onStateChange(options.paint));
+        const paint = options.paint;
+        stops.push(service.onStateChange(paint));
+        // Repaint when the language changes under the card, so t() and the date
+        // pickers -- which read the current locale at render -- are re-read in
+        // the new language without the card being torn down and relaunched.
+        // The state has not changed, so this paints it again as it is; the
+        // locale is ambient (locale.ts), not part of the state. This is the hot
+        // reload: HP relaunched the whole process for a language change because
+        // enyo read the locale once; a card on this kit just repaints.
+        stops.push(onLocaleChange(() => paint(service.getState())));
     }
     stops.push(
         app.on("activated", () => service.onShown?.(app.launchParams())),
