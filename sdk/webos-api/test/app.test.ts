@@ -6,6 +6,7 @@ import { describe, test } from "node:test";
 
 import { createPalmSystemApp } from "@webos/api/infra/app/palm-system.service.ts";
 import { t, useTranslations } from "@webos/api/i18n/translate.ts";
+import { DEFAULT_LOCALE, useLocale } from "@webos/api/i18n/locale.ts";
 
 interface Hooks {
     stageActivated?: () => void;
@@ -172,21 +173,102 @@ describe("the card's life", () => {
 });
 
 describe("what the user reads", () => {
+    // t() reads the table for the locale now in force. The default is en_US,
+    // which has no table, so the key -- English -- is what shows.
     test("the English text is the key, so a missing translation is still English", () => {
+        useLocale("es_ES");
         useTranslations({});
         assert.equal(t("Turn on Wi-Fi"), "Turn on Wi-Fi");
-        useTranslations({ "Turn on Wi-Fi": "Encender el Wi-Fi" });
+        useTranslations({ es: { "Turn on Wi-Fi": "Encender el Wi-Fi" } });
         assert.equal(t("Turn on Wi-Fi"), "Encender el Wi-Fi");
         assert.equal(t("Not translated yet"), "Not translated yet");
         // Not through Object's own: t("constructor") is the word, not a function.
         assert.equal(t("constructor"), "constructor");
         assert.equal(t("toString"), "toString");
+        useLocale(DEFAULT_LOCALE);
+        useTranslations({});
+    });
+
+    test("English stays English even when a Spanish table is loaded", () => {
+        useTranslations({ es: { "Turn on Wi-Fi": "Encender el Wi-Fi" } });
+        useLocale("en_US");
+        assert.equal(t("Turn on Wi-Fi"), "Turn on Wi-Fi");
+        useLocale("es_ES");
+        assert.equal(t("Turn on Wi-Fi"), "Encender el Wi-Fi");
+        useLocale(DEFAULT_LOCALE);
+        useTranslations({});
+    });
+
+    test("a region with no table of its own falls to the language's", () => {
+        useTranslations({ es: { "Country": "País" } });
+        useLocale("es_MX"); // no es_mx table; resolves through "es"
+        assert.equal(t("Country"), "País");
+        useLocale(DEFAULT_LOCALE);
+        useTranslations({});
     });
 
     test("HP's placeholders are filled, and an unknown one is left alone", () => {
-        useTranslations({ "Joining #{name}...": "Uniendo a #{name}..." });
+        useLocale("es_ES");
+        useTranslations({ es: { "Joining #{name}...": "Uniendo a #{name}..." } });
         assert.equal(t("Joining #{name}...", { name: "home" }), "Uniendo a home...");
         assert.equal(t("#{a} and #{b}", { a: "one" }), "one and #{b}");
+        useLocale(DEFAULT_LOCALE);
         useTranslations({});
+    });
+});
+
+
+describe("a card follows the system locale", () => {
+    // A minimal AppService: connectCard only needs locale(), launchParams(),
+    // the lifecycle on()/ready()/close()/dispose() to connect a card. This
+    // stands in for WebAppMgr's.
+    const fakeApp = (locale: string) => ({
+        launchParams: () => ({}),
+        identifier: () => "test",
+        locale: () => locale,
+        ready: () => {},
+        close: () => {},
+        banner: () => {},
+        on: () => () => {},
+        dispose: () => {},
+    });
+
+    const nullService = () => {
+        const state = { name: "x", data: {} };
+        return {
+            getState: () => state,
+            // Like createState: a new subscriber hears the current state at
+            // once, which is what drives the first paint.
+            onStateChange: (listener: (s: typeof state) => void) => {
+                listener(state);
+                return () => {};
+            },
+        };
+    };
+
+    test("connectCard sets the kit's locale from app.locale(), before the first paint", async () => {
+        const { connectCard } = await import("@webos/api/infra/app/connect-card.ts");
+        const { currentLocale } = await import("@webos/api/i18n/locale.ts");
+
+        let localeAtPaint = "";
+        connectCard({
+            service: nullService() as never,
+            app: fakeApp("es_ES") as never,
+            paint: () => { localeAtPaint = currentLocale(); },
+        });
+        // The locale was set from app.locale() verbatim -- and already in force
+        // when the first frame was painted, not after.
+        assert.equal(currentLocale(), "es_ES");
+        assert.equal(localeAtPaint, "es_ES");
+    });
+
+    test("an app with no locale falls back rather than clearing it", async () => {
+        const { connectCard } = await import("@webos/api/infra/app/connect-card.ts");
+        const { currentLocale, DEFAULT_LOCALE } = await import("@webos/api/i18n/locale.ts");
+        connectCard({
+            service: nullService() as never,
+            app: fakeApp("") as never,
+        });
+        assert.equal(currentLocale(), DEFAULT_LOCALE);
     });
 });
