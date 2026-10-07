@@ -60,9 +60,14 @@ const view = (state: State<RegionalData>, service: RegionalService) => {
     const data = state.data;
     const onLanguageList = data.screen.name === "language";
     const title = onLanguageList ? t("Regional Settings") : t("Country");
-    const body = onLanguageList
-        ? languageList(data, service)
-        : countryList(data, service, data.screen.languageCode);
+    // The first read: nothing to choose from yet. Show a spinner rather than an
+    // empty list the user could tap into nothing.
+    const loading = state.name === "regional:loading" && data.languages.length === 0 && !state.error;
+    const body = loading
+        ? html`<wos-spinner label=${t("Loading...")}></wos-spinner>`
+        : onLanguageList
+            ? languageList(data, service)
+            : countryList(data, service, data.screen.languageCode);
 
     return html`
         <div class="card">
@@ -71,12 +76,42 @@ const view = (state: State<RegionalData>, service: RegionalService) => {
             </wos-header>
             <div class="body">
                 ${state.error ? errorLine(t(state.error)) : null}
-                ${data.busy ? html`<wos-spinner label=${t("Changing language...")}></wos-spinner>` : body}
+                ${data.busy
+                    ? html`<wos-spinner label=${t("Changing language...")}></wos-spinner>`
+                    : body}
             </div>
         </div>`;
 };
 
-const luna = openBus();
+const luna = openBus({
+    // Development only: the fake bus answers these so the card shows real data
+    // in a plain browser. tools/build-cards.sh drops this whole branch (and the
+    // fake bus) from the installed card -- see open-bus.ts.
+    "luna://com.palm.systemservice/getPreferenceValues": () => ({
+        returnValue: true,
+        locale: [
+            { languageName: "English", languageCode: "en", countries: [
+                { countryName: "United States", countryCode: "US" },
+                { countryName: "United Kingdom", countryCode: "GB" },
+            ] },
+            { languageName: "Español", languageCode: "es", countries: [
+                { countryName: "España", countryCode: "ES" },
+                { countryName: "México", countryCode: "MX" },
+            ] },
+            { languageName: "Français", languageCode: "fr", countries: [
+                { countryName: "France", countryCode: "FR" },
+            ] },
+            { languageName: "日本語", languageCode: "ja", countries: [
+                { countryName: "日本", countryCode: "JP" },
+            ] },
+        ],
+    }),
+    "luna://com.palm.systemservice/getPreferences": () => ({
+        returnValue: true,
+        locale: { languageCode: "en", countryCode: "US" },
+    }),
+    "luna://com.palm.systemservice/setPreferences": () => ({ returnValue: true }),
+});
 
 const service = createRegionalService({
     system: createSystemService(luna),

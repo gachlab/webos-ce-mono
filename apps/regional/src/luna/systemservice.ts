@@ -61,27 +61,33 @@ const text = (value: unknown): string => (typeof value === "string" ? value : ""
 // --- pure parsers, exported so a test pins them without the bus --------------
 
 // One language entry out of a getPreferenceValues reply, dropping anything that
-// is not shaped like a language (no code, no country list).
-export const languageOf = (raw: Payload): Language | undefined => {
-    const languageCode = text(raw.languageCode);
+// is not shaped like a language (not an object, no code, no country list).
+export const languageOf = (raw: unknown): Language | undefined => {
+    if (!raw || typeof raw !== "object")
+        return undefined;
+    const obj = raw as Payload;
+    const languageCode = text(obj.languageCode);
     if (!languageCode)
         return undefined;
-    const countriesRaw = Array.isArray(raw.countries) ? raw.countries : [];
+    const countriesRaw = Array.isArray(obj.countries) ? obj.countries : [];
     const countries = countriesRaw
-        .map((c) => countryOf(c as Payload))
+        .map((c) => countryOf(c))
         .filter((c): c is Country => c !== undefined);
     return {
         languageCode,
-        languageName: text(raw.languageName) || languageCode,
+        languageName: text(obj.languageName) || languageCode,
         countries,
     };
 };
 
-export const countryOf = (raw: Payload): Country | undefined => {
-    const countryCode = text(raw.countryCode);
+export const countryOf = (raw: unknown): Country | undefined => {
+    if (!raw || typeof raw !== "object")
+        return undefined;
+    const obj = raw as Payload;
+    const countryCode = text(obj.countryCode);
     if (!countryCode)
         return undefined;
-    return { countryCode, countryName: text(raw.countryName) || countryCode };
+    return { countryCode, countryName: text(obj.countryName) || countryCode };
 };
 
 // The locale object out of a getPreferences reply.
@@ -115,7 +121,7 @@ export const createSystemService = (luna: LunaService): SystemServiceClient => {
             const reply = await luna.call(`${base}getPreferenceValues`, { key: "locale" });
             const list = Array.isArray(reply.locale) ? reply.locale : [];
             return list
-                .map((item) => languageOf(item as Payload))
+                .map((item) => languageOf(item))
                 .filter((l): l is Language => l !== undefined);
         },
 
@@ -123,7 +129,7 @@ export const createSystemService = (luna: LunaService): SystemServiceClient => {
             const reply = await luna.call(`${base}getPreferenceValues`, { key: "region" });
             const list = Array.isArray(reply.region) ? reply.region : [];
             return list
-                .map((item) => countryOf(item as Payload))
+                .map((item) => countryOf(item))
                 .filter((c): c is Country => c !== undefined);
         },
 

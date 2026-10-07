@@ -15,6 +15,7 @@ export const TRANSLATIONS: LocaleTranslations = {
         "Regional Settings": "Configuración regional",
         "Language": "Idioma",
         "Country": "País",
+        "Loading...": "Cargando...",
         "Changing language...": "Cambiando el idioma...",
         "That language is no longer available.": "Ese idioma ya no está disponible.",
         "Could not read the available languages.": "No se pudieron leer los idiomas disponibles.",

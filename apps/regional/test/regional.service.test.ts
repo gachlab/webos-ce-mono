@@ -13,7 +13,7 @@ import { describe, test } from "node:test";
 
 import { createFakeLuna, type FakeLuna } from "@webos/api/infra/luna/fake.service.ts";
 import { currentLocale } from "@webos/api/i18n/locale.ts";
-import { createSystemService, localeOf, localeTag,
+import { createSystemService, countryOf, languageOf, localeOf, localeTag,
          type CurrentLocale } from "../src/luna/systemservice.ts";
 import { createRegionalService, isChange, localeFor, needsCountryChoice,
          languageByCode } from "../src/regional.service.ts";
@@ -100,6 +100,25 @@ describe("the pure locale logic", () => {
                          { languageCode: "es", countryCode: "ES" });
         assert.equal(localeOf({ languageCode: "es" }), undefined); // no country
         assert.equal(localeOf("es_ES"), undefined);                // not an object
+    });
+
+    test("a malformed country row does not crash the whole language list", () => {
+        // A null element inside countries used to throw and empty the list.
+        const language = languageOf({
+            languageCode: "es", languageName: "Español",
+            countries: [null, { countryCode: "ES", countryName: "España" }, "junk", {}],
+        });
+        assert.ok(language);
+        assert.equal(language!.countries.length, 1); // only the valid one
+        assert.equal(language!.countries[0]!.countryCode, "ES");
+    });
+
+    test("languageOf and countryOf reject non-objects instead of throwing", () => {
+        assert.equal(languageOf(null), undefined);
+        assert.equal(languageOf("es"), undefined);
+        assert.equal(languageOf({ languageName: "Español" }), undefined); // no code
+        assert.equal(countryOf(null), undefined);
+        assert.equal(countryOf({ countryName: "España" }), undefined);    // no code
     });
 });
 
@@ -197,5 +216,78 @@ describe("missing current locale", () => {
         // compare against.
         assert.equal(isChange({ languageCode: "en", countryCode: "US" }, data.current), true);
         assert.ok(languageByCode(data.languages, "es"));
+    });
+});
+
+
+describe("concurrency and failure", () => {
+    test("two quick taps write once, not twice -- one shell relaunch", async () => {
+        const luna = createFakeLuna();
+        luna.answer(`${SYSTEM}getPreferenceValues`, () => ({ returnValue: true, locale: LANGUAGES }));
+        luna.answer(`${SYSTEM}getPreferences`, () => ({ returnValue: true, locale: CURRENT }));
+        // setPreferences that does not resolve until released, so a second tap
+        // lands while the first is still in flight.
+        let release: (() => void) | undefined;
+        luna.answer(`${SYSTEM}setPreferences`, () => new Promise((resolve) => {
+            release = () => resolve({ returnValue: true });
+        }));
+        const service = createRegionalService({ system: createSystemService(luna) });
+        service.onShown();
+        await settle();
+
+        service.chooseLanguage("ja"); // ja -> JP, one country, applies
+        await settle();
+        service.chooseLanguage("es"); // opens the country drawer
+        await settle();
+        service.chooseCountry("es", "ES"); // a second write while the first hangs
+        await settle();
+
+        release?.();
+        await settle();
+        // Only the first write got through; the second was refused while busy.
+        assert.equal(payloads(luna, `${SYSTEM}setPreferences`).length, 1);
+    });
+
+    test("a second onShown does not fire a second load", async () => {
+        const luna = createFakeLuna();
+        luna.answer(`${SYSTEM}getPreferenceValues`, () => ({ returnValue: true, locale: LANGUAGES }));
+        luna.answer(`${SYSTEM}getPreferences`, () => ({ returnValue: true, locale: CURRENT }));
+        const service = createRegionalService({ system: createSystemService(luna) });
+        service.onShown();
+        service.onShown(); // relaunch, before the first load settled
+        await settle();
+        // One read, not two: the slower of two reads could otherwise win and
+        // show a stale locale.
+        assert.equal(payloads(luna, `${SYSTEM}getPreferences`).length, 1);
+    });
+
+    test("a failed load shows an error, not a crash", async () => {
+        const luna = createFakeLuna();
+        luna.answer(`${SYSTEM}getPreferenceValues`, () => ({ returnValue: false, errorText: "no" }));
+        luna.answer(`${SYSTEM}getPreferences`, () => ({ returnValue: false, errorText: "no" }));
+        const service = createRegionalService({ system: createSystemService(luna) });
+        service.onShown();
+        await settle();
+        const state = service.getState();
+        assert.equal(state.data.languages.length, 0);
+        assert.ok(state.error);
+    });
+
+    test("a failed write returns to the list and shows an error", async () => {
+        const luna = createFakeLuna();
+        luna.answer(`${SYSTEM}getPreferenceValues`, () => ({ returnValue: true, locale: LANGUAGES }));
+        luna.answer(`${SYSTEM}getPreferences`, () => ({ returnValue: true, locale: CURRENT }));
+        luna.answer(`${SYSTEM}setPreferences`, () => ({ returnValue: false, errorText: "nope" }));
+        const service = createRegionalService({ system: createSystemService(luna) });
+        service.onShown();
+        await settle();
+        service.chooseLanguage("es"); // drawer
+        await settle();
+        service.chooseCountry("es", "MX"); // write fails
+        await settle();
+        assert.ok(service.getState().error);
+        // Not stranded on the country screen whose language the view trusts.
+        assert.equal(service.now().name, "language");
+        assert.equal(service.getState().data.busy, false);
     });
 });

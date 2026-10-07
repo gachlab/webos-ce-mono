@@ -125,7 +125,20 @@ export const createRegionalService = (deps: RegionalDeps): RegionalService => {
     // Keep the view's screen in step with the navigation stack.
     nav.onChange(() => state.patch({ screen: nav.now() }));
 
+    // One load at a time, and only one ever: onShown fires on both activated
+    // and relaunched, and two concurrent getPreferences would let the slower
+    // read win and show a stale locale.
+    let loading = false;
+    let loaded = false;
+    // One write at a time: a second tap before setPreferences resolves would
+    // relaunch the shell twice. busy in the state drives the spinner; this
+    // guards the path itself.
+    let applying = false;
+
     const load = async (): Promise<void> => {
+        if (loading || loaded)
+            return;
+        loading = true;
         try {
             const [languages, current] = await Promise.all([
                 deps.system.listLanguages(),
@@ -138,6 +151,7 @@ export const createRegionalService = (deps: RegionalDeps): RegionalService => {
                 name: "regional:ready",
                 data: { languages, ...(current ? { current } : {}), screen: nav.now(), busy: false },
             });
+            loaded = true;
         } catch (error) {
             log(`regional: could not load languages: ${String(error)}`);
             state.set({
@@ -145,16 +159,21 @@ export const createRegionalService = (deps: RegionalDeps): RegionalService => {
                 data: { languages: [], screen: nav.now(), busy: false },
                 error: "Could not read the available languages.",
             });
+        } finally {
+            loading = false;
         }
     };
 
     const apply = async (next: CurrentLocale): Promise<void> => {
+        if (applying)
+            return; // a write is already in flight; ignore the second tap
         const current = state.get().data.current;
         if (!isChange(next, current)) {
             // No change: just go back to the list without touching the system.
             while (nav.back()) { /* pop to the language list */ }
             return;
         }
+        applying = true;
         state.patch({ busy: true }, "regional:applying");
         try {
             await deps.system.setLocale(next);
@@ -165,8 +184,13 @@ export const createRegionalService = (deps: RegionalDeps): RegionalService => {
             while (nav.back()) { /* back to the list */ }
         } catch (error) {
             log(`regional: could not set locale: ${String(error)}`);
+            // Back to the list first, so a failed apply does not strand the
+            // card on a country screen whose language the view still trusts.
+            while (nav.back()) { /* back to the list */ }
             state.patch({ busy: false }, "regional:ready");
             state.set({ ...state.get(), error: "Could not change the language." });
+        } finally {
+            applying = false;
         }
     };
 
