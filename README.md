@@ -25,7 +25,8 @@ And that only gets worse.
 Needs a modern Debian (tested on sid) with Qt 6 -- `qt6-base-dev`,
 `qt6-base-private-dev`, `qt6-declarative-dev`, `qt6-declarative-private-dev`,
 `qt6-webengine-dev`, `qt6-scxml-dev` -- plus the development headers for glib,
-sqlite3, openssl, libxml2 and boost.
+sqlite3, openssl, libxml2 and boost, and `libhunspell-dev` with the
+dictionaries `hunspell-en-us` and `hunspell-es` for the spelling service.
 
 **node is pinned, and ships inside the package.** HP's own `components/nodejs`
 is not built: it needs Python 2 and SCons. The official node LTS is used instead,

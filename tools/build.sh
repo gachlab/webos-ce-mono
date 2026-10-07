@@ -13,7 +13,7 @@
 #   tools/build.sh cmake        # one stage: headers | autotools | cmake |
 #                               # node | powerd | connmgr | bluetooth | storaged |
 #                               # audiod | printmgr | keymanager | stservice |
-#                               # zeroconf | cards | rootfs
+#                               # zeroconf | smartkey | cards | rootfs
 set -u
 R="$(cd "$(dirname "$0")/.." && pwd)"
 STAGE="${1:-all}"
@@ -480,6 +480,29 @@ stage_zeroconf() {
       || { echo "  FAILED (see /tmp/webos/zeroconf-avahi-build.log)"; return 1; }
 }
 
+stage_smartkey() {
+    echo "== smartkey =="
+    # com.palm.smartKey from libhunspell, ours rather than HP's: HP's spelling
+    # and word-completion service shipped only on the device and was never
+    # released, so nothing in the CE drop provides the name. hunspell is the
+    # open-source checker HP itself used, taken from the distribution; its
+    # dictionaries are read from the host at runtime, not vendored. Not a
+    # MANIFEST component, so it gets its own stage, built against staging like
+    # nm-connectionmanager and services/zeroconf-avahi. See ticket #34.
+    export PKG_CONFIG_PATH=$S/lib/pkgconfig:$S/usr/share/pkgconfig:$S/usr/lib/pkgconfig
+    mkdir -p /tmp/webos
+    drop_stale_cache "$R/services/smartkey-hunspell" "$B/smartkey-hunspell"
+    cmake -S "$R/services/smartkey-hunspell" -B "$B/smartkey-hunspell" \
+          -DCMAKE_BUILD_TYPE="$BUILD_TYPE" \
+          -DCMAKE_INSTALL_PREFIX="$WEBOS_PREFIX" \
+          -DCMAKE_INSTALL_RPATH='$ORIGIN/../lib:$ORIGIN/..' \
+          -DCMAKE_EXE_LINKER_FLAGS='-Wl,--disable-new-dtags' > /tmp/webos/smartkey-hunspell-build.log 2>&1 \
+      && cmake --build "$B/smartkey-hunspell" -j"$(nproc)" >> /tmp/webos/smartkey-hunspell-build.log 2>&1 \
+      && DESTDIR="$DESTDIR" cmake --install "$B/smartkey-hunspell" >> /tmp/webos/smartkey-hunspell-build.log 2>&1 \
+      && echo "  smartkey-hunspell            OK" \
+      || { echo "  FAILED (see /tmp/webos/smartkey-hunspell-build.log)"; return 1; }
+}
+
 stage_cards() {
     echo "== cards =="
     # The cards in apps/ and sdk/ui-kit, bundled into build/cards, which
@@ -518,6 +541,7 @@ case "$STAGE" in
     keymanager) stage_keymanager ;;
     stservice) stage_stservice ;;
     zeroconf) stage_zeroconf ;;
+    smartkey) stage_smartkey ;;
     cards) stage_cards ;;
     rootfs) stage_rootfs ;;
     all)   # NOTE the placement: the echoes go INSIDE the if, not loose after
@@ -525,7 +549,7 @@ case "$STAGE" in
             # when a stage had failed.
             if stage_headers && stage_autotools \
                && stage_cmake && stage_node_addons && stage_powerd \
-               && stage_connmgr && stage_bluetooth && stage_storaged && stage_audiod && stage_printmgr && stage_keymanager && stage_stservice && stage_zeroconf && stage_cards && stage_rootfs; then
+               && stage_connmgr && stage_bluetooth && stage_storaged && stage_audiod && stage_printmgr && stage_keymanager && stage_stservice && stage_zeroconf && stage_smartkey && stage_cards && stage_rootfs; then
                 echo
                 echo "Done. To start the shell:  tools/run-lunasysmgr.sh"
             else
@@ -533,5 +557,5 @@ case "$STAGE" in
                 echo "FAILED: a stage did not finish. See the logs in build/." >&2
                 exit 1
             fi ;;
-    *)      echo "unknown stage: $STAGE (headers | autotools | cmake | node | powerd | connmgr | audiod | printmgr | keymanager | stservice | zeroconf | rootfs | all)"; exit 2 ;;
+    *)      echo "unknown stage: $STAGE (headers | autotools | cmake | node | powerd | connmgr | audiod | printmgr | keymanager | stservice | zeroconf | smartkey | rootfs | all)"; exit 2 ;;
 esac
