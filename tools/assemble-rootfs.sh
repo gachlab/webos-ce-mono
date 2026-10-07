@@ -52,6 +52,13 @@ cp -f "$LS"/conf/luna-desktop.conf                "$ROOTFS/etc/palm/luna-platfor
 cp -f "$LS"/conf/lunaAnimations.conf              "$ROOTFS/etc/palm/"
 cp -f "$LS"/conf/notificationPolicy.conf          "$ROOTFS/etc/palm/"
 cp -f "$LS"/conf/defaultPreferences.txt           "$ROOTFS/etc/palm/"
+# locale.txt is the list of languages and their countries that
+# com.palm.systemservice answers getPreferenceValues {key:"locale"} with, and
+# that LocalePrefsHandler validates a setPreferences {locale} against. Without
+# it the handler loads an empty table, so the Language settings card (#19) has
+# nothing to list and no locale can be set. HP shipped it in /etc/palm; it was
+# never copied here, so it is copied now.
+cp -f "$LS"/conf/locale.txt                       "$ROOTFS/etc/palm/"
 cp -f "$LS"/conf/default-exhibition-apps.json     "$ROOTFS/etc/palm/"
 cp -f "$LS"/conf/default-launcher-page-layout.json "$ROOTFS/etc/palm/"
 cp -f "$LS"/conf/default-exhibition-apps.json     "$ROOTFS/usr/lib/luna/customization/"
