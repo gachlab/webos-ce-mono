@@ -92,6 +92,7 @@ libsqlite3-dev libssl-dev libxml2-dev libyajl-dev libicu-dev
 libdb5.3-dev libcurl4-openssl-dev zlib1g-dev
 libboost-filesystem-dev libboost-regex-dev libboost-program-options-dev
 libc-ares-dev liburiparser-dev
+libhunspell-dev
 curl xz-utils ca-certificates
 dpkg-dev fakeroot
 PKGS
@@ -265,10 +266,19 @@ SHLIBDEPS=$(dpkg-shlibdeps -O --ignore-missing-info -l"$ROOT/usr/lib" $BINS 2>/d
 # bubblewrap is run, not linked, so nothing above can find it; without it the
 # launcher cannot start at all. glib-networking is GIO's TLS backend, loaded as
 # a module at run time: without it GTlsCertificate reads nothing and
-# com.palm.certificatemanager lists no certificates. node is not a dependency any more: the package
-# carries the one pinned in tools/node-version, and its own libraries are in
-# SHLIBDEPS through BINS above.
-DEPENDS="bubblewrap, glib-networking${SHLIBDEPS:+, $SHLIBDEPS}"
+# com.palm.certificatemanager lists no certificates. hunspell-en-us is the
+# spelling service's dictionary floor -- com.palm.smartKey falls back to en_US
+# for any locale whose dictionary is absent, so without it the keyboard's
+# suggestions and the browser's spell check answer as an empty dictionary. It is
+# a data file, not a linked library, so dpkg-shlibdeps cannot see it; the same
+# is true of bubblewrap and glib-networking, which is why all three are named
+# here. node is not a dependency any more: the package carries the one pinned in
+# tools/node-version, and its own libraries are in SHLIBDEPS through BINS above.
+DEPENDS="bubblewrap, glib-networking, hunspell-en-us${SHLIBDEPS:+, $SHLIBDEPS}"
+# hunspell-es is only needed for a Spanish locale (#19), so it is recommended,
+# not required: an English install does not pull it, and apt installs it by
+# default where the user has not opted out.
+RECOMMENDS="hunspell-es"
 
 echo "== control =="
 mkdir -p "$PKG/DEBIAN"
@@ -282,6 +292,7 @@ Architecture: amd64
 Maintainer: webos-ce-mono <nobody@localhost>
 Installed-Size: $INSTALLED_KB
 Depends: $DEPENDS
+Recommends: $RECOMMENDS
 Description: HP webOS Community Edition for modern Linux
  The webOS 3.0.5 Community Edition shell, applications and services, built
  against a current Qt 6 and QtWebEngine instead of the Qt 4 and QtWebKit the
