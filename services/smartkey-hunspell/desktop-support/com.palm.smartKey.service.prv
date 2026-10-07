@@ -1,0 +1,4 @@
+[D-BUS Service]
+Name=com.palm.smartKey
+Exec=/usr/sbin/smartkey-hunspell
+Type=static
