@@ -1,0 +1,10 @@
+{
+  "name": "@gachlab/app-regional",
+  "private": true,
+  "description": "The Regional Settings card: the device's language (#19).",
+  "type": "module",
+  "dependencies": {
+    "@webos/api": "*",
+    "@webos/ui-kit": "*"
+  }
+}
